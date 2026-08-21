@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AN POS - نظام نقاط البيع</title>
+    <link rel="icon" type="image/x-icon" href="/an-pos-icon.ico">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      window.onerror = function(msg, src, line, col, err) {
+        document.getElementById('root').innerHTML =
+          '<div style="padding:20px;color:#ff4444;font-family:monospace;direction:rtl;background:#111;min-height:100vh">' +
+          '<h2>خطأ في التطبيق</h2><p>' + msg + '</p>' +
+          (src ? '<p style="font-size:12px;color:#888">File: ' + src + ' Line: ' + line + '</p>' : '') +
+          (err && err.stack ? '<pre style="font-size:11px;color:#aaa;white-space:pre-wrap">' + err.stack + '</pre>' : '') +
+          '</div>';
+      };
+      window.onunhandledrejection = function(e) {
+        document.getElementById('root').innerHTML =
+          '<div style="padding:20px;color:#ff4444;font-family:monospace;direction:rtl;background:#111;min-height:100vh">' +
+          '<h2>خطأ غير متوقع</h2><pre style="font-size:12px;white-space:pre-wrap">' +
+          (e.reason?.stack || e.reason?.message || String(e.reason)) + '</pre></div>';
+      };
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

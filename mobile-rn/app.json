@@ -1,0 +1,23 @@
+{
+  "name": "AnPosMobile",
+  "shortName": "AN POS",
+  "version": "2.0.0",
+  "orientation": "portrait",
+  "primaryColor": "#1976d2",
+  "iconBackground": "#ffffff",
+  "icon": "icon",
+  "facebookAutoInitEnabled": false,
+  "facebookAutoInitEnabledSettingName": "auto_init_facebook",
+  "splash": {
+    "light": true,
+    "dark": true,
+    " image": "splash",
+    "backgroundColor": "#ffffff"
+  },
+  "android": {
+    "adaptiveIcon": {
+      "foreground": "icon_foreground",
+      "background": "icon_background"
+    }
+  }
+}

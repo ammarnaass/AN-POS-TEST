@@ -1,0 +1,2 @@
+apply from: file("../node_modules/react-native-community_cli/config/react-native.gradle")
+apply from: file('../node_modules/react-native/react.gradle')
