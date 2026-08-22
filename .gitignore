@@ -24,6 +24,15 @@ build
 *.apk
 *.aab
 
+# Android build & native artifacts
+**/.cxx
+**/.cxx/
+**/local.properties
+local.properties
+*.bundle
+**/android/app/src/main/assets/index.android.bundle
+**/android/app/src/main/res/drawable-*/node_modules_*
+
 *.local
 
 # Editor directories and files

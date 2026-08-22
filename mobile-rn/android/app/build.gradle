@@ -1,17 +1,19 @@
 apply plugin: "com.android.application"
+apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
 android {
     namespace "com.anpos.mobile"
     compileSdk rootProject.ext.compileSdkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
+    ndkVersion rootProject.ext.ndkVersion
 
     defaultConfig {
         applicationId "com.anpos.mobile"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 200
-        versionName "2.0.0"
+        versionCode 300
+        versionName "3.0.0"
     }
 
     signingConfigs {
@@ -36,7 +38,7 @@ android {
 
     packaging {
         resources {
-            pickFirsts += ['**/libc++_shared.so', '**/libjsc.so']
+            pickFirsts += ['**/libc++_shared.so']
         }
     }
 }

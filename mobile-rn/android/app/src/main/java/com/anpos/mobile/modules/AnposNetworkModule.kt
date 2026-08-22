@@ -2,13 +2,8 @@ package com.anpos.mobile.modules
 
 import com.facebook.react.bridge.*
 import android.content.Context
-import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
-import android.net.NetworkInfo
-import android.content.IntentFilter
 import android.net.ConnectivityManager
-import android.os.Build
-import androidx.annotation.RequiresApi
 import java.net.InetAddress
 import java.net.NetworkInterface
 import java.util.*
@@ -68,7 +63,8 @@ class AnposNetworkModule(reactContext: ReactApplicationContext) : ReactContextBa
     fun getGateway(promise: Promise) {
         try {
             val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager?
-            val ip = wifiManager?.connectionInfo?.gateway ?: 0
+            val dhcpInfo = wifiManager?.dhcpInfo
+            val ip = dhcpInfo?.gateway ?: 0
             val gateway = String.format(
                 "%d.%d.%d.%d",
                 (ip and 0xFF),
@@ -87,7 +83,7 @@ class AnposNetworkModule(reactContext: ReactApplicationContext) : ReactContextBa
         try {
             val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager?
             val ip = wifiManager?.connectionInfo?.ipAddress ?: 0
-            val subnet = (ip and 0xFFFFFF00).let {
+            val subnet = (ip and 0x00FFFFFF).let {
                 String.format(
                     "%d.%d.%d",
                     (it and 0xFF),

@@ -1,3 +1,5 @@
+const path = require('path');
+
 let getDefaultConfig, mergeConfig;
 
 try {
@@ -13,12 +15,31 @@ try {
   }
 }
 
+const assetRegistryPath = path.resolve(__dirname, 'node_modules/@react-native/assets-registry/registry.js');
+
 /**
  * Metro configuration
  * https://reactnative.dev/docs/metro
  *
  * @type {import('metro-config').MetroConfig}
  */
-const config = {};
+const config = {
+  resolver: {
+    extraNodeModules: {
+      'react-native/asset-registry': assetRegistryPath,
+      'asset-registry': assetRegistryPath,
+    },
+    resolveRequest: (context, moduleName, platform) => {
+      if (moduleName === 'react-native/asset-registry' || moduleName === 'asset-registry') {
+        return {
+          filePath: assetRegistryPath,
+          type: 'sourceFile',
+        };
+      }
+      return context.resolveRequest(context, moduleName, platform);
+    },
+  },
+};
 
 module.exports = mergeConfig(getDefaultConfig(__dirname), config);
+

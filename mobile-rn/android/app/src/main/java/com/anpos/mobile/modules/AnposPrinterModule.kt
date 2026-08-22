@@ -46,7 +46,6 @@ class AnposPrinterModule(reactContext: ReactApplicationContext) : ReactContextBa
                     promise.resolve(false)
                     return
                 }
-                // Create RFCOMM socket
                 val uuid = UUID.fromString("0000111B-0000-1000-8000-00805F9B34FB") // SPP UUID
                 val socket = device.createRfcommSocketToServiceRecord(uuid)
                 socket.connect()
@@ -77,17 +76,14 @@ class AnposPrinterModule(reactContext: ReactApplicationContext) : ReactContextBa
             val socket = btSocket ?: run { promise.resolve(false); return }
             val outputStream = socket.outputStream
 
-            // Build ESC/POS command
             val shopName = data.getString("shopName") ?: "AN POS"
             val number = data.getString("number") ?: ""
-            val items = data.getMap("items")
 
             val commands = StringBuilder()
             commands.append("\n").append(shopName).append("\n")
             commands.append("========================\n")
             commands.append(number).append("\n")
 
-            // Write to socket
             outputStream.write(commands.toString().toByteArray())
 
             promise.resolve(true)
@@ -103,10 +99,7 @@ class AnposPrinterModule(reactContext: ReactApplicationContext) : ReactContextBa
             val outputStream = socket.outputStream
 
             val value = data.getString("value") ?: ""
-            // ESC/POS barcode command
-            outputStream.write(0x1D.toByte())
-            outputStream.write(0x64.toByte())
-            outputStream.write(1.toByte()) // 1-D barcode
+            outputStream.write(byteArrayOf(0x1D.toByte(), 0x64.toByte(), 0x01.toByte()))
             outputStream.write(value.toByteArray())
             outputStream.write(0x0A)
 
@@ -121,9 +114,7 @@ class AnposPrinterModule(reactContext: ReactApplicationContext) : ReactContextBa
         try {
             val socket = btSocket ?: run { promise.resolve(false); return }
             val outputStream = socket.outputStream
-            outputStream.write(0x1D.toByte())
-            outputStream.write(0x56.toByte())
-            outputStream.write(0x00.toByte())
+            outputStream.write(byteArrayOf(0x1D.toByte(), 0x56.toByte(), 0x00.toByte()))
             promise.resolve(true)
         } catch (e: Exception) {
             promise.resolve(false)
@@ -135,11 +126,7 @@ class AnposPrinterModule(reactContext: ReactApplicationContext) : ReactContextBa
         try {
             val socket = btSocket ?: run { promise.resolve(false); return }
             val outputStream = socket.outputStream
-            outputStream.write(0x1B.toByte())
-            outputStream.write(0x70.toByte())
-            outputStream.write(0x00.toByte())
-            outputStream.write(0x19.toByte())
-            outputStream.write(0x12C.toByte())
+            outputStream.write(byteArrayOf(0x1B.toByte(), 0x70.toByte(), 0x00.toByte(), 0x19.toByte(), 0xFF.toByte()))
             promise.resolve(true)
         } catch (e: Exception) {
             promise.resolve(false)
