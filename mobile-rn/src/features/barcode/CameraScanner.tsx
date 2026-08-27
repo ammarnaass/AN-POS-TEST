@@ -231,7 +231,10 @@ export const CameraScanner = ({
                 mode === 'single' ? styles.modePillActive : styles.modePillInactive,
               ]}
               activeOpacity={0.8}
-              onPress={() => setMode('single')}
+              onPress={() => {
+                hasScannedSingle.current = false;
+                setMode('single');
+              }}
             >
               <View style={styles.pillIconBox}>
                 <Square size={13} color={mode === 'single' ? '#fff' : '#94a3b8'} />

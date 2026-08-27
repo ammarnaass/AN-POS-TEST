@@ -38,6 +38,9 @@ import {
   Sun,
   Moon,
   Smartphone,
+  Warehouse,
+  ClipboardCheck,
+  History,
 } from 'lucide-react-native';
 import { useAuthStore } from '@/store/authStore';
 import { session } from '@/lib/apiClient';
@@ -358,6 +361,42 @@ export const MoreScreen = ({ navigation }: any) => {
           </View>
           <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>طلبات التوصيل</Text>
           <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>متابعة الديليفري والسائقين</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+          onPress={() => navigation.navigate('Warehouses')}
+          activeOpacity={0.75}
+        >
+          <View style={[styles.hubIconBox, { backgroundColor: colors.primary[100] }]}>
+            <Warehouse size={20} color={colors.primary[700]} />
+          </View>
+          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>المستودعات والتحويل</Text>
+          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>إدارة الفروع ونقاط التخزين</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+          onPress={() => navigation.navigate('InventoryCount')}
+          activeOpacity={0.75}
+        >
+          <View style={[styles.hubIconBox, { backgroundColor: colors.success.light }]}>
+            <ClipboardCheck size={20} color={colors.success.dark} />
+          </View>
+          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>الجرد الفعلي</Text>
+          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>جلسات التدقيق ورصد الفروقات</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+          onPress={() => navigation.navigate('StockMovements')}
+          activeOpacity={0.75}
+        >
+          <View style={[styles.hubIconBox, { backgroundColor: colors.warning.light }]}>
+            <History size={20} color={colors.warning.dark} />
+          </View>
+          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>حركات المخزون</Text>
+          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>سجل الإدخال والإخراج والتحويل</Text>
         </TouchableOpacity>
       </View>
 

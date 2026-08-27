@@ -31,11 +31,14 @@ import SupplierDetailScreen from '@/features/suppliers/SupplierDetailScreen';
 import CashScreen from '@/features/cash/CashScreen';
 import ExpensesScreen from '@/features/expenses/ExpensesScreen';
 
-// Inventory, Products & Categories
+// Inventory, Products, Categories, Warehouses & Auditing
 import ProductFormScreen from '@/features/inventory/ProductFormScreen';
 import CategoriesScreen from '@/features/categories/CategoriesScreen';
 import PromotionsScreen from '@/features/promotions/PromotionsScreen';
 import PacksScreen from '@/features/promotions/PacksScreen';
+import WarehousesScreen from '@/features/inventory/WarehousesScreen';
+import InventoryCountScreen from '@/features/inventory/InventoryCountScreen';
+import StockMovementsScreen from '@/features/inventory/StockMovementsScreen';
 
 // Delivery Orders & Advanced Reports
 import DeliveryOrdersScreen from '@/features/orders/DeliveryOrdersScreen';
@@ -131,11 +134,14 @@ export default function App() {
             <Stack.Screen name="Cash" component={CashScreen} />
             <Stack.Screen name="Expenses" component={ExpensesScreen} />
 
-            {/* Inventory, Products & Categories */}
+            {/* Inventory, Products, Categories, Warehouses & Auditing */}
             <Stack.Screen name="ProductForm" component={ProductFormScreen} />
             <Stack.Screen name="Categories" component={CategoriesScreen} />
             <Stack.Screen name="Promotions" component={PromotionsScreen} />
             <Stack.Screen name="Packs" component={PacksScreen} />
+            <Stack.Screen name="Warehouses" component={WarehousesScreen} />
+            <Stack.Screen name="InventoryCount" component={InventoryCountScreen} />
+            <Stack.Screen name="StockMovements" component={StockMovementsScreen} />
 
             {/* Delivery Orders & Financial Reports */}
             <Stack.Screen name="DeliveryOrders" component={DeliveryOrdersScreen} />

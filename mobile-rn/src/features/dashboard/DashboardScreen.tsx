@@ -155,7 +155,7 @@ export const DashboardScreen = ({ navigation }: any) => {
         [
           {
             text: 'فتح نقطة البيع (POS)',
-            onPress: () => navigation.navigate('POS'),
+            onPress: () => navigation.navigate('POS', { initialCodes: codes }),
           },
           { text: 'إغلاق', style: 'cancel' },
         ]

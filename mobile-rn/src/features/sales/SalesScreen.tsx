@@ -367,17 +367,19 @@ export const SalesScreen = ({ navigation }: any) => {
                       variant={
                         isReturn
                           ? 'danger'
-                          : sale.paymentMethod === 'cash'
+                          : (sale.paymentMethod as string) === 'cash'
                           ? 'success'
+                          : (sale.paymentMethod as string) === 'card'
+                          ? 'primary'
                           : 'warning'
                       }
                       size="sm"
                     >
                       {isReturn
                         ? 'مرتجع'
-                        : sale.paymentMethod === 'cash'
+                        : (sale.paymentMethod as string) === 'cash'
                         ? 'نقدي'
-                        : sale.paymentMethod === 'card'
+                        : (sale.paymentMethod as string) === 'card'
                         ? 'بطاقة CIB'
                         : 'آجل (كريدي)'}
                     </Badge>

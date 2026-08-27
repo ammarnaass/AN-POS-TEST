@@ -18,6 +18,11 @@ import {
   Barcode,
   Edit3,
   ChevronLeft,
+  Warehouse,
+  ClipboardCheck,
+  History,
+  Tag,
+  Layers,
 } from 'lucide-react-native';
 import { db, ensureInit } from '@/lib/db';
 import type { Product, Category } from '@shared/types';
@@ -170,6 +175,58 @@ export const InventoryScreen = ({ navigation }: any) => {
           </Text>
         </View>
       </View>
+
+      {/* Module Shortcuts Strip */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.shortcutsStrip}
+      >
+        <TouchableOpacity
+          style={[styles.shortcutPill, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+          onPress={() => navigation.navigate('Warehouses')}
+          activeOpacity={0.7}
+        >
+          <Warehouse size={15} color={colors.primary[600]} />
+          <Text style={[styles.shortcutText, { color: colors.text.primary }]}>المستودعات</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.shortcutPill, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+          onPress={() => navigation.navigate('InventoryCount')}
+          activeOpacity={0.7}
+        >
+          <ClipboardCheck size={15} color={colors.success.text} />
+          <Text style={[styles.shortcutText, { color: colors.text.primary }]}>الجرد الفعلي</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.shortcutPill, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+          onPress={() => navigation.navigate('StockMovements')}
+          activeOpacity={0.7}
+        >
+          <History size={15} color={colors.warning.text} />
+          <Text style={[styles.shortcutText, { color: colors.text.primary }]}>حركات المخزن</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.shortcutPill, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+          onPress={() => navigation.navigate('Categories')}
+          activeOpacity={0.7}
+        >
+          <Tag size={15} color={colors.primary[500]} />
+          <Text style={[styles.shortcutText, { color: colors.text.primary }]}>الفئات</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.shortcutPill, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+          onPress={() => navigation.navigate('BarcodeLabels')}
+          activeOpacity={0.7}
+        >
+          <Barcode size={15} color={colors.text.secondary} />
+          <Text style={[styles.shortcutText, { color: colors.text.primary }]}>ملصقات باركود</Text>
+        </TouchableOpacity>
+      </ScrollView>
 
       {/* Search Input */}
       <View
@@ -618,6 +675,29 @@ const styles = StyleSheet.create({
   },
   thumbEmoji: {
     fontSize: 22,
+  },
+
+  // Shortcuts Strip
+  shortcutsStrip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    gap: spacing.xs,
+    alignItems: 'center',
+  },
+  shortcutPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    gap: 6,
+    ...shadows.xs,
+  },
+  shortcutText: {
+    fontSize: 12,
+    fontWeight: '700',
+    fontFamily: 'Cairo',
   },
 });
 

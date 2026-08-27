@@ -5,7 +5,7 @@ import { radii, spacing, shadows } from '@/theme/tokens';
 import { Button } from './Button';
 
 export interface EmptyStateProps {
-  icon: React.ReactNode;
+  icon?: React.ReactNode;
   title: string;
   description?: string;
   actionTitle?: string;
@@ -25,17 +25,19 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 
   return (
     <View style={[styles.container, style]}>
-      <View
-        style={[
-          styles.iconCircle,
-          {
-            backgroundColor: colors.primary[50],
-            borderColor: colors.primary[200],
-          },
-        ]}
-      >
-        {icon}
-      </View>
+      {icon ? (
+        <View
+          style={[
+            styles.iconCircle,
+            {
+              backgroundColor: colors.primary[50],
+              borderColor: colors.primary[200],
+            },
+          ]}
+        >
+          {icon}
+        </View>
+      ) : null}
       <Text style={[styles.title, { color: colors.text.primary }]}>{title}</Text>
       {description ? (
         <Text style={[styles.description, { color: colors.text.secondary }]}>{description}</Text>

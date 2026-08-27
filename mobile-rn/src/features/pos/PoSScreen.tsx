@@ -30,6 +30,11 @@ import {
   Banknote,
   FileText,
   AlertTriangle,
+  Layers,
+  UserPlus,
+  Tag,
+  Coins,
+  ShieldAlert,
 } from 'lucide-react-native';
 import { db, ensureInit } from '@/lib/db';
 import { generateId } from '@shared/utils';
@@ -50,31 +55,58 @@ interface CartItem {
   unitPrice: number;
   lineTotal: number;
   promoName?: string;
+  isPack?: boolean;
+  packId?: string;
+  isCustom?: boolean;
 }
 
-export const POSScreen = () => {
+export const POSScreen = ({ route, navigation }: any) => {
   const { user } = useAuthStore();
   const { isDark, colors } = useTheme();
   const styles = makeStyles(colors, isDark);
+
   const [products, setProducts] = useState<Product[]>([]);
   const [filtered, setFiltered] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+  const [packs, setPacks] = useState<any[]>([]);
+  const [promotions, setPromotions] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+
+  // Customer Management
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
+  const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState('');
+  const [newCustomerPhone, setNewCustomerPhone] = useState('');
+  const [newCustomerCreditLimit, setNewCustomerCreditLimit] = useState('');
+
+  // Discount & Tax & Document Type
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [discountType, setDiscountType] = useState<'amount' | 'percent'>('amount');
   const [discountValue, setDiscountValue] = useState('0');
   const [showDiscountModal, setShowDiscountModal] = useState(false);
+  const [selectedDocType, setSelectedDocType] = useState<'facture' | 'bl' | 'devis' | 'proforma'>('facture');
+
+  // Checkout & Payment Details
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const [paidInput, setPaidInput] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'credit' | 'card'>('cash');
+  const [checkoutNote, setCheckoutNote] = useState('');
+
+  // Custom Item Modal
+  const [showCustomItemModal, setShowCustomItemModal] = useState(false);
+  const [customItemName, setCustomItemName] = useState('');
+  const [customItemPrice, setCustomItemPrice] = useState('');
+  const [customItemQty, setCustomItemQty] = useState('1');
+
+  // Barcode Camera Scanner & Modes
   const [showCameraScanner, setShowCameraScanner] = useState(false);
-  const [promotions, setPromotions] = useState<any[]>([]);
   const [quickMode, setQuickMode] = useState(false);
   const [hasOpenSession, setHasOpenSession] = useState(false);
   const [showSuspendedModal, setShowSuspendedModal] = useState(false);
@@ -84,16 +116,30 @@ export const POSScreen = () => {
     loadData();
   }, []);
 
+  // Handle external barcode passed via navigation params
+  useEffect(() => {
+    if (!products.length) return;
+    if (route?.params?.initialCodes && Array.isArray(route.params.initialCodes)) {
+      const codes: string[] = route.params.initialCodes;
+      codes.forEach((code) => {
+        handleBarcodeScan(code, 'multi');
+      });
+    } else if (route?.params?.barcode) {
+      handleBarcodeScan(String(route.params.barcode), 'single');
+    }
+  }, [route?.params, products]);
+
   async function loadData() {
     setLoading(true);
     setError(null);
     try {
       await ensureInit();
-      const [allProducts, allCustomers, allPromotions, allCategories, session] = await Promise.all([
+      const [allProducts, allCustomers, allPromotions, allCategories, allPacks, session] = await Promise.all([
         db.products.toArray(),
         db.customers.toArray(),
-        db.promotions.toArray(),
+        db.promotions.toArray().catch(() => []),
         db.categories.toArray().catch(() => []),
+        db.packs.toArray().catch(() => []),
         getOpenSession(),
       ]);
 
@@ -103,9 +149,11 @@ export const POSScreen = () => {
         name: p.name || p.productName,
         retailPrice: p.retailPrice || p.price || 0,
         wholesalePrice: p.wholesalePrice || 0,
+        wholesaleMinQty: p.wholesaleMinQty || (p as any).wholesale_min_qty || 0,
         quantity: p.quantity || p.qty || 0,
         unit: p.unit || 'قطعة',
         barcode: p.barcode || '',
+        sku: p.sku || '',
         category: p.category || '',
         status: p.status || 'active',
         lowStockThreshold: p.lowStockThreshold || 0,
@@ -123,7 +171,9 @@ export const POSScreen = () => {
           balance: c.balance || 0,
         }))
       );
+      setPromotions(allPromotions);
       setCategories(allCategories);
+      setPacks(allPacks);
       setHasOpenSession(!!session);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'خطأ في جلب البيانات');
@@ -135,28 +185,46 @@ export const POSScreen = () => {
     const now = new Date().toISOString().split('T')[0];
     return promotions.find(
       (p) =>
-        p.productId === productId &&
-        p.active &&
-        p.startDate <= now &&
-        p.endDate >= now
+        (p.productId === productId || (p.product_ids && p.product_ids.includes(productId))) &&
+        (p.active !== 0 && p.status !== 'inactive') &&
+        (p.startDate || p.start_date || '') <= now &&
+        (p.endDate || p.end_date || '9999-12-31') >= now
     );
   };
 
   const addToCart = useCallback(
-    (product: Product) => {
+    (product: Product, customQty = 1) => {
       const promo = findPromotion(product.id);
       setCart((prev) => {
         const existing = prev.find((c) => c.productId === product.id);
-        const newQty = existing ? existing.qty + 1 : 1;
+        const newQty = existing ? existing.qty + customQty : customQty;
+
+        // Check Wholesale Tier Pricing
         let basePrice = product.retailPrice;
-        if (promo) {
-          if (promo.discountType === 'percent') {
-            basePrice = basePrice * (1 - promo.discountValue / 100);
+        let promoTag = '';
+
+        if (
+          product.wholesalePrice &&
+          product.wholesalePrice > 0 &&
+          product.wholesaleMinQty &&
+          product.wholesaleMinQty > 0 &&
+          newQty >= product.wholesaleMinQty
+        ) {
+          basePrice = product.wholesalePrice;
+          promoTag = 'سعر الجملة';
+        } else if (promo) {
+          const discType = promo.discountType || promo.discount_type || promo.type;
+          const discVal = promo.discountValue || promo.discount_value || promo.value || 0;
+          if (discType === 'percent' || discType === 'percentage') {
+            basePrice = basePrice * (1 - discVal / 100);
           } else {
-            basePrice = Math.max(0, basePrice - promo.discountValue);
+            basePrice = Math.max(0, basePrice - discVal);
           }
+          promoTag = promo.name || 'عرض ترويجي';
         }
+
         if (promo?.maxQuantity && newQty > promo.maxQuantity) return prev;
+
         if (existing) {
           return prev.map((c) =>
             c.productId === product.id
@@ -165,6 +233,7 @@ export const POSScreen = () => {
                   qty: newQty,
                   unitPrice: basePrice,
                   lineTotal: basePrice * newQty,
+                  promoName: promoTag,
                 }
               : c
           );
@@ -174,10 +243,10 @@ export const POSScreen = () => {
           {
             productId: product.id,
             name: product.name,
-            qty: 1,
+            qty: customQty,
             unitPrice: basePrice,
-            lineTotal: basePrice,
-            promoName: promo?.name || '',
+            lineTotal: basePrice * customQty,
+            promoName: promoTag,
           },
         ];
       });
@@ -185,8 +254,79 @@ export const POSScreen = () => {
     [products, promotions]
   );
 
-  const handleBarcodeScan = async (code: string) => {
-    setShowCameraScanner(false);
+  const addPackToCart = (pack: any) => {
+    const packId = pack.id;
+    setCart((prev) => {
+      const existing = prev.find((c) => c.productId === packId);
+      const newQty = existing ? existing.qty + 1 : 1;
+      const price = pack.packPrice || (pack as any).pack_price || 0;
+
+      if (existing) {
+        return prev.map((c) =>
+          c.productId === packId
+            ? {
+                ...c,
+                qty: newQty,
+                lineTotal: price * newQty,
+              }
+            : c
+        );
+      }
+
+      return [
+        ...prev,
+        {
+          productId: packId,
+          name: `📦 ${pack.name}`,
+          qty: 1,
+          unitPrice: price,
+          lineTotal: price,
+          isPack: true,
+          packId: pack.id,
+          promoName: 'باقة مجمعة',
+        },
+      ];
+    });
+  };
+
+  const handleAddCustomItem = () => {
+    const name = customItemName.trim();
+    const price = parseFloat(customItemPrice) || 0;
+    const qty = parseFloat(customItemQty) || 1;
+
+    if (!name) {
+      Alert.alert('تنبيه', 'يرجى إدخال اسم البند المخصص');
+      return;
+    }
+    if (price <= 0) {
+      Alert.alert('تنبيه', 'يرجى إدخال سعر صحيح أكبر من الصفر');
+      return;
+    }
+
+    const customId = `custom_${generateId()}`;
+    setCart((prev) => [
+      ...prev,
+      {
+        productId: customId,
+        name: `⭐ ${name}`,
+        qty,
+        unitPrice: price,
+        lineTotal: price * qty,
+        isCustom: true,
+        promoName: 'بند حر',
+      },
+    ]);
+
+    setCustomItemName('');
+    setCustomItemPrice('');
+    setCustomItemQty('1');
+    setShowCustomItemModal(false);
+  };
+
+  const handleBarcodeScan = async (code: string, mode: 'single' | 'multi' = 'single') => {
+    if (mode === 'single') {
+      setShowCameraScanner(false);
+    }
 
     const normalized = code.trim().toLowerCase();
 
@@ -202,43 +342,72 @@ export const POSScreen = () => {
       );
     }
 
-    // 3️⃣ Search in product_barcodes table (secondary barcodes)
+    // 3️⃣ Search in product_barcodes table (secondary/variant/batch barcodes)
     if (!found) {
       try {
         const rows = await db.productBarcodes.where('barcode').equals(code).toArray();
-        if (!rows.length) {
-          // Also try case-insensitive fallback
-          const allRows = await db.productBarcodes.toArray();
-          const row = allRows.find((r: any) => (r.barcode ?? '').toLowerCase() === normalized);
-          if (row) {
-            found = products.find((p) => p.id === row.product_id);
-          }
-        } else {
-          found = products.find((p) => p.id === rows[0]?.product_id);
+        if (rows && rows.length > 0) {
+          found = products.find((p) => p.id === rows[0]?.product_id || rows[0]?.productId);
         }
-      } catch { /* product_barcodes may not exist in old installs */ }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    // 4️⃣ Search in packs table (bundles)
+    if (!found) {
+      const foundPack = packs.find(
+        (pk) => (pk.barcode ?? '').toLowerCase() === normalized
+      );
+      if (foundPack) {
+        addPackToCart(foundPack);
+        return;
+      }
     }
 
     if (found) {
       addToCart(found);
     } else {
-      Alert.alert(
-        '🔍 لم يتم العثور على المنتج',
-        `الباركود: ${code}\n\nتأكد من أن المنتج مُضاف في المخزون وأن الباركود مُسجَّل بشكل صحيح.`,
-        [{ text: 'حسناً' }]
-      );
+      if (mode === 'single') {
+        Alert.alert(
+          '🔍 لم يتم العثور على المنتج',
+          `الباركود: ${code}\n\nتأكد من أن المنتج مُضاف في المخزون أو مسجل كباركود إضافي.`,
+          [{ text: 'حسناً' }]
+        );
+      }
     }
   };
 
-
   const updateQty = (productId: string, delta: number) => {
+    const prod = products.find((p) => p.id === productId);
     setCart((prev) =>
       prev
         .map((c) => {
           if (c.productId !== productId) return c;
           const newQty = c.qty + delta;
           if (newQty <= 0) return null;
-          return { ...c, qty: newQty, lineTotal: c.unitPrice * newQty };
+
+          let unitPrice = c.unitPrice;
+          let promoName = c.promoName;
+
+          // Re-evaluate wholesale tier on quantity change
+          if (
+            prod &&
+            prod.wholesalePrice &&
+            prod.wholesalePrice > 0 &&
+            prod.wholesaleMinQty &&
+            prod.wholesaleMinQty > 0
+          ) {
+            if (newQty >= prod.wholesaleMinQty) {
+              unitPrice = prod.wholesalePrice;
+              promoName = 'سعر الجملة';
+            } else {
+              unitPrice = prod.retailPrice;
+              promoName = '';
+            }
+          }
+
+          return { ...c, qty: newQty, unitPrice, lineTotal: unitPrice * newQty, promoName };
         })
         .filter(Boolean) as CartItem[]
     );
@@ -254,11 +423,12 @@ export const POSScreen = () => {
       result = result.filter(
         (p) =>
           p.name?.toLowerCase().includes(term) ||
-          (p.barcode ?? '').toLowerCase().includes(term)
+          (p.barcode ?? '').toLowerCase().includes(term) ||
+          (p.sku ?? '').toLowerCase().includes(term)
       );
     }
     if (selectedCategory) {
-      result = result.filter((p) => p.category === selectedCategory);
+      result = result.filter((p) => (p as any).category_id === selectedCategory || p.category === selectedCategory);
     }
     setFiltered(result);
   };
@@ -276,6 +446,11 @@ export const POSScreen = () => {
   const tax = afterDiscount * 0.19;
   const total = afterDiscount + tax;
 
+  // Calculated Payment Change & Balance
+  const numPaid = parseFloat(paidInput) || 0;
+  const changeDue = Math.max(0, numPaid - total);
+  const remainingDebt = Math.max(0, total - numPaid);
+
   const handleSuspend = async () => {
     if (cart.length === 0) return;
     await suspendOrder(
@@ -289,7 +464,7 @@ export const POSScreen = () => {
     setSelectedCustomer(null);
     setDiscountValue('0');
     setSearch('');
-    Alert.alert('تم', 'تم تعليق الطلب في قائمة الانتظار بنجاح');
+    Alert.alert('تم بنجاح ✓', 'تم تعليق الطلب في قائمة الانتظار بنجاح');
   };
 
   const loadSuspended = async () => {
@@ -298,11 +473,16 @@ export const POSScreen = () => {
     setShowSuspendedModal(true);
   };
 
-  const resumeOrder = (order: SuspendedOrder) => {
+  const resumeOrder = async (order: SuspendedOrder) => {
     setCart(parseSuspendedItems(order));
     if (order.customerId) {
       const c = customers.find((x) => x.id === order.customerId);
       if (c) setSelectedCustomer(c);
+    }
+    try {
+      await db.suspendedOrders.delete(order.id);
+    } catch {
+      /* ignore */
     }
     setShowSuspendedModal(false);
   };
@@ -313,10 +493,55 @@ export const POSScreen = () => {
       Alert.alert('تنبيه', 'يجب فتح الصندوق وبدء مناوبة أولاً قبل إجراء أي مبيعات');
       return;
     }
+    setPaidInput(total.toFixed(0));
+    setPaymentMethod('cash');
     setShowCheckoutModal(true);
   };
 
-  const handlePaymentConfirm = async (method: 'cash' | 'credit' | 'card') => {
+  const handleQuickCreateCustomer = async () => {
+    const name = newCustomerName.trim();
+    if (!name) {
+      Alert.alert('تنبيه', 'يرجى إدخال اسم الزبون');
+      return;
+    }
+
+    const newId = generateId();
+    const newCust: Customer = {
+      id: newId,
+      name,
+      phone: newCustomerPhone.trim(),
+      creditLimit: parseFloat(newCustomerCreditLimit) || 0,
+      balance: 0,
+      createdAt: new Date().toISOString(),
+    };
+
+    try {
+      await ensureInit();
+      await db.customers.add({
+        id: newId,
+        name: newCust.name,
+        phone: newCust.phone,
+        credit_limit: newCust.creditLimit,
+        creditLimit: newCust.creditLimit,
+        balance: 0,
+        created_at: newCust.createdAt,
+        updated_at: newCust.createdAt,
+      });
+
+      setCustomers((prev) => [...prev, newCust]);
+      setSelectedCustomer(newCust);
+      setShowNewCustomerModal(false);
+      setShowCustomerPicker(false);
+      setNewCustomerName('');
+      setNewCustomerPhone('');
+      setNewCustomerCreditLimit('');
+      Alert.alert('✓ تم الحفظ', `تمت إضافة الزبون ${name} واختياره للفاتورة`);
+    } catch (e) {
+      Alert.alert('خطأ', 'فشل حفظ الزبون الجديد');
+    }
+  };
+
+  const handlePaymentConfirm = async () => {
     setCheckoutLoading(true);
     try {
       await ensureInit();
@@ -324,12 +549,83 @@ export const POSScreen = () => {
       const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
       const saleId = generateId();
 
+      const enteredPaid = parseFloat(paidInput) || 0;
+      let finalMethod = paymentMethod;
+      let effectivePaid = 0;
+      let effectiveStatus: 'paid' | 'partial' | 'unpaid' = 'paid';
+      let debtToAdd = 0;
+
+      if (paymentMethod === 'cash') {
+        effectivePaid = Math.min(enteredPaid, total);
+        if (effectivePaid >= total) {
+          effectiveStatus = 'paid';
+          debtToAdd = 0;
+        } else {
+          // Partial cash payment -> remainder is credit
+          if (!selectedCustomer) {
+            Alert.alert('تنبيه', 'يرجى تحديد الزبون لتسجيل المبلغ المتبقي كدين (كريدي)');
+            setCheckoutLoading(false);
+            return;
+          }
+          effectiveStatus = effectivePaid > 0 ? 'partial' : 'unpaid';
+          debtToAdd = total - effectivePaid;
+        }
+      } else if (paymentMethod === 'card') {
+        effectivePaid = total;
+        effectiveStatus = 'paid';
+        debtToAdd = 0;
+      } else if (paymentMethod === 'credit') {
+        if (!selectedCustomer) {
+          Alert.alert('تنبيه', 'لا يمكن البيع بالكريدي (آجل) لزبون عام غير مسجل. يرجى اختيار زبون.');
+          setCheckoutLoading(false);
+          return;
+        }
+        effectivePaid = Math.min(enteredPaid, total);
+        effectiveStatus = effectivePaid >= total ? 'paid' : effectivePaid > 0 ? 'partial' : 'unpaid';
+        debtToAdd = total - effectivePaid;
+      }
+
+      // Check Customer Credit Limit
+      if (debtToAdd > 0 && selectedCustomer) {
+        const custLimit = selectedCustomer.creditLimit || 0;
+        const currentBal = selectedCustomer.balance || 0;
+        if (custLimit > 0 && currentBal + debtToAdd > custLimit) {
+          Alert.alert(
+            '⚠️ تجاوز حد الائتمان',
+            `رصيد دين الزبون بعد هذه العملية (${(currentBal + debtToAdd).toLocaleString('ar-DZ')} دج) سيتجاوز الحد الائتماني المسموح به (${custLimit.toLocaleString('ar-DZ')} دج).\n\nهل ترغب في المتابعة رغم ذلك؟`,
+            [
+              { text: 'إلغاء', style: 'cancel', onPress: () => setCheckoutLoading(false) },
+              { text: 'متابعة وتأكيد', style: 'destructive', onPress: () => executeSaleTransaction(saleId, invoiceNumber, nowIso, finalMethod, effectivePaid, effectiveStatus, debtToAdd) },
+            ]
+          );
+          return;
+        }
+      }
+
+      await executeSaleTransaction(saleId, invoiceNumber, nowIso, finalMethod, effectivePaid, effectiveStatus, debtToAdd);
+    } catch (err) {
+      Alert.alert('خطأ', `فشل حفظ الفاتورة: ${err instanceof Error ? err.message : 'خطأ غير معروف'}`);
+      setCheckoutLoading(false);
+    }
+  };
+
+  const executeSaleTransaction = async (
+    saleId: string,
+    invoiceNumber: string,
+    nowIso: string,
+    finalMethod: string,
+    effectivePaid: number,
+    effectiveStatus: 'paid' | 'partial' | 'unpaid',
+    debtToAdd: number
+  ) => {
+    try {
       // 1. Create main Sale record
       await db.sales.add({
         id: saleId,
         number: invoiceNumber,
         date: nowIso,
-        docType: 'facture',
+        docType: selectedDocType,
+        doc_type: selectedDocType,
         type: 'sale',
         items: cart.map((c) => ({
           productId: c.productId,
@@ -337,24 +633,36 @@ export const POSScreen = () => {
           qty: c.qty,
           unitPrice: c.unitPrice,
           lineTotal: c.lineTotal,
+          promoName: c.promoName,
+          isPack: c.isPack,
+          packId: c.packId,
+          isCustom: c.isCustom,
         })),
         subtotal,
         discount,
         discountType,
+        discount_type: discountType,
         tvaAmount: tax,
+        tva_amount: tax,
         total,
-        paymentMethod: method,
+        paymentMethod: finalMethod,
+        payment_method: finalMethod,
         customerId: selectedCustomer?.id || '',
+        customer_id: selectedCustomer?.id || '',
         customerName: selectedCustomer?.name || 'زبون عام',
-        amountPaid: method === 'cash' || method === 'card' ? total : 0,
-        status: method === 'cash' || method === 'card' ? 'paid' : 'unpaid',
-        soldBy: user?.id || '',
+        customer_name: selectedCustomer?.name || 'زبون عام',
+        amountPaid: effectivePaid,
+        amount_paid: effectivePaid,
+        status: effectiveStatus,
+        soldBy: user?.name || user?.username || 'الكاشير',
+        sold_by: user?.name || user?.username || 'الكاشير',
         cash_session_id: (await getOpenSession())?.id || '',
+        note: checkoutNote.trim(),
         created_at: nowIso,
         updated_at: nowIso,
       });
 
-      // 2. Insert individual sale_items and deduct stock & log movements
+      // 2. Insert individual sale_items and deduct stock for products / pack items
       for (const item of cart) {
         // 2a. Add to sale_items table
         try {
@@ -373,49 +681,99 @@ export const POSScreen = () => {
           console.warn('[PoS] Failed to insert sale_item:', e);
         }
 
-        // 2b. Deduct stock from products table
-        try {
-          const prod = await db.products.get(item.productId);
-          if (prod) {
-            const currentQty = Number(prod.quantity || (prod as any).qty || 0);
-            const newQty = Math.max(0, currentQty - item.qty);
-            await db.products.update(item.productId, {
-              quantity: newQty,
-              updated_at: nowIso,
-            });
+        // 2b. Stock Deduction & Movements
+        if (item.isPack && item.packId) {
+          // It's a pack -> deduct stock for sub-products
+          const packData = packs.find((pk) => pk.id === item.packId);
+          if (packData && packData.items) {
+            const rawSubItems: any[] = typeof packData.items === 'string' ? JSON.parse(packData.items) : packData.items;
+            for (const sub of rawSubItems) {
+              const subProdId = sub.productId || sub.product_id;
+              const subTotalQty = (Number(sub.qty || 1)) * item.qty;
+              try {
+                const p = await db.products.get(subProdId);
+                if (p) {
+                  const currentQty = Number(p.quantity || (p as any).qty || 0);
+                  await db.products.update(subProdId, {
+                    quantity: Math.max(0, currentQty - subTotalQty),
+                    updated_at: nowIso,
+                  });
+                  await db.stockMovements.add({
+                    id: generateId(),
+                    date: nowIso,
+                    type: 'out',
+                    product_id: subProdId,
+                    qty: subTotalQty,
+                    reason: `مبيعات باقة (${packData.name}) - فاتورة ${invoiceNumber}`,
+                    reference_id: saleId,
+                    created_by: user?.name || user?.username || '',
+                    created_at: nowIso,
+                    updated_at: nowIso,
+                  });
+                }
+              } catch (err) {
+                console.warn('[PoS] Failed pack sub-item stock deduction:', err);
+              }
+            }
           }
-        } catch (e) {
-          console.warn('[PoS] Failed to update product quantity:', e);
-        }
+        } else if (!item.isCustom) {
+          // Standard single product
+          try {
+            const prod = await db.products.get(item.productId);
+            if (prod) {
+              const currentQty = Number(prod.quantity || (prod as any).qty || 0);
+              const newQty = Math.max(0, currentQty - item.qty);
+              await db.products.update(item.productId, {
+                quantity: newQty,
+                updated_at: nowIso,
+              });
 
-        // 2c. Log stock movement
-        try {
-          await db.stockMovements.add({
-            id: generateId(),
-            date: nowIso,
-            type: 'out',
-            product_id: item.productId,
-            qty: item.qty,
-            reason: `مبيعات فاتورة ${invoiceNumber}`,
-            reference_id: saleId,
-            created_by: user?.name || user?.username || '',
-            created_at: nowIso,
-            updated_at: nowIso,
-          });
-        } catch (e) {
-          console.warn('[PoS] Failed to add stock_movement:', e);
+              await db.stockMovements.add({
+                id: generateId(),
+                date: nowIso,
+                type: 'out',
+                product_id: item.productId,
+                qty: item.qty,
+                reason: `مبيعات فاتورة ${invoiceNumber}`,
+                reference_id: saleId,
+                created_by: user?.name || user?.username || '',
+                created_at: nowIso,
+                updated_at: nowIso,
+              });
+            }
+          } catch (e) {
+            console.warn('[PoS] Failed to update product quantity:', e);
+          }
         }
       }
 
-      // 3. Update customer balance if credit sale
-      if (method === 'credit' && selectedCustomer?.id) {
+      // 3. Update customer balance & record payment
+      if (selectedCustomer?.id) {
         try {
           const cust = await db.customers.get(selectedCustomer.id);
           if (cust) {
             const currentBal = Number(cust.balance || 0);
+            const newBal = currentBal + debtToAdd;
             await db.customers.update(selectedCustomer.id, {
-              balance: currentBal + total,
+              balance: newBal,
               updated_at: nowIso,
+            });
+          }
+
+          // Record payment if paid portion > 0
+          if (effectivePaid > 0) {
+            await db.payments.add({
+              id: generateId(),
+              date: nowIso,
+              party_type: 'customer',
+              party_id: selectedCustomer.id,
+              customer_id: selectedCustomer.id,
+              amount: effectivePaid,
+              type: 'credit',
+              method: finalMethod,
+              note: `سداد فوري لفاتورة ${invoiceNumber}`,
+              created_by: user?.name || user?.username || '',
+              created_at: nowIso,
             });
           }
         } catch (e) {
@@ -424,10 +782,10 @@ export const POSScreen = () => {
       }
 
       // 4. Update cash session
-      if (method === 'cash' && hasOpenSession) {
+      if (finalMethod === 'cash' && effectivePaid > 0 && hasOpenSession) {
         try {
           const s = await getOpenSession();
-          if (s) await addToSessionSales(s.id, total);
+          if (s) await addToSessionSales(s.id, effectivePaid);
         } catch {}
       }
 
@@ -445,7 +803,7 @@ export const POSScreen = () => {
         discount,
         tvaAmount: tax,
         total,
-        paymentMethod: method,
+        paymentMethod: finalMethod,
         customerName: selectedCustomer?.name || '',
         soldBy: user?.name || '',
       };
@@ -454,11 +812,12 @@ export const POSScreen = () => {
       if (!printed) await printInvoice(invoiceData);
 
       setShowCheckoutModal(false);
-      Alert.alert('تم بنجاح ✓', `تم إصدار الفاتورة رقم ${invoiceNumber}`);
+      Alert.alert('تم بنجاح ✓', `تم إصدار الفاتورة رقم ${invoiceNumber}${changeDue > 0 ? `\n\nالصرف المرجع للزبون: ${changeDue.toLocaleString('ar-DZ')} دج` : ''}`);
       setCart([]);
       setSelectedCustomer(null);
       setDiscountValue('0');
       setSearch('');
+      setCheckoutNote('');
       loadData();
     } catch (err) {
       Alert.alert('خطأ', `فشل حفظ الفاتورة: ${err instanceof Error ? err.message : 'خطأ غير معروف'}`);
@@ -475,31 +834,31 @@ export const POSScreen = () => {
 
   if (loading) {
     return (
-      <View style={styles.center}>
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary[600]} />
-        <Text style={styles.loadingText}>جاري تحميل قائمة المنتجات...</Text>
+        <Text style={[styles.loadingText, { color: colors.text.secondary }]}>جاري تحميل قائمة المنتجات...</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Session Alert Warning Banner */}
       {!hasOpenSession && (
-        <View style={styles.sessionWarningBanner}>
+        <View style={[styles.sessionWarningBanner, { backgroundColor: colors.warning.light, borderBottomColor: colors.warning.border }]}>
           <AlertTriangle size={16} color={colors.warning.dark} />
-          <Text style={styles.sessionWarningText}>
-            الصندوق مقفل — يرجى فتح مناوبة لحساب المبيعات النقدية
+          <Text style={[styles.sessionWarningText, { color: colors.warning.text }]}>
+            الصندوق مقفل — يرجى فتح مناوبة لحساب المبيعات النقدية بدقة
           </Text>
         </View>
       )}
 
       {/* Top Search & Toolbar */}
-      <View style={styles.toolbar}>
-        <View style={styles.searchBox}>
+      <View style={[styles.toolbar, { backgroundColor: colors.surface, borderBottomColor: colors.border.default }]}>
+        <View style={[styles.searchBox, { backgroundColor: isDark ? colors.surfaceSubtle : staticColors.slate[100] }]}>
           <Search size={18} color={colors.slate[400]} style={styles.searchIcon} />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: colors.text.primary }]}
             placeholder="ابحث بالاسم أو امسح الباركود..."
             value={search}
             onChangeText={setSearch}
@@ -513,7 +872,7 @@ export const POSScreen = () => {
           ) : null}
           <TouchableOpacity
             onPress={() => setShowCameraScanner(true)}
-            style={styles.scanBtn}
+            style={[styles.scanBtn, { backgroundColor: colors.primary[50] }]}
             activeOpacity={0.7}
           >
             <Camera size={18} color={colors.primary[600]} />
@@ -521,7 +880,16 @@ export const POSScreen = () => {
         </View>
 
         <TouchableOpacity
-          style={[styles.quickToggleBtn, quickMode && styles.quickToggleActive]}
+          style={[styles.customItemBtn, { backgroundColor: colors.emerald[50], borderColor: colors.emerald[200] }]}
+          onPress={() => setShowCustomItemModal(true)}
+          activeOpacity={0.7}
+        >
+          <Plus size={16} color={colors.emerald[700]} />
+          <Text style={[styles.customItemBtnText, { color: colors.emerald[700] }]}>بند حر</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.quickToggleBtn, quickMode && { backgroundColor: colors.primary[600] }]}
           onPress={() => setQuickMode(!quickMode)}
           activeOpacity={0.7}
         >
@@ -530,9 +898,9 @@ export const POSScreen = () => {
       </View>
 
       {/* Customer & Discount Controls Bar */}
-      <View style={styles.controlsBar}>
+      <View style={[styles.controlsBar, { backgroundColor: colors.surface, borderBottomColor: colors.border.subtle }]}>
         <TouchableOpacity
-          style={[styles.controlPill, selectedCustomer && styles.controlPillActive]}
+          style={[styles.controlPill, selectedCustomer && { backgroundColor: colors.primary[50], borderColor: colors.primary[300] }]}
           onPress={() => setShowCustomerPicker(true)}
           activeOpacity={0.7}
         >
@@ -543,7 +911,7 @@ export const POSScreen = () => {
           <Text
             style={[
               styles.controlPillText,
-              selectedCustomer && styles.controlPillTextActive,
+              { color: selectedCustomer ? colors.primary[700] : colors.text.secondary },
             ]}
             numberOfLines={1}
           >
@@ -554,8 +922,7 @@ export const POSScreen = () => {
         <TouchableOpacity
           style={[
             styles.controlPill,
-            styles.discountPill,
-            parseFloat(discountValue) > 0 && styles.discountPillActive,
+            parseFloat(discountValue) > 0 && { backgroundColor: colors.warning.light, borderColor: colors.warning.border },
           ]}
           onPress={() => setShowDiscountModal(true)}
           activeOpacity={0.7}
@@ -569,7 +936,7 @@ export const POSScreen = () => {
           <Text
             style={[
               styles.controlPillText,
-              parseFloat(discountValue) > 0 && styles.discountPillTextActive,
+              { color: parseFloat(discountValue) > 0 ? colors.warning.text : colors.text.secondary },
             ]}
           >
             {parseFloat(discountValue) > 0
@@ -579,12 +946,12 @@ export const POSScreen = () => {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.controlPill}
+          style={[styles.controlPill, { backgroundColor: colors.surfaceSubtle }]}
           onPress={loadSuspended}
           activeOpacity={0.7}
         >
           <Clock size={14} color={colors.slate[500]} />
-          <Text style={styles.controlPillText}>معلقة</Text>
+          <Text style={[styles.controlPillText, { color: colors.text.secondary }]}>معلقة ({suspendedOrders.length})</Text>
         </TouchableOpacity>
       </View>
 
@@ -599,7 +966,9 @@ export const POSScreen = () => {
             <TouchableOpacity
               style={[
                 styles.categoryChip,
-                !selectedCategory && styles.categoryChipActive,
+                !selectedCategory
+                  ? { backgroundColor: colors.primary[600], borderColor: colors.primary[600] }
+                  : { backgroundColor: colors.surface, borderColor: colors.border.default },
               ]}
               onPress={() => setSelectedCategory(null)}
               activeOpacity={0.7}
@@ -607,7 +976,7 @@ export const POSScreen = () => {
               <Text
                 style={[
                   styles.categoryChipText,
-                  !selectedCategory && styles.categoryChipTextActive,
+                  !selectedCategory ? { color: '#ffffff' } : { color: colors.text.secondary },
                 ]}
               >
                 الكل ({products.length})
@@ -615,7 +984,7 @@ export const POSScreen = () => {
             </TouchableOpacity>
 
             {categories.map((cat) => {
-              const count = products.filter((p) => p.category === cat.id).length;
+              const count = products.filter((p) => (p as any).category_id === cat.id || p.category === cat.id || p.category === cat.name).length;
               const isSelected = selectedCategory === cat.id;
 
               return (
@@ -623,7 +992,9 @@ export const POSScreen = () => {
                   key={cat.id}
                   style={[
                     styles.categoryChip,
-                    isSelected && styles.categoryChipActive,
+                    isSelected
+                      ? { backgroundColor: colors.primary[600], borderColor: colors.primary[600] }
+                      : { backgroundColor: colors.surface, borderColor: colors.border.default },
                   ]}
                   onPress={() =>
                     setSelectedCategory(isSelected ? null : cat.id)
@@ -633,7 +1004,7 @@ export const POSScreen = () => {
                   <Text
                     style={[
                       styles.categoryChipText,
-                      isSelected && styles.categoryChipTextActive,
+                      isSelected ? { color: '#ffffff' } : { color: colors.text.secondary },
                     ]}
                   >
                     {cat.name} {count > 0 ? `(${count})` : ''}
@@ -662,6 +1033,7 @@ export const POSScreen = () => {
             {filtered.map((product) => {
               const promo = findPromotion(product.id);
               const inCartItem = cart.find((c) => c.productId === product.id);
+              const hasWholesale = product.wholesalePrice && product.wholesalePrice > 0;
 
               return (
                 <TouchableOpacity
@@ -669,23 +1041,26 @@ export const POSScreen = () => {
                   activeOpacity={0.75}
                   style={[
                     styles.productCard,
-                    quickMode ? styles.productCardQuick : styles.productCardNormal,
-                    inCartItem && styles.productCardInCart,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: inCartItem ? colors.primary[500] : colors.border.default,
+                    },
+                    inCartItem && { borderWidth: 1.8 },
                   ]}
                   onPress={() => addToCart(product)}
                 >
                   {inCartItem ? (
-                    <View style={styles.inCartBadge}>
+                    <View style={[styles.inCartBadge, { backgroundColor: colors.primary[600] }]}>
                       <Text style={styles.inCartBadgeText}>{inCartItem.qty}</Text>
                     </View>
                   ) : null}
 
                   {quickMode ? (
                     <View style={styles.quickCardContent}>
-                      <Text style={styles.quickProductName} numberOfLines={2}>
+                      <Text style={[styles.quickProductName, { color: colors.text.primary }]} numberOfLines={2}>
                         {product.name}
                       </Text>
-                      <Text style={styles.quickProductPrice}>
+                      <Text style={[styles.quickProductPrice, { color: colors.primary[600] }]}>
                         {product.retailPrice.toFixed(0)} دج
                       </Text>
                     </View>
@@ -695,29 +1070,35 @@ export const POSScreen = () => {
                         <Barcode size={14} color={colors.slate[400]} />
                         <Badge
                           variant={product.quantity <= 0 ? 'danger' : product.quantity <= 5 ? 'warning' : 'neutral'}
-                          size="sm"
+                          size="xs"
                         >
                           {product.quantity} {product.unit || 'قطع'}
                         </Badge>
                       </View>
 
-                      <Text style={styles.productName} numberOfLines={2}>
+                      <Text style={[styles.productName, { color: colors.text.primary }]} numberOfLines={2}>
                         {product.name}
                       </Text>
 
                       <View style={styles.productPriceRow}>
-                        <Text style={styles.productPrice}>
+                        <Text style={[styles.productPrice, { color: colors.text.primary }]}>
                           {product.retailPrice.toLocaleString('ar-DZ')}{' '}
                           <Text style={styles.currency}>دج</Text>
                         </Text>
-                        <View style={styles.addIconCircle}>
-                          <Plus size={14} color="#ffffff" />
+                        <View style={[styles.addIconCircle, { backgroundColor: colors.primary[600] }]}>
+                          <Plus size={13} color="#ffffff" />
                         </View>
                       </View>
 
+                      {hasWholesale && (
+                        <Text style={[styles.wholesaleHint, { color: colors.text.tertiary }]}>
+                          جملة: {product.wholesalePrice} دج (+{product.wholesaleMinQty})
+                        </Text>
+                      )}
+
                       {promo ? (
-                        <View style={styles.promoTag}>
-                          <Text style={styles.promoTagText}>⚡ {promo.name}</Text>
+                        <View style={[styles.promoTag, { backgroundColor: colors.purple[50] }]}>
+                          <Text style={[styles.promoTagText, { color: colors.purple[700] }]}>⚡ {promo.name}</Text>
                         </View>
                       ) : null}
                     </View>
@@ -730,14 +1111,14 @@ export const POSScreen = () => {
       </ScrollView>
 
       {/* Floating Bottom Cart & Checkout Sheet */}
-      <View style={styles.cartSheet}>
+      <View style={[styles.cartSheet, { backgroundColor: colors.surface, borderTopColor: colors.border.default }]}>
         {cart.length > 0 ? (
           <ScrollView
             style={styles.cartItemsScroll}
             showsVerticalScrollIndicator={false}
           >
             {cart.map((item) => (
-              <View key={item.productId} style={styles.cartItemRow}>
+              <View key={item.productId} style={[styles.cartItemRow, { borderBottomColor: colors.border.subtle }]}>
                 <TouchableOpacity
                   onPress={() => removeFromCart(item.productId)}
                   style={styles.cartDeleteBtn}
@@ -745,11 +1126,11 @@ export const POSScreen = () => {
                   <Trash2 size={15} color={colors.danger.main} />
                 </TouchableOpacity>
 
-                <Text style={styles.cartItemLineTotal}>
+                <Text style={[styles.cartItemLineTotal, { color: colors.text.primary }]}>
                   {item.lineTotal.toLocaleString('ar-DZ')} دج
                 </Text>
 
-                <View style={styles.cartQtyControls}>
+                <View style={[styles.cartQtyControls, { backgroundColor: isDark ? colors.surfaceElevated : staticColors.slate[100] }]}>
                   <TouchableOpacity
                     onPress={() => updateQty(item.productId, 1)}
                     style={styles.qtyStepBtn}
@@ -757,7 +1138,7 @@ export const POSScreen = () => {
                     <Plus size={13} color={colors.text.primary} />
                   </TouchableOpacity>
 
-                  <Text style={styles.cartQtyNumber}>{item.qty}</Text>
+                  <Text style={[styles.cartQtyNumber, { color: colors.text.primary }]}>{item.qty}</Text>
 
                   <TouchableOpacity
                     onPress={() => updateQty(item.productId, -1)}
@@ -768,12 +1149,19 @@ export const POSScreen = () => {
                 </View>
 
                 <View style={styles.cartItemInfo}>
-                  <Text style={styles.cartItemName} numberOfLines={1}>
+                  <Text style={[styles.cartItemName, { color: colors.text.primary }]} numberOfLines={1}>
                     {item.name}
                   </Text>
-                  <Text style={styles.cartItemUnitPrice}>
-                    {item.unitPrice.toLocaleString('ar-DZ')} دج للقطعة
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+                    {item.promoName ? (
+                      <Badge variant="purple" size="xs">
+                        {item.promoName}
+                      </Badge>
+                    ) : null}
+                    <Text style={[styles.cartItemUnitPrice, { color: colors.text.tertiary }]}>
+                      {item.unitPrice.toLocaleString('ar-DZ')} دج
+                    </Text>
+                  </View>
                 </View>
               </View>
             ))}
@@ -784,16 +1172,16 @@ export const POSScreen = () => {
         <View style={styles.cartFooter}>
           <View style={styles.totalsSummaryRow}>
             <View style={styles.totalBlock}>
-              <Text style={styles.totalLabel}>المجموع الإجمالي</Text>
-              <Text style={styles.grandTotalValue}>
+              <Text style={[styles.totalLabel, { color: colors.text.secondary }]}>المجموع المستحق</Text>
+              <Text style={[styles.grandTotalValue, { color: colors.primary[600] }]}>
                 {total.toLocaleString('ar-DZ')} <Text style={styles.currency}>دج</Text>
               </Text>
             </View>
 
             {discount > 0 ? (
               <View style={styles.discountBlock}>
-                <Text style={styles.discountLabel}>الخصم المطبق</Text>
-                <Text style={styles.discountAmount}>
+                <Text style={[styles.discountLabel, { color: colors.warning.text }]}>الخصم المطبق</Text>
+                <Text style={[styles.discountAmount, { color: colors.warning.text }]}>
                   -{discount.toLocaleString('ar-DZ')} دج
                 </Text>
               </View>
@@ -805,6 +1193,7 @@ export const POSScreen = () => {
             <TouchableOpacity
               style={[
                 styles.checkoutButton,
+                { backgroundColor: colors.primary[600] },
                 cart.length === 0 && styles.checkoutButtonDisabled,
               ]}
               onPress={handleCheckoutTap}
@@ -824,7 +1213,11 @@ export const POSScreen = () => {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.suspendBtn, cart.length === 0 && { opacity: 0.5 }]}
+              style={[
+                styles.suspendBtn,
+                { backgroundColor: colors.surfaceSubtle, borderColor: colors.border.default },
+                cart.length === 0 && { opacity: 0.5 },
+              ]}
               onPress={handleSuspend}
               disabled={cart.length === 0}
               activeOpacity={0.7}
@@ -843,31 +1236,40 @@ export const POSScreen = () => {
         onRequestClose={() => setShowCustomerPicker(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHeader}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.surface }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border.subtle }]}>
               <TouchableOpacity onPress={() => setShowCustomerPicker(false)}>
                 <X size={20} color={colors.slate[500]} />
               </TouchableOpacity>
-              <Text style={styles.modalTitle}>تحديد الزبون</Text>
+              <Text style={[styles.modalTitle, { color: colors.text.primary }]}>تحديد الزبون</Text>
             </View>
 
-            <View style={styles.modalSearch}>
-              <Search size={16} color={colors.slate[400]} />
-              <TextInput
-                style={styles.modalSearchInput}
-                placeholder="ابحث بالاسم أو الهاتف..."
-                value={customerSearch}
-                onChangeText={setCustomerSearch}
-                placeholderTextColor={colors.slate[400]}
-                textAlign="right"
-              />
+            <View style={styles.modalSearchRow}>
+              <View style={[styles.modalSearch, { backgroundColor: isDark ? colors.surfaceSubtle : staticColors.slate[100], flex: 1 }]}>
+                <Search size={16} color={colors.slate[400]} />
+                <TextInput
+                  style={[styles.modalSearchInput, { color: colors.text.primary }]}
+                  placeholder="ابحث بالاسم أو الهاتف..."
+                  value={customerSearch}
+                  onChangeText={setCustomerSearch}
+                  placeholderTextColor={colors.slate[400]}
+                  textAlign="right"
+                />
+              </View>
+              <TouchableOpacity
+                style={[styles.quickAddCustBtn, { backgroundColor: colors.primary[600] }]}
+                onPress={() => setShowNewCustomerModal(true)}
+              >
+                <UserPlus size={16} color="#fff" />
+              </TouchableOpacity>
             </View>
 
             <ScrollView style={styles.modalList}>
               <TouchableOpacity
                 style={[
                   styles.customerOption,
-                  !selectedCustomer && styles.customerOptionSelected,
+                  { borderBottomColor: colors.border.subtle },
+                  !selectedCustomer && { backgroundColor: colors.primary[50] },
                 ]}
                 onPress={() => {
                   setSelectedCustomer(null);
@@ -878,8 +1280,8 @@ export const POSScreen = () => {
                   <Check size={16} color={colors.primary[600]} />
                 ) : null}
                 <View style={{ alignItems: 'flex-end', flex: 1 }}>
-                  <Text style={styles.customerOptionName}>عميل نقدي (عام)</Text>
-                  <Text style={styles.customerOptionSub}>بدون حساب آجل</Text>
+                  <Text style={[styles.customerOptionName, { color: colors.text.primary }]}>عميل نقدي (عام)</Text>
+                  <Text style={[styles.customerOptionSub, { color: colors.text.tertiary }]}>بدون حساب آجل</Text>
                 </View>
               </TouchableOpacity>
 
@@ -890,7 +1292,8 @@ export const POSScreen = () => {
                     key={cust.id}
                     style={[
                       styles.customerOption,
-                      isSelected && styles.customerOptionSelected,
+                      { borderBottomColor: colors.border.subtle },
+                      isSelected && { backgroundColor: colors.primary[50] },
                     ]}
                     onPress={() => {
                       setSelectedCustomer(cust);
@@ -901,15 +1304,118 @@ export const POSScreen = () => {
                       <Check size={16} color={colors.primary[600]} />
                     ) : null}
                     <View style={{ alignItems: 'flex-end', flex: 1 }}>
-                      <Text style={styles.customerOptionName}>{cust.name}</Text>
-                      <Text style={styles.customerOptionSub}>
-                        {cust.phone || 'بدون هاتف'} • رصيد: {cust.balance || 0} دج
+                      <Text style={[styles.customerOptionName, { color: colors.text.primary }]}>{cust.name}</Text>
+                      <Text style={[styles.customerOptionSub, { color: colors.text.tertiary }]}>
+                        {cust.phone || 'بدون هاتف'} • رصيد دين: {cust.balance || 0} دج
                       </Text>
                     </View>
                   </TouchableOpacity>
                 );
               })}
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Quick Add New Customer Modal */}
+      <Modal
+        visible={showNewCustomerModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setShowNewCustomerModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.surface, maxHeight: 380 }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border.subtle }]}>
+              <TouchableOpacity onPress={() => setShowNewCustomerModal(false)}>
+                <X size={20} color={colors.slate[500]} />
+              </TouchableOpacity>
+              <Text style={[styles.modalTitle, { color: colors.text.primary }]}>إضافة زبون جديد</Text>
+            </View>
+
+            <ScrollView style={{ padding: spacing.lg }}>
+              <Input
+                label="اسم الزبون *"
+                value={newCustomerName}
+                onChangeText={setNewCustomerName}
+                placeholder="أدخل اسم العميل أو المحل"
+                containerStyle={{ marginBottom: spacing.md }}
+              />
+              <Input
+                label="رقم الهاتف"
+                keyboardType="phone-pad"
+                value={newCustomerPhone}
+                onChangeText={setNewCustomerPhone}
+                placeholder="0550 00 00 00"
+                containerStyle={{ marginBottom: spacing.md }}
+              />
+              <Input
+                label="الحد الائتماني للديون (دج)"
+                keyboardType="numeric"
+                value={newCustomerCreditLimit}
+                onChangeText={setNewCustomerCreditLimit}
+                placeholder="0 (غير محدد)"
+                containerStyle={{ marginBottom: spacing.md }}
+              />
+
+              <Button
+                title="حفظ واختيار الزبون"
+                onPress={handleQuickCreateCustomer}
+                variant="primary"
+                style={{ marginTop: spacing.xs }}
+              />
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Custom Manual Item Modal */}
+      <Modal
+        visible={showCustomItemModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setShowCustomItemModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.surface, maxHeight: 360 }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border.subtle }]}>
+              <TouchableOpacity onPress={() => setShowCustomItemModal(false)}>
+                <X size={20} color={colors.slate[500]} />
+              </TouchableOpacity>
+              <Text style={[styles.modalTitle, { color: colors.text.primary }]}>إضافة بند مخصص (بيع حر)</Text>
+            </View>
+
+            <View style={{ padding: spacing.lg }}>
+              <Input
+                label="اسم البند / الخدمة *"
+                value={customItemName}
+                onChangeText={setCustomItemName}
+                placeholder="مثال: خدمة صيانة، صنف غير مسجل..."
+                containerStyle={{ marginBottom: spacing.md }}
+              />
+              <Input
+                label="السعر الفردي (دج) *"
+                keyboardType="numeric"
+                value={customItemPrice}
+                onChangeText={setCustomItemPrice}
+                placeholder="0"
+                containerStyle={{ marginBottom: spacing.md }}
+              />
+              <Input
+                label="الكمية"
+                keyboardType="numeric"
+                value={customItemQty}
+                onChangeText={setCustomItemQty}
+                placeholder="1"
+                containerStyle={{ marginBottom: spacing.md }}
+              />
+
+              <Button
+                title="إضافة إلى السلة"
+                onPress={handleAddCustomItem}
+                variant="primary"
+              />
+            </View>
           </View>
         </View>
       </Modal>
@@ -922,26 +1428,26 @@ export const POSScreen = () => {
         onRequestClose={() => setShowDiscountModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalSheet, { maxHeight: 320 }]}>
-            <View style={styles.modalHeader}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.surface, maxHeight: 320 }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border.subtle }]}>
               <TouchableOpacity onPress={() => setShowDiscountModal(false)}>
                 <X size={20} color={colors.slate[500]} />
               </TouchableOpacity>
-              <Text style={styles.modalTitle}>إضافة خصم على الفاتورة</Text>
+              <Text style={[styles.modalTitle, { color: colors.text.primary }]}>إضافة خصم على الفاتورة</Text>
             </View>
 
             <View style={styles.discountToggleRow}>
               <TouchableOpacity
                 style={[
                   styles.discountToggleBtn,
-                  discountType === 'amount' && styles.discountToggleActive,
+                  discountType === 'amount' && { backgroundColor: colors.primary[600] },
                 ]}
                 onPress={() => setDiscountType('amount')}
               >
                 <Text
                   style={[
                     styles.discountToggleText,
-                    discountType === 'amount' && styles.discountToggleTextActive,
+                    discountType === 'amount' && { color: '#ffffff' },
                   ]}
                 >
                   مبلغ ثابت (دج)
@@ -951,14 +1457,14 @@ export const POSScreen = () => {
               <TouchableOpacity
                 style={[
                   styles.discountToggleBtn,
-                  discountType === 'percent' && styles.discountToggleActive,
+                  discountType === 'percent' && { backgroundColor: colors.primary[600] },
                 ]}
                 onPress={() => setDiscountType('percent')}
               >
                 <Text
                   style={[
                     styles.discountToggleText,
-                    discountType === 'percent' && styles.discountToggleTextActive,
+                    discountType === 'percent' && { color: '#ffffff' },
                   ]}
                 >
                   نسبة مئوية (%)
@@ -985,7 +1491,7 @@ export const POSScreen = () => {
         </View>
       </Modal>
 
-      {/* Checkout Payment Modal */}
+      {/* Enhanced Checkout Payment Modal with DocType & Change Calculation */}
       <Modal
         visible={showCheckoutModal}
         animationType="slide"
@@ -993,58 +1499,164 @@ export const POSScreen = () => {
         onRequestClose={() => setShowCheckoutModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHeader}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.surface, maxHeight: '88%' }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border.subtle }]}>
               <TouchableOpacity onPress={() => setShowCheckoutModal(false)}>
                 <X size={20} color={colors.slate[500]} />
               </TouchableOpacity>
-              <Text style={styles.modalTitle}>تأكيد وطريقة الدفع</Text>
+              <Text style={[styles.modalTitle, { color: colors.text.primary }]}>تأكيد وإصدار الفاتورة</Text>
             </View>
 
-            <View style={styles.checkoutSummaryCard}>
-              <Text style={styles.checkoutTotalLabel}>إجمالي المبلغ المستحق</Text>
-              <Text style={styles.checkoutTotalAmount}>
-                {total.toLocaleString('ar-DZ')} <Text style={styles.currency}>دج</Text>
-              </Text>
-              <Text style={styles.checkoutCustomerName}>
-                الزبون: {selectedCustomer?.name || 'زبون عام (نقدي)'}
-              </Text>
-            </View>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: spacing.lg }}>
+              {/* Document Type Selector */}
+              <Text style={[styles.fieldLabel, { color: colors.text.secondary }]}>نوع الوثيقة التجارية</Text>
+              <View style={styles.docTypeRow}>
+                {[
+                  { id: 'facture', label: 'فاتورة بيع' },
+                  { id: 'bl', label: 'سند تسليم (BL)' },
+                  { id: 'devis', label: 'عرض أسعار' },
+                  { id: 'proforma', label: 'فاتورة شكلية' },
+                ].map((doc) => (
+                  <TouchableOpacity
+                    key={doc.id}
+                    style={[
+                      styles.docTypeChip,
+                      selectedDocType === doc.id
+                        ? { backgroundColor: colors.primary[600], borderColor: colors.primary[600] }
+                        : { backgroundColor: colors.surfaceSubtle, borderColor: colors.border.default },
+                    ]}
+                    onPress={() => setSelectedDocType(doc.id as any)}
+                  >
+                    <Text
+                      style={[
+                        styles.docTypeChipText,
+                        selectedDocType === doc.id ? { color: '#ffffff' } : { color: colors.text.secondary },
+                      ]}
+                    >
+                      {doc.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
 
-            <View style={styles.paymentMethodsContainer}>
-              <TouchableOpacity
-                style={[styles.paymentMethodCard, styles.cashCard]}
-                onPress={() => handlePaymentConfirm('cash')}
-                disabled={checkoutLoading}
-                activeOpacity={0.8}
-              >
-                <Banknote size={24} color={colors.success.dark} />
-                <Text style={styles.paymentMethodTitle}>نقداً (كاش)</Text>
-                <Text style={styles.paymentMethodSub}>دفع فوري بالصندوق</Text>
-              </TouchableOpacity>
+              {/* Summary Card */}
+              <View style={[styles.checkoutSummaryCard, { backgroundColor: isDark ? colors.surfaceElevated : colors.primary[50] }]}>
+                <Text style={[styles.checkoutTotalLabel, { color: colors.text.secondary }]}>المبلغ الإجمالي المستحق</Text>
+                <Text style={[styles.checkoutTotalAmount, { color: colors.primary[700] }]}>
+                  {total.toLocaleString('ar-DZ')} <Text style={styles.currency}>دج</Text>
+                </Text>
+                <Text style={[styles.checkoutCustomerName, { color: colors.text.secondary }]}>
+                  الزبون: {selectedCustomer?.name || 'زبون عام (نقدي)'}
+                </Text>
+              </View>
 
-              <TouchableOpacity
-                style={[styles.paymentMethodCard, styles.cardCard]}
-                onPress={() => handlePaymentConfirm('card')}
-                disabled={checkoutLoading}
-                activeOpacity={0.8}
-              >
-                <CreditCard size={24} color={colors.primary[600]} />
-                <Text style={styles.paymentMethodTitle}>بطاقة بنكية (CIB)</Text>
-                <Text style={styles.paymentMethodSub}>دفع إلكتروني</Text>
-              </TouchableOpacity>
+              {/* Payment Method Selector */}
+              <Text style={[styles.fieldLabel, { color: colors.text.secondary, marginTop: spacing.md }]}>طريقة الدفع</Text>
+              <View style={styles.paymentMethodsContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.paymentMethodCard,
+                    paymentMethod === 'cash' && { borderColor: colors.emerald[600], borderWidth: 2, backgroundColor: colors.emerald[50] },
+                  ]}
+                  onPress={() => setPaymentMethod('cash')}
+                >
+                  <Banknote size={22} color={colors.emerald[700]} />
+                  <Text style={[styles.paymentMethodTitle, { color: colors.text.primary }]}>نقداً (كاش)</Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.paymentMethodCard, styles.creditCard]}
-                onPress={() => handlePaymentConfirm('credit')}
+                <TouchableOpacity
+                  style={[
+                    styles.paymentMethodCard,
+                    paymentMethod === 'card' && { borderColor: colors.primary[600], borderWidth: 2, backgroundColor: colors.primary[50] },
+                  ]}
+                  onPress={() => setPaymentMethod('card')}
+                >
+                  <CreditCard size={22} color={colors.primary[600]} />
+                  <Text style={[styles.paymentMethodTitle, { color: colors.text.primary }]}>بطاقة (CIB)</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.paymentMethodCard,
+                    paymentMethod === 'credit' && { borderColor: colors.warning.dark, borderWidth: 2, backgroundColor: colors.warning.light },
+                  ]}
+                  onPress={() => setPaymentMethod('credit')}
+                >
+                  <FileText size={22} color={colors.warning.dark} />
+                  <Text style={[styles.paymentMethodTitle, { color: colors.text.primary }]}>آجل (كريدي)</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Paid Input & Change Calculation */}
+              <View style={{ marginTop: spacing.md }}>
+                <Input
+                  label="المبلغ المدفوع من الزبون (دج)"
+                  keyboardType="numeric"
+                  value={paidInput}
+                  onChangeText={setPaidInput}
+                  placeholder={total.toFixed(0)}
+                />
+
+                {/* Quick Cash Shortcuts */}
+                <View style={styles.cashShortcutsRow}>
+                  {[
+                    { label: 'المبلغ بالضبط', val: total },
+                    { label: '+500 دج', val: Math.ceil(total / 500) * 500 },
+                    { label: '+1000 دج', val: Math.ceil(total / 1000) * 1000 },
+                    { label: '+2000 دج', val: Math.ceil(total / 2000) * 2000 },
+                  ].map((s, idx) => (
+                    <TouchableOpacity
+                      key={idx}
+                      style={[styles.cashShortcutChip, { backgroundColor: colors.surfaceSubtle }]}
+                      onPress={() => setPaidInput(s.val.toFixed(0))}
+                    >
+                      <Text style={[styles.cashShortcutText, { color: colors.text.primary }]}>{s.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* Change or Debt Banner */}
+                {changeDue > 0 ? (
+                  <View style={[styles.changeBanner, { backgroundColor: colors.emerald[50], borderColor: colors.emerald[200] }]}>
+                    <Coins size={18} color={colors.emerald[700]} />
+                    <View style={{ alignItems: 'flex-end', flex: 1 }}>
+                      <Text style={[styles.changeBannerLabel, { color: colors.emerald[700] }]}>الصرف المرجع للزبون:</Text>
+                      <Text style={[styles.changeBannerVal, { color: colors.emerald[700] }]}>
+                        {changeDue.toLocaleString('ar-DZ')} دج
+                      </Text>
+                    </View>
+                  </View>
+                ) : remainingDebt > 0 ? (
+                  <View style={[styles.changeBanner, { backgroundColor: colors.warning.light, borderColor: colors.warning.border }]}>
+                    <ShieldAlert size={18} color={colors.warning.dark} />
+                    <View style={{ alignItems: 'flex-end', flex: 1 }}>
+                      <Text style={[styles.changeBannerLabel, { color: colors.warning.text }]}>المتبقي كدين (كريدي):</Text>
+                      <Text style={[styles.changeBannerVal, { color: colors.warning.text }]}>
+                        {remainingDebt.toLocaleString('ar-DZ')} دج
+                      </Text>
+                    </View>
+                  </View>
+                ) : null}
+              </View>
+
+              {/* Note Input */}
+              <Input
+                label="ملاحظات الفاتورة (اختياري)"
+                value={checkoutNote}
+                onChangeText={setCheckoutNote}
+                placeholder="أية ملاحظات إضافية على الفاتورة..."
+                containerStyle={{ marginTop: spacing.md }}
+              />
+
+              <Button
+                title={checkoutLoading ? 'جاري الإصدار والطباعة...' : 'تأكيد وإصدار الفاتورة'}
+                onPress={handlePaymentConfirm}
                 disabled={checkoutLoading}
-                activeOpacity={0.8}
-              >
-                <FileText size={24} color={colors.warning.dark} />
-                <Text style={styles.paymentMethodTitle}>آجل (كريدي)</Text>
-                <Text style={styles.paymentMethodSub}>تسجيل في حساب الزبون</Text>
-              </TouchableOpacity>
-            </View>
+                variant="primary"
+                size="lg"
+                style={{ marginTop: spacing.xl, marginBottom: spacing.md }}
+              />
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -1057,12 +1669,12 @@ export const POSScreen = () => {
         onRequestClose={() => setShowSuspendedModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHeader}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.surface }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border.subtle }]}>
               <TouchableOpacity onPress={() => setShowSuspendedModal(false)}>
                 <X size={20} color={colors.slate[500]} />
               </TouchableOpacity>
-              <Text style={styles.modalTitle}>الطلبات المعلقة</Text>
+              <Text style={[styles.modalTitle, { color: colors.text.primary }]}>الطلبات المعلقة</Text>
             </View>
 
             <ScrollView style={styles.modalList}>
@@ -1076,7 +1688,7 @@ export const POSScreen = () => {
                 suspendedOrders.map((o) => (
                   <TouchableOpacity
                     key={o.id}
-                    style={styles.suspendedRow}
+                    style={[styles.suspendedRow, { borderBottomColor: colors.border.subtle }]}
                     onPress={() => resumeOrder(o)}
                   >
                     <View style={{ alignItems: 'flex-start' }}>
@@ -1085,10 +1697,10 @@ export const POSScreen = () => {
                       </Badge>
                     </View>
                     <View style={{ alignItems: 'flex-end', flex: 1 }}>
-                      <Text style={styles.suspendedTitle}>
+                      <Text style={[styles.suspendedTitle, { color: colors.text.primary }]}>
                         سلة ({o.items?.length || 0} منتجات)
                       </Text>
-                      <Text style={styles.suspendedSub}>
+                      <Text style={[styles.suspendedSub, { color: colors.text.tertiary }]}>
                         {o.customerName || 'زبون عام'} •{' '}
                         {new Date(o.suspendedAt).toLocaleTimeString('ar-DZ', {
                           hour: '2-digit',
@@ -1108,6 +1720,7 @@ export const POSScreen = () => {
       {showCameraScanner && (
         <CameraScanner
           onScan={handleBarcodeScan}
+          onBatchComplete={() => setShowCameraScanner(false)}
           onClose={() => setShowCameraScanner(false)}
         />
       )}
@@ -1115,635 +1728,619 @@ export const POSScreen = () => {
   );
 };
 
-const makeStyles = (colors: any, isDark: boolean) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.xl,
-    gap: spacing.sm,
-  },
-  loadingText: {
-    fontSize: 13,
-    color: colors.text.secondary,
-    fontFamily: 'Cairo',
-  },
+const makeStyles = (colors: any, isDark: boolean) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+    center: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: spacing.xl,
+      gap: spacing.sm,
+    },
+    loadingText: {
+      fontSize: 13,
+      fontFamily: 'Cairo',
+    },
 
-  sessionWarningBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    backgroundColor: colors.warning.light,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 2,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.warning.border,
-  },
-  sessionWarningText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.warning.text,
-    fontFamily: 'Cairo',
-    flex: 1,
-    textAlign: 'right',
-  },
+    sessionWarningBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.xs + 2,
+      borderBottomWidth: 1,
+    },
+    sessionWarningText: {
+      fontSize: 11,
+      fontWeight: '600',
+      fontFamily: 'Cairo',
+      flex: 1,
+      textAlign: 'right',
+    },
 
-  // Toolbar
-  toolbar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    gap: spacing.sm,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.default,
-  },
-  searchBox: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: isDark ? colors.surfaceSubtle : staticColors.slate[100],
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    paddingHorizontal: spacing.sm,
-    height: 40,
-  },
-  searchIcon: {
-    marginRight: 4,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 13,
-    color: colors.text.primary,
-    fontFamily: 'Cairo',
-    paddingVertical: 4,
-    paddingHorizontal: spacing.xs,
-  },
-  clearSearchBtn: {
-    padding: 4,
-  },
-  scanBtn: {
-    padding: 6,
-    borderRadius: radii.sm,
-    backgroundColor: isDark ? colors.primary[900] : colors.primary[50],
-    marginLeft: 4,
-  },
-  quickToggleBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: radii.md,
-    backgroundColor: isDark ? colors.surfaceSubtle : staticColors.slate[100],
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  quickToggleActive: {
-    backgroundColor: colors.primary[600],
-    borderColor: colors.primary[700],
-  },
+    // Toolbar
+    toolbar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      gap: spacing.xs + 2,
+      borderBottomWidth: 1,
+    },
+    searchBox: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderRadius: radii.xl,
+      paddingHorizontal: spacing.sm,
+      height: 42,
+    },
+    searchIcon: {
+      marginLeft: 4,
+    },
+    searchInput: {
+      flex: 1,
+      fontFamily: 'Cairo',
+      fontSize: 13,
+      paddingHorizontal: spacing.xs,
+    },
+    clearSearchBtn: {
+      padding: 4,
+    },
+    scanBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: radii.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    customItemBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 6,
+      borderRadius: radii.lg,
+      borderWidth: 1,
+    },
+    customItemBtnText: {
+      fontSize: 11.5,
+      fontWeight: '700',
+      fontFamily: 'Cairo',
+    },
+    quickToggleBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: radii.lg,
+      backgroundColor: isDark ? colors.surfaceSubtle : staticColors.slate[100],
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
 
-  // Controls bar
-  controlsBar: {
-    flexDirection: 'row',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 2,
-    gap: spacing.sm,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
-  },
-  controlPill: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    backgroundColor: isDark ? colors.surfaceSubtle : staticColors.slate[100],
-    borderRadius: radii.pill,
-    paddingVertical: 6,
-    paddingHorizontal: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-  },
-  controlPillActive: {
-    backgroundColor: isDark ? colors.primary[900] : colors.primary[50],
-    borderColor: colors.primary[isDark ? 700 : 200],
-  },
-  discountPill: {},
-  discountPillActive: {
-    backgroundColor: colors.warning.light,
-    borderColor: colors.warning.border,
-  },
-  controlPillText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.text.secondary,
-    fontFamily: 'Cairo',
-  },
-  controlPillTextActive: {
-    color: colors.primary[isDark ? 300 : 700],
-  },
-  discountPillTextActive: {
-    color: colors.warning.text,
-  },
+    // Controls Bar
+    controlsBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.xs + 2,
+      borderBottomWidth: 1,
+      gap: spacing.xs,
+    },
+    controlPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      paddingHorizontal: spacing.sm + 2,
+      paddingVertical: 4,
+      borderRadius: radii.pill,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+      maxWidth: '45%',
+    },
+    controlPillText: {
+      fontSize: 11,
+      fontFamily: 'Cairo',
+      fontWeight: '600',
+    },
 
-  // Categories
-  categoryBarWrapper: {
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
-  },
-  categoryBar: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 2,
-    gap: spacing.xs + 2,
-    alignItems: 'center',
-  },
-  categoryChip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: 5,
-    borderRadius: radii.pill,
-    backgroundColor: isDark ? colors.surfaceSubtle : staticColors.slate[100],
-    borderWidth: 1,
-    borderColor: isDark ? colors.border.default : staticColors.slate[200],
-  },
-  categoryChipActive: {
-    backgroundColor: colors.primary[600],
-    borderColor: colors.primary[700],
-  },
-  categoryChipText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.text.secondary,
-    fontFamily: 'Cairo',
-  },
-  categoryChipTextActive: {
-    color: '#ffffff',
-  },
+    // Categories Bar
+    categoryBarWrapper: {
+      paddingVertical: 6,
+    },
+    categoryBar: {
+      paddingHorizontal: spacing.md,
+      gap: spacing.xs,
+    },
+    categoryChip: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: 4,
+      borderRadius: radii.pill,
+      borderWidth: 1,
+    },
+    categoryChipText: {
+      fontSize: 11.5,
+      fontFamily: 'Cairo',
+      fontWeight: '700',
+    },
 
-  // Catalog
-  catalogArea: {
-    flex: 1,
-  },
-  catalogContent: {
-    padding: spacing.md,
-    paddingBottom: 220,
-  },
-  productsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  productCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    ...shadows.sm,
-  },
-  productCardNormal: {
-    width: '48.5%',
-    padding: spacing.md,
-  },
-  productCardQuick: {
-    width: '31.5%',
-    aspectRatio: 1,
-    padding: spacing.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  productCardInCart: {
-    borderColor: colors.primary[500],
-    backgroundColor: isDark ? `${colors.primary[900]}55` : colors.primary[50],
-  },
-  inCartBadge: {
-    position: 'absolute',
-    top: 6,
-    left: 6,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: colors.primary[600],
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 2,
-  },
-  inCartBadgeText: {
-    color: '#ffffff',
-    fontSize: 11,
-    fontWeight: 'bold',
-  },
-  quickCardContent: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-  },
-  quickProductName: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.text.primary,
-    fontFamily: 'Cairo',
-    textAlign: 'center',
-  },
-  quickProductPrice: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.primary[isDark ? 400 : 700],
-    fontFamily: 'Cairo',
-  },
-  normalCardContent: {
-    gap: spacing.xs,
-  },
-  productCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  productName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.text.primary,
-    fontFamily: 'Cairo',
-    textAlign: 'right',
-    minHeight: 36,
-  },
-  productPriceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 2,
-  },
-  productPrice: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: colors.primary[isDark ? 400 : 700],
-    fontFamily: 'Cairo',
-  },
-  currency: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  addIconCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: colors.primary[600],
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  promoTag: {
-    backgroundColor: colors.warning.light,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: radii.xs,
-    alignSelf: 'flex-start',
-  },
-  promoTagText: {
-    fontSize: 10,
-    color: colors.warning.dark,
-    fontWeight: 'bold',
-    fontFamily: 'Cairo',
-  },
+    // Catalog Area
+    catalogArea: {
+      flex: 1,
+    },
+    catalogContent: {
+      padding: spacing.md,
+      paddingBottom: 220,
+    },
+    productsGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+    },
+    productCard: {
+      borderRadius: radii.xl,
+      borderWidth: 1,
+      position: 'relative',
+      overflow: 'hidden',
+      ...shadows.xs,
+    },
+    productCardNormal: {
+      width: '48.2%',
+      padding: spacing.sm + 2,
+      minHeight: 124,
+      justifyContent: 'space-between',
+    },
+    productCardQuick: {
+      width: '31.2%',
+      padding: spacing.sm,
+      minHeight: 80,
+      justifyContent: 'center',
+    },
+    inCartBadge: {
+      position: 'absolute',
+      top: 6,
+      left: 6,
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 2,
+    },
+    inCartBadgeText: {
+      color: '#ffffff',
+      fontSize: 10,
+      fontWeight: '800',
+      fontFamily: 'Cairo',
+    },
+    productCardHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 2,
+    },
+    productName: {
+      fontSize: 12.5,
+      fontWeight: '700',
+      fontFamily: 'Cairo',
+      textAlign: 'right',
+      marginVertical: 3,
+    },
+    productPriceRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: 4,
+    },
+    productPrice: {
+      fontSize: 14,
+      fontWeight: '800',
+      fontFamily: 'Cairo',
+    },
+    currency: {
+      fontSize: 10,
+      fontWeight: '600',
+    },
+    addIconCircle: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    wholesaleHint: {
+      fontSize: 9.5,
+      fontFamily: 'Cairo',
+      textAlign: 'right',
+      marginTop: 2,
+    },
+    promoTag: {
+      alignSelf: 'flex-end',
+      paddingHorizontal: 6,
+      paddingVertical: 1,
+      borderRadius: radii.sm,
+      marginTop: 3,
+    },
+    promoTagText: {
+      fontSize: 9.5,
+      fontWeight: '700',
+      fontFamily: 'Cairo',
+    },
 
-  // Cart Sheet
-  cartSheet: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border.default,
-    ...shadows.lg,
-  },
-  cartItemsScroll: {
-    maxHeight: 140,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
-  },
-  cartItemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
-  },
-  cartDeleteBtn: {
-    padding: 6,
-  },
-  cartItemLineTotal: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.primary[isDark ? 400 : 700],
-    fontFamily: 'Cairo',
-    width: 75,
-    textAlign: 'left',
-  },
-  cartQtyControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginHorizontal: spacing.sm,
-  },
-  qtyStepBtn: {
-    width: 26,
-    height: 26,
-    borderRadius: radii.sm,
-    backgroundColor: isDark ? colors.surfaceSubtle : staticColors.slate[100],
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cartQtyNumber: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: colors.text.primary,
-    minWidth: 20,
-    textAlign: 'center',
-  },
-  cartItemInfo: {
-    flex: 1,
-    alignItems: 'flex-end',
-  },
-  cartItemName: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.text.primary,
-    fontFamily: 'Cairo',
-  },
-  cartItemUnitPrice: {
-    fontSize: 10,
-    color: colors.text.secondary,
-    fontFamily: 'Cairo',
-  },
+    quickCardContent: {
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    quickProductName: {
+      fontSize: 11,
+      fontWeight: '700',
+      fontFamily: 'Cairo',
+      textAlign: 'center',
+    },
+    quickProductPrice: {
+      fontSize: 12,
+      fontWeight: '800',
+      fontFamily: 'Cairo',
+      marginTop: 2,
+    },
 
-  cartFooter: {
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  totalsSummaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-  },
-  totalBlock: {
-    alignItems: 'flex-start',
-  },
-  totalLabel: {
-    fontSize: 11,
-    color: colors.text.secondary,
-    fontFamily: 'Cairo',
-  },
-  grandTotalValue: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: colors.primary[isDark ? 400 : 700],
-    fontFamily: 'Cairo',
-  },
-  discountBlock: {
-    alignItems: 'flex-end',
-  },
-  discountLabel: {
-    fontSize: 11,
-    color: colors.warning.text,
-    fontFamily: 'Cairo',
-  },
-  discountAmount: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.warning.text,
-    fontFamily: 'Cairo',
-  },
-  cartActionsRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  checkoutButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.primary[600],
-    borderRadius: radii.lg,
-    paddingVertical: spacing.md,
-  },
-  checkoutButtonDisabled: {
-    opacity: 0.5,
-  },
-  checkoutBtnText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#ffffff',
-    fontFamily: 'Cairo',
-  },
-  suspendBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: radii.lg,
-    backgroundColor: isDark ? colors.surfaceSubtle : staticColors.slate[100],
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+    // Cart Bottom Sheet
+    cartSheet: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      borderTopWidth: 1,
+      borderTopLeftRadius: radii.xxl,
+      borderTopRightRadius: radii.xxl,
+      ...shadows.lg,
+      maxHeight: 340,
+    },
+    cartItemsScroll: {
+      maxHeight: 140,
+      paddingHorizontal: spacing.md,
+      paddingTop: spacing.xs,
+    },
+    cartItemRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: spacing.xs + 2,
+      borderBottomWidth: 1,
+    },
+    cartDeleteBtn: {
+      padding: 4,
+      marginLeft: 2,
+    },
+    cartItemLineTotal: {
+      fontSize: 13,
+      fontWeight: '800',
+      fontFamily: 'Cairo',
+      minWidth: 70,
+    },
+    cartQtyControls: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderRadius: radii.pill,
+      paddingHorizontal: 4,
+      gap: 6,
+    },
+    qtyStepBtn: {
+      width: 22,
+      height: 22,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    cartQtyNumber: {
+      fontSize: 12,
+      fontWeight: '800',
+      fontFamily: 'Cairo',
+      minWidth: 16,
+      textAlign: 'center',
+    },
+    cartItemInfo: {
+      flex: 1,
+      alignItems: 'flex-end',
+      marginRight: spacing.sm,
+    },
+    cartItemName: {
+      fontSize: 12.5,
+      fontWeight: '700',
+      fontFamily: 'Cairo',
+    },
+    cartItemUnitPrice: {
+      fontSize: 10.5,
+      fontFamily: 'Cairo',
+    },
 
-  // Modals
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalSheet: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: radii.xl,
-    borderTopRightRadius: radii.xl,
-    maxHeight: '75%',
-    paddingBottom: spacing.xxl,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.default,
-  },
-  modalTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: colors.text.primary,
-    fontFamily: 'Cairo',
-  },
-  modalSearch: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: isDark ? colors.surfaceSubtle : staticColors.slate[100],
-    margin: spacing.md,
-    paddingHorizontal: spacing.md,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    height: 42,
-  },
-  modalSearchInput: {
-    flex: 1,
-    fontSize: 13,
-    color: colors.text.primary,
-    fontFamily: 'Cairo',
-    marginRight: spacing.xs,
-  },
-  modalList: {
-    paddingHorizontal: spacing.md,
-  },
-  customerOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
-  },
-  customerOptionSelected: {
-    backgroundColor: isDark ? `${colors.primary[900]}55` : colors.primary[50],
-    borderRadius: radii.md,
-  },
-  customerOptionName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.text.primary,
-    fontFamily: 'Cairo',
-  },
-  customerOptionSub: {
-    fontSize: 11,
-    color: colors.text.secondary,
-    fontFamily: 'Cairo',
-    marginTop: 2,
-  },
+    // Cart Footer
+    cartFooter: {
+      padding: spacing.md,
+      paddingBottom: spacing.lg,
+    },
+    totalsSummaryRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: spacing.sm,
+    },
+    totalBlock: {
+      alignItems: 'flex-start',
+    },
+    totalLabel: {
+      fontSize: 10.5,
+      fontFamily: 'Cairo',
+    },
+    grandTotalValue: {
+      fontSize: 18,
+      fontWeight: '900',
+      fontFamily: 'Cairo',
+    },
+    discountBlock: {
+      alignItems: 'flex-end',
+    },
+    discountLabel: {
+      fontSize: 10.5,
+      fontFamily: 'Cairo',
+    },
+    discountAmount: {
+      fontSize: 13,
+      fontWeight: '800',
+      fontFamily: 'Cairo',
+    },
 
-  discountToggleRow: {
-    flexDirection: 'row',
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  discountToggleBtn: {
-    flex: 1,
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-    borderRadius: radii.md,
-    backgroundColor: isDark ? colors.surfaceSubtle : staticColors.slate[100],
-    borderWidth: 1,
-    borderColor: colors.border.default,
-  },
-  discountToggleActive: {
-    backgroundColor: colors.primary[600],
-    borderColor: colors.primary[700],
-  },
-  discountToggleText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.text.secondary,
-    fontFamily: 'Cairo',
-  },
-  discountToggleTextActive: {
-    color: '#ffffff',
-  },
+    cartActionsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs + 2,
+    },
+    checkoutButton: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.xs,
+      paddingVertical: spacing.md - 2,
+      borderRadius: radii.xl,
+    },
+    checkoutButtonDisabled: {
+      opacity: 0.5,
+    },
+    checkoutBtnText: {
+      color: '#ffffff',
+      fontSize: 14,
+      fontWeight: '800',
+      fontFamily: 'Cairo',
+    },
+    suspendBtn: {
+      width: 44,
+      height: 44,
+      borderRadius: radii.xl,
+      borderWidth: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
 
-  checkoutSummaryCard: {
-    backgroundColor: isDark ? `${colors.primary[900]}44` : colors.primary[50],
-    margin: spacing.md,
-    padding: spacing.lg,
-    borderRadius: radii.lg,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: isDark ? colors.primary[800] : colors.primary[200],
-    gap: 4,
-  },
-  checkoutTotalLabel: {
-    fontSize: 12,
-    color: colors.primary[isDark ? 300 : 700],
-    fontFamily: 'Cairo',
-  },
-  checkoutTotalAmount: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: colors.primary[isDark ? 300 : 800],
-    fontFamily: 'Cairo',
-  },
-  checkoutCustomerName: {
-    fontSize: 12,
-    color: colors.text.tertiary,
-    fontFamily: 'Cairo',
-    marginTop: 4,
-  },
-  paymentMethodsContainer: {
-    paddingHorizontal: spacing.md,
-    gap: spacing.sm,
-  },
-  paymentMethodCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.md,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    gap: spacing.md,
-  },
-  cashCard: {
-    backgroundColor: colors.success.light,
-    borderColor: colors.success.border,
-  },
-  cardCard: {
-    backgroundColor: isDark ? `${colors.primary[900]}44` : colors.primary[50],
-    borderColor: isDark ? colors.primary[800] : colors.primary[200],
-  },
-  creditCard: {
-    backgroundColor: colors.warning.light,
-    borderColor: colors.warning.border,
-  },
-  paymentMethodTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.text.primary,
-    fontFamily: 'Cairo',
-    flex: 1,
-    textAlign: 'right',
-  },
-  paymentMethodSub: {
-    fontSize: 11,
-    color: colors.text.secondary,
-    fontFamily: 'Cairo',
-  },
+    // Modals
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'flex-end',
+    },
+    modalSheet: {
+      borderTopLeftRadius: radii.xxl,
+      borderTopRightRadius: radii.xxl,
+      maxHeight: '80%',
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      borderBottomWidth: 1,
+    },
+    modalTitle: {
+      fontSize: 15,
+      fontWeight: '800',
+      fontFamily: 'Cairo',
+    },
+    modalSearchRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.sm,
+    },
+    modalSearch: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderRadius: radii.lg,
+      paddingHorizontal: spacing.sm,
+      height: 38,
+    },
+    modalSearchInput: {
+      flex: 1,
+      fontFamily: 'Cairo',
+      fontSize: 12.5,
+      paddingHorizontal: spacing.xs,
+    },
+    quickAddCustBtn: {
+      width: 38,
+      height: 38,
+      borderRadius: radii.lg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    modalList: {
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+    },
+    customerOption: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: spacing.sm + 2,
+      borderBottomWidth: 1,
+      paddingHorizontal: spacing.xs,
+      borderRadius: radii.md,
+    },
+    customerOptionName: {
+      fontSize: 13,
+      fontWeight: '700',
+      fontFamily: 'Cairo',
+    },
+    customerOptionSub: {
+      fontSize: 10.5,
+      fontFamily: 'Cairo',
+      marginTop: 2,
+    },
 
-  suspendedRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
-  },
-  suspendedTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.text.primary,
-    fontFamily: 'Cairo',
-  },
-  suspendedSub: {
-    fontSize: 11,
-    color: colors.text.secondary,
-    fontFamily: 'Cairo',
-    marginTop: 2,
-  },
-});
+    discountToggleRow: {
+      flexDirection: 'row',
+      padding: spacing.md,
+      gap: spacing.sm,
+    },
+    discountToggleBtn: {
+      flex: 1,
+      paddingVertical: spacing.sm,
+      borderRadius: radii.lg,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: isDark ? colors.surfaceSubtle : staticColors.slate[100],
+    },
+    discountToggleText: {
+      fontSize: 12,
+      fontFamily: 'Cairo',
+      fontWeight: '700',
+      color: colors.text.secondary,
+    },
+
+    fieldLabel: {
+      fontSize: 12,
+      fontWeight: '700',
+      fontFamily: 'Cairo',
+      marginBottom: 6,
+      textAlign: 'right',
+    },
+    docTypeRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.xs,
+      marginBottom: spacing.md,
+    },
+    docTypeChip: {
+      paddingHorizontal: spacing.sm + 2,
+      paddingVertical: 5,
+      borderRadius: radii.lg,
+      borderWidth: 1,
+    },
+    docTypeChipText: {
+      fontSize: 11,
+      fontWeight: '700',
+      fontFamily: 'Cairo',
+    },
+
+    checkoutSummaryCard: {
+      padding: spacing.md,
+      borderRadius: radii.xl,
+      alignItems: 'center',
+      marginBottom: spacing.xs,
+    },
+    checkoutTotalLabel: {
+      fontSize: 11,
+      fontFamily: 'Cairo',
+    },
+    checkoutTotalAmount: {
+      fontSize: 22,
+      fontWeight: '900',
+      fontFamily: 'Cairo',
+      marginVertical: 2,
+    },
+    checkoutCustomerName: {
+      fontSize: 11,
+      fontFamily: 'Cairo',
+    },
+
+    paymentMethodsContainer: {
+      flexDirection: 'row',
+      gap: spacing.xs + 2,
+    },
+    paymentMethodCard: {
+      flex: 1,
+      paddingVertical: spacing.sm + 2,
+      paddingHorizontal: spacing.xs,
+      borderRadius: radii.xl,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.border.default,
+      backgroundColor: colors.surfaceSubtle,
+    },
+    paymentMethodTitle: {
+      fontSize: 11.5,
+      fontWeight: '800',
+      fontFamily: 'Cairo',
+      marginTop: 4,
+    },
+
+    cashShortcutsRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.xs,
+      marginTop: spacing.xs + 2,
+    },
+    cashShortcutChip: {
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 4,
+      borderRadius: radii.md,
+    },
+    cashShortcutText: {
+      fontSize: 10.5,
+      fontFamily: 'Cairo',
+      fontWeight: '700',
+    },
+
+    changeBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      padding: spacing.sm + 2,
+      borderRadius: radii.lg,
+      borderWidth: 1,
+      marginTop: spacing.sm,
+    },
+    changeBannerLabel: {
+      fontSize: 11,
+      fontWeight: '700',
+      fontFamily: 'Cairo',
+    },
+    changeBannerVal: {
+      fontSize: 14,
+      fontWeight: '800',
+      fontFamily: 'Cairo',
+      marginTop: 1,
+    },
+
+    suspendedRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: spacing.md,
+      borderBottomWidth: 1,
+    },
+    suspendedTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      fontFamily: 'Cairo',
+    },
+    suspendedSub: {
+      fontSize: 10.5,
+      fontFamily: 'Cairo',
+      marginTop: 2,
+    },
+  });
 
 export default POSScreen;
