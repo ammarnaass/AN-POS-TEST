@@ -1,6 +1,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { AppImages } from '@/assets';
 import { Home, ShoppingCart, Package, Users, MoreHorizontal, Sun, Moon, LogOut } from 'lucide-react-native';
 import DashboardScreen from '@/features/dashboard/DashboardScreen';
 import POSScreen from '@/features/pos/PoSScreen';
@@ -36,9 +37,7 @@ const HomeLayout = ({ navigation }: any) => {
     <>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <View style={styles.logoSmall}>
-            <Text style={styles.logoText}>AN</Text>
-          </View>
+          <Image source={AppImages.logo64} style={styles.logoSmall} resizeMode="contain" />
           <View>
             <Text style={styles.headerTitle}>AN POS</Text>
             {user ? (
@@ -100,10 +99,9 @@ const styles = StyleSheet.create({
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   logoSmall: {
-    width: 36, height: 36, borderRadius: 10,
-    backgroundColor: 'rgba(59, 130, 246, 0.1)', alignItems: 'center', justifyContent: 'center'
+    width: 36,
+    height: 36,
   },
-  logoText: { fontSize: 16, fontWeight: '800', color: '#3b82f6', fontFamily: 'Cairo' },
   headerTitle: { fontSize: 16, fontWeight: 'bold', color: '#0f172a', fontFamily: 'Cairo' },
   headerSubtitle: { fontSize: 11, color: '#94a3b8' },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },

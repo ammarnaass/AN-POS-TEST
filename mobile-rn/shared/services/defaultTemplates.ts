@@ -573,23 +573,33 @@ export const ALL_DEFAULT_TEMPLATES: PrintTemplate[] = [
 ];
 
 /** تهيئة القوالب الافتراضية في قاعدة البيانات */
-export async function seedDefaultTemplates(): Promise<void> {
-  const { db } = await import('@/infrastructure/database/dexie/db');
-  const existingCount = await db.print_templates.count();
-  if (existingCount > 0) return; // لا نُعيد التهيئة إن وجدت قوالب
+export async function seedDefaultTemplates(customDb?: any): Promise<void> {
+  const targetDb = customDb;
+  if (!targetDb) return;
+  const target = targetDb.print_templates || targetDb.printTemplates;
+  if (!target) return;
+  try {
+    const existingCount = await target.count();
+    if (existingCount > 0) return; // لا نُعيد التهيئة إن وجدت قوالب
 
-  await db.print_templates.bulkPut(ALL_DEFAULT_TEMPLATES);
+    await target.bulkPut(ALL_DEFAULT_TEMPLATES);
 
-  // تعيين القوالب الافتراضية لأنواع الوثائق
-  await db.template_assignments.bulkPut([
-    { docType: 'thermal-receipt', templateId: 'default-thermal-80' },
-    { docType: 'return-invoice', templateId: 'default-thermal-80' },
-    { docType: 'sale-invoice', templateId: 'default-invoice-a4' },
-    { docType: 'proforma', templateId: 'default-invoice-a4' },
-    { docType: 'devis', templateId: 'default-invoice-a4' },
-    { docType: 'purchase-invoice', templateId: 'default-invoice-a4' },
-    { docType: 'bl', templateId: 'default-invoice-a5' },
-    { docType: 'customer-statement', templateId: 'default-invoice-a5' },
-    { docType: 'supplier-statement', templateId: 'default-invoice-a5' },
-  ]);
+    // تعيين القوالب الافتراضية لأنواع الوثائق
+    const assignTarget = targetDb.template_assignments || targetDb.templateAssignments;
+    if (assignTarget) {
+      await assignTarget.bulkPut([
+        { docType: 'thermal-receipt', templateId: 'default-thermal-80' },
+        { docType: 'return-invoice', templateId: 'default-thermal-80' },
+        { docType: 'sale-invoice', templateId: 'default-invoice-a4' },
+        { docType: 'proforma', templateId: 'default-invoice-a4' },
+        { docType: 'devis', templateId: 'default-invoice-a4' },
+        { docType: 'purchase-invoice', templateId: 'default-invoice-a4' },
+        { docType: 'bl', templateId: 'default-invoice-a5' },
+        { docType: 'customer-statement', templateId: 'default-invoice-a5' },
+        { docType: 'supplier-statement', templateId: 'default-invoice-a5' },
+      ]);
+    }
+  } catch (err) {
+    console.warn('seedDefaultTemplates error:', err);
+  }
 }

@@ -1,10 +1,10 @@
-import { open, type QuickSQLiteConnection } from 'react-native-quick-sqlite';
+import { open, type NitroSQLiteConnection } from 'react-native-nitro-sqlite';
 import type { DataDriver, DriverConfig, ListOptions, ListResult } from '@/infrastructure/drivers/DataDriver';
 import { DriverError } from '@/infrastructure/drivers/DataDriver';
 import { generateId } from '@shared/utils';
 
 export class AnposSQLiteDriver implements DataDriver {
-  private conn: QuickSQLiteConnection | null = null;
+  private conn: NitroSQLiteConnection | null = null;
   private dbName: string;
 
   constructor(config: DriverConfig) {
@@ -19,7 +19,7 @@ export class AnposSQLiteDriver implements DataDriver {
     }
   }
 
-  private getConn(): QuickSQLiteConnection {
+  private getConn(): NitroSQLiteConnection {
     if (!this.conn) {
       throw new DriverError('DB not initialized', 'NOT_INITIALIZED');
     }
@@ -103,7 +103,10 @@ export class AnposSQLiteDriver implements DataDriver {
     const data: T[] = [];
     if (result.rows) {
       for (let i = 0; i < result.rows.length; i++) {
-        data.push(this.toCamelCase(result.rows.item(i)) as T);
+        const item = result.rows.item(i);
+        if (item) {
+          data.push(this.toCamelCase(item as Record<string, unknown>) as T);
+        }
       }
     }
     return { data, total };
@@ -113,7 +116,8 @@ export class AnposSQLiteDriver implements DataDriver {
     const conn = this.getConn();
     const result = conn.execute(`SELECT * FROM ${table} WHERE id = ?`, [id]);
     if (!result.rows || result.rows.length === 0) return null;
-    return this.toCamelCase(result.rows.item(0)) as T;
+    const item = result.rows.item(0);
+    return item ? (this.toCamelCase(item as Record<string, unknown>) as T) : null;
   }
 
   async create<T = unknown, R = T>(table: string, data: T): Promise<R> {
@@ -226,11 +230,15 @@ export class AnposSQLiteDriver implements DataDriver {
 
   async execute(sql: string, params?: unknown[]): Promise<{ rows: Record<string, unknown>[]; rowsAffected: number }> {
     const conn = this.getConn();
-    const result = conn.execute(sql, (params ?? []) as any[]);
+    const queryParams = (params && params.length > 0) ? (params as any[]) : undefined;
+    const result = conn.execute(sql, queryParams);
     const rows: Record<string, unknown>[] = [];
     if (result.rows) {
       for (let i = 0; i < result.rows.length; i++) {
-        rows.push(this.toCamelCase(result.rows.item(i)));
+        const item = result.rows.item(i);
+        if (item) {
+          rows.push(this.toCamelCase(item as Record<string, unknown>));
+        }
       }
     }
     return { rows, rowsAffected: result.rowsAffected ?? 0 };

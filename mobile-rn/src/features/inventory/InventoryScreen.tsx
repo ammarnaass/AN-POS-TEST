@@ -1,185 +1,624 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Alert } from 'react-native';
-import { Search, Package, AlertCircle, Edit3, RefreshCw, Check, X, Plus } from 'lucide-react-native';
+import React, { useState, useCallback } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  StyleSheet,
+  RefreshControl,
+  Image,
+} from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import {
+  Search,
+  Package,
+  Plus,
+  X,
+  Barcode,
+  Edit3,
+  ChevronLeft,
+} from 'lucide-react-native';
 import { db, ensureInit } from '@/lib/db';
-import type { Product, Category } from '@/lib/apiClient';
+import type { Product, Category } from '@shared/types';
+import { colors, useTheme } from '@/theme';
+import { radii, spacing, shadows } from '@/theme/tokens';
+import { Badge, Button, EmptyState, Skeleton } from '@/components/ui';
 
-const InventoryScreen = ({ navigation }: any) => {
+export const InventoryScreen = ({ navigation }: any) => {
+  const { isDark, colors } = useTheme();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
-  useEffect(() => { loadData(); }, []);
-
-  async function loadData() {
-    setLoading(true);
+  const loadData = useCallback(async () => {
     try {
       await ensureInit();
       const [allProducts, allCategories] = await Promise.all([
         db.products.toArray(),
-        db.categories.toArray(),
+        db.categories.toArray().catch(() => []),
       ]);
       const mappedProducts: Product[] = allProducts.map((p: any) => ({
-        ...p, id: p.id || p._id, name: p.name || p.productName,
-        retailPrice: p.retailPrice || p.price || 0, wholesalePrice: p.wholesalePrice || 0,
-        quantity: p.quantity || p.qty || 0, unit: p.unit || 'قطعة', barcode: p.barcode || '',
-        category: p.category || '', status: p.status || 'active',
-        lowStockThreshold: p.lowStockThreshold || 0, taxRate: p.taxRate || 0.19,
+        ...p,
+        id: p.id || p._id,
+        name: p.name || p.productName || 'بدون اسم',
+        retailPrice: p.retailPrice || (p as any).retail_price || p.price || 0,
+        wholesalePrice: p.wholesalePrice || (p as any).wholesale_price || 0,
+        costPrice: p.costPrice || (p as any).cost_price || (p as any).purchase_price || 0,
+        quantity: p.quantity || p.qty || 0,
+        unit: p.unit || 'قطعة',
+        barcode: p.barcode || '',
+        category: p.category || '',
+        status: p.status || 'active',
+        image: p.image || p.imageUrl || (p as any).image_url || '',
+        lowStockThreshold: p.lowStockThreshold || (p as any).low_stock_threshold || 5,
       }));
       setProducts(mappedProducts);
       setCategories(allCategories);
-    } catch {}
+    } catch (err) {
+      console.warn('Inventory load error:', err);
+    }
     setLoading(false);
-  }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
 
   const filtered = products.filter((p) => {
-    const matchesSearch = !search ||
+    const matchesSearch =
+      !search ||
       p.name?.toLowerCase().includes(search.toLowerCase()) ||
-      p.barcode?.toLowerCase().includes(search.toLowerCase());
-    const matchesCategory = !selectedCategory || selectedCategory === 'all' || p.category === selectedCategory;
+      p.barcode?.toLowerCase().includes(search.toLowerCase()) ||
+      p.sku?.toLowerCase().includes(search.toLowerCase());
+    const matchesCategory =
+      !selectedCategory ||
+      selectedCategory === 'all' ||
+      p.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
-  const toggleProductStatus = async (product: Product) => {
-    try {
-      await db.products.update(product.id, { status: product.status === 'active' ? 'inactive' : 'active' });
-      setProducts(products.map((p) =>
-        p.id === product.id ? { ...p, status: p.status === 'active' ? 'inactive' : 'active' } : p
-      ));
-    } catch (e) {
-      Alert.alert('خطأ', `فشل التحديث: ${e instanceof Error ? e.message : 'خطأ'}`);
-    }
-  };
+  const lowStockCount = products.filter(
+    (p) => (p.quantity || 0) <= (p.lowStockThreshold || 5) && (p.quantity || 0) > 0
+  ).length;
 
-  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#3b82f6" /></View>;
+  const outOfStockCount = products.filter((p) => (p.quantity || 0) <= 0).length;
+
+  if (loading && !refreshing) {
+    return (
+      <ScrollView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        contentContainerStyle={styles.content}
+      >
+        <View style={styles.header}>
+          <Skeleton width={120} height={28} />
+          <Skeleton width={90} height={36} borderRadius={radii.md} />
+        </View>
+        <Skeleton height={42} borderRadius={radii.md} />
+        <View style={styles.statsBar}>
+          <Skeleton height={60} borderRadius={radii.md} style={{ flex: 1 }} />
+          <Skeleton height={60} borderRadius={radii.md} style={{ flex: 1 }} />
+          <Skeleton height={60} borderRadius={radii.md} style={{ flex: 1 }} />
+        </View>
+        <View style={{ gap: spacing.sm }}>
+          <Skeleton height={74} borderRadius={radii.lg} />
+          <Skeleton height={74} borderRadius={radii.lg} />
+          <Skeleton height={74} borderRadius={radii.lg} />
+        </View>
+      </ScrollView>
+    );
+  }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Header & Quick Add */}
       <View style={styles.header}>
-        <Text style={styles.title}>إدارة المخزون</Text>
-        <TouchableOpacity style={styles.addBtn} onPress={() => navigation.navigate('Products')}>
-          <Plus size={18} color="#fff" />
-          <Text style={styles.addBtnText}>إضافة</Text>
-        </TouchableOpacity>
+        <Button
+          title="إضافة منتج"
+          icon={<Plus size={16} color="#ffffff" />}
+          onPress={() => navigation.navigate('ProductForm')}
+          size="sm"
+          variant="primary"
+        />
+        <View style={{ alignItems: 'flex-end' }}>
+          <Text style={[styles.title, { color: colors.text.primary }]}>إدارة المخزون</Text>
+          <Text style={[styles.subtitle, { color: colors.text.secondary }]}>
+            {products.length} منتج مسجل في النظام
+          </Text>
+        </View>
       </View>
 
-      <View style={styles.searchContainer}>
-        <Search size={18} color="#94a3b8" style={styles.searchIcon} />
+      {/* Quick Stock Metrics */}
+      <View
+        style={[
+          styles.statsBar,
+          {
+            backgroundColor: colors.surface,
+            borderColor: colors.border.default,
+          },
+        ]}
+      >
+        <View style={styles.statBox}>
+          <Text style={[styles.statLabel, { color: colors.text.secondary }]}>إجمالي الأصناف</Text>
+          <Text style={[styles.statValue, { color: colors.primary[600] }]}>
+            {products.length}
+          </Text>
+        </View>
+        <View style={[styles.statDivider, { backgroundColor: colors.border.default }]} />
+        <View style={styles.statBox}>
+          <Text style={[styles.statLabel, { color: colors.text.secondary }]}>نواقص المخزون</Text>
+          <Text style={[styles.statValue, { color: colors.warning.main }]}>
+            {lowStockCount}
+          </Text>
+        </View>
+        <View style={[styles.statDivider, { backgroundColor: colors.border.default }]} />
+        <View style={styles.statBox}>
+          <Text style={[styles.statLabel, { color: colors.text.secondary }]}>نفد من المخزن</Text>
+          <Text style={[styles.statValue, { color: colors.danger.main }]}>
+            {outOfStockCount}
+          </Text>
+        </View>
+      </View>
+
+      {/* Search Input */}
+      <View
+        style={[
+          styles.searchContainer,
+          {
+            backgroundColor: colors.surface,
+            borderColor: colors.border.default,
+          },
+        ]}
+      >
+        <Search size={18} color={colors.slate[400]} style={styles.searchIcon} />
         <TextInput
-          style={styles.searchInput}
-          placeholder="ابحث بالاسم أو الباركود..."
+          style={[styles.searchInput, { color: colors.text.primary }]}
+          placeholder="ابحث بالاسم أو رمز الباركود..."
           value={search}
           onChangeText={setSearch}
-          placeholderTextColor="#94a3b8"
+          placeholderTextColor={colors.text.tertiary}
           textAlign="right"
         />
+        {search ? (
+          <TouchableOpacity onPress={() => setSearch('')} style={styles.clearBtn}>
+            <X size={14} color={colors.text.tertiary} />
+          </TouchableOpacity>
+        ) : null}
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryBar}>
-        <TouchableOpacity
-          style={[styles.categoryChip, selectedCategory === 'all' && styles.categoryChipActive]}
-          onPress={() => setSelectedCategory('all')}
+      {/* Categories Horizontal Bar */}
+      <View style={styles.categoryBarWrapper}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoryBar}
         >
-          <Text style={[styles.categoryText, selectedCategory === 'all' && styles.categoryTextActive]}>الكل</Text>
-        </TouchableOpacity>
-        {categories.map(c => (
           <TouchableOpacity
-            key={c.id}
-            style={[styles.categoryChip, selectedCategory === c.id && styles.categoryChipActive]}
-            onPress={() => setSelectedCategory(c.id)}
+            style={[
+              styles.categoryChip,
+              {
+                backgroundColor:
+                  selectedCategory === 'all'
+                    ? colors.primary[600]
+                    : colors.surface,
+                borderColor:
+                  selectedCategory === 'all'
+                    ? colors.primary[600]
+                    : colors.border.default,
+              },
+            ]}
+            onPress={() => setSelectedCategory('all')}
+            activeOpacity={0.7}
           >
-            <Text style={[styles.categoryText, selectedCategory === c.id && styles.categoryTextActive]}>{c.name}</Text>
+            <Text
+              style={[
+                styles.categoryText,
+                {
+                  color:
+                    selectedCategory === 'all'
+                      ? '#ffffff'
+                      : colors.text.secondary,
+                },
+              ]}
+            >
+              الكل ({products.length})
+            </Text>
           </TouchableOpacity>
-        ))}
-      </ScrollView>
 
-      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+          {categories.map((c) => {
+            const isSelected = selectedCategory === c.id || selectedCategory === c.name;
+            const count = products.filter(
+              (p) => p.category === c.name || p.categoryId === c.id
+            ).length;
+
+            return (
+              <TouchableOpacity
+                key={c.id}
+                style={[
+                  styles.categoryChip,
+                  {
+                    backgroundColor: isSelected
+                      ? colors.primary[600]
+                      : colors.surface,
+                    borderColor: isSelected
+                      ? colors.primary[600]
+                      : colors.border.default,
+                  },
+                ]}
+                onPress={() =>
+                  setSelectedCategory(isSelected ? 'all' : c.id || c.name)
+                }
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.categoryText,
+                    {
+                      color: isSelected ? '#ffffff' : colors.text.secondary,
+                    },
+                  ]}
+                >
+                  {c.name} {count > 0 ? `(${count})` : ''}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+
+      {/* Products List */}
+      <ScrollView
+        style={styles.productsScroll}
+        contentContainerStyle={styles.productsList}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary[600]}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+      >
         {filtered.length === 0 ? (
-          <View style={styles.empty}>
-            <Package size={48} color="#cbd5e1" />
-            <Text style={styles.emptyText}>لا توجد منتجات</Text>
-          </View>
+          <EmptyState
+            icon={<Package size={32} color={colors.text.tertiary} />}
+            title="لا توجد منتجات مطابقة"
+            description="جرب البحث بكلمة أخرى أو أضف صنفاً جديداً في هذا القسم"
+            actionTitle="إضافة منتج جديد"
+            onAction={() => navigation.navigate('ProductForm')}
+          />
         ) : (
-          <View style={{ gap: 8, paddingBottom: 16 }}>
-            {filtered.map(p => (
-              <ProductRow
-                key={p.id}
-                product={p}
-                onToggle={() => { toggleProductStatus(p); }}
-                navigation={navigation}
-              />
-            ))}
-          </View>
+          filtered.map((product) => {
+            const isOutOfStock = (product.quantity || 0) <= 0;
+            const isLowStock =
+              !isOutOfStock &&
+              (product.quantity || 0) <= (product.lowStockThreshold || 5);
+
+            const hasImage = Boolean(product.image);
+            const isUriImage =
+              hasImage &&
+              (product.image!.startsWith('http') ||
+                product.image!.startsWith('file:') ||
+                product.image!.startsWith('content:') ||
+                product.image!.startsWith('data:'));
+
+            return (
+              <TouchableOpacity
+                key={product.id}
+                activeOpacity={0.75}
+                style={[
+                  styles.productCard,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border.default,
+                  },
+                ]}
+                onPress={() =>
+                  navigation.navigate('ProductForm', { id: product.id })
+                }
+              >
+                <View style={styles.cardActions}>
+                  <TouchableOpacity
+                    style={[
+                      styles.editIconBtn,
+                      { backgroundColor: colors.surfaceSubtle },
+                    ]}
+                    onPress={() =>
+                      navigation.navigate('ProductForm', { id: product.id })
+                    }
+                  >
+                    <Edit3 size={15} color={colors.text.secondary} />
+                  </TouchableOpacity>
+                  <Text style={[styles.productPrice, { color: colors.text.primary }]}>
+                    {(product.retailPrice || 0).toLocaleString('ar-DZ')}{' '}
+                    <Text style={[styles.currency, { color: colors.primary[600] }]}>
+                      دج
+                    </Text>
+                  </Text>
+                </View>
+
+                {/* Product Info with Thumbnail */}
+                <View style={styles.productInfoRow}>
+                  <View style={styles.productInfo}>
+                    <Text
+                      style={[styles.productName, { color: colors.text.primary }]}
+                      numberOfLines={1}
+                    >
+                      {product.name}
+                    </Text>
+
+                    <View style={styles.productMetaRow}>
+                      <Badge
+                        variant={
+                          isOutOfStock
+                            ? 'danger'
+                            : isLowStock
+                            ? 'warning'
+                            : 'success'
+                        }
+                        size="sm"
+                      >
+                        {isOutOfStock
+                          ? 'نفد من المخزن'
+                          : `${product.quantity || 0} ${product.unit || 'قطعة'}`}
+                      </Badge>
+
+                      {product.barcode ? (
+                        <View style={styles.barcodeWrapper}>
+                          <Barcode size={12} color={colors.text.tertiary} />
+                          <Text
+                            style={[
+                              styles.barcodeText,
+                              { color: colors.text.tertiary },
+                            ]}
+                          >
+                            {product.barcode}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+                  </View>
+
+                  {/* Thumbnail */}
+                  <View
+                    style={[
+                      styles.thumbBox,
+                      {
+                        backgroundColor: colors.surfaceSubtle,
+                        borderColor: colors.border.default,
+                      },
+                    ]}
+                  >
+                    {isUriImage ? (
+                      <Image
+                        source={{ uri: product.image }}
+                        style={styles.thumbImage}
+                        resizeMode="cover"
+                      />
+                    ) : hasImage ? (
+                      <Text style={styles.thumbEmoji}>{product.image}</Text>
+                    ) : (
+                      <Package size={20} color={colors.text.tertiary} />
+                    )}
+                  </View>
+                </View>
+
+                <ChevronLeft size={16} color={colors.text.tertiary} style={{ marginLeft: 2 }} />
+              </TouchableOpacity>
+            );
+          })
         )}
       </ScrollView>
     </View>
   );
 };
 
-const ProductRow = ({ product, onToggle, navigation }: any) => {
-  const stockLevel = (product.quantity || 0) <= (product.lowStockThreshold || 0);
-  return (
-    <View style={styles.productRow}>
-      <View style={styles.productStatus}>
-        <View style={[styles.statusDot, { backgroundColor: product.status === 'active' ? '#22c55e' : '#94a3b8' }]} />
-        <TouchableOpacity onPress={onToggle} style={styles.statusBtn}>
-          {product.status === 'active' ? <Check size={14} color="#22c55e" /> : <X size={14} color="#94a3b8" />}
-        </TouchableOpacity>
-      </View>
-      <View style={styles.productInfo}>
-        <Text style={styles.productName}>{product.name}</Text>
-        <View style={styles.productMeta}>
-          <View style={[styles.stockBadge, stockLevel && styles.stockBadgeLow]}>
-            <Text style={[styles.stockText, stockLevel && styles.stockTextLow]}>{product.quantity ?? 0} {product.unit}</Text>
-          </View>
-          {stockLevel && <AlertCircle size={12} color="#ef4444" />}
-        </View>
-      </View>
-      <View style={styles.productPriceCol}>
-        <Text style={styles.productPrice}>{(product.retailPrice || 0).toLocaleString('ar-DZ')} دج</Text>
-        <Text style={styles.productUnit}>د.ج</Text>
-      </View>
-      <TouchableOpacity onPress={() => navigation.navigate('ProductForm', { id: product.id })} style={styles.editBtn}>
-        <Edit3 size={16} color="#94a3b8" />
-      </TouchableOpacity>
-    </View>
-  );
-};
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff', padding: 16 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  title: { fontSize: 18, fontWeight: 'bold', color: '#0f172a', fontFamily: 'Cairo' },
-  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#3b82f6', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8 },
-  addBtnText: { color: '#fff', fontSize: 12, fontWeight: 'bold', fontFamily: 'Cairo' },
-  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f1f5f9', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', paddingHorizontal: 12, marginBottom: 12 },
-  searchIcon: { position: 'absolute', right: 8, zIndex: 1 },
-  searchInput: { flex: 1, paddingVertical: 10, fontSize: 14, color: '#0f172a', textAlign: 'right' },
-  categoryBar: { marginBottom: 12 },
-  categoryChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: '#f1f5f9', marginRight: 6 },
-  categoryChipActive: { backgroundColor: '#3b82f6' },
-  categoryText: { fontSize: 11, color: '#64748b', fontFamily: 'Cairo' },
-  categoryTextActive: { color: '#fff', fontWeight: 'bold' },
-  empty: { alignItems: 'center', padding: 32, gap: 8 },
-  emptyText: { color: '#94a3b8', fontSize: 14 },
-  productRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderRadius: 12, padding: 12, gap: 8 },
-  productStatus: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
-  statusBtn: { padding: 4 },
-  productInfo: { flex: 1 },
-  productName: { fontSize: 12, fontWeight: '600', color: '#0f172a', fontFamily: 'Cairo', textAlign: 'right' },
-  productMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
-  stockBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, backgroundColor: 'rgba(34, 197, 94, 0.1)' },
-  stockBadgeLow: { backgroundColor: 'rgba(239, 68, 68, 0.1)' },
-  stockText: { fontSize: 10, color: '#22c55e' },
-  stockTextLow: { color: '#ef4444' },
-  productPriceCol: { alignItems: 'flex-end', minWidth: 50 },
-  productPrice: { fontSize: 13, fontWeight: 'bold', color: '#3b82f6' },
-  productUnit: { fontSize: 10, color: '#94a3b8' },
-  editBtn: { padding: 6 },
+  container: {
+    flex: 1,
+  },
+  content: {
+    padding: spacing.md,
+    gap: spacing.md,
+  },
+
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xs,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: '800',
+    fontFamily: 'Cairo',
+    textAlign: 'right',
+  },
+  subtitle: {
+    fontSize: 12,
+    fontFamily: 'Cairo',
+    textAlign: 'right',
+  },
+
+  // Stats bar
+  statsBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    ...shadows.xs,
+  },
+  statBox: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statLabel: {
+    fontSize: 11,
+    fontFamily: 'Cairo',
+    fontWeight: '600',
+    marginBottom: 1,
+  },
+  statValue: {
+    fontSize: 17,
+    fontWeight: '800',
+    fontFamily: 'Cairo',
+  },
+  statDivider: {
+    width: 1,
+    height: 28,
+  },
+
+  // Search
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    height: 44,
+  },
+  searchIcon: {
+    marginRight: spacing.xs,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: 'Cairo',
+    height: '100%',
+  },
+  clearBtn: {
+    padding: spacing.xxs,
+  },
+
+  // Categories
+  categoryBarWrapper: {
+    marginTop: spacing.sm,
+  },
+  categoryBar: {
+    paddingHorizontal: spacing.md,
+    gap: spacing.xs,
+  },
+  categoryChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+  },
+  categoryText: {
+    fontSize: 12,
+    fontWeight: '700',
+    fontFamily: 'Cairo',
+  },
+
+  // Products List
+  productsScroll: {
+    flex: 1,
+    marginTop: spacing.sm,
+  },
+  productsList: {
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.huge,
+    gap: spacing.xs + 2,
+  },
+  productCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.md,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    ...shadows.xs,
+  },
+  cardActions: {
+    alignItems: 'flex-start',
+    gap: 4,
+  },
+  editIconBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: radii.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  productPrice: {
+    fontSize: 14,
+    fontWeight: '800',
+    fontFamily: 'Cairo',
+  },
+  currency: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+
+  productInfoRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: spacing.sm,
+  },
+  productInfo: {
+    flex: 1,
+    alignItems: 'flex-end',
+    gap: 3,
+  },
+  productName: {
+    fontSize: 14,
+    fontWeight: '700',
+    fontFamily: 'Cairo',
+    textAlign: 'right',
+  },
+  productMetaRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  barcodeWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  barcodeText: {
+    fontSize: 10.5,
+    fontFamily: 'Cairo',
+  },
+
+  thumbBox: {
+    width: 44,
+    height: 44,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  thumbImage: {
+    width: '100%',
+    height: '100%',
+  },
+  thumbEmoji: {
+    fontSize: 22,
+  },
 });
 
 export default InventoryScreen;

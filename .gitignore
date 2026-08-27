@@ -36,8 +36,10 @@ local.properties
 *.local
 
 # Editor directories and files
-.vscode/*
-!.vscode/extensions.json
+.vscode/
+**/.vscode/
+Antigravity IDE/
+**/Antigravity IDE/
 .idea
 .DS_Store
 *.suo
@@ -48,4 +50,8 @@ local.properties
 
 # Windows reserved names
 nul
+
+# Loose temp images
+mobile-rn/*.ico
+mobile-rn/*.png
 

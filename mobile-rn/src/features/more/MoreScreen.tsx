@@ -1,7 +1,3 @@
-/**
- * MoreScreen — AN POS Mobile
- * Settings, sync info, app info, and logout
- */
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -11,39 +7,51 @@ import {
   ScrollView,
   TextInput,
   Alert,
-  Switch,
   ActivityIndicator,
+  Image,
 } from 'react-native';
+import { AppImages } from '@/assets';
 import {
   Settings,
   Store,
   Wifi,
-  WifiOff,
   RefreshCw,
   LogOut,
-  Info,
-  ChevronRight,
+  ChevronLeft,
   Check,
   X,
   Printer,
   Shield,
   BarChart3,
   Database,
+  Truck,
+  DollarSign,
+  Layers,
+  Tag,
+  Users,
+  HardDrive,
+  Barcode,
+  Calculator,
+  Wallet,
+  TrendingDown,
+  FileText,
+  Sun,
+  Moon,
+  Smartphone,
 } from 'lucide-react-native';
 import { useAuthStore } from '@/store/authStore';
 import { session } from '@/lib/apiClient';
 import { db, ensureInit } from '@/lib/db';
 import { useSyncEngine } from '@/lib/syncEngine';
 import { getStoredMode } from '@/infrastructure/database/UnifiedDB';
+import { useTheme, type ThemeMode } from '@/theme';
+import { radii, spacing, shadows } from '@/theme/tokens';
+import { Card, CardHeader, CardTitle, CardContent, Badge, Button, Input } from '@/components/ui';
 
-interface StoreSetting {
-  key: string;
-  value: string;
-}
-
-const MoreScreen = ({ navigation }: any) => {
+export const MoreScreen = ({ navigation }: any) => {
   const { user, logout } = useAuthStore();
   const sync = useSyncEngine();
+  const { mode, isDark, colors, setMode } = useTheme();
 
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -69,12 +77,14 @@ const MoreScreen = ({ navigation }: any) => {
       setSettings(map);
       setForm({ ...map });
 
-      const mode = await getStoredMode();
-      setAppMode(mode);
+      const smode = await getStoredMode();
+      setAppMode(smode);
 
       const url = await session.getServerUrlDisplay();
       setServerUrlDisplay(url || '—');
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     setLoading(false);
   }
 
@@ -85,7 +95,10 @@ const MoreScreen = ({ navigation }: any) => {
       for (const [key, value] of Object.entries(form)) {
         const existing = await db.settings.where('key').equals(key).toArray();
         if (existing.length > 0) {
-          await db.settings.update(existing[0].id, { value, updated_at: new Date().toISOString() });
+          await db.settings.update(existing[0].id, {
+            value,
+            updated_at: new Date().toISOString(),
+          });
         }
       }
       setSettings({ ...form });
@@ -104,128 +117,397 @@ const MoreScreen = ({ navigation }: any) => {
     }
     await sync.pullUpdates();
     await sync.processQueue();
-    Alert.alert('تمت المزامنة', `آخر مزامنة: ${sync.lastSyncTime ? new Date(sync.lastSyncTime).toLocaleTimeString('ar') : '—'}`);
+    Alert.alert(
+      'تمت المزامنة',
+      `آخر مزامنة: ${sync.lastSyncTime ? new Date(sync.lastSyncTime).toLocaleTimeString('ar') : '—'}`
+    );
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'تسجيل الخروج',
-      'هل أنت متأكد من تسجيل الخروج؟',
-      [
-        { text: 'إلغاء', style: 'cancel' },
-        {
-          text: 'خروج',
-          style: 'destructive',
-          onPress: () => {
-            logout();
-            navigation?.replace('Login');
-          },
+    Alert.alert('تسجيل الخروج', 'هل أنت متأكد من تسجيل الخروج؟', [
+      { text: 'إلغاء', style: 'cancel' },
+      {
+        text: 'خروج',
+        style: 'destructive',
+        onPress: () => {
+          logout();
+          navigation?.replace('Login');
         },
-      ]
-    );
+      },
+    ]);
   };
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#3b82f6" />
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary[600]} />
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 30 }}>
-
-      {/* User card */}
-      <View style={styles.userCard}>
-        <View style={styles.userAvatar}>
-          <Text style={styles.userAvatarText}>
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      contentContainerStyle={styles.contentContainer}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* User Card */}
+      <Card variant="elevated" style={styles.userCard}>
+        <View
+          style={[
+            styles.userAvatar,
+            {
+              backgroundColor: colors.primary[50],
+              borderColor: colors.primary[200],
+            },
+          ]}
+        >
+          <Text style={[styles.userAvatarText, { color: colors.primary[700] }]}>
             {user?.name?.charAt(0)?.toUpperCase() || 'A'}
           </Text>
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.userName}>{user?.name || 'المستخدم'}</Text>
-          <Text style={styles.userRole}>
-            {user?.role === 'admin' ? '👑 مدير' : user?.role === 'cashier' ? '🏪 كاشير' : '🛒 بائع'}
-          </Text>
+        <View style={{ flex: 1, alignItems: 'flex-end' }}>
+          <Text style={[styles.userName, { color: colors.text.primary }]}>{user?.name || 'المستخدم'}</Text>
+          <Badge
+            variant={user?.role === 'admin' ? 'purple' : 'primary'}
+            size="xs"
+            style={{ marginTop: 2 }}
+          >
+            {user?.role === 'admin'
+              ? '👑 مدير النظام'
+              : user?.role === 'cashier'
+              ? '🏪 كاشير'
+              : '🛒 بائع'}
+          </Badge>
         </View>
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <LogOut size={18} color="#ef4444" />
+        <TouchableOpacity
+          style={[
+            styles.logoutBtn,
+            {
+              backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : colors.danger.light,
+            },
+          ]}
+          onPress={handleLogout}
+          activeOpacity={0.7}
+        >
+          <LogOut size={18} color={colors.danger.main} />
+        </TouchableOpacity>
+      </Card>
+
+      {/* Theme Selection Section */}
+      <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>مظهر وثيم التطبيق (Theme Mode)</Text>
+      <View style={styles.themeSelectorGrid}>
+        <TouchableOpacity
+          style={[
+            styles.themeOptionCard,
+            {
+              backgroundColor: colors.surface,
+              borderColor: mode === 'light' ? colors.primary[600] : colors.border.default,
+            },
+            mode === 'light' && { borderWidth: 2, backgroundColor: isDark ? colors.surfaceElevated : colors.primary[50] },
+          ]}
+          onPress={() => setMode('light')}
+          activeOpacity={0.75}
+        >
+          <View
+            style={[
+              styles.themeOptionIconBox,
+              { backgroundColor: mode === 'light' ? colors.warning.main : colors.warning.light },
+            ]}
+          >
+            <Sun size={20} color={mode === 'light' ? '#fff' : colors.warning.dark} />
+          </View>
+          <Text style={[styles.themeOptionTitle, { color: colors.text.primary }]}>الوضع المشرق</Text>
+          <Text style={[styles.themeOptionSub, { color: colors.text.tertiary }]}>فاتح وناصع</Text>
+          {mode === 'light' && (
+            <View style={[styles.themeCheckBadge, { backgroundColor: colors.primary[600] }]}>
+              <Check size={12} color="#fff" />
+            </View>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.themeOptionCard,
+            {
+              backgroundColor: colors.surface,
+              borderColor: mode === 'dark' ? colors.primary[600] : colors.border.default,
+            },
+            mode === 'dark' && { borderWidth: 2, backgroundColor: isDark ? colors.surfaceElevated : colors.primary[50] },
+          ]}
+          onPress={() => setMode('dark')}
+          activeOpacity={0.75}
+        >
+          <View
+            style={[
+              styles.themeOptionIconBox,
+              { backgroundColor: mode === 'dark' ? colors.purple[600] : colors.purple[50] },
+            ]}
+          >
+            <Moon size={20} color={mode === 'dark' ? '#fff' : colors.purple[700]} />
+          </View>
+          <Text style={[styles.themeOptionTitle, { color: colors.text.primary }]}>الوضع المظلم</Text>
+          <Text style={[styles.themeOptionSub, { color: colors.text.tertiary }]}>ليلي أنيق</Text>
+          {mode === 'dark' && (
+            <View style={[styles.themeCheckBadge, { backgroundColor: colors.primary[600] }]}>
+              <Check size={12} color="#fff" />
+            </View>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.themeOptionCard,
+            {
+              backgroundColor: colors.surface,
+              borderColor: mode === 'system' ? colors.primary[600] : colors.border.default,
+            },
+            mode === 'system' && { borderWidth: 2, backgroundColor: isDark ? colors.surfaceElevated : colors.primary[50] },
+          ]}
+          onPress={() => setMode('system')}
+          activeOpacity={0.75}
+        >
+          <View
+            style={[
+              styles.themeOptionIconBox,
+              { backgroundColor: mode === 'system' ? colors.primary[600] : colors.primary[50] },
+            ]}
+          >
+            <Smartphone size={20} color={mode === 'system' ? '#fff' : colors.primary[700]} />
+          </View>
+          <Text style={[styles.themeOptionTitle, { color: colors.text.primary }]}>تلقائي (النظام)</Text>
+          <Text style={[styles.themeOptionSub, { color: colors.text.tertiary }]}>حسب إعدادات الهاتف</Text>
+          {mode === 'system' && (
+            <View style={[styles.themeCheckBadge, { backgroundColor: colors.primary[600] }]}>
+              <Check size={12} color="#fff" />
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
+      {/* Main Operations Modules Hub */}
+      <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>إدارة العمليات والأنشطة التجارية</Text>
+      <View style={styles.hubGrid}>
+        <TouchableOpacity
+          style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+          onPress={() => navigation.navigate('Suppliers')}
+          activeOpacity={0.75}
+        >
+          <View style={[styles.hubIconBox, { backgroundColor: colors.warning.light }]}>
+            <Truck size={20} color={colors.warning.dark} />
+          </View>
+          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>الموردون والمشتريات</Text>
+          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>فواتير الشراء وديون الموردين</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+          onPress={() => navigation.navigate('Cash')}
+          activeOpacity={0.75}
+        >
+          <View style={[styles.hubIconBox, { backgroundColor: colors.emerald[50] }]}>
+            <Wallet size={20} color={colors.emerald[700]} />
+          </View>
+          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>الصندوق والمناوبات</Text>
+          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>فتح وإغلاق اليومية ورأس المال</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+          onPress={() => navigation.navigate('Expenses')}
+          activeOpacity={0.75}
+        >
+          <View style={[styles.hubIconBox, { backgroundColor: colors.danger.light }]}>
+            <TrendingDown size={20} color={colors.danger.main} />
+          </View>
+          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>إدارة المصاريف</Text>
+          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>المصروفات اليومية والشهرية</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+          onPress={() => navigation.navigate('Categories')}
+          activeOpacity={0.75}
+        >
+          <View style={[styles.hubIconBox, { backgroundColor: colors.indigo[50] }]}>
+            <Tag size={20} color={colors.indigo[700]} />
+          </View>
+          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>أقسام وفئات المنتجات</Text>
+          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>تنظيم العائلات والتصنيفات</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+          onPress={() => navigation.navigate('Promotions')}
+          activeOpacity={0.75}
+        >
+          <View style={[styles.hubIconBox, { backgroundColor: colors.purple[50] }]}>
+            <Layers size={20} color={colors.purple[700]} />
+          </View>
+          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>العروض والباقات</Text>
+          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>التخفيضات المجدولة والحزم</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+          onPress={() => navigation.navigate('DeliveryOrders')}
+          activeOpacity={0.75}
+        >
+          <View style={[styles.hubIconBox, { backgroundColor: colors.primary[50] }]}>
+            <Store size={20} color={colors.primary[700]} />
+          </View>
+          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>طلبات التوصيل</Text>
+          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>متابعة الديليفري والسائقين</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Advanced Reports & Tools */}
+      <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>التحليلات المتقدمة والأدوات</Text>
+      <Card style={styles.sectionMenu}>
+        <MenuItem
+          icon={<BarChart3 size={18} color={colors.primary[600]} />}
+          title="مركز الأرباح وهوامش الربح"
+          subtitle="تحليل تكلفة البضاعة والمصاريف والأرباح الصافية"
+          onPress={() => navigation.navigate('ProfitCenter')}
+          colors={colors}
+        />
+        <View style={[styles.menuDivider, { backgroundColor: colors.border.subtle }]} />
+        <MenuItem
+          icon={<Calculator size={18} color={colors.emerald[700]} />}
+          title="حاسبة الزكاة الشرعية"
+          subtitle="حساب زكاة عروض التجارة والسيولة النقدية"
+          onPress={() => navigation.navigate('ZakatCalculator')}
+          colors={colors}
+        />
+        <View style={[styles.menuDivider, { backgroundColor: colors.border.subtle }]} />
+        <MenuItem
+          icon={<FileText size={18} color={colors.primary[600]} />}
+          title="قوالب الطباعة وتخصيص الفواتير"
+          subtitle="محرر القوالب، النماذج الجاهزة، وتعيينات المستندات"
+          onPress={() => navigation.navigate('PrintTemplates')}
+          colors={colors}
+        />
+        <View style={[styles.menuDivider, { backgroundColor: colors.border.subtle }]} />
+        <MenuItem
+          icon={<Printer size={18} color={colors.indigo[600]} />}
+          title="إعدادات الطابعات الحرارية"
+          subtitle="طابعات البلوتوث والشبكة والـ USB واختبار الطباعة"
+          onPress={() => navigation.navigate('PrinterSettings')}
+          colors={colors}
+        />
+        <View style={[styles.menuDivider, { backgroundColor: colors.border.subtle }]} />
+        <MenuItem
+          icon={<Barcode size={18} color={colors.purple[600]} />}
+          title="طباعة ملصقات الباركود والأسعار"
+          subtitle="10 مقاسات ملصقات، 6 صيغ باركود وQR مع التوليد التلقائي"
+          onPress={() => navigation.navigate('BarcodeLabels')}
+          colors={colors}
+        />
+        <View style={[styles.menuDivider, { backgroundColor: colors.border.subtle }]} />
+        <MenuItem
+          icon={<Users size={18} color={colors.warning.dark} />}
+          title="المستخدمون والصلاحيات"
+          subtitle="حسابات البائعين ورموز PIN والأدوار"
+          onPress={() => navigation.navigate('Users')}
+          colors={colors}
+        />
+        <View style={[styles.menuDivider, { backgroundColor: colors.border.subtle }]} />
+        <MenuItem
+          icon={<HardDrive size={18} color={colors.slate[600]} />}
+          title="النسخ الاحتياطي واستعادة البيانات"
+          subtitle="تصدير واستيراد قواعد البيانات بصيغة JSON"
+          onPress={() => navigation.navigate('BackupRestore')}
+          colors={colors}
+        />
+      </Card>
+
       {/* Connection Status */}
-      <SectionHeader title="حالة الاتصال" />
-      <View style={styles.section}>
+      <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>حالة الاتصال والشبكة</Text>
+      <Card style={styles.sectionCard}>
         <View style={styles.statusRow}>
-          {appMode === 'connected'
-            ? <Wifi size={18} color="#22c55e" />
-            : <Database size={18} color="#94a3b8" />
-          }
-          <View style={{ flex: 1 }}>
-            <Text style={styles.statusTitle}>
-              {appMode === 'connected' ? 'متصل بالحاسوب' : 'وضع مستقل'}
+          {appMode === 'connected' ? (
+            <Wifi size={20} color={colors.emerald[600]} />
+          ) : (
+            <Database size={20} color={colors.slate[400]} />
+          )}
+          <View style={{ flex: 1, alignItems: 'flex-end' }}>
+            <Text style={[styles.statusTitle, { color: colors.text.primary }]}>
+              {appMode === 'connected' ? 'متصل بالحاسوب الرئيسي' : 'وضع محلي مستقل (Offline)'}
             </Text>
             {appMode === 'connected' && (
-              <Text style={styles.statusSub}>{serverUrlDisplay}</Text>
+              <Text style={[styles.statusSub, { color: colors.text.tertiary }]}>{serverUrlDisplay}</Text>
             )}
           </View>
-          <View style={[styles.statusBadge, { backgroundColor: appMode === 'connected' ? 'rgba(34,197,94,0.1)' : 'rgba(148,163,184,0.1)' }]}>
-            <Text style={[styles.statusBadgeText, { color: appMode === 'connected' ? '#22c55e' : '#94a3b8' }]}>
-              {appMode === 'connected' ? 'متصل' : 'مستقل'}
-            </Text>
-          </View>
+          <Badge variant={appMode === 'connected' ? 'emerald' : 'neutral'} size="xs" dot>
+            {appMode === 'connected' ? 'متصل' : 'مستقل'}
+          </Badge>
         </View>
 
         {appMode === 'connected' && (
-          <View style={styles.syncRow}>
+          <View style={[styles.syncRow, { borderTopColor: colors.border.subtle }]}>
             <View>
-              <Text style={styles.syncLabel}>المعلقة: {sync.pendingCount}</Text>
-              <Text style={styles.syncLabel}>الفاشلة: {sync.failedCount}</Text>
+              <Text style={[styles.syncLabel, { color: colors.text.secondary }]}>المعلقة: {sync.pendingCount}</Text>
+              <Text style={[styles.syncLabel, { color: colors.text.secondary }]}>الفاشلة: {sync.failedCount}</Text>
             </View>
-            <TouchableOpacity
-              style={[styles.syncBtn, sync.isSyncing && styles.syncBtnDisabled]}
+            <Button
+              title="مزامنة الآن"
+              variant="primary"
+              size="sm"
+              loading={sync.isSyncing}
+              icon={<RefreshCw size={14} color="#fff" />}
               onPress={handleSync}
-              disabled={sync.isSyncing}
-            >
-              {sync.isSyncing
-                ? <ActivityIndicator size="small" color="#fff" />
-                : <>
-                    <RefreshCw size={14} color="#fff" />
-                    <Text style={styles.syncBtnText}>مزامنة</Text>
-                  </>
-              }
-            </TouchableOpacity>
+            />
           </View>
         )}
-      </View>
+      </Card>
 
       {/* Store Settings */}
       <View style={styles.sectionHeaderRow}>
-        <SectionHeader title="إعدادات المتجر" />
+        <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>بيانات وإعدادات المحل</Text>
         {!editMode ? (
-          <TouchableOpacity style={styles.editBtn} onPress={() => setEditMode(true)}>
-            <Text style={styles.editBtnText}>تعديل</Text>
+          <TouchableOpacity
+            style={[styles.editBtn, { backgroundColor: colors.primary[50] }]}
+            onPress={() => setEditMode(true)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.editBtnText, { color: colors.primary[700] }]}>تعديل</Text>
           </TouchableOpacity>
         ) : (
           <View style={styles.editActions}>
-            <TouchableOpacity style={styles.cancelBtn} onPress={() => { setForm({ ...settings }); setEditMode(false); }}>
-              <X size={16} color="#94a3b8" />
+            <TouchableOpacity
+              style={[styles.cancelBtn, { backgroundColor: colors.slate[100] }]}
+              onPress={() => {
+                setForm({ ...settings });
+                setEditMode(false);
+              }}
+              activeOpacity={0.7}
+            >
+              <X size={16} color={colors.slate[400]} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.saveInlineBtn} onPress={handleSaveSettings} disabled={saving}>
-              {saving ? <ActivityIndicator size="small" color="#fff" /> : <Check size={16} color="#fff" />}
+            <TouchableOpacity
+              style={styles.saveInlineBtn}
+              onPress={handleSaveSettings}
+              disabled={saving}
+              activeOpacity={0.7}
+            >
+              {saving ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Check size={16} color="#fff" />
+              )}
             </TouchableOpacity>
           </View>
         )}
       </View>
 
-      <View style={styles.section}>
+      <Card style={styles.sectionCard}>
         <SettingRow
-          label="اسم المتجر"
+          label="اسم المحل"
           settingKey="store_name"
           form={form}
           setForm={setForm}
           editMode={editMode}
+          colors={colors}
         />
         <SettingRow
           label="العنوان"
@@ -233,6 +515,7 @@ const MoreScreen = ({ navigation }: any) => {
           form={form}
           setForm={setForm}
           editMode={editMode}
+          colors={colors}
         />
         <SettingRow
           label="الهاتف"
@@ -241,153 +524,412 @@ const MoreScreen = ({ navigation }: any) => {
           setForm={setForm}
           editMode={editMode}
           keyboardType="phone-pad"
+          colors={colors}
         />
         <SettingRow
-          label="نسبة TVA (%)"
+          label="نسبة الضريبة TVA (%)"
           settingKey="tva_rate"
           form={form}
           setForm={setForm}
           editMode={editMode}
           keyboardType="numeric"
-          displayTransform={v => `${(parseFloat(v || '0') * 100).toFixed(0)}%`}
+          displayTransform={(v: string) => `${(parseFloat(v || '0') * 100).toFixed(0)}%`}
+          colors={colors}
         />
         <SettingRow
-          label="العملة"
+          label="العملة الأساسية"
           settingKey="currency"
           form={form}
           setForm={setForm}
           editMode={editMode}
+          colors={colors}
         />
         <SettingRow
-          label="رسالة الإيصال"
+          label="نص أسفل الفاتورة"
           settingKey="receipt_footer"
           form={form}
           setForm={setForm}
           editMode={editMode}
+          colors={colors}
         />
+      </Card>
+
+      {/* App Branding Footer */}
+      <View style={styles.appBrandingFooter}>
+        <Image source={AppImages.logo64} style={styles.brandingLogo} resizeMode="contain" />
+        <Text style={[styles.brandingName, { color: colors.text.primary }]}>AN POS Mobile</Text>
+        <Text style={[styles.brandingVersion, { color: colors.text.tertiary }]}>
+          الإصدار 3.0.0 • دعم الوضع المشرق والمظلم
+        </Text>
       </View>
 
-      {/* App Info */}
-      <SectionHeader title="معلومات التطبيق" />
-      <View style={styles.section}>
-        <InfoItem label="الإصدار" value="2.0.0 (React Native + Nitro)" />
-        <InfoItem label="وضع التشغيل" value={appMode === 'connected' ? 'متصل' : 'مستقل'} />
-        <InfoItem label="قاعدة البيانات" value={appMode === 'connected' ? 'REST API' : 'SQLite (محلي)'} />
-      </View>
-
-      {/* Logout button */}
-      <TouchableOpacity style={styles.logoutFullBtn} onPress={handleLogout}>
-        <LogOut size={18} color="#ef4444" />
-        <Text style={styles.logoutFullText}>تسجيل الخروج</Text>
-      </TouchableOpacity>
+      {/* Logout full button */}
+      <Button
+        title="تسجيل الخروج من التطبيق"
+        variant="destructive"
+        size="lg"
+        icon={<LogOut size={18} color="#fff" />}
+        onPress={handleLogout}
+        style={styles.logoutFullBtn}
+      />
     </ScrollView>
   );
 };
 
-const SectionHeader = ({ title }: { title: string }) => (
-  <Text style={styles.sectionTitle}>{title}</Text>
+const MenuItem = ({ icon, title, subtitle, onPress, colors }: any) => (
+  <TouchableOpacity style={styles.menuItem} onPress={onPress} activeOpacity={0.7}>
+    <ChevronLeft size={16} color={colors.slate[400]} />
+    <View style={styles.menuItemInfo}>
+      <Text style={[styles.menuItemTitle, { color: colors.text.primary }]}>{title}</Text>
+      <Text style={[styles.menuItemSub, { color: colors.text.tertiary }]}>{subtitle}</Text>
+    </View>
+    <View style={[styles.menuItemIconBox, { backgroundColor: colors.primary[50] }]}>{icon}</View>
+  </TouchableOpacity>
 );
 
 const SettingRow = ({
-  label, settingKey, form, setForm, editMode, keyboardType, displayTransform,
-}: {
-  label: string;
-  settingKey: string;
-  form: Record<string, string>;
-  setForm: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  editMode: boolean;
-  keyboardType?: any;
-  displayTransform?: (v: string) => string;
-}) => (
-  <View style={styles.settingRow}>
-    <Text style={styles.settingLabel}>{label}</Text>
+  label,
+  settingKey,
+  form,
+  setForm,
+  editMode,
+  keyboardType,
+  displayTransform,
+  colors,
+}: any) => (
+  <View style={[styles.settingRow, { borderBottomColor: colors.border.subtle }]}>
+    <Text style={[styles.settingLabel, { color: colors.text.secondary }]}>{label}</Text>
     {editMode ? (
       <TextInput
-        style={styles.settingInput}
+        style={[
+          styles.settingInput,
+          {
+            color: colors.text.primary,
+            backgroundColor: colors.inputBg,
+            borderColor: colors.border.default,
+          },
+        ]}
         value={form[settingKey] || ''}
-        onChangeText={v => setForm(f => ({ ...f, [settingKey]: v }))}
+        onChangeText={(v) => setForm((f: any) => ({ ...f, [settingKey]: v }))}
         keyboardType={keyboardType || 'default'}
         textAlign="right"
-        placeholderTextColor="#94a3b8"
+        placeholderTextColor={colors.slate[400]}
       />
     ) : (
-      <Text style={styles.settingValue}>
-        {displayTransform ? displayTransform(form[settingKey] || '') : (form[settingKey] || '—')}
+      <Text style={[styles.settingValue, { color: colors.text.primary }]}>
+        {displayTransform ? displayTransform(form[settingKey] || '') : form[settingKey] || '—'}
       </Text>
     )}
   </View>
 );
 
-const InfoItem = ({ label, value }: { label: string; value: string }) => (
-  <View style={styles.settingRow}>
-    <Text style={styles.settingLabel}>{label}</Text>
-    <Text style={[styles.settingValue, { color: '#64748b' }]}>{value}</Text>
-  </View>
-);
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  container: {
+    flex: 1,
+  },
+  contentContainer: {
+    paddingBottom: spacing.xxxl + spacing.xl,
+  },
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.xl,
+  },
 
-  // User card
   userCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#fff', margin: 12, borderRadius: 20, padding: 16,
-    borderWidth: 1, borderColor: '#e2e8f0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
+    padding: spacing.md,
+    gap: spacing.md,
   },
   userAvatar: {
-    width: 52, height: 52, borderRadius: 26,
-    backgroundColor: 'rgba(59,130,246,0.1)', alignItems: 'center', justifyContent: 'center',
+    width: 48,
+    height: 48,
+    borderRadius: radii.full,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  userAvatarText: { fontSize: 22, fontWeight: 'bold', color: '#3b82f6' },
-  userName: { fontSize: 16, fontWeight: 'bold', color: '#0f172a', fontFamily: 'Cairo', textAlign: 'right' },
-  userRole: { fontSize: 12, color: '#94a3b8', fontFamily: 'Cairo', textAlign: 'right' },
-  logoutBtn: { width: 38, height: 38, borderRadius: 10, backgroundColor: 'rgba(239,68,68,0.08)', alignItems: 'center', justifyContent: 'center' },
+  userAvatarText: {
+    fontSize: 18,
+    fontWeight: '800',
+    fontFamily: 'Cairo',
+  },
+  userName: {
+    fontSize: 15,
+    fontWeight: '800',
+    fontFamily: 'Cairo',
+    textAlign: 'right',
+  },
+  logoutBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: radii.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
-  // Section
-  sectionTitle: { fontSize: 11, fontWeight: '700', color: '#94a3b8', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 6, letterSpacing: 0.5 },
-  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: 16 },
-  section: { backgroundColor: '#fff', marginHorizontal: 12, borderRadius: 16, borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden' },
+  themeSelectorGrid: {
+    flexDirection: 'row',
+    gap: spacing.xs + 2,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.xs,
+  },
+  themeOptionCard: {
+    flex: 1,
+    borderRadius: radii.xl,
+    padding: spacing.sm + 2,
+    borderWidth: 1,
+    alignItems: 'center',
+    position: 'relative',
+    ...shadows.xs,
+  },
+  themeOptionIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: radii.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  themeOptionTitle: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    fontFamily: 'Cairo',
+    textAlign: 'center',
+  },
+  themeOptionSub: {
+    fontSize: 9.5,
+    fontFamily: 'Cairo',
+    textAlign: 'center',
+    marginTop: 1,
+  },
+  themeCheckBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
-  // Status
-  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
-  statusTitle: { fontSize: 13, fontWeight: '600', color: '#0f172a', fontFamily: 'Cairo', textAlign: 'right' },
-  statusSub: { fontSize: 11, color: '#94a3b8', fontFamily: 'Cairo', textAlign: 'right' },
-  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  statusBadgeText: { fontSize: 11, fontWeight: '600' },
-  syncRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingBottom: 14 },
-  syncLabel: { fontSize: 11, color: '#94a3b8', fontFamily: 'Cairo' },
-  syncBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#3b82f6', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
-  syncBtnDisabled: { opacity: 0.5 },
-  syncBtnText: { color: '#fff', fontSize: 12, fontWeight: '600', fontFamily: 'Cairo' },
+  sectionTitle: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xs,
+    textAlign: 'right',
+    fontFamily: 'Cairo',
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xs,
+  },
 
-  // Edit controls
-  editBtn: { backgroundColor: 'rgba(59,130,246,0.1)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
-  editBtnText: { color: '#3b82f6', fontSize: 12, fontWeight: '600', fontFamily: 'Cairo' },
-  editActions: { flexDirection: 'row', gap: 6 },
-  cancelBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
-  saveInlineBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#22c55e', alignItems: 'center', justifyContent: 'center' },
+  hubGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs + 2,
+    paddingHorizontal: spacing.md,
+  },
+  hubCard: {
+    width: '48.5%',
+    borderRadius: radii.xl,
+    padding: spacing.md,
+    borderWidth: 1,
+    alignItems: 'flex-end',
+    ...shadows.xs,
+  },
+  hubIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: radii.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.xs,
+  },
+  hubCardTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    fontFamily: 'Cairo',
+  },
+  hubCardSub: {
+    fontSize: 10.5,
+    fontFamily: 'Cairo',
+    marginTop: 2,
+    textAlign: 'right',
+  },
 
-  // Setting row
+  sectionMenu: {
+    marginHorizontal: spacing.md,
+    padding: 0,
+    overflow: 'hidden',
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.md,
+  },
+  menuItemIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: radii.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: spacing.sm,
+  },
+  menuItemInfo: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
+  menuItemTitle: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    fontFamily: 'Cairo',
+  },
+  menuItemSub: {
+    fontSize: 11,
+    fontFamily: 'Cairo',
+    marginTop: 2,
+  },
+  menuDivider: {
+    height: 1,
+    marginHorizontal: spacing.md,
+  },
+
+  sectionCard: {
+    marginHorizontal: spacing.md,
+    padding: 0,
+    overflow: 'hidden',
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    padding: spacing.md,
+  },
+  statusTitle: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    fontFamily: 'Cairo',
+    textAlign: 'right',
+  },
+  statusSub: {
+    fontSize: 11,
+    fontFamily: 'Cairo',
+    textAlign: 'right',
+  },
+  syncRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.md,
+    borderTopWidth: 1,
+    paddingTop: spacing.sm,
+  },
+  syncLabel: {
+    fontSize: 11,
+    fontFamily: 'Cairo',
+  },
+
+  editBtn: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 4,
+    borderRadius: radii.md,
+  },
+  editBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    fontFamily: 'Cairo',
+  },
+  editActions: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  cancelBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: radii.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveInlineBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: radii.md,
+    backgroundColor: '#059669',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
   settingRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    borderBottomWidth: 1,
   },
-  settingLabel: { fontSize: 13, color: '#64748b', fontFamily: 'Cairo', flex: 1 },
-  settingValue: { fontSize: 13, color: '#0f172a', fontFamily: 'Cairo', fontWeight: '500', textAlign: 'right', flex: 1 },
+  settingLabel: {
+    fontSize: 13,
+    fontFamily: 'Cairo',
+    flex: 1,
+  },
+  settingValue: {
+    fontSize: 13,
+    fontFamily: 'Cairo',
+    fontWeight: '600',
+    textAlign: 'right',
+    flex: 1,
+  },
   settingInput: {
-    flex: 1, fontSize: 13, color: '#0f172a', fontFamily: 'Cairo',
-    backgroundColor: '#f1f5f9', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,
-    borderWidth: 1, borderColor: '#e2e8f0',
+    flex: 1,
+    fontSize: 13,
+    fontFamily: 'Cairo',
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 5,
+    borderWidth: 1,
   },
 
-  // Logout
-  logoutFullBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    marginHorizontal: 12, marginTop: 16, borderRadius: 16, paddingVertical: 14,
-    backgroundColor: 'rgba(239,68,68,0.08)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)',
+  appBrandingFooter: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: spacing.xl,
+    marginBottom: spacing.xs,
+    gap: 2,
   },
-  logoutFullText: { color: '#ef4444', fontSize: 15, fontWeight: 'bold', fontFamily: 'Cairo' },
+  brandingLogo: {
+    width: 44,
+    height: 44,
+    marginBottom: 4,
+  },
+  brandingName: {
+    fontSize: 14,
+    fontWeight: '800',
+    fontFamily: 'Cairo',
+  },
+  brandingVersion: {
+    fontSize: 11,
+    fontFamily: 'Cairo',
+  },
+
+  logoutFullBtn: {
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+  },
 });
 
 export default MoreScreen;

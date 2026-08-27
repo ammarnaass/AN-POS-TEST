@@ -572,24 +572,28 @@ export const ALL_DEFAULT_TEMPLATES: PrintTemplate[] = [
   DEFAULT_INVOICE_A5,
 ];
 
-/** تهيئة القوالب الافتراضية في قاعدة البيانات */
-export async function seedDefaultTemplates(): Promise<void> {
-  const { db } = await import('@/infrastructure/database/dexie/db');
-  const existingCount = await db.print_templates.count();
-  if (existingCount > 0) return; // لا نُعيد التهيئة إن وجدت قوالب
+/** تهيئة القوالب الافتراضية في قاعدة البيانات (اختياري) */
+export async function seedDefaultTemplates(dbInstance?: any): Promise<void> {
+  if (!dbInstance) return;
+  try {
+    const existingCount = await dbInstance.print_templates.count();
+    if (existingCount > 0) return;
 
-  await db.print_templates.bulkPut(ALL_DEFAULT_TEMPLATES);
+    await dbInstance.print_templates.bulkPut(ALL_DEFAULT_TEMPLATES);
 
-  // تعيين القوالب الافتراضية لأنواع الوثائق
-  await db.template_assignments.bulkPut([
-    { docType: 'thermal-receipt', templateId: 'default-thermal-80' },
-    { docType: 'return-invoice', templateId: 'default-thermal-80' },
-    { docType: 'sale-invoice', templateId: 'default-invoice-a4' },
-    { docType: 'proforma', templateId: 'default-invoice-a4' },
-    { docType: 'devis', templateId: 'default-invoice-a4' },
-    { docType: 'purchase-invoice', templateId: 'default-invoice-a4' },
-    { docType: 'bl', templateId: 'default-invoice-a5' },
-    { docType: 'customer-statement', templateId: 'default-invoice-a5' },
-    { docType: 'supplier-statement', templateId: 'default-invoice-a5' },
-  ]);
+    // تعيين القوالب الافتراضية لأنواع الوثائق
+    await dbInstance.template_assignments.bulkPut([
+      { docType: 'thermal-receipt', templateId: 'default-thermal-80' },
+      { docType: 'return-invoice', templateId: 'default-thermal-80' },
+      { docType: 'sale-invoice', templateId: 'default-invoice-a4' },
+      { docType: 'proforma', templateId: 'default-invoice-a4' },
+      { docType: 'devis', templateId: 'default-invoice-a4' },
+      { docType: 'purchase-invoice', templateId: 'default-invoice-a4' },
+      { docType: 'bl', templateId: 'default-invoice-a5' },
+      { docType: 'customer-statement', templateId: 'default-invoice-a5' },
+      { docType: 'supplier-statement', templateId: 'default-invoice-a5' },
+    ]);
+  } catch {
+    // Ignore
+  }
 }
