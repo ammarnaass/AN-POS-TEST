@@ -74,10 +74,29 @@ export async function seedDefaultTemplates(): Promise<void> {
   await ensureInit();
   const existing = await db.printTemplates.toArray();
   if (existing.length === 0) {
+    // 1. Seed base default templates
     for (const tpl of ALL_DEFAULT_TEMPLATES) {
       await db.printTemplates.put(tpl);
     }
 
+    // 2. Seed all desktop presets
+    const now = new Date().toISOString();
+    for (const preset of TEMPLATE_PRESETS) {
+      const buildData = preset.build();
+      const newTpl: PrintTemplate = {
+        ...buildData,
+        id: preset.id,
+        name: preset.nameAr || preset.name,
+        description: preset.description,
+        isDefault: false,
+        isSystem: false,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await db.printTemplates.put(newTpl);
+    }
+
+    // 3. Seed default document type assignments
     const defaultAssignments: TemplateAssignment[] = [
       { docType: 'thermal-receipt', templateId: 'default-thermal-80' },
       { docType: 'return-invoice', templateId: 'default-thermal-80' },
@@ -228,6 +247,55 @@ export async function duplicateTemplate(
   };
   await db.printTemplates.add(copy);
   return copy;
+}
+
+export async function createFromPreset(presetId: string): Promise<PrintTemplate | null> {
+  await ensureInit();
+  const preset = getPresetById(presetId);
+  if (!preset) return null;
+
+  const buildData = preset.build();
+  const now = new Date().toISOString();
+  const newTpl: PrintTemplate = {
+    ...buildData,
+    id: 'tpl-preset-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+    name: preset.nameAr || preset.name,
+    description: preset.description,
+    isDefault: false,
+    isSystem: false,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await db.printTemplates.put(newTpl);
+  return newTpl;
+}
+
+export async function importAllPresets(): Promise<number> {
+  await ensureInit();
+  const now = new Date().toISOString();
+  let count = 0;
+
+  for (const preset of TEMPLATE_PRESETS) {
+    const existing = await db.printTemplates.get(preset.id);
+    if (!existing) {
+      const buildData = preset.build();
+      const newTpl: PrintTemplate = {
+        ...buildData,
+        id: preset.id,
+        name: preset.nameAr || preset.name,
+        description: preset.description,
+        isDefault: false,
+        isSystem: false,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await db.printTemplates.put(newTpl);
+      count++;
+    }
+  }
+
+  return count;
 }
 
 // ===== Assignments =====

@@ -36,6 +36,7 @@ import {
   setTemplateAsDefault,
   duplicateTemplate,
   createEmptyTemplateData,
+  importAllPresets,
   TEMPLATE_PRESETS,
   type PresetDef,
 } from '@/lib/templateService';
@@ -210,6 +211,28 @@ export const PrintTemplatesScreen = ({ navigation }: any) => {
     }
   };
 
+  const handleImportAll = async () => {
+    Alert.alert(
+      'استيراد كافة قوالب سطح المكتب',
+      'هل ترغب في استيراد ومزامنة جميع القوالب الجاهزة (9 قوالب تشمل الإيصالات، الفواتير، عروض الأسعار، وكشوف الحسابات)؟',
+      [
+        { text: 'إلغاء', style: 'cancel' },
+        {
+          text: 'استيراد الآن',
+          onPress: async () => {
+            try {
+              const count = await importAllPresets();
+              await loadTemplates();
+              Alert.alert('✓ تم الاستيراد بنجاح', `تم استيراد ${count > 0 ? count : 'كافة'} القوالب بنجاح وتفعيلها في التطبيق`);
+            } catch {
+              Alert.alert('خطأ', 'فشل استيراد القوالب');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -239,7 +262,16 @@ export const PrintTemplatesScreen = ({ navigation }: any) => {
             activeOpacity={0.7}
           >
             <SlidersHorizontal size={16} color={colors.primary[700]} />
-            <Text style={styles.assignBtnText}>تعيين القوالب للوثائق</Text>
+            <Text style={styles.assignBtnText}>تعيين الوثائق</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.assignBtn, { backgroundColor: colors.emerald[50], borderColor: colors.emerald[300] }]}
+            onPress={handleImportAll}
+            activeOpacity={0.7}
+          >
+            <Sparkles size={16} color={colors.emerald[700]} />
+            <Text style={[styles.assignBtnText, { color: colors.emerald[700] }]}>نسخ جميع القوالب</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -248,7 +280,7 @@ export const PrintTemplatesScreen = ({ navigation }: any) => {
             activeOpacity={0.7}
           >
             <Plus size={16} color="#fff" />
-            <Text style={styles.newTemplateBtnText}>إنشاء قالب جديد</Text>
+            <Text style={styles.newTemplateBtnText}>قالب جديد</Text>
           </TouchableOpacity>
         </View>
 

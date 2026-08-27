@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Alert,
   Modal,
+  Image,
   ActivityIndicator,
 } from 'react-native';
 import {
@@ -35,6 +36,9 @@ import {
   Tag,
   Coins,
   ShieldAlert,
+  Printer,
+  Eye,
+  CheckCircle2,
 } from 'lucide-react-native';
 import { db, ensureInit } from '@/lib/db';
 import { generateId } from '@shared/utils';
@@ -42,6 +46,7 @@ import { printInvoice, printViaDesktop, type PrintInvoiceData } from '@/lib/prin
 import { getOpenSession, addToSessionSales } from '@/lib/cashSessionService';
 import { suspendOrder, type SuspendedOrder, parseSuspendedItems } from '@/lib/suspendedOrderService';
 import CameraScanner from '@/features/barcode/CameraScanner';
+import InvoicePrintPreviewModal from '@/features/print/InvoicePrintPreviewModal';
 import type { Product, Customer } from '@/lib/apiClient';
 import { useAuthStore } from '@/store/authStore';
 import { colors as staticColors, useTheme } from '@/theme';
@@ -104,6 +109,14 @@ export const POSScreen = ({ route, navigation }: any) => {
   const [customItemName, setCustomItemName] = useState('');
   const [customItemPrice, setCustomItemPrice] = useState('');
   const [customItemQty, setCustomItemQty] = useState('1');
+
+  // Print Preview & Post-Sale Success Modal
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [lastSaleId, setLastSaleId] = useState<string>('');
+  const [lastInvoiceData, setLastInvoiceData] = useState<PrintInvoiceData | undefined>();
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [completedChangeDue, setCompletedChangeDue] = useState(0);
+  const [completedInvoiceNum, setCompletedInvoiceNum] = useState('');
 
   // Barcode Camera Scanner & Modes
   const [showCameraScanner, setShowCameraScanner] = useState(false);
@@ -417,6 +430,36 @@ export const POSScreen = ({ route, navigation }: any) => {
     setCart((prev) => prev.filter((c) => c.productId !== productId));
 
   const filterProducts = () => {
+    if (selectedCategory === 'packs') {
+      let resultPacks = packs;
+      if (search.trim()) {
+        const term = search.toLowerCase();
+        resultPacks = resultPacks.filter(
+          (pk) =>
+            pk.name?.toLowerCase().includes(term) ||
+            (pk.barcode ?? '').toLowerCase().includes(term)
+        );
+      }
+      // Convert packs to product-like representation for uniform rendering
+      setFiltered(
+        resultPacks.map((pk) => ({
+          id: pk.id,
+          name: `📦 ${pk.name}`,
+          retailPrice: pk.packPrice || pk.pack_price || 0,
+          wholesalePrice: 0,
+          wholesaleMinQty: 0,
+          quantity: 999,
+          unit: 'باقة',
+          barcode: pk.barcode || '',
+          category: 'packs',
+          status: 'active',
+          lowStockThreshold: 0,
+          isPack: true,
+        })) as any
+      );
+      return;
+    }
+
     let result = products;
     if (search.trim()) {
       const term = search.toLowerCase();
@@ -428,7 +471,12 @@ export const POSScreen = ({ route, navigation }: any) => {
       );
     }
     if (selectedCategory) {
-      result = result.filter((p) => (p as any).category_id === selectedCategory || p.category === selectedCategory);
+      result = result.filter(
+        (p) =>
+          (p as any).category_id === selectedCategory ||
+          p.category === selectedCategory ||
+          p.category === selectedCategory
+      );
     }
     setFiltered(result);
   };
@@ -740,6 +788,23 @@ export const POSScreen = ({ route, navigation }: any) => {
                 created_at: nowIso,
                 updated_at: nowIso,
               });
+
+              // Log to stockMovementsV2 for desktop parity
+              await db.stockMovementsV2.add({
+                id: generateId(),
+                movement_number: `MOV-${Date.now().toString().slice(-6)}`,
+                date: nowIso,
+                type: 'sale',
+                item_id: item.productId,
+                quantity: -item.qty,
+                unit_price: item.unitPrice,
+                total_amount: item.lineTotal,
+                reference: invoiceNumber,
+                is_reviewed: 1,
+                reviewed_by: user?.name || user?.username || '',
+                created_at: nowIso,
+                updated_at: nowIso,
+              });
             }
           } catch (e) {
             console.warn('[PoS] Failed to update product quantity:', e);
@@ -811,8 +876,14 @@ export const POSScreen = ({ route, navigation }: any) => {
       const printed = await printViaDesktop(invoiceData);
       if (!printed) await printInvoice(invoiceData);
 
+      setLastSaleId(saleId);
+      setLastInvoiceData(invoiceData);
+      setCompletedInvoiceNum(invoiceNumber);
+      setCompletedChangeDue(changeDue);
+
       setShowCheckoutModal(false);
-      Alert.alert('تم بنجاح ✓', `تم إصدار الفاتورة رقم ${invoiceNumber}${changeDue > 0 ? `\n\nالصرف المرجع للزبون: ${changeDue.toLocaleString('ar-DZ')} دج` : ''}`);
+      setShowSuccessModal(true);
+
       setCart([]);
       setSelectedCustomer(null);
       setDiscountValue('0');
@@ -982,6 +1053,28 @@ export const POSScreen = ({ route, navigation }: any) => {
                 الكل ({products.length})
               </Text>
             </TouchableOpacity>
+
+            {packs.length > 0 && (
+              <TouchableOpacity
+                style={[
+                  styles.categoryChip,
+                  selectedCategory === 'packs'
+                    ? { backgroundColor: colors.purple[600], borderColor: colors.purple[600] }
+                    : { backgroundColor: colors.surface, borderColor: colors.border.default },
+                ]}
+                onPress={() => setSelectedCategory(selectedCategory === 'packs' ? null : 'packs')}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.categoryChipText,
+                    selectedCategory === 'packs' ? { color: '#ffffff' } : { color: colors.purple[700] },
+                  ]}
+                >
+                  📦 باقات مجمعة ({packs.length})
+                </Text>
+              </TouchableOpacity>
+            )}
 
             {categories.map((cat) => {
               const count = products.filter((p) => (p as any).category_id === cat.id || p.category === cat.id || p.category === cat.name).length;
@@ -1724,6 +1817,63 @@ export const POSScreen = ({ route, navigation }: any) => {
           onClose={() => setShowCameraScanner(false)}
         />
       )}
+
+      {/* Post-Sale Success Modal */}
+      <Modal visible={showSuccessModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.surface, padding: spacing.xl, alignItems: 'center', maxHeight: 380 }]}>
+            <View style={[styles.successIconCircle, { backgroundColor: colors.success.light }]}>
+              <CheckCircle2 size={40} color={colors.success.dark} />
+            </View>
+
+            <Text style={[styles.successModalTitle, { color: colors.text.primary }]}>
+              تم إصدار الفاتورة بنجاح ✓
+            </Text>
+            <Text style={[styles.successModalInvoiceNum, { color: colors.primary[600] }]}>
+              {completedInvoiceNum}
+            </Text>
+
+            {completedChangeDue > 0 && (
+              <View style={[styles.successChangeBox, { backgroundColor: colors.emerald[50], borderColor: colors.emerald[200] }]}>
+                <Coins size={18} color={colors.emerald[700]} />
+                <Text style={[styles.successChangeText, { color: colors.emerald[700] }]}>
+                  الصرف المرجع للزبون: {completedChangeDue.toLocaleString('ar-DZ')} دج
+                </Text>
+              </View>
+            )}
+
+            <View style={styles.successActionsRow}>
+              <Button
+                title="معاينة وطباعة الفاتورة"
+                icon={<Printer size={18} color="#fff" />}
+                onPress={() => {
+                  setShowSuccessModal(false);
+                  setShowPrintModal(true);
+                }}
+                variant="primary"
+                style={{ flex: 1 }}
+              />
+              <Button
+                title="فاتورة جديدة"
+                icon={<Plus size={18} color={colors.text.primary} />}
+                onPress={() => setShowSuccessModal(false)}
+                variant="secondary"
+                style={{ flex: 1 }}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Invoice Print Preview Modal */}
+      {showPrintModal && (
+        <InvoicePrintPreviewModal
+          visible={showPrintModal}
+          onClose={() => setShowPrintModal(false)}
+          saleId={lastSaleId}
+          invoiceData={lastInvoiceData}
+        />
+      )}
     </View>
   );
 };
@@ -2340,6 +2490,50 @@ const makeStyles = (colors: any, isDark: boolean) =>
       fontSize: 10.5,
       fontFamily: 'Cairo',
       marginTop: 2,
+    },
+
+    // Success Modal
+    successIconCircle: {
+      width: 68,
+      height: 68,
+      borderRadius: 34,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: spacing.sm,
+    },
+    successModalTitle: {
+      fontSize: 17,
+      fontWeight: '800',
+      fontFamily: 'Cairo',
+      textAlign: 'center',
+    },
+    successModalInvoiceNum: {
+      fontSize: 15,
+      fontWeight: '900',
+      fontFamily: 'Cairo',
+      marginTop: 2,
+      marginBottom: spacing.sm,
+    },
+    successChangeBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.xs + 2,
+      borderRadius: radii.lg,
+      borderWidth: 1,
+      marginBottom: spacing.md,
+    },
+    successChangeText: {
+      fontSize: 12.5,
+      fontWeight: '800',
+      fontFamily: 'Cairo',
+    },
+    successActionsRow: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+      width: '100%',
+      marginTop: spacing.xs,
     },
   });
 
