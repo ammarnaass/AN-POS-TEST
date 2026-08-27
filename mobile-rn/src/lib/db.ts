@@ -76,13 +76,21 @@ type TableProxy = {
   delete: (id: string) => Promise<boolean>;
   count?: () => Promise<number>;
   where?: (field: string) => {
-    equals: (val: unknown) => { toArray: () => Promise<any[]> };
+    equals: (val: unknown) => {
+      toArray: () => Promise<any[]>;
+      first: () => Promise<any | undefined>;
+      count: () => Promise<number>;
+    };
     first: () => Promise<any | undefined>;
   };
   orderBy?: (field: string) => {
     reverse: () => { limit: (n: number) => Promise<any[]> };
   };
-  filter?: (fn: (row: any) => boolean) => TableProxy;
+  filter?: (fn: (row: any) => boolean) => {
+    toArray: () => Promise<any[]>;
+    first: () => Promise<any | undefined>;
+    count: () => Promise<number>;
+  };
   bulkAdd?: (records: any[]) => Promise<void>;
   bulkPut?: (records: any[]) => Promise<void>;
 };
@@ -131,11 +139,21 @@ function createTableProxy(table: string): TableProxy {
           const r = await unifiedDB.list(table);
           return r.data.filter((row: any) => row[field] === val);
         },
+        async first(): Promise<any | undefined> {
+          await ensureInit();
+          const r = await unifiedDB.list(table);
+          return r.data.find((row: any) => row[field] === val);
+        },
+        async count(): Promise<number> {
+          await ensureInit();
+          const r = await unifiedDB.list(table);
+          return r.data.filter((row: any) => row[field] === val).length;
+        },
       }),
       first: async (): Promise<any | undefined> => {
         await ensureInit();
         const r = await unifiedDB.list(table);
-        return r.data.find(() => true);
+        return r.data[0];
       },
     }),
     orderBy: (field: string) => ({
@@ -151,7 +169,17 @@ function createTableProxy(table: string): TableProxy {
         const res = await unifiedDB.list(table);
         return res.data.filter(fn);
       },
-    } as TableProxy),
+      async first(): Promise<any | undefined> {
+        await ensureInit();
+        const res = await unifiedDB.list(table);
+        return res.data.find(fn);
+      },
+      async count(): Promise<number> {
+        await ensureInit();
+        const res = await unifiedDB.list(table);
+        return res.data.filter(fn).length;
+      },
+    }),
     bulkAdd: async (records: Record<string, unknown>[]) => {
       await ensureInit();
       await unifiedDB.batchCreate(table, records);

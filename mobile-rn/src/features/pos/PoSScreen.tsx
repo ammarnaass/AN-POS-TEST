@@ -32,6 +32,7 @@ import {
   AlertTriangle,
 } from 'lucide-react-native';
 import { db, ensureInit } from '@/lib/db';
+import { generateId } from '@shared/utils';
 import { printInvoice, printViaDesktop, type PrintInvoiceData } from '@/lib/print';
 import { getOpenSession, addToSessionSales } from '@/lib/cashSessionService';
 import { suspendOrder, type SuspendedOrder, parseSuspendedItems } from '@/lib/suspendedOrderService';
@@ -319,10 +320,15 @@ export const POSScreen = () => {
     setCheckoutLoading(true);
     try {
       await ensureInit();
+      const nowIso = new Date().toISOString();
       const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
+      const saleId = generateId();
+
+      // 1. Create main Sale record
       await db.sales.add({
+        id: saleId,
         number: invoiceNumber,
-        date: new Date().toISOString(),
+        date: nowIso,
         docType: 'facture',
         type: 'sale',
         items: cart.map((c) => ({
@@ -343,8 +349,81 @@ export const POSScreen = () => {
         amountPaid: method === 'cash' || method === 'card' ? total : 0,
         status: method === 'cash' || method === 'card' ? 'paid' : 'unpaid',
         soldBy: user?.id || '',
+        cash_session_id: (await getOpenSession())?.id || '',
+        created_at: nowIso,
+        updated_at: nowIso,
       });
 
+      // 2. Insert individual sale_items and deduct stock & log movements
+      for (const item of cart) {
+        // 2a. Add to sale_items table
+        try {
+          await db.saleItems.add({
+            id: generateId(),
+            sale_id: saleId,
+            product_id: item.productId,
+            name: item.name,
+            qty: item.qty,
+            unit_price: item.unitPrice,
+            line_total: item.lineTotal,
+            promo_name: item.promoName || null,
+            created_at: nowIso,
+          });
+        } catch (e) {
+          console.warn('[PoS] Failed to insert sale_item:', e);
+        }
+
+        // 2b. Deduct stock from products table
+        try {
+          const prod = await db.products.get(item.productId);
+          if (prod) {
+            const currentQty = Number(prod.quantity || (prod as any).qty || 0);
+            const newQty = Math.max(0, currentQty - item.qty);
+            await db.products.update(item.productId, {
+              quantity: newQty,
+              updated_at: nowIso,
+            });
+          }
+        } catch (e) {
+          console.warn('[PoS] Failed to update product quantity:', e);
+        }
+
+        // 2c. Log stock movement
+        try {
+          await db.stockMovements.add({
+            id: generateId(),
+            date: nowIso,
+            type: 'out',
+            product_id: item.productId,
+            qty: item.qty,
+            reason: `مبيعات فاتورة ${invoiceNumber}`,
+            reference_id: saleId,
+            created_by: user?.name || user?.username || '',
+            created_at: nowIso,
+            updated_at: nowIso,
+          });
+        } catch (e) {
+          console.warn('[PoS] Failed to add stock_movement:', e);
+        }
+      }
+
+      // 3. Update customer balance if credit sale
+      if (method === 'credit' && selectedCustomer?.id) {
+        try {
+          const cust = await db.customers.get(selectedCustomer.id);
+          if (cust) {
+            const currentBal = Number(cust.balance || 0);
+            await db.customers.update(selectedCustomer.id, {
+              balance: currentBal + total,
+              updated_at: nowIso,
+            });
+          }
+        } catch (e) {
+          console.warn('[PoS] Failed to update customer debt balance:', e);
+        }
+      }
+
+      // 4. Update cash session
       if (method === 'cash' && hasOpenSession) {
         try {
           const s = await getOpenSession();
@@ -352,9 +431,10 @@ export const POSScreen = () => {
         } catch {}
       }
 
+      // 5. Print invoice
       const invoiceData: PrintInvoiceData = {
         number: invoiceNumber,
-        date: new Date().toISOString(),
+        date: nowIso,
         items: cart.map((c) => ({
           name: c.name,
           qty: c.qty,
@@ -382,8 +462,9 @@ export const POSScreen = () => {
       loadData();
     } catch (err) {
       Alert.alert('خطأ', `فشل حفظ الفاتورة: ${err instanceof Error ? err.message : 'خطأ غير معروف'}`);
+    } finally {
+      setCheckoutLoading(false);
     }
-    setCheckoutLoading(false);
   };
 
   const filteredCustomers = customers.filter(
