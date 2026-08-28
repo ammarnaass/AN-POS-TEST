@@ -24,7 +24,7 @@ import {
   Copy,
 } from 'lucide-react-native';
 import { AnposCamera, type ScanResult } from '@/modules/AnposCamera';
-import { colors, radii, spacing, shadows } from '@/theme';
+import { radii, spacing, shadows } from '@/theme/tokens';
 
 const CameraEventEmitter = new NativeEventEmitter(NativeModules.AnposCamera);
 
@@ -300,7 +300,7 @@ export const CameraScanner = ({
                 value={manualCode}
                 onChangeText={setManualCode}
                 placeholder="مثال: 6131234567890"
-                placeholderTextColor={colors.slate[400]}
+                placeholderTextColor="#94a3b8"
                 keyboardType="default"
                 autoFocus
                 returnKeyType="done"

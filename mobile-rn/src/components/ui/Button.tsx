@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   TouchableOpacity,
   Text,
@@ -9,7 +9,8 @@ import {
   StyleProp,
   View,
 } from 'react-native';
-import { colors, radii, spacing, shadows } from '@/theme';
+import { useTheme } from '@/theme';
+import { radii, spacing, shadows } from '@/theme/tokens';
 
 export interface ButtonProps {
   onPress: () => void;
@@ -49,6 +50,9 @@ export const Button: React.FC<ButtonProps> = ({
   textStyle,
   fullWidth = false,
 }) => {
+  const { isDark, colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors, isDark), [colors, isDark]);
+
   const content = children || title;
   const isDisabled = disabled || loading;
 
@@ -103,137 +107,138 @@ export const Button: React.FC<ButtonProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  base: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radii.xl,
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  primaryShadow: {
-    ...shadows.glowPrimary,
-  },
-  successShadow: {
-    ...shadows.glowSuccess,
-  },
-  contentRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconRight: {
-    marginLeft: spacing.sm,
-  },
-  iconLeft: {
-    marginRight: spacing.sm,
-  },
-  fullWidth: {
-    width: '100%',
-  },
-  disabled: {
-    opacity: 0.5,
-    shadowColor: 'transparent',
-    elevation: 0,
-  },
-  // Variants
-  primary: {
-    backgroundColor: colors.primary[600],
-    borderColor: colors.primary[700],
-  },
-  secondary: {
-    backgroundColor: colors.slate[100],
-    borderColor: colors.slate[200],
-  },
-  outline: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border.default,
-  },
-  destructive: {
-    backgroundColor: colors.danger.main,
-    borderColor: colors.danger.dark,
-  },
-  success: {
-    backgroundColor: colors.success.main,
-    borderColor: colors.success.dark,
-  },
-  emerald: {
-    backgroundColor: colors.emerald[600],
-    borderColor: colors.emerald[700],
-  },
-  indigo: {
-    backgroundColor: colors.indigo[600],
-    borderColor: colors.indigo[700],
-  },
-  purple: {
-    backgroundColor: colors.purple[600],
-    borderColor: colors.purple[700],
-  },
-  ghost: {
-    backgroundColor: 'transparent',
-    borderColor: 'transparent',
-  },
-  // Sizes
-  size_sm: {
-    paddingVertical: spacing.xs + 2,
-    paddingHorizontal: spacing.md,
-    borderRadius: radii.md,
-    minHeight: 36,
-  },
-  size_md: {
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.lg,
-    borderRadius: radii.lg,
-    minHeight: 46,
-  },
-  size_lg: {
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl,
-    borderRadius: radii.xl,
-    minHeight: 54,
-  },
-  // Typography
-  text: {
-    fontFamily: 'Cairo',
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  text_primary: {
-    color: '#ffffff',
-  },
-  text_secondary: {
-    color: colors.slate[800],
-  },
-  text_outline: {
-    color: colors.slate[800],
-  },
-  text_destructive: {
-    color: '#ffffff',
-  },
-  text_success: {
-    color: '#ffffff',
-  },
-  text_emerald: {
-    color: '#ffffff',
-  },
-  text_indigo: {
-    color: '#ffffff',
-  },
-  text_purple: {
-    color: '#ffffff',
-  },
-  text_ghost: {
-    color: colors.primary[600],
-  },
-  textSize_sm: {
-    fontSize: 12.5,
-  },
-  textSize_md: {
-    fontSize: 14.5,
-  },
-  textSize_lg: {
-    fontSize: 16,
-  },
-});
+const makeStyles = (colors: any, isDark: boolean) =>
+  StyleSheet.create({
+    base: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: radii.xl,
+      borderWidth: 1,
+      borderColor: 'transparent',
+    },
+    primaryShadow: {
+      ...shadows.glowPrimary,
+    },
+    successShadow: {
+      ...shadows.glowSuccess,
+    },
+    contentRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    iconRight: {
+      marginLeft: spacing.sm,
+    },
+    iconLeft: {
+      marginRight: spacing.sm,
+    },
+    fullWidth: {
+      width: '100%',
+    },
+    disabled: {
+      opacity: 0.5,
+      shadowColor: 'transparent',
+      elevation: 0,
+    },
+    // Variants
+    primary: {
+      backgroundColor: colors.primary[600],
+      borderColor: colors.primary[700],
+    },
+    secondary: {
+      backgroundColor: isDark ? colors.surfaceElevated : colors.slate[100],
+      borderColor: isDark ? colors.border.default : colors.slate[200],
+    },
+    outline: {
+      backgroundColor: colors.surface,
+      borderColor: colors.border.default,
+    },
+    destructive: {
+      backgroundColor: colors.danger.main,
+      borderColor: colors.danger.dark,
+    },
+    success: {
+      backgroundColor: colors.success.main,
+      borderColor: colors.success.dark,
+    },
+    emerald: {
+      backgroundColor: colors.emerald[600],
+      borderColor: colors.emerald[700],
+    },
+    indigo: {
+      backgroundColor: colors.indigo[600],
+      borderColor: colors.indigo[700],
+    },
+    purple: {
+      backgroundColor: colors.purple[600],
+      borderColor: colors.purple[700],
+    },
+    ghost: {
+      backgroundColor: 'transparent',
+      borderColor: 'transparent',
+    },
+    // Sizes
+    size_sm: {
+      paddingVertical: spacing.xs + 2,
+      paddingHorizontal: spacing.md,
+      borderRadius: radii.md,
+      minHeight: 36,
+    },
+    size_md: {
+      paddingVertical: spacing.sm + 2,
+      paddingHorizontal: spacing.lg,
+      borderRadius: radii.lg,
+      minHeight: 46,
+    },
+    size_lg: {
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.xl,
+      borderRadius: radii.xl,
+      minHeight: 54,
+    },
+    // Typography
+    text: {
+      fontFamily: 'Cairo',
+      fontWeight: '700',
+      textAlign: 'center',
+    },
+    text_primary: {
+      color: '#ffffff',
+    },
+    text_secondary: {
+      color: colors.text.primary,
+    },
+    text_outline: {
+      color: colors.text.primary,
+    },
+    text_destructive: {
+      color: '#ffffff',
+    },
+    text_success: {
+      color: '#ffffff',
+    },
+    text_emerald: {
+      color: '#ffffff',
+    },
+    text_indigo: {
+      color: '#ffffff',
+    },
+    text_purple: {
+      color: '#ffffff',
+    },
+    text_ghost: {
+      color: colors.primary[600],
+    },
+    textSize_sm: {
+      fontSize: 12.5,
+    },
+    textSize_md: {
+      fontSize: 14.5,
+    },
+    textSize_lg: {
+      fontSize: 16,
+    },
+  });
 

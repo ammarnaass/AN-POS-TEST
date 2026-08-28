@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -25,26 +25,32 @@ import {
   Phone,
   Wifi,
   ShieldCheck,
+  QrCode,
+  RefreshCw,
 } from 'lucide-react-native';
 import { useAuthStore } from '@/store/authStore';
 import { session, electronAPI } from '@/lib/apiClient';
 import { AppImages } from '@/assets';
 import { db, ensureInit } from '@/lib/db';
 import { getStoredMode } from '@/infrastructure/database/UnifiedDB';
-import { colors, radii, spacing, typography, shadows } from '@/theme';
+import { useTheme } from '@/theme';
+import { radii, spacing, typography, shadows } from '@/theme/tokens';
 import { Card, Badge, Button, Input } from '@/components/ui';
 
 type ViewMode = 'login' | 'register';
 
 export const LoginScreen = ({ navigation }: any) => {
   const { login, loading, serverUrl, setServerUrl } = useAuthStore();
+  const { isDark, colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors, isDark), [colors, isDark]);
+
   const [mode, setMode] = useState<'connected' | 'standalone'>('connected');
   const [modeChecked, setModeChecked] = useState(false);
   const [view, setView] = useState<ViewMode>('login');
   const [showPin, setShowPin] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Login fields
+  // Login fields (clean initial states)
   const [username, setUsername] = useState('');
   const [pin, setPin] = useState('');
 
@@ -55,10 +61,6 @@ export const LoginScreen = ({ navigation }: any) => {
   const [regPhone, setRegPhone] = useState('');
   const [regPin, setRegPin] = useState('');
   const [regPinConfirm, setRegPinConfirm] = useState('');
-
-  // Pair fields
-  const [pairLoading, setPairLoading] = useState(false);
-  const [pairError, setPairError] = useState('');
 
   useEffect(() => {
     const detectMode = async () => {
@@ -89,26 +91,56 @@ export const LoginScreen = ({ navigation }: any) => {
 
       // 1. Check local SQLite DB first
       const results = await db.users.where('username').equals(cleanUsername).toArray();
-      const localUser = results[0] as any;
+      let localUser = results[0] as any;
+
+      // First run provision: if DB has no users at all, provision default admin
+      if (!localUser) {
+        const totalUsers = await db.users.count();
+        if (totalUsers === 0 && cleanUsername.toLowerCase() === 'admin' && cleanPin === '1234') {
+          localUser = {
+            id: 'usr_admin',
+            username: 'admin',
+            name: 'المدير العام',
+            pin: '1234',
+            role: 'admin',
+            status: 'active',
+            permissions: JSON.stringify(['*']),
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+          try {
+            await db.users.put(localUser);
+          } catch {}
+        }
+      }
+
       if (localUser && localUser.pin === cleanPin) {
         useAuthStore.setState({ user: localUser, isAuthenticated: true, loading: false });
         navigation.replace('Home', { screen: 'Dashboard' });
         return;
       }
 
-      // 2. If connected mode & server is available, try server login
+      // 2. If connected mode & server is available, try server login with 5s timeout
       if (mode === 'connected' && serverUrl) {
-        const res = await login(cleanUsername, cleanPin);
-        if (res.success) {
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('مهلة الاتصال بالخادم انتهت (تأكد من تشغيل برنامج سطح المكتب)')), 5000)
+        );
+
+        const res: any = await Promise.race([
+          login(cleanUsername, cleanPin),
+          timeoutPromise,
+        ]);
+
+        if (res?.success) {
           navigation.replace('Home', { screen: 'Dashboard' });
           return;
-        } else {
-          setSubmitError(res.error ?? 'فشل تسجيل الدخول من الخادم');
+        } else if (res?.error) {
+          setSubmitError(res.error);
           return;
         }
       }
 
-      setSubmitError('اسم المستخدم أو رمز PIN غير صحيح (الافتراضي: admin / 1234)');
+      setSubmitError('اسم المستخدم أو الرمز السري (PIN) غير صحيح');
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'خطأ أثناء تسجيل الدخول');
     }
@@ -165,20 +197,6 @@ export const LoginScreen = ({ navigation }: any) => {
     }
   };
 
-  const handleStandalone = async () => {
-    setPairLoading(true);
-    setPairError('');
-    try {
-      const { db: unifiedDB } = await import('@/infrastructure/database/UnifiedDB');
-      await unifiedDB.switchToStandalone();
-      navigation.replace('Login');
-    } catch (e) {
-      setPairError(e instanceof Error ? e.message : 'فشل تهيئة قاعدة البيانات');
-    } finally {
-      setPairLoading(false);
-    }
-  };
-
   if (!modeChecked) {
     return (
       <View style={[styles.container, styles.center]}>
@@ -225,7 +243,6 @@ export const LoginScreen = ({ navigation }: any) => {
           onPress={() => {
             setView('login');
             setSubmitError(null);
-            setPairError('');
           }}
           activeOpacity={0.8}
         >
@@ -248,7 +265,6 @@ export const LoginScreen = ({ navigation }: any) => {
           onPress={() => {
             setView('register');
             setSubmitError(null);
-            setPairError('');
           }}
           activeOpacity={0.8}
         >
@@ -410,201 +426,239 @@ export const LoginScreen = ({ navigation }: any) => {
         )}
       </Card>
 
-      {/* Quick Connection Actions */}
-      <View style={styles.quickPairSection}>
+      {/* Connection & Network Status Card */}
+      <View style={[styles.connectionCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}>
+        <View style={styles.connectionInfoRow}>
+          <View
+            style={[
+              styles.connectionIconBox,
+              { backgroundColor: mode === 'connected' && isConnected ? (isDark ? '#064e3b' : colors.emerald[50]) : (isDark ? '#1e293b' : colors.slate[100]) },
+            ]}
+          >
+            {mode === 'connected' && isConnected ? (
+              <Wifi size={20} color={isDark ? '#34d399' : colors.emerald[600]} />
+            ) : (
+              <Database size={20} color={isDark ? '#94a3b8' : colors.slate[600]} />
+            )}
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.connectionCardTitle, { color: colors.text.primary }]}>
+              {mode === 'connected' && isConnected
+                ? 'متصل ببرنامج سطح المكتب'
+                : 'الوضع المحلي المستقل (SQLite)'}
+            </Text>
+            <Text style={[styles.connectionCardSub, { color: colors.text.tertiary }]}>
+              {mode === 'connected' && isConnected
+                ? `الخادم: ${serverUrl}`
+                : 'البيانات والمصادقة محفوظة محلياً على هذا الجهاز'}
+            </Text>
+          </View>
+        </View>
+
         <Button
-          title="مسح QR للاتصال مع برنامج الحاسوب"
+          title={mode === 'connected' ? 'تغيير الخادم / مسح QR جديد' : 'ربط الهاتف مع برنامج الحاسوب (مسح QR)'}
           variant="outline"
-          icon={<Camera size={18} color={colors.primary[600]} />}
+          size="sm"
+          icon={<QrCode size={16} color={colors.primary[600]} />}
           onPress={() => navigation.navigate('Pair')}
           fullWidth
-          disabled={pairLoading}
+          disabled={loading}
+          style={{ marginTop: spacing.sm }}
         />
-
-        <Button
-          title="العمل بدون حاسوب (الوضع المستقل المحلي)"
-          variant="secondary"
-          icon={<Database size={17} color={colors.slate[600]} />}
-          onPress={handleStandalone}
-          fullWidth
-          loading={pairLoading}
-        />
-
-        {pairError ? (
-          <View style={styles.errorBanner}>
-            <AlertCircle size={15} color={colors.danger.main} />
-            <Text style={styles.errorText}>{pairError}</Text>
-          </View>
-        ) : null}
       </View>
 
       {/* Footer Branding */}
       <View style={styles.footer}>
         <View style={styles.securityRow}>
           <ShieldCheck size={14} color={colors.slate[400]} />
-          <Text style={styles.securityText}>قاعدة بيانات محلية مشفرة وسريعة</Text>
+          <Text style={[styles.securityText, { color: colors.text.tertiary }]}>قاعدة بيانات محلية مشفرة وسريعة</Text>
         </View>
-        <Text style={styles.versionText}>الإصدار 2.0.0 (React Native Engine)</Text>
+        <Text style={[styles.versionText, { color: colors.text.tertiary }]}>الإصدار 2.0.0 (AN POS Engine)</Text>
       </View>
     </ScrollView>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  center: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-  },
-  content: {
-    padding: spacing.lg,
-    gap: spacing.lg,
-    paddingBottom: spacing.xxxl,
-  },
+const makeStyles = (colors: any, isDark: boolean) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    center: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      flex: 1,
+    },
+    content: {
+      padding: spacing.lg,
+      gap: spacing.lg,
+      paddingBottom: spacing.xxxl,
+    },
 
-  branding: {
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingTop: spacing.md,
-  },
-  logoImg: {
-    width: 72,
-    height: 72,
-    marginBottom: spacing.xs,
-  },
-  appTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: colors.text.primary,
-    fontFamily: 'Cairo',
-  },
-  appTagline: {
-    fontSize: 12,
-    color: colors.text.secondary,
-    fontFamily: 'Cairo',
-    textAlign: 'center',
-  },
-  statusBadge: {
-    marginTop: spacing.xs,
-  },
+    branding: {
+      alignItems: 'center',
+      gap: spacing.xs,
+      paddingTop: spacing.md,
+    },
+    logoImg: {
+      width: 72,
+      height: 72,
+      marginBottom: spacing.xs,
+    },
+    appTitle: {
+      fontSize: 22,
+      fontWeight: '800',
+      color: colors.text.primary,
+      fontFamily: 'Cairo',
+    },
+    appTagline: {
+      fontSize: 12,
+      color: colors.text.secondary,
+      fontFamily: 'Cairo',
+      textAlign: 'center',
+    },
+    statusBadge: {
+      marginTop: spacing.xs,
+    },
 
-  // Segment Toggle
-  segmentContainer: {
-    flexDirection: 'row',
-    backgroundColor: colors.slate[100],
-    borderRadius: radii.lg,
-    padding: 3,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-  },
-  segmentBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xs,
-    paddingVertical: spacing.sm + 2,
-    borderRadius: radii.md,
-  },
-  segmentActive: {
-    backgroundColor: colors.surface,
-    ...shadows.sm,
-  },
-  segmentText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.slate[500],
-    fontFamily: 'Cairo',
-  },
-  segmentTextActive: {
-    color: colors.primary[700],
-    fontWeight: '700',
-  },
+    // Segment Toggle
+    segmentContainer: {
+      flexDirection: 'row',
+      backgroundColor: isDark ? colors.surfaceSubtle : colors.slate[100],
+      borderRadius: radii.lg,
+      padding: 3,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+    },
+    segmentBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.xs,
+      paddingVertical: spacing.sm + 2,
+      borderRadius: radii.md,
+    },
+    segmentActive: {
+      backgroundColor: colors.surface,
+      ...shadows.sm,
+    },
+    segmentText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.slate[500],
+      fontFamily: 'Cairo',
+    },
+    segmentTextActive: {
+      color: colors.primary[700],
+      fontWeight: '700',
+    },
 
-  // Form Card
-  formCard: {
-    padding: spacing.lg,
-  },
-  formContent: {
-    gap: spacing.md,
-  },
-  inputLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.slate[700],
-    fontFamily: 'Cairo',
-    marginBottom: spacing.xs,
-    textAlign: 'right',
-  },
-  pinContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.sm,
-    height: 44,
-  },
-  pinInput: {
-    flex: 1,
-    fontSize: 15,
-    color: colors.text.primary,
-    fontFamily: 'Cairo',
-    paddingHorizontal: spacing.sm,
-  },
-  eyeBtn: {
-    padding: 6,
-  },
+    // Form Card
+    formCard: {
+      padding: spacing.lg,
+    },
+    formContent: {
+      gap: spacing.md,
+    },
+    inputLabel: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.text.secondary,
+      fontFamily: 'Cairo',
+      marginBottom: spacing.xs,
+      textAlign: 'right',
+    },
+    pinContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+      borderRadius: radii.md,
+      paddingHorizontal: spacing.sm,
+      height: 44,
+    },
+    pinInput: {
+      flex: 1,
+      fontSize: 15,
+      color: colors.text.primary,
+      fontFamily: 'Cairo',
+      paddingHorizontal: spacing.sm,
+    },
+    eyeBtn: {
+      padding: 6,
+    },
 
-  errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    backgroundColor: colors.danger.light,
-    borderRadius: radii.md,
-    padding: spacing.sm + 2,
-    borderWidth: 1,
-    borderColor: colors.danger.border,
-  },
-  errorText: {
-    fontSize: 12,
-    color: colors.danger.text,
-    fontFamily: 'Cairo',
-    flex: 1,
-    textAlign: 'right',
-  },
+    errorBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+      backgroundColor: colors.danger.light,
+      borderRadius: radii.md,
+      padding: spacing.sm + 2,
+      borderWidth: 1,
+      borderColor: colors.danger.border,
+    },
+    errorText: {
+      fontSize: 12,
+      color: colors.danger.text,
+      fontFamily: 'Cairo',
+      flex: 1,
+      textAlign: 'right',
+    },
 
-  // Quick Pair Section
-  quickPairSection: {
-    gap: spacing.sm,
-  },
+    // Connection Card
+    connectionCard: {
+      borderRadius: radii.xl,
+      borderWidth: 1,
+      padding: spacing.md,
+    },
+    connectionInfoRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+    },
+    connectionIconBox: {
+      width: 40,
+      height: 40,
+      borderRadius: radii.lg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    connectionCardTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      fontFamily: 'Cairo',
+      textAlign: 'right',
+    },
+    connectionCardSub: {
+      fontSize: 11,
+      fontFamily: 'Cairo',
+      textAlign: 'right',
+      marginTop: 2,
+    },
 
-  // Footer
-  footer: {
-    alignItems: 'center',
-    gap: 4,
-    marginTop: spacing.sm,
-  },
-  securityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  securityText: {
-    fontSize: 11,
-    color: colors.slate[500],
-    fontFamily: 'Cairo',
-  },
-  versionText: {
-    fontSize: 11,
-    color: colors.slate[400],
-    fontFamily: 'Cairo',
-  },
-});
+    // Footer
+    footer: {
+      alignItems: 'center',
+      gap: 4,
+      marginTop: spacing.sm,
+    },
+    securityRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    securityText: {
+      fontSize: 11,
+      fontFamily: 'Cairo',
+    },
+    versionText: {
+      fontSize: 11,
+      fontFamily: 'Cairo',
+    },
+  });
 
 export default LoginScreen;

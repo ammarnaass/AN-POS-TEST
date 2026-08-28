@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -22,8 +22,13 @@ import {
 } from 'lucide-react-native';
 import { db, ensureInit } from '@/lib/db';
 import { generateId } from '@shared/utils';
+import { useTheme } from '@/theme';
+import { radii, spacing, typography, shadows } from '@/theme/tokens';
 
 export const BackupRestoreScreen = ({ navigation }: any) => {
+  const { isDark, colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors, isDark), [colors, isDark]);
+
   const [loading, setLoading] = useState(false);
   const [jsonInput, setJsonInput] = useState('');
   const [showRestoreBox, setShowRestoreBox] = useState(false);
@@ -106,56 +111,31 @@ export const BackupRestoreScreen = ({ navigation }: any) => {
           onPress: async () => {
             setLoading(true);
             try {
-              const parsed = JSON.parse(jsonInput.trim());
-              const data = parsed.data || parsed;
+              const parsed = JSON.parse(jsonInput);
+              if (!parsed.data) {
+                throw new Error('صيغة ملف النسخة الاحتياطية غير صالحة');
+              }
+              const d = parsed.data;
 
               await ensureInit();
 
-              if (data.products && Array.isArray(data.products)) {
-                for (const p of data.products) {
-                  const existing = await db.products.get(p.id);
-                  if (existing) await db.products.update(p.id, p);
-                  else await db.products.add(p);
-                }
-              }
+              if (d.products?.length) await db.products.bulkPut(d.products);
+              if (d.categories?.length) await db.categories.bulkPut(d.categories);
+              if (d.customers?.length) await db.customers.bulkPut(d.customers);
+              if (d.suppliers?.length) await db.suppliers.bulkPut(d.suppliers);
+              if (d.sales?.length) await db.sales.bulkPut(d.sales);
+              if (d.purchases?.length) await db.purchases.bulkPut(d.purchases);
+              if (d.expenses?.length) await db.expenses.bulkPut(d.expenses);
+              if (d.cashSessions?.length) await db.cashSessions.bulkPut(d.cashSessions);
+              if (d.promotions?.length) await db.promotions.bulkPut(d.promotions);
+              if (d.packs?.length) await db.packs.bulkPut(d.packs);
+              if (d.settings?.length) await db.settings.bulkPut(d.settings);
 
-              if (data.customers && Array.isArray(data.customers)) {
-                for (const c of data.customers) {
-                  const existing = await db.customers.get(c.id);
-                  if (existing) await db.customers.update(c.id, c);
-                  else await db.customers.add(c);
-                }
-              }
-
-              if (data.suppliers && Array.isArray(data.suppliers)) {
-                for (const s of data.suppliers) {
-                  const existing = await db.suppliers.get(s.id);
-                  if (existing) await db.suppliers.update(s.id, s);
-                  else await db.suppliers.add(s);
-                }
-              }
-
-              if (data.sales && Array.isArray(data.sales)) {
-                for (const sl of data.sales) {
-                  const existing = await db.sales.get(sl.id);
-                  if (existing) await db.sales.update(sl.id, sl);
-                  else await db.sales.add(sl);
-                }
-              }
-
-              if (data.categories && Array.isArray(data.categories)) {
-                for (const cat of data.categories) {
-                  const existing = await db.categories.get(cat.id);
-                  if (existing) await db.categories.update(cat.id, cat);
-                  else await db.categories.add(cat);
-                }
-              }
-
-              setJsonInput('');
+              Alert.alert('تمت العملية بنجاح ✓', 'تمت استعادة كافة البيانات والمنتجات بنجاح.');
               setShowRestoreBox(false);
-              Alert.alert('✓ تمت الاستعادة بنجاح', 'تمت استعادة كافة البيانات بنجاح.');
-            } catch (err) {
-              Alert.alert('خطأ', `فشل قراءة بيانات JSON: ${err instanceof Error ? err.message : 'تنسيق غير صالح'}`);
+              setJsonInput('');
+            } catch (e) {
+              Alert.alert('خطأ', `فشل استرجاع النسخة الاحتياطية: ${e instanceof Error ? e.message : 'صيغة غير صالحة'}`);
             }
             setLoading(false);
           },
@@ -168,8 +148,8 @@ export const BackupRestoreScreen = ({ navigation }: any) => {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBackBtn}>
-          <ArrowRight size={22} color="#0f172a" />
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBackBtn} activeOpacity={0.7}>
+          <ArrowRight size={22} color={colors.text.primary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>النسخ الاحتياطي واستعادة البيانات</Text>
         <View style={{ width: 40 }} />
@@ -180,7 +160,7 @@ export const BackupRestoreScreen = ({ navigation }: any) => {
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <View style={styles.iconCircleExport}>
-              <Download size={22} color="#3b82f6" />
+              <Download size={22} color={colors.primary[600]} />
             </View>
             <View style={{ alignItems: 'flex-end', flex: 1, marginRight: 12 }}>
               <Text style={styles.cardTitle}>تصدير نسخة احتياطية كاملة</Text>
@@ -194,6 +174,7 @@ export const BackupRestoreScreen = ({ navigation }: any) => {
             style={styles.exportBtn}
             onPress={handleExportBackup}
             disabled={loading}
+            activeOpacity={0.8}
           >
             {loading ? (
               <ActivityIndicator color="#fff" size="small" />
@@ -210,7 +191,7 @@ export const BackupRestoreScreen = ({ navigation }: any) => {
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <View style={styles.iconCircleRestore}>
-              <Upload size={22} color="#10b981" />
+              <Upload size={22} color={isDark ? '#34d399' : colors.emerald[600]} />
             </View>
             <View style={{ alignItems: 'flex-end', flex: 1, marginRight: 12 }}>
               <Text style={styles.cardTitle}>استرجاع من نسخة احتياطية</Text>
@@ -224,8 +205,9 @@ export const BackupRestoreScreen = ({ navigation }: any) => {
             <TouchableOpacity
               style={styles.restoreToggleBtn}
               onPress={() => setShowRestoreBox(true)}
+              activeOpacity={0.8}
             >
-              <Upload size={18} color="#10b981" />
+              <Upload size={18} color={isDark ? '#34d399' : colors.emerald[700]} />
               <Text style={styles.restoreToggleBtnText}>فتح حقل استعادة البيانات</Text>
             </TouchableOpacity>
           ) : (
@@ -233,6 +215,7 @@ export const BackupRestoreScreen = ({ navigation }: any) => {
               <TextInput
                 style={styles.jsonTextInput}
                 placeholder="الصق نص النسخة الاحتياطية JSON هنا..."
+                placeholderTextColor={colors.text.tertiary}
                 value={jsonInput}
                 onChangeText={setJsonInput}
                 multiline
@@ -243,6 +226,7 @@ export const BackupRestoreScreen = ({ navigation }: any) => {
                 style={styles.restoreConfirmBtn}
                 onPress={handleRestoreBackup}
                 disabled={loading}
+                activeOpacity={0.8}
               >
                 {loading ? (
                   <ActivityIndicator color="#fff" size="small" />
@@ -261,102 +245,147 @@ export const BackupRestoreScreen = ({ navigation }: any) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc' },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-  },
-  headerBackBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: '#f1f5f9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: { fontSize: 17, fontWeight: 'bold', color: '#0f172a', fontFamily: 'Cairo' },
+const makeStyles = (colors: any, isDark: boolean) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.surface,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border.default,
+      ...shadows.xs,
+    },
+    headerBackBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: radii.md,
+      backgroundColor: isDark ? colors.surfaceElevated : colors.slate[100],
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerTitle: {
+      fontSize: 17,
+      fontWeight: 'bold',
+      color: colors.text.primary,
+      fontFamily: 'Cairo',
+    },
 
-  scroll: { flex: 1, padding: 14 },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    marginBottom: 14,
-  },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  iconCircleExport: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: '#eff6ff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconCircleRestore: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: '#f0fdf4',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardTitle: { fontSize: 15, fontWeight: 'bold', color: '#0f172a', fontFamily: 'Cairo' },
-  cardSub: { fontSize: 11, color: '#64748b', fontFamily: 'Cairo', marginTop: 2, textAlign: 'right' },
+    scroll: {
+      flex: 1,
+      padding: spacing.md,
+    },
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: radii.xl,
+      padding: spacing.lg,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+      marginBottom: spacing.md,
+      ...shadows.sm,
+    },
+    cardHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: spacing.md,
+    },
+    iconCircleExport: {
+      width: 46,
+      height: 46,
+      borderRadius: 23,
+      backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : colors.primary[50],
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    iconCircleRestore: {
+      width: 46,
+      height: 46,
+      borderRadius: 23,
+      backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : colors.emerald[50],
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    cardTitle: {
+      fontSize: 15,
+      fontWeight: 'bold',
+      color: colors.text.primary,
+      fontFamily: 'Cairo',
+    },
+    cardSub: {
+      fontSize: 11.5,
+      color: colors.text.secondary,
+      fontFamily: 'Cairo',
+      marginTop: 2,
+      textAlign: 'right',
+    },
 
-  exportBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#3b82f6',
-    paddingVertical: 14,
-    borderRadius: 12,
-  },
-  exportBtnText: { color: '#fff', fontSize: 14, fontWeight: 'bold', fontFamily: 'Cairo' },
+    exportBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: colors.primary[600],
+      paddingVertical: 14,
+      borderRadius: radii.lg,
+    },
+    exportBtnText: {
+      color: '#fff',
+      fontSize: 14,
+      fontWeight: 'bold',
+      fontFamily: 'Cairo',
+    },
 
-  restoreToggleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#f0fdf4',
-    borderWidth: 1,
-    borderColor: '#bbf7d0',
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  restoreToggleBtnText: { color: '#15803d', fontSize: 13, fontWeight: 'bold', fontFamily: 'Cairo' },
+    restoreToggleBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: isDark ? 'rgba(16, 185, 129, 0.12)' : colors.emerald[50],
+      borderWidth: 1,
+      borderColor: isDark ? '#065f46' : colors.emerald[200],
+      paddingVertical: 12,
+      borderRadius: radii.lg,
+    },
+    restoreToggleBtnText: {
+      color: isDark ? '#34d399' : colors.emerald[700],
+      fontSize: 13,
+      fontWeight: 'bold',
+      fontFamily: 'Cairo',
+    },
 
-  jsonTextInput: {
-    backgroundColor: '#f8fafc',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    padding: 10,
-    fontSize: 12,
-    color: '#0f172a',
-    minHeight: 120,
-    marginBottom: 10,
-  },
-  restoreConfirmBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#10b981',
-    paddingVertical: 14,
-    borderRadius: 12,
-  },
-  restoreConfirmBtnText: { color: '#fff', fontSize: 14, fontWeight: 'bold', fontFamily: 'Cairo' },
-});
+    jsonTextInput: {
+      backgroundColor: isDark ? colors.surfaceElevated : colors.background,
+      borderRadius: radii.md,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+      padding: spacing.md,
+      fontSize: 12,
+      color: colors.text.primary,
+      minHeight: 120,
+      marginBottom: spacing.sm,
+      fontFamily: 'Cairo',
+    },
+    restoreConfirmBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: isDark ? '#059669' : colors.emerald[600],
+      paddingVertical: 14,
+      borderRadius: radii.lg,
+    },
+    restoreConfirmBtnText: {
+      color: '#fff',
+      fontSize: 14,
+      fontWeight: 'bold',
+      fontFamily: 'Cairo',
+    },
+  });
 
 export default BackupRestoreScreen;

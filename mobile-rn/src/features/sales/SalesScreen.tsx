@@ -25,12 +25,18 @@ import {
   User,
   Banknote,
   FileText,
+  Printer,
+  Eye,
+  ArrowUpRight,
 } from 'lucide-react-native';
 import { db, ensureInit } from '@/lib/db';
+import { printInvoice } from '@/lib/print';
+import { InvoicePrintPreviewModal } from '@/features/print/InvoicePrintPreviewModal';
 import type { Sale } from '@shared/types';
-import { colors, useTheme } from '@/theme';
+import { useTheme } from '@/theme';
 import { radii, spacing, typography, shadows } from '@/theme/tokens';
-import { Card, CardHeader, CardTitle, CardContent, Badge, EmptyState } from '@/components/ui';
+import { Badge, EmptyState } from '@/components/ui';
+import { notify } from '@/lib/notify';
 
 type PeriodFilter = 'today' | 'week' | 'month' | 'all';
 type StatusFilter = 'all' | 'cash' | 'credit' | 'return';
@@ -43,6 +49,8 @@ export const SalesScreen = ({ navigation }: any) => {
   const [search, setSearch] = useState('');
   const [period, setPeriod] = useState<PeriodFilter>('today');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [previewSaleId, setPreviewSaleId] = useState<string | null>(null);
+  const [quickPrintingId, setQuickPrintingId] = useState<string | null>(null);
 
   const loadSales = useCallback(async () => {
     try {
@@ -50,8 +58,8 @@ export const SalesScreen = ({ navigation }: any) => {
       const allSales = await db.sales.toArray();
       // Sort newest first
       allSales.sort((a: any, b: any) => {
-        const dateA = new Date(a.date || a.createdAt || 0).getTime();
-        const dateB = new Date(b.date || b.createdAt || 0).getTime();
+        const dateA = new Date(a.date || a.createdAt || a.created_at || 0).getTime();
+        const dateB = new Date(b.date || b.createdAt || b.created_at || 0).getTime();
         return dateB - dateA;
       });
       setSales(allSales);
@@ -81,7 +89,7 @@ export const SalesScreen = ({ navigation }: any) => {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
 
     return sales.filter((s: any) => {
-      const saleTime = new Date(s.date || s.createdAt || 0).getTime();
+      const saleTime = new Date(s.date || s.createdAt || s.created_at || 0).getTime();
 
       // Period filter
       if (period === 'today' && saleTime < startOfToday) return false;
@@ -89,15 +97,16 @@ export const SalesScreen = ({ navigation }: any) => {
       if (period === 'month' && saleTime < startOfMonth) return false;
 
       // Status/Method filter
-      if (statusFilter === 'cash' && s.paymentMethod !== 'cash') return false;
-      if (statusFilter === 'credit' && s.paymentMethod !== 'credit') return false;
+      const payment = s.paymentMethod || s.payment_method || 'cash';
+      if (statusFilter === 'cash' && payment !== 'cash') return false;
+      if (statusFilter === 'credit' && payment !== 'credit') return false;
       if (statusFilter === 'return' && s.type !== 'return') return false;
 
       // Search query
       if (search.trim()) {
         const query = search.toLowerCase();
-        const matchNumber = s.number?.toLowerCase().includes(query);
-        const matchCustomer = s.customerName?.toLowerCase().includes(query);
+        const matchNumber = (s.number || '').toLowerCase().includes(query);
+        const matchCustomer = (s.customerName || s.customer_name || '').toLowerCase().includes(query);
         if (!matchNumber && !matchCustomer) return false;
       }
 
@@ -113,89 +122,124 @@ export const SalesScreen = ({ navigation }: any) => {
     let totalReturns = 0;
 
     filteredSales.forEach((s: any) => {
-      const tot = s.total || 0;
+      const tot = Number(s.total || 0);
+      const payment = s.paymentMethod || s.payment_method || 'cash';
       if (s.type === 'return') {
         totalReturns += tot;
       } else {
         totalRevenue += tot;
-        if (s.paymentMethod === 'cash') totalCash += tot;
-        if (s.paymentMethod === 'credit') totalCredit += tot;
+        if (payment === 'cash') totalCash += tot;
+        if (payment === 'credit') totalCredit += tot;
       }
     });
 
     return { totalRevenue, totalCash, totalCredit, totalReturns };
   }, [filteredSales]);
 
+  const handleQuickPrint = async (sale: any) => {
+    setQuickPrintingId(sale.id);
+    try {
+      let rawItems: any[] = Array.isArray(sale.items)
+        ? sale.items
+        : typeof sale.items === 'string'
+        ? JSON.parse(sale.items || '[]')
+        : [];
+
+      if (!rawItems || rawItems.length === 0) {
+        const allSaleItems = await db.saleItems.toArray();
+        const matching = allSaleItems.filter(
+          (si: any) => si.saleId === sale.id || si.sale_id === sale.id
+        );
+        if (matching.length > 0) {
+          rawItems = matching.map((si: any) => ({
+            name: si.name,
+            qty: si.qty || si.quantity || 1,
+            unitPrice: si.unitPrice || si.unit_price || 0,
+            lineTotal: si.lineTotal || si.line_total || (si.qty || 1) * (si.unitPrice || si.unit_price || 0),
+          }));
+        }
+      }
+
+      const ok = await printInvoice({
+        id: sale.id,
+        number: sale.number || 'INV-0001',
+        date: sale.date || sale.created_at || new Date().toISOString(),
+        items: rawItems.map((i) => ({
+          name: i.name || 'منتج',
+          qty: Number(i.qty || 1),
+          unitPrice: Number(i.unitPrice || i.unit_price || 0),
+          lineTotal: Number(i.lineTotal || i.line_total || (i.qty || 1) * (i.unitPrice || i.unit_price || 0)),
+        })),
+        subtotal: Number(sale.subtotal || sale.total || 0),
+        discount: Number(sale.discount || 0),
+        tvaAmount: Number(sale.tvaAmount || sale.tva_amount || 0),
+        total: Number(sale.total || 0),
+        paymentMethod: sale.paymentMethod || sale.payment_method || 'cash',
+        customerName: sale.customerName || sale.customer_name || 'زبون عام',
+        soldBy: sale.soldBy || sale.sold_by || 'الكاشير',
+        docType: (sale.docType as any) || 'sale-invoice',
+        copies: 1,
+        lang: 'ar',
+      });
+
+      if (ok) {
+        notify.success(`تمت طباعة الفاتورة ${sale.number || ''} بنجاح`, '✓ تمت الطباعة');
+      } else {
+        notify.warning('تعذر الاتصال بالطابعة. يرجى التأكد من تشغيل البلوتوث أو الطابعة.', 'تنبيه');
+      }
+    } catch (err) {
+      notify.error(err, 'فشل تنفيذ أمر الطباعة');
+    }
+    setQuickPrintingId(null);
+  };
+
+  const dynamicStyles = makeStyles(colors, isDark);
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[dynamicStyles.container, { backgroundColor: colors.background }]}>
       {/* Search Header */}
-      <View
-        style={[
-          styles.header,
-          {
-            backgroundColor: colors.surface,
-            borderBottomColor: colors.border.default,
-          },
-        ]}
-      >
-        <View
-          style={[
-            styles.searchBox,
-            {
-              backgroundColor: colors.surfaceSubtle,
-              borderColor: colors.border.default,
-            },
-          ]}
-        >
+      <View style={dynamicStyles.header}>
+        <View style={dynamicStyles.searchBox}>
           <Search size={18} color={colors.text.tertiary} />
           <TextInput
-            style={[styles.searchInput, { color: colors.text.primary }]}
+            style={dynamicStyles.searchInput}
             placeholder="بحث برقم الفاتورة أو اسم الزبون..."
-            placeholderTextColor={colors.text.tertiary}
             value={search}
             onChangeText={setSearch}
+            placeholderTextColor={colors.text.tertiary}
             textAlign="right"
           />
         </View>
       </View>
 
       {/* Period Filter Chips */}
-      <View style={styles.chipsRow}>
+      <View style={dynamicStyles.chipsRow}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipsScroll}
+          contentContainerStyle={dynamicStyles.chipsScroll}
         >
           {[
             { id: 'today', label: 'اليوم' },
-            { id: 'week', label: 'آخر 7 أيام' },
+            { id: 'week', label: 'هذا الأسبوع' },
             { id: 'month', label: 'هذا الشهر' },
-            { id: 'all', label: 'الكل' },
+            { id: 'all', label: 'كافة الفترات' },
           ].map((item) => {
             const isActive = period === item.id;
             return (
               <TouchableOpacity
                 key={item.id}
                 style={[
-                  styles.chip,
-                  {
-                    backgroundColor: isActive
-                      ? colors.primary[600]
-                      : colors.surface,
-                    borderColor: isActive
-                      ? colors.primary[600]
-                      : colors.border.default,
-                  },
+                  dynamicStyles.periodChip,
+                  isActive && dynamicStyles.periodChipActive,
                 ]}
                 onPress={() => setPeriod(item.id as PeriodFilter)}
                 activeOpacity={0.7}
               >
                 <Text
                   style={[
-                    styles.chipText,
-                    {
-                      color: isActive ? '#ffffff' : colors.text.secondary,
-                    },
+                    dynamicStyles.periodChipText,
+                    isActive && dynamicStyles.periodChipTextActive,
                   ]}
                 >
                   {item.label}
@@ -207,15 +251,7 @@ export const SalesScreen = ({ navigation }: any) => {
       </View>
 
       {/* Status Filter Bar */}
-      <View
-        style={[
-          styles.statusFilterBar,
-          {
-            backgroundColor: colors.surface,
-            borderColor: colors.border.default,
-          },
-        ]}
-      >
+      <View style={dynamicStyles.statusFilterBar}>
         {[
           { id: 'all', label: 'الكل' },
           { id: 'cash', label: 'نقدي' },
@@ -227,25 +263,16 @@ export const SalesScreen = ({ navigation }: any) => {
             <TouchableOpacity
               key={tab.id}
               style={[
-                styles.statusTab,
-                isActive && {
-                  backgroundColor: colors.primary[50],
-                  borderBottomColor: colors.primary[600],
-                  borderBottomWidth: 2,
-                },
+                dynamicStyles.statusTab,
+                isActive && dynamicStyles.statusTabActive,
               ]}
               onPress={() => setStatusFilter(tab.id as StatusFilter)}
               activeOpacity={0.7}
             >
               <Text
                 style={[
-                  styles.statusTabText,
-                  {
-                    color: isActive
-                      ? colors.primary[600]
-                      : colors.text.secondary,
-                    fontWeight: isActive ? '800' : '600',
-                  },
+                  dynamicStyles.statusTabText,
+                  isActive && dynamicStyles.statusTabTextActive,
                 ]}
               >
                 {tab.label}
@@ -256,42 +283,24 @@ export const SalesScreen = ({ navigation }: any) => {
       </View>
 
       {/* Summary KPI Banner */}
-      <View
-        style={[
-          styles.kpiContainer,
-          {
-            backgroundColor: colors.surface,
-            borderColor: colors.border.default,
-          },
-        ]}
-      >
-        <View style={styles.kpiBox}>
-          <Text style={[styles.kpiBoxLabel, { color: colors.text.secondary }]}>
-            إجمالي المبيعات
-          </Text>
-          <Text style={[styles.kpiBoxVal, { color: colors.text.primary }]}>
+      <View style={dynamicStyles.kpiContainer}>
+        <View style={dynamicStyles.kpiBox}>
+          <Text style={dynamicStyles.kpiBoxLabel}>إجمالي المبيعات</Text>
+          <Text style={dynamicStyles.kpiBoxVal}>
             {stats.totalRevenue.toLocaleString('ar-DZ')} دج
           </Text>
         </View>
-        <View
-          style={[styles.kpiDivider, { backgroundColor: colors.border.default }]}
-        />
-        <View style={styles.kpiBox}>
-          <Text style={[styles.kpiBoxLabel, { color: colors.text.secondary }]}>
-            النقدي
-          </Text>
-          <Text style={[styles.kpiBoxVal, { color: colors.success.main }]}>
+        <View style={dynamicStyles.kpiDivider} />
+        <View style={dynamicStyles.kpiBox}>
+          <Text style={dynamicStyles.kpiBoxLabel}>النقدي</Text>
+          <Text style={[dynamicStyles.kpiBoxVal, { color: colors.success.text || colors.emerald[600] }]}>
             {stats.totalCash.toLocaleString('ar-DZ')} دج
           </Text>
         </View>
-        <View
-          style={[styles.kpiDivider, { backgroundColor: colors.border.default }]}
-        />
-        <View style={styles.kpiBox}>
-          <Text style={[styles.kpiBoxLabel, { color: colors.text.secondary }]}>
-            الكريدي
-          </Text>
-          <Text style={[styles.kpiBoxVal, { color: colors.warning.main }]}>
+        <View style={dynamicStyles.kpiDivider} />
+        <View style={dynamicStyles.kpiBox}>
+          <Text style={dynamicStyles.kpiBoxLabel}>الكريدي</Text>
+          <Text style={[dynamicStyles.kpiBoxVal, { color: colors.warning.main }]}>
             {stats.totalCredit.toLocaleString('ar-DZ')} دج
           </Text>
         </View>
@@ -299,8 +308,8 @@ export const SalesScreen = ({ navigation }: any) => {
 
       {/* Invoices List */}
       <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        style={dynamicStyles.scroll}
+        contentContainerStyle={dynamicStyles.scrollContent}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -311,12 +320,12 @@ export const SalesScreen = ({ navigation }: any) => {
         showsVerticalScrollIndicator={false}
       >
         {loading && !refreshing ? (
-          <View style={styles.center}>
+          <View style={dynamicStyles.center}>
             <ActivityIndicator size="large" color={colors.primary[600]} />
           </View>
         ) : filteredSales.length === 0 ? (
           <EmptyState
-            icon={<Receipt size={32} color={colors.text.tertiary} />}
+            icon={<Receipt size={36} color={colors.text.tertiary} />}
             title="لا توجد فواتير أو مبيعات"
             description="قم بإجراء عمليات بيع من شاشة نقطة البيع (POS) لتظهر هنا"
           />
@@ -324,6 +333,7 @@ export const SalesScreen = ({ navigation }: any) => {
           <View style={{ gap: spacing.sm }}>
             {filteredSales.map((sale) => {
               const isReturn = sale.type === 'return';
+              const payment = String(sale.paymentMethod || (sale as any).payment_method || 'cash');
               const itemsCount = Array.isArray(sale.items)
                 ? sale.items.length
                 : typeof sale.items === 'string'
@@ -339,122 +349,116 @@ export const SalesScreen = ({ navigation }: any) => {
               return (
                 <TouchableOpacity
                   key={sale.id}
-                  style={[
-                    styles.saleCard,
-                    {
-                      backgroundColor: colors.surface,
-                      borderColor: colors.border.default,
-                    },
-                  ]}
-                  activeOpacity={0.8}
+                  style={dynamicStyles.saleCard}
+                  onPress={() => navigation.navigate('InvoiceDetail', { saleId: sale.id, sale })}
+                  activeOpacity={0.7}
                 >
-                  <View style={styles.saleCardLeft}>
-                    <Text
-                      style={[
-                        styles.saleTotalText,
-                        {
-                          color: isReturn
-                            ? colors.danger.main
-                            : colors.text.primary,
-                        },
-                      ]}
-                    >
-                      {isReturn ? '-' : ''}
-                      {(sale.total || 0).toLocaleString('ar-DZ')} دج
-                    </Text>
-
-                    <Badge
-                      variant={
-                        isReturn
-                          ? 'danger'
-                          : (sale.paymentMethod as string) === 'cash'
-                          ? 'success'
-                          : (sale.paymentMethod as string) === 'card'
-                          ? 'primary'
-                          : 'warning'
-                      }
-                      size="sm"
-                    >
-                      {isReturn
-                        ? 'مرتجع'
-                        : (sale.paymentMethod as string) === 'cash'
-                        ? 'نقدي'
-                        : (sale.paymentMethod as string) === 'card'
-                        ? 'بطاقة CIB'
-                        : 'آجل (كريدي)'}
-                    </Badge>
-                  </View>
-
-                  <View style={styles.saleCardRight}>
-                    <View style={styles.saleNumberRow}>
-                      <Receipt size={14} color={colors.primary[600]} />
+                  {/* Top Row: Total & Badge & Number */}
+                  <View style={dynamicStyles.saleCardTopRow}>
+                    <View style={{ alignItems: 'flex-start' }}>
                       <Text
                         style={[
-                          styles.saleNumberText,
-                          { color: colors.text.primary },
+                          dynamicStyles.saleTotalText,
+                          {
+                            color: isReturn
+                              ? colors.danger.main
+                              : colors.text.primary,
+                          },
                         ]}
                       >
-                        {sale.number || 'فاتورة بدون رقم'}
+                        {isReturn ? '-' : ''}
+                        {Number(sale.total || 0).toLocaleString('ar-DZ')} دج
                       </Text>
+                      <Badge
+                        variant={
+                          isReturn
+                            ? 'danger'
+                            : payment === 'cash'
+                            ? 'success'
+                            : payment === 'card'
+                            ? 'primary'
+                            : 'warning'
+                        }
+                        size="sm"
+                      >
+                        {isReturn
+                          ? 'مرتجع'
+                          : payment === 'cash'
+                          ? 'نقدي'
+                          : payment === 'card'
+                          ? 'بطاقة CIB'
+                          : 'آجل (كريدي)'}
+                      </Badge>
                     </View>
 
-                    <View style={styles.saleMetaRow}>
-                      <View style={styles.metaItem}>
-                        <User size={12} color={colors.text.tertiary} />
-                        <Text
-                          style={[
-                            styles.metaText,
-                            { color: colors.text.secondary },
-                          ]}
-                        >
-                          {sale.customerName || 'زبون عام'}
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <View style={dynamicStyles.saleNumberRow}>
+                        <Receipt size={15} color={colors.primary[600]} />
+                        <Text style={dynamicStyles.saleNumberText}>
+                          {sale.number || 'فاتورة بدون رقم'}
                         </Text>
                       </View>
-
-                      <Text
-                        style={[
-                          styles.metaDot,
-                          { color: colors.text.tertiary },
-                        ]}
-                      >
-                        •
-                      </Text>
-
-                      <View style={styles.metaItem}>
-                        <Clock size={12} color={colors.text.tertiary} />
-                        <Text
-                          style={[
-                            styles.metaText,
-                            { color: colors.text.tertiary },
-                          ]}
-                        >
-                          {new Date(
-                            sale.date || (sale as any).createdAt || 0
-                          ).toLocaleTimeString('ar-DZ', {
+                      <View style={dynamicStyles.saleMetaRow}>
+                        <Text style={dynamicStyles.metaText}>
+                          {sale.customerName || (sale as any).customer_name || 'زبون عام'}
+                        </Text>
+                        <Text style={dynamicStyles.metaDot}>•</Text>
+                        <Text style={dynamicStyles.metaText}>
+                          {new Date(sale.date || (sale as any).created_at || (sale as any).createdAt || 0).toLocaleTimeString('ar-DZ', {
                             hour: '2-digit',
                             minute: '2-digit',
                           })}
                         </Text>
+                        <Text style={dynamicStyles.metaDot}>•</Text>
+                        <Text style={dynamicStyles.metaText}>{itemsCount} عناصر</Text>
                       </View>
-
-                      <Text
-                        style={[
-                          styles.metaDot,
-                          { color: colors.text.tertiary },
-                        ]}
-                      >
-                        •
-                      </Text>
-
-                      <Text
-                        style={[
-                          styles.metaText,
-                          { color: colors.text.tertiary },
-                        ]}
-                      >
-                        {itemsCount} عناصر
-                      </Text>
                     </View>
+                  </View>
+
+                  {/* Divider */}
+                  <View style={dynamicStyles.saleCardDivider} />
+
+                  {/* Bottom Row: Quick Action Buttons */}
+                  <View style={dynamicStyles.saleCardActions}>
+                    <TouchableOpacity
+                      style={dynamicStyles.actionBtn}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        setPreviewSaleId(sale.id);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Eye size={14} color={colors.primary[600]} />
+                      <Text style={dynamicStyles.actionBtnText}>معاينة</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[dynamicStyles.actionBtn, dynamicStyles.actionBtnPrint]}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleQuickPrint(sale);
+                      }}
+                      disabled={quickPrintingId === sale.id}
+                      activeOpacity={0.7}
+                    >
+                      {quickPrintingId === sale.id ? (
+                        <ActivityIndicator size="small" color={colors.primary[600]} />
+                      ) : (
+                        <>
+                          <Printer size={14} color={colors.primary[600]} />
+                          <Text style={dynamicStyles.actionBtnText}>طباعة سريعة</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={dynamicStyles.actionBtnDetails}
+                      onPress={() => navigation.navigate('InvoiceDetail', { saleId: sale.id, sale })}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={dynamicStyles.actionBtnDetailsText}>التفاصيل</Text>
+                      <ArrowUpRight size={13} color={colors.text.tertiary} />
+                    </TouchableOpacity>
                   </View>
                 </TouchableOpacity>
               );
@@ -462,172 +466,245 @@ export const SalesScreen = ({ navigation }: any) => {
           </View>
         )}
       </ScrollView>
+
+      {/* Invoice Print Preview Modal */}
+      {previewSaleId ? (
+        <InvoicePrintPreviewModal
+          visible={Boolean(previewSaleId)}
+          saleId={previewSaleId}
+          onClose={() => setPreviewSaleId(null)}
+        />
+      ) : null}
     </View>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-  },
-  searchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    height: 42,
-    gap: spacing.xs,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 13,
-    fontFamily: 'Cairo',
-    height: '100%',
-  },
+const makeStyles = (colors: any, isDark: boolean) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+    header: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border.subtle,
+      backgroundColor: colors.surface,
+    },
+    searchBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: spacing.md,
+      borderRadius: radii.lg,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+      backgroundColor: isDark ? colors.slate[800] : colors.slate[50],
+      height: 40,
+      gap: spacing.xs,
+    },
+    searchInput: {
+      flex: 1,
+      fontSize: 13,
+      fontFamily: typography.fontFamily.arabic,
+      color: colors.text.primary,
+      height: '100%',
+    },
 
-  // Period Chips
-  chipsRow: {
-    paddingVertical: spacing.xs + 2,
-  },
-  chipsScroll: {
-    paddingHorizontal: spacing.md,
-    gap: spacing.xs,
-  },
-  chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-  },
-  chipText: {
-    fontSize: 12,
-    fontWeight: '700',
-    fontFamily: 'Cairo',
-  },
+    chipsRow: {
+      paddingVertical: spacing.xs + 2,
+      backgroundColor: colors.surface,
+    },
+    chipsScroll: {
+      paddingHorizontal: spacing.md,
+      gap: spacing.xs,
+    },
+    periodChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 5,
+      borderRadius: radii.pill,
+      backgroundColor: isDark ? colors.slate[800] : colors.slate[100],
+      borderWidth: 1,
+      borderColor: colors.border.default,
+    },
+    periodChipActive: {
+      backgroundColor: colors.primary[600],
+      borderColor: colors.primary[600],
+    },
+    periodChipText: {
+      fontSize: 11.5,
+      fontWeight: '700',
+      color: colors.text.secondary,
+      fontFamily: typography.fontFamily.arabic,
+    },
+    periodChipTextActive: {
+      color: '#fff',
+      fontFamily: typography.fontFamily.arabicBold,
+    },
 
-  // Status Filter Tabs
-  statusFilterBar: {
-    flexDirection: 'row',
-    marginHorizontal: spacing.md,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  statusTab: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statusTabText: {
-    fontSize: 12,
-    fontFamily: 'Cairo',
-  },
+    statusFilterBar: {
+      flexDirection: 'row',
+      backgroundColor: colors.surface,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border.default,
+    },
+    statusTab: {
+      flex: 1,
+      paddingVertical: 9,
+      alignItems: 'center',
+      borderBottomWidth: 2,
+      borderBottomColor: 'transparent',
+    },
+    statusTabActive: {
+      borderBottomColor: colors.primary[600],
+    },
+    statusTabText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.text.tertiary,
+      fontFamily: typography.fontFamily.arabic,
+    },
+    statusTabTextActive: {
+      color: colors.primary[600],
+      fontWeight: '800',
+      fontFamily: typography.fontFamily.arabicBold,
+    },
 
-  // KPI
-  kpiContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginHorizontal: spacing.md,
-    marginTop: spacing.sm,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: radii.xl,
-    borderWidth: 1,
-    ...shadows.xs,
-  },
-  kpiBox: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  kpiBoxLabel: {
-    fontSize: 11,
-    fontFamily: 'Cairo',
-    fontWeight: '600',
-    marginBottom: 1,
-  },
-  kpiBoxVal: {
-    fontSize: 14,
-    fontWeight: '800',
-    fontFamily: 'Cairo',
-  },
-  kpiDivider: {
-    width: 1,
-    height: 26,
-  },
+    kpiContainer: {
+      flexDirection: 'row',
+      margin: spacing.md,
+      marginBottom: spacing.xs,
+      padding: spacing.md,
+      borderRadius: radii.xl,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+      ...shadows.xs,
+    },
+    kpiBox: {
+      flex: 1,
+      alignItems: 'center',
+    },
+    kpiBoxLabel: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: colors.text.tertiary,
+      fontFamily: typography.fontFamily.arabic,
+      marginBottom: 2,
+    },
+    kpiBoxVal: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: colors.text.primary,
+      fontFamily: typography.fontFamily.arabicBold,
+    },
+    kpiDivider: {
+      width: 1,
+      backgroundColor: colors.border.default,
+      marginVertical: 2,
+    },
 
-  // List
-  scroll: {
-    flex: 1,
-    marginTop: spacing.sm,
-  },
-  scrollContent: {
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.huge,
-  },
-  center: {
-    padding: spacing.xxl,
-    alignItems: 'center',
-  },
+    scroll: {
+      flex: 1,
+    },
+    scrollContent: {
+      padding: spacing.md,
+      paddingBottom: spacing['2xl'],
+    },
+    center: {
+      padding: spacing.xl,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
 
-  saleCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: spacing.md,
-    borderRadius: radii.xl,
-    borderWidth: 1,
-    ...shadows.xs,
-  },
-  saleCardLeft: {
-    alignItems: 'flex-start',
-    gap: 4,
-  },
-  saleTotalText: {
-    fontSize: 15,
-    fontWeight: '800',
-    fontFamily: 'Cairo',
-  },
+    saleCard: {
+      padding: spacing.md,
+      borderRadius: radii.xl,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+      ...shadows.xs,
+    },
+    saleCardTopRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    saleTotalText: {
+      fontSize: 16,
+      fontWeight: '800',
+      fontFamily: typography.fontFamily.arabicBold,
+      marginBottom: 4,
+    },
+    saleNumberRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+    },
+    saleNumberText: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: colors.text.primary,
+      fontFamily: typography.fontFamily.arabicBold,
+    },
+    saleMetaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      marginTop: 3,
+    },
+    metaText: {
+      fontSize: 11,
+      color: colors.text.tertiary,
+      fontFamily: typography.fontFamily.arabic,
+    },
+    metaDot: {
+      fontSize: 10,
+      color: colors.text.tertiary,
+    },
 
-  saleCardRight: {
-    alignItems: 'flex-end',
-    gap: 4,
-  },
-  saleNumberRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  saleNumberText: {
-    fontSize: 14,
-    fontWeight: '800',
-    fontFamily: 'Cairo',
-  },
-
-  saleMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-  },
-  metaText: {
-    fontSize: 11,
-    fontFamily: 'Cairo',
-  },
-  metaDot: {
-    fontSize: 11,
-  },
-});
+    saleCardDivider: {
+      height: 1,
+      backgroundColor: colors.border.subtle,
+      marginVertical: spacing.sm,
+    },
+    saleCardActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing.xs,
+    },
+    actionBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: spacing.sm + 2,
+      paddingVertical: 5,
+      borderRadius: radii.md,
+      backgroundColor: isDark ? colors.slate[800] : colors.slate[100],
+      borderWidth: 1,
+      borderColor: colors.border.default,
+    },
+    actionBtnPrint: {
+      backgroundColor: isDark ? colors.slate[800] : colors.primary[50],
+      borderColor: colors.primary[200],
+    },
+    actionBtnText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.primary[600],
+      fontFamily: typography.fontFamily.arabicBold,
+    },
+    actionBtnDetails: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+      paddingHorizontal: spacing.xs,
+    },
+    actionBtnDetailsText: {
+      fontSize: 11,
+      color: colors.text.tertiary,
+      fontFamily: typography.fontFamily.arabic,
+    },
+  });
 
 export default SalesScreen;

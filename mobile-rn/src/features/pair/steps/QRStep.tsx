@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, TextInput, StyleSheet, Alert } from 'react-native';
-import { Wifi, Loader2 } from 'lucide-react-native';
+import { Wifi, Loader2, Camera, QrCode } from 'lucide-react-native';
+import DesktopPairingScanner from '../DesktopPairingScanner';
 
 interface Props {
   onConnect: (serverUrl: string, key: string) => void;
@@ -13,29 +14,15 @@ const QRStep = ({ onConnect, onBack, loading }: Props) => {
   const [ip, setIp] = useState('');
   const [port, setPort] = useState('4321');
   const [key, setKey] = useState('');
-  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [showScanner, setShowScanner] = useState(true);
 
-  const [CameraScannerModule, setCameraScannerModule] = useState<any>(null);
-  const [showCamera, setShowCamera] = useState(false);
-
-  const loadCamera = async () => {
-    const mod = await import('@/features/barcode/CameraScanner');
-    setCameraScannerModule(() => mod.default);
-    setShowCamera(true);
-  };
-
-  const handleScan = (code: string) => {
-    try {
-      const data = JSON.parse(code);
-      if (data.ip && data.key) {
-        onConnect(`http://${data.ip}:${data.port || 4321}`, data.key);
-      } else {
-        setCameraError('رمز QR غير صالح — يجب أن يحتوي على ip و key');
-      }
-    } catch {
-      setCameraError('رمز QR غير صالح');
-    }
-  };
+  const handleScanSuccess = useCallback(
+    (serverUrl: string, connectionKey: string) => {
+      setShowScanner(false);
+      onConnect(serverUrl, connectionKey);
+    },
+    [onConnect]
+  );
 
   return (
     <View style={styles.container}>
@@ -45,43 +32,49 @@ const QRStep = ({ onConnect, onBack, loading }: Props) => {
 
       <View style={styles.header}>
         <View style={styles.iconContainer}>
-          <Text style={styles.icon}>📱</Text>
+          <QrCode size={24} color="#a855f7" />
         </View>
-        <Text style={styles.title}>مسح QR</Text>
-        <Text style={styles.subtitle}>افتح الكاميرا ووجهها إلى الرمز على سطح المكتب</Text>
+        <Text style={styles.title}>مسح رمز QR</Text>
+        <Text style={styles.subtitle}>افتح الكاميرا ووجهها نحو رمز الاقتران على شاشة الحاسوب</Text>
       </View>
 
       <View style={styles.toggleRow}>
         <TouchableOpacity
           style={[styles.toggleBtn, mode === 'scan' && styles.toggleBtnActive]}
-          onPress={() => { setMode('scan'); setCameraError(null); }}
+          onPress={() => {
+            setMode('scan');
+            setShowScanner(true);
+          }}
         >
-          <Text style={mode === 'scan' ? styles.toggleTextActive : styles.toggleText}>📷 الكاميرا</Text>
+          <Text style={mode === 'scan' ? styles.toggleTextActive : styles.toggleText}>📷 الكاميرا المباشرة</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.toggleBtn, mode === 'manual' && styles.toggleBtnActive]}
-          onPress={() => setMode('manual')}
+          onPress={() => {
+            setMode('manual');
+            setShowScanner(false);
+          }}
         >
-          <Text style={mode === 'manual' ? styles.toggleTextActive : styles.toggleText}>⌨️ يدوي</Text>
+          <Text style={mode === 'manual' ? styles.toggleTextActive : styles.toggleText}>⌨️ إدخال يدوي</Text>
         </TouchableOpacity>
       </View>
 
       {mode === 'scan' && (
         <>
-          {cameraError ? (
-            <View style={styles.errorCard}>
-              <Text style={styles.errorText}>{cameraError}</Text>
-              <TouchableOpacity onPress={() => setCameraError(null)}>
-                <Text style={styles.retryText}>إعادة المحاولة</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <TouchableOpacity onPress={loadCamera} style={styles.scanPrompt}>
-              <Text style={styles.scanText}>اضغط لتشغيل الكاميرا</Text>
-            </TouchableOpacity>
-          )}
-          {showCamera && CameraScannerModule && (
-            <CameraScannerModule onScan={handleScan} onClose={() => setShowCamera(false)} />
+          <TouchableOpacity onPress={() => setShowScanner(true)} style={styles.scanPrompt}>
+            <Camera size={32} color="#94a3b8" />
+            <Text style={styles.scanText}>اضغط لتشغيل كاميرا الاقتران المخصصة</Text>
+          </TouchableOpacity>
+
+          {showScanner && (
+            <DesktopPairingScanner
+              onConnect={handleScanSuccess}
+              onManualInput={() => {
+                setShowScanner(false);
+                setMode('manual');
+              }}
+              onClose={() => setShowScanner(false)}
+            />
           )}
         </>
       )}

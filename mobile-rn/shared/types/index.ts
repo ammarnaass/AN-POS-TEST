@@ -463,6 +463,7 @@ export interface CartItem {
   isCustom?: boolean;
   isPack?: boolean;
   packId?: string;
+  promoName?: string;
 }
 
 // ===== Printing =====

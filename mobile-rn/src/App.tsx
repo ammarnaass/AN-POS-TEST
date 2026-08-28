@@ -53,6 +53,8 @@ import BarcodeLabelsScreen from '@/features/barcode/BarcodeLabelsScreen';
 import UsersScreen from '@/features/settings/UsersScreen';
 import BackupRestoreScreen from '@/features/settings/BackupRestoreScreen';
 
+import { ToastContainer } from '@/components/ui';
+
 // Force RTL for Arabic UI
 I18nManager.forceRTL(true);
 I18nManager.allowRTL(true);
@@ -156,6 +158,7 @@ export default function App() {
             <Stack.Screen name="Users" component={UsersScreen} />
             <Stack.Screen name="BackupRestore" component={BackupRestoreScreen} />
           </Stack.Navigator>
+          <ToastContainer />
         </NavigationContainer>
       </SafeAreaProvider>
     </GestureRoot>

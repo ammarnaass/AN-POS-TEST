@@ -54,86 +54,177 @@ function parseJson<T>(val: unknown, fallback: T): T {
 
 // Normalize template fields retrieved from SQLite
 function normalizeTemplate(raw: any): PrintTemplate {
-  if (!raw) return raw;
+  if (!raw) return DEFAULT_THERMAL_80;
+  const parsedDocs = parseJson(
+    raw.supportedDocuments || raw.supported_documents,
+    ['thermal-receipt', 'sale-invoice']
+  );
   return {
     ...raw,
-    visibility: parseJson(raw.visibility, DEFAULT_THERMAL_80.visibility),
-    layout: parseJson(raw.layout, DEFAULT_THERMAL_80.layout),
-    styles: parseJson(raw.styles, DEFAULT_THERMAL_80.styles),
-    supportedDocuments: parseJson(raw.supportedDocuments || raw.supported_documents, []),
+    id: raw.id || 'tpl-' + Math.random().toString(36).slice(2, 8),
+    name: raw.name || 'قالب طباعة',
+    description: raw.description || '',
+    paperSize: raw.paperSize || raw.paper_size || '80mm',
+    orientation: raw.orientation || 'portrait',
+    widthMm: Number(raw.widthMm || raw.width_mm || 80),
+    heightMm: raw.heightMm || raw.height_mm ? Number(raw.heightMm || raw.height_mm) : undefined,
+    visibility: parseJson(raw.visibility, DEFAULT_THERMAL_80.visibility) || DEFAULT_THERMAL_80.visibility,
+    layout: parseJson(raw.layout, DEFAULT_THERMAL_80.layout) || DEFAULT_THERMAL_80.layout,
+    styles: parseJson(raw.styles, DEFAULT_THERMAL_80.styles) || DEFAULT_THERMAL_80.styles,
+    supportedDocuments: Array.isArray(parsedDocs) ? parsedDocs : ['thermal-receipt', 'sale-invoice'],
     qr: raw.qr ? parseJson(raw.qr, undefined) : undefined,
     barcode: raw.barcode ? parseJson(raw.barcode, undefined) : undefined,
     isDefault: Boolean(raw.isDefault ?? raw.is_default),
     isSystem: Boolean(raw.isSystem ?? raw.is_system),
+    createdAt: raw.createdAt || raw.created_at || new Date().toISOString(),
+    updatedAt: raw.updatedAt || raw.updated_at || new Date().toISOString(),
   };
+}
+
+// In-memory cache for ultra-fast UI rendering & memoization
+let _templatesCache: PrintTemplate[] | null = null;
+let _assignmentsCache: TemplateAssignment[] | null = null;
+let _cacheTimestamp = 0;
+const CACHE_TTL_MS = 30000; // 30 seconds
+
+export function invalidateTemplateCache() {
+  _templatesCache = null;
+  _assignmentsCache = null;
+  _cacheTimestamp = 0;
 }
 
 // ===== Initial Database Seeding =====
 
 export async function seedDefaultTemplates(): Promise<void> {
   await ensureInit();
-  const existing = await db.printTemplates.toArray();
-  if (existing.length === 0) {
-    // 1. Seed base default templates
+  try {
+    const existing = await db.printTemplates.toArray();
+    const existingIds = new Set(existing.map((t: any) => t.id));
+
+    // 1. Seed base default templates if missing
     for (const tpl of ALL_DEFAULT_TEMPLATES) {
-      await db.printTemplates.put(tpl);
+      if (!existingIds.has(tpl.id)) {
+        try {
+          await db.printTemplates.put(tpl);
+        } catch (e) {
+          console.warn('[templateService] failed to seed base template:', tpl.id, e);
+        }
+      }
     }
 
-    // 2. Seed all desktop presets
+    // 2. Seed desktop presets if missing
     const now = new Date().toISOString();
     for (const preset of TEMPLATE_PRESETS) {
-      const buildData = preset.build();
-      const newTpl: PrintTemplate = {
-        ...buildData,
-        id: preset.id,
-        name: preset.nameAr || preset.name,
-        description: preset.description,
-        isDefault: false,
-        isSystem: false,
-        createdAt: now,
-        updatedAt: now,
-      };
-      await db.printTemplates.put(newTpl);
+      if (!existingIds.has(preset.id)) {
+        try {
+          const buildData = preset.build();
+          const newTpl: PrintTemplate = {
+            ...buildData,
+            id: preset.id,
+            name: preset.nameAr || preset.name,
+            description: preset.description,
+            isDefault: false,
+            isSystem: false,
+            createdAt: now,
+            updatedAt: now,
+          };
+          await db.printTemplates.put(newTpl);
+        } catch (e) {
+          console.warn('[templateService] failed to seed preset:', preset.id, e);
+        }
+      }
     }
 
-    // 3. Seed default document type assignments
-    const defaultAssignments: TemplateAssignment[] = [
-      { docType: 'thermal-receipt', templateId: 'default-thermal-80' },
-      { docType: 'return-invoice', templateId: 'default-thermal-80' },
-      { docType: 'sale-invoice', templateId: 'default-invoice-a4' },
-      { docType: 'proforma', templateId: 'default-invoice-a4' },
-      { docType: 'devis', templateId: 'default-invoice-a4' },
-      { docType: 'purchase-invoice', templateId: 'default-invoice-a4' },
-      { docType: 'bl', templateId: 'default-invoice-a5' },
-      { docType: 'customer-statement', templateId: 'default-invoice-a5' },
-      { docType: 'supplier-statement', templateId: 'default-invoice-a5' },
-    ];
+    // 3. Seed default assignments if empty
+    try {
+      const currentAssignments = await db.templateAssignments.toArray();
+      if (!currentAssignments || currentAssignments.length === 0) {
+        const defaultAssignments: TemplateAssignment[] = [
+          { id: 'asgn-1', docType: 'thermal-receipt', templateId: 'default-thermal-80' },
+          { id: 'asgn-2', docType: 'return-invoice', templateId: 'default-thermal-80' },
+          { id: 'asgn-3', docType: 'sale-invoice', templateId: 'default-invoice-a4' },
+          { id: 'asgn-4', docType: 'proforma', templateId: 'default-invoice-a4' },
+          { id: 'asgn-5', docType: 'devis', templateId: 'default-invoice-a4' },
+          { id: 'asgn-6', docType: 'purchase-invoice', templateId: 'default-invoice-a4' },
+          { id: 'asgn-7', docType: 'bl', templateId: 'default-invoice-a5' },
+          { id: 'asgn-8', docType: 'customer-statement', templateId: 'default-invoice-a5' },
+          { id: 'asgn-9', docType: 'supplier-statement', templateId: 'default-invoice-a5' },
+        ];
 
-    for (const assign of defaultAssignments) {
-      await db.templateAssignments.put(assign);
+        for (const assign of defaultAssignments) {
+          await db.templateAssignments.put(assign);
+        }
+      }
+    } catch (e) {
+      console.warn('[templateService] assignments seed warning:', e);
     }
+  } catch (err) {
+    console.warn('[templateService] seedDefaultTemplates error:', err);
   }
 }
 
 // ===== Templates CRUD =====
 
-export async function getAllTemplates(): Promise<PrintTemplate[]> {
+export async function getAllTemplates(forceRefresh = false): Promise<PrintTemplate[]> {
+  const now = Date.now();
+  if (!forceRefresh && _templatesCache && (now - _cacheTimestamp < CACHE_TTL_MS)) {
+    return _templatesCache;
+  }
+
   await ensureInit();
-  await seedDefaultTemplates();
-  const rawList = await db.printTemplates.toArray();
-  return rawList.map(normalizeTemplate);
+  try {
+    await seedDefaultTemplates();
+    const rawList = await db.printTemplates.toArray();
+    if (Array.isArray(rawList) && rawList.length > 0) {
+      const normalized = rawList.map(normalizeTemplate);
+      _templatesCache = normalized;
+      _cacheTimestamp = now;
+      return normalized;
+    }
+  } catch (err) {
+    console.warn('[templateService] getAllTemplates error:', err);
+  }
+
+  _templatesCache = ALL_DEFAULT_TEMPLATES;
+  _cacheTimestamp = now;
+  return ALL_DEFAULT_TEMPLATES;
 }
 
 export async function getTemplateById(id: string): Promise<PrintTemplate | undefined> {
-  await ensureInit();
-  const raw = await db.printTemplates.get(id);
-  if (!raw) {
-    // Check default constants
-    const found = ALL_DEFAULT_TEMPLATES.find((t) => t.id === id);
-    if (found) return found;
-    return undefined;
+  if (_templatesCache) {
+    const cached = _templatesCache.find((t) => t.id === id);
+    if (cached) return cached;
   }
-  return normalizeTemplate(raw);
+
+  await ensureInit();
+  try {
+    const raw = await db.printTemplates.get(id);
+    if (raw) return normalizeTemplate(raw);
+  } catch {
+    // continue to fallback
+  }
+
+  // Check default constants
+  const found = ALL_DEFAULT_TEMPLATES.find((t) => t.id === id);
+  if (found) return found;
+
+  // Check preset definitions
+  const preset = TEMPLATE_PRESETS.find((p) => p.id === id);
+  if (preset) {
+    const buildData = preset.build();
+    return {
+      ...buildData,
+      id: preset.id,
+      name: preset.nameAr || preset.name,
+      description: preset.description,
+      isDefault: false,
+      isSystem: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  return undefined;
 }
 
 export async function getDefaultTemplate(): Promise<PrintTemplate | undefined> {
@@ -154,7 +245,8 @@ export async function createTemplate(
     createdAt: now,
     updatedAt: now,
   };
-  await db.printTemplates.add(template);
+  await db.printTemplates.put(template);
+  invalidateTemplateCache();
   return template;
 }
 
@@ -173,6 +265,7 @@ export async function updateTemplate(
         ...updates,
         updatedAt: new Date().toISOString(),
       });
+      invalidateTemplateCache();
       return;
     }
     throw new Error('Template not found');
@@ -182,6 +275,7 @@ export async function updateTemplate(
     ...updates,
     updatedAt: new Date().toISOString(),
   });
+  invalidateTemplateCache();
 }
 
 export async function deleteTemplate(
@@ -211,6 +305,7 @@ export async function deleteTemplate(
   } catch {}
 
   await db.printTemplates.delete(id);
+  invalidateTemplateCache();
   return { success: true };
 }
 
@@ -224,6 +319,7 @@ export async function setTemplateAsDefault(id: string): Promise<void> {
       updatedAt: new Date().toISOString(),
     });
   }
+  invalidateTemplateCache();
 }
 
 export async function duplicateTemplate(
@@ -246,6 +342,7 @@ export async function duplicateTemplate(
     updatedAt: now,
   };
   await db.printTemplates.add(copy);
+  invalidateTemplateCache();
   return copy;
 }
 
@@ -268,6 +365,7 @@ export async function createFromPreset(presetId: string): Promise<PrintTemplate 
   };
 
   await db.printTemplates.put(newTpl);
+  invalidateTemplateCache();
   return newTpl;
 }
 
@@ -295,16 +393,23 @@ export async function importAllPresets(): Promise<number> {
     }
   }
 
+  invalidateTemplateCache();
   return count;
 }
 
 // ===== Assignments =====
 
-export async function getAllAssignments(): Promise<TemplateAssignment[]> {
+export async function getAllAssignments(forceRefresh = false): Promise<TemplateAssignment[]> {
+  const now = Date.now();
+  if (!forceRefresh && _assignmentsCache && (now - _cacheTimestamp < CACHE_TTL_MS)) {
+    return _assignmentsCache;
+  }
+
   await ensureInit();
   await seedDefaultTemplates();
   const res = await db.templateAssignments.toArray();
-  return res as TemplateAssignment[];
+  _assignmentsCache = res as TemplateAssignment[];
+  return _assignmentsCache;
 }
 
 export async function getDocTypeAssignment(docType: DocTypeKey): Promise<TemplateAssignment | undefined> {
@@ -323,6 +428,7 @@ export async function assignTemplateToDocType(
     docType,
     templateId,
   });
+  invalidateTemplateCache();
 }
 
 // ===== Template Builder Helpers =====

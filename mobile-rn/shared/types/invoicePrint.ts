@@ -237,8 +237,13 @@ export interface PrintTemplate {
 }
 
 export interface TemplateAssignment {
+  id?: string;
   docType: DocTypeKey;
   templateId: string;
+  printerId?: string;
+  paperSize?: PaperSize;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface PrintHistoryRecord {

@@ -48,6 +48,42 @@ export const lightColors = {
     700: '#047857',
   },
 
+  // Amber / Gold Accent
+  amber: {
+    50: '#fffbeb',
+    100: '#fef3c7',
+    200: '#fde68a',
+    500: '#f59e0b',
+    600: '#d97706',
+    700: '#b45309',
+    800: '#92400e',
+    900: '#78350f',
+  },
+
+  // Cyan / Sky Accent
+  cyan: {
+    50: '#ecfeff',
+    100: '#cffafe',
+    200: '#a5f3fc',
+    500: '#06b6d4',
+    600: '#0891b2',
+    700: '#0e7490',
+    800: '#155e75',
+    900: '#164e63',
+  },
+
+  // Crimson / Red Accent
+  crimson: {
+    50: '#fef2f2',
+    100: '#fee2e2',
+    200: '#fecaca',
+    500: '#ef4444',
+    600: '#dc2626',
+    700: '#b91c1c',
+    800: '#991b1b',
+    900: '#7f1d1d',
+  },
+
   // Neutrals / Slate
   slate: {
     50: '#f8fafc',
@@ -101,13 +137,13 @@ export const lightColors = {
   headerBg: '#ffffff',
   inputBg: '#f8fafc',
 
-  // Texts (نصوص شديدة الوضوح)
+  // Texts (نصوص شديدة الوضوح تحقق معايير WCAG)
   text: {
     primary: '#0f172a',
     secondary: '#475569',
-    tertiary: '#94a3b8',
+    tertiary: '#64748b', // Slate 500 - 4.6:1 contrast ratio on white/slate-50
     inverse: '#ffffff',
-    disabled: '#cbd5e1',
+    disabled: '#94a3b8',
     emerald: '#15803d',
     danger: '#b91c1c',
     warning: '#b45309',
@@ -166,6 +202,42 @@ export const darkColors: typeof lightColors = {
     500: '#10b981',
     600: '#34d399',
     700: '#6ee7b7',
+  },
+
+  // Amber / Gold Accent for Dark Mode
+  amber: {
+    50: '#451a03',
+    100: '#78350f',
+    200: '#92400e',
+    500: '#f59e0b',
+    600: '#fbbf24',
+    700: '#fcd34d',
+    800: '#fde68a',
+    900: '#fef3c7',
+  },
+
+  // Cyan / Sky Accent for Dark Mode
+  cyan: {
+    50: '#083344',
+    100: '#164e63',
+    200: '#155e75',
+    500: '#06b6d4',
+    600: '#22d3ee',
+    700: '#67e8f9',
+    800: '#a5f3fc',
+    900: '#cffafe',
+  },
+
+  // Crimson / Red Accent for Dark Mode
+  crimson: {
+    50: '#450a0a',
+    100: '#7f1d1d',
+    200: '#991b1b',
+    500: '#ef4444',
+    600: '#f87171',
+    700: '#fca5a5',
+    800: '#fecaca',
+    900: '#fee2e2',
   },
 
   // Neutrals / Slate for Dark Mode
@@ -278,6 +350,11 @@ export const typography = {
     regular: 'Cairo',
     medium: 'Cairo',
     bold: 'Cairo',
+  },
+  fontFamily: {
+    arabic: 'Cairo',
+    arabicMedium: 'Cairo',
+    arabicBold: 'Cairo',
   },
   size: {
     micro: 10,

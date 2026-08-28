@@ -114,8 +114,11 @@ function createTableProxy(table: string): TableProxy {
       await ensureInit();
       const id = data.id as string;
       if (id) {
-        await unifiedDB.update(table, id, data);
-        return data;
+        const existing = await unifiedDB.get(table, id);
+        if (existing) {
+          await unifiedDB.update(table, id, data);
+          return data;
+        }
       }
       return unifiedDB.create(table, data);
     },

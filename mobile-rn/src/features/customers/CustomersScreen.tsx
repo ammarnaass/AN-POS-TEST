@@ -33,7 +33,7 @@ import {
 } from 'lucide-react-native';
 import { db, ensureInit } from '@/lib/db';
 import { generateId } from '@shared/utils';
-import { colors, useTheme } from '@/theme';
+import { useTheme } from '@/theme';
 import { radii, spacing, typography, shadows } from '@/theme/tokens';
 import { Card, Badge, Button, Input, EmptyState } from '@/components/ui';
 

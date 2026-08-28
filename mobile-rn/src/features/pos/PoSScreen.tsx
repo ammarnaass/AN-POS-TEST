@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -21,7 +21,6 @@ import {
   User,
   Percent,
   Camera,
-  Zap,
   Clock,
   RotateCcw,
   Package,
@@ -39,17 +38,25 @@ import {
   Printer,
   Eye,
   CheckCircle2,
+  LayoutGrid,
+  List,
+  Star,
+  Store,
+  FlaskConical,
+  ArrowUpRight,
+  ScanLine,
 } from 'lucide-react-native';
 import { db, ensureInit } from '@/lib/db';
 import { generateId } from '@shared/utils';
 import { printInvoice, printViaDesktop, type PrintInvoiceData } from '@/lib/print';
 import { getOpenSession, addToSessionSales } from '@/lib/cashSessionService';
 import { suspendOrder, type SuspendedOrder, parseSuspendedItems } from '@/lib/suspendedOrderService';
+import { notify } from '@/lib/notify';
 import CameraScanner from '@/features/barcode/CameraScanner';
 import InvoicePrintPreviewModal from '@/features/print/InvoicePrintPreviewModal';
 import type { Product, Customer } from '@/lib/apiClient';
 import { useAuthStore } from '@/store/authStore';
-import { colors as staticColors, useTheme } from '@/theme';
+import { useTheme } from '@/theme';
 import { radii, spacing, typography, shadows } from '@/theme/tokens';
 import { Card, Badge, Button, Input, EmptyState } from '@/components/ui';
 
@@ -68,7 +75,7 @@ interface CartItem {
 export const POSScreen = ({ route, navigation }: any) => {
   const { user } = useAuthStore();
   const { isDark, colors } = useTheme();
-  const styles = makeStyles(colors, isDark);
+  const styles = useMemo(() => makeStyles(colors, isDark), [colors, isDark]);
 
   const [products, setProducts] = useState<Product[]>([]);
   const [filtered, setFiltered] = useState<Product[]>([]);
@@ -118,9 +125,9 @@ export const POSScreen = ({ route, navigation }: any) => {
   const [completedChangeDue, setCompletedChangeDue] = useState(0);
   const [completedInvoiceNum, setCompletedInvoiceNum] = useState('');
 
-  // Barcode Camera Scanner & Modes
+  // Barcode Camera Scanner & View Modes
   const [showCameraScanner, setShowCameraScanner] = useState(false);
-  const [quickMode, setQuickMode] = useState(false);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [hasOpenSession, setHasOpenSession] = useState(false);
   const [showSuspendedModal, setShowSuspendedModal] = useState(false);
   const [suspendedOrders, setSuspendedOrders] = useState<SuspendedOrder[]>([]);
@@ -137,8 +144,11 @@ export const POSScreen = ({ route, navigation }: any) => {
       codes.forEach((code) => {
         handleBarcodeScan(code, 'multi');
       });
+      navigation.setParams({ initialCodes: undefined });
     } else if (route?.params?.barcode) {
-      handleBarcodeScan(String(route.params.barcode), 'single');
+      const barcodeStr = String(route.params.barcode);
+      handleBarcodeScan(barcodeStr, 'single');
+      navigation.setParams({ barcode: undefined });
     }
   }, [route?.params, products]);
 
@@ -171,6 +181,8 @@ export const POSScreen = ({ route, navigation }: any) => {
         status: p.status || 'active',
         lowStockThreshold: p.lowStockThreshold || 0,
         taxRate: p.taxRate || 0.19,
+        image: p.image || p.imageUrl || p.image_url || null,
+        quickSale: p.quickSale ?? (p.quick_sale === 1),
       }));
       setProducts(mappedProducts);
       setFiltered(mappedProducts);
@@ -380,6 +392,7 @@ export const POSScreen = ({ route, navigation }: any) => {
 
     if (found) {
       addToCart(found);
+      notify.success(`تمت إضافة "${found.name}" إلى السلة ✓`, 'سلة المبيعات');
     } else {
       if (mode === 'single') {
         Alert.alert(
@@ -470,11 +483,15 @@ export const POSScreen = ({ route, navigation }: any) => {
           (p.sku ?? '').toLowerCase().includes(term)
       );
     }
-    if (selectedCategory) {
+    if (selectedCategory === 'featured') {
+      result = result.filter(
+        (p) => (p as any).quickSale === true || (p as any).quick_sale === 1 || (p as any).featured === 1 || (p as any).is_featured === 1
+      );
+    } else if (selectedCategory) {
       result = result.filter(
         (p) =>
           (p as any).category_id === selectedCategory ||
-          p.category === selectedCategory ||
+          (p as any).categoryId === selectedCategory ||
           p.category === selectedCategory
       );
     }
@@ -498,6 +515,23 @@ export const POSScreen = ({ route, navigation }: any) => {
   const numPaid = parseFloat(paidInput) || 0;
   const changeDue = Math.max(0, numPaid - total);
   const remainingDebt = Math.max(0, total - numPaid);
+
+  const cashShortcuts = useMemo(() => {
+    const rounded = Math.round(total);
+    if (rounded <= 0) return [];
+    const items = [
+      { label: 'المبلغ بالضبط', val: rounded },
+      { label: '+500 دج', val: rounded + 500 },
+      { label: '+1000 دج', val: rounded + 1000 },
+    ];
+    const next1000 = Math.ceil(rounded / 1000) * 1000;
+    if (next1000 > rounded && next1000 !== rounded + 500 && next1000 !== rounded + 1000) {
+      items.push({ label: `${next1000} دج`, val: next1000 });
+    } else {
+      items.push({ label: '+2000 دج', val: rounded + 2000 });
+    }
+    return items;
+  }, [total]);
 
   const handleSuspend = async () => {
     if (cart.length === 0) return;
@@ -924,192 +958,209 @@ export const POSScreen = ({ route, navigation }: any) => {
         </View>
       )}
 
-      {/* Top Search & Toolbar */}
-      <View style={[styles.toolbar, { backgroundColor: colors.surface, borderBottomColor: colors.border.default }]}>
-        <View style={[styles.searchBox, { backgroundColor: isDark ? colors.surfaceSubtle : staticColors.slate[100] }]}>
-          <Search size={18} color={colors.slate[400]} style={styles.searchIcon} />
-          <TextInput
-            style={[styles.searchInput, { color: colors.text.primary }]}
-            placeholder="ابحث بالاسم أو امسح الباركود..."
-            value={search}
-            onChangeText={setSearch}
-            placeholderTextColor={colors.slate[400]}
-            textAlign="right"
-          />
-          {search ? (
-            <TouchableOpacity onPress={() => setSearch('')} style={styles.clearSearchBtn}>
-              <X size={14} color={colors.slate[400]} />
-            </TouchableOpacity>
-          ) : null}
-          <TouchableOpacity
-            onPress={() => setShowCameraScanner(true)}
-            style={[styles.scanBtn, { backgroundColor: colors.primary[50] }]}
-            activeOpacity={0.7}
-          >
-            <Camera size={18} color={colors.primary[600]} />
-          </TouchableOpacity>
+      {/* Top License Trial Banner */}
+      <View style={[styles.licenseBanner, { backgroundColor: isDark ? 'rgba(30, 41, 59, 0.7)' : colors.primary[50], borderColor: isDark ? 'rgba(59, 130, 246, 0.3)' : colors.primary[200] }]}>
+        <TouchableOpacity style={styles.licenseUpgradeBtn} activeOpacity={0.8}>
+          <ArrowUpRight size={14} color="#ffffff" />
+          <Text style={styles.licenseUpgradeBtnText}>ترقية</Text>
+        </TouchableOpacity>
+        <View style={styles.licenseBannerContent}>
+          <Text style={[styles.licenseBannerTitle, { color: isDark ? '#ffffff' : colors.text.primary }]}>
+            نسخة مجانية – احصل على الكاملة
+          </Text>
+          <Text style={[styles.licenseBannerSubtitle, { color: isDark ? colors.slate[400] : colors.text.secondary }]}>
+            0/50 فاتورة  •  0/10 زبون
+          </Text>
         </View>
-
-        <TouchableOpacity
-          style={[styles.customItemBtn, { backgroundColor: colors.emerald[50], borderColor: colors.emerald[200] }]}
-          onPress={() => setShowCustomItemModal(true)}
-          activeOpacity={0.7}
-        >
-          <Plus size={16} color={colors.emerald[700]} />
-          <Text style={[styles.customItemBtnText, { color: colors.emerald[700] }]}>بند حر</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.quickToggleBtn, quickMode && { backgroundColor: colors.primary[600] }]}
-          onPress={() => setQuickMode(!quickMode)}
-          activeOpacity={0.7}
-        >
-          <Zap size={18} color={quickMode ? '#ffffff' : colors.slate[500]} />
-        </TouchableOpacity>
+        <View style={[styles.licenseFlaskIcon, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : colors.primary[100] }]}>
+          <FlaskConical size={18} color={isDark ? '#60a5fa' : colors.primary[600]} />
+        </View>
       </View>
 
-      {/* Customer & Discount Controls Bar */}
-      <View style={[styles.controlsBar, { backgroundColor: colors.surface, borderBottomColor: colors.border.subtle }]}>
+      {/* Quick Action Pills: Customer & Open Shift */}
+      <View style={styles.topActionsRow}>
         <TouchableOpacity
-          style={[styles.controlPill, selectedCustomer && { backgroundColor: colors.primary[50], borderColor: colors.primary[300] }]}
+          style={[
+            styles.topActionPill,
+            selectedCustomer
+              ? { backgroundColor: isDark ? '#1e3a8a' : colors.primary[100], borderColor: colors.primary[400] }
+              : { backgroundColor: isDark ? '#1e293b' : colors.surface, borderColor: isDark ? '#334155' : colors.border.default },
+          ]}
           onPress={() => setShowCustomerPicker(true)}
           activeOpacity={0.7}
         >
-          <User
-            size={14}
-            color={selectedCustomer ? colors.primary[600] : colors.slate[500]}
-          />
-          <Text
-            style={[
-              styles.controlPillText,
-              { color: selectedCustomer ? colors.primary[700] : colors.text.secondary },
-            ]}
-            numberOfLines={1}
-          >
-            {selectedCustomer?.name || 'الزبون: نقدي'}
+          <UserPlus size={15} color={isDark ? '#93c5fd' : colors.primary[600]} />
+          <Text style={[styles.topActionPillText, { color: isDark ? '#93c5fd' : colors.primary[700] }]}>
+            {selectedCustomer?.name ? `عميل: ${selectedCustomer.name}` : '+ عميل'}
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[
-            styles.controlPill,
-            parseFloat(discountValue) > 0 && { backgroundColor: colors.warning.light, borderColor: colors.warning.border },
-          ]}
-          onPress={() => setShowDiscountModal(true)}
+          style={[styles.topActionPill, { backgroundColor: isDark ? '#1e293b' : colors.surface, borderColor: isDark ? '#334155' : colors.border.default }]}
+          onPress={() => navigation.navigate('Cash')}
           activeOpacity={0.7}
         >
-          <Percent
-            size={14}
-            color={
-              parseFloat(discountValue) > 0 ? colors.warning.dark : colors.slate[500]
-            }
-          />
-          <Text
-            style={[
-              styles.controlPillText,
-              { color: parseFloat(discountValue) > 0 ? colors.warning.text : colors.text.secondary },
-            ]}
-          >
-            {parseFloat(discountValue) > 0
-              ? `خصم ${discountValue} ${discountType === 'percent' ? '%' : 'دج'}`
-              : 'إضافة خصم'}
+          <Store size={15} color={isDark ? '#94a3b8' : colors.slate[600]} />
+          <Text style={[styles.topActionPillText, { color: isDark ? '#cbd5e1' : colors.text.primary }]}>
+            {hasOpenSession ? 'مناوبة مفتوحة' : 'فتح مناوبة'}
           </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.controlPill, { backgroundColor: colors.surfaceSubtle }]}
-          onPress={loadSuspended}
-          activeOpacity={0.7}
-        >
-          <Clock size={14} color={colors.slate[500]} />
-          <Text style={[styles.controlPillText, { color: colors.text.secondary }]}>معلقة ({suspendedOrders.length})</Text>
         </TouchableOpacity>
       </View>
 
+      {/* Top Search & Toolbar */}
+      <View style={styles.searchBarWrapper}>
+        <View style={[styles.searchBarContainer, { backgroundColor: isDark ? '#111827' : colors.surface, borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : colors.border.default }]}>
+          {/* Left Icon Actions */}
+          <View style={styles.searchLeftIcons}>
+            {/* View Mode Toggle: Grid or List */}
+            <TouchableOpacity
+              style={[styles.searchIconBtn, { backgroundColor: isDark ? '#1f2937' : colors.slate[100] }]}
+              onPress={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
+              activeOpacity={0.7}
+            >
+              {viewMode === 'grid' ? (
+                <List size={18} color={isDark ? '#94a3b8' : colors.slate[600]} />
+              ) : (
+                <LayoutGrid size={18} color={isDark ? '#94a3b8' : colors.slate[600]} />
+              )}
+            </TouchableOpacity>
+
+            {/* Refresh */}
+            <TouchableOpacity
+              style={[styles.searchIconBtn, { backgroundColor: isDark ? '#1f2937' : colors.slate[100] }]}
+              onPress={loadData}
+              activeOpacity={0.7}
+            >
+              <RotateCcw size={17} color={isDark ? '#94a3b8' : colors.slate[600]} />
+            </TouchableOpacity>
+
+            {/* Barcode Scanner */}
+            <TouchableOpacity
+              style={[styles.searchIconBtn, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : colors.primary[50] }]}
+              onPress={() => setShowCameraScanner(true)}
+              activeOpacity={0.7}
+            >
+              <ScanLine size={19} color={isDark ? '#60a5fa' : colors.primary[600]} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Search Input */}
+          <TextInput
+            style={[styles.searchTextInput, { color: colors.text.primary }]}
+            placeholder="بحث بالاسم أو الباركود..."
+            value={search}
+            onChangeText={setSearch}
+            placeholderTextColor={isDark ? '#64748b' : colors.slate[400]}
+            textAlign="right"
+          />
+
+          <Search size={18} color={isDark ? '#64748b' : colors.slate[400]} style={styles.searchRightIcon} />
+        </View>
+      </View>
+
       {/* Category Pills Bar */}
-      {!quickMode && (
-        <View style={styles.categoryBarWrapper}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoryBar}
+      <View style={styles.categoryBarWrapper}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoryBar}
+        >
+          {/* All Filter */}
+          <TouchableOpacity
+            style={[
+              styles.categoryChip,
+              selectedCategory === null
+                ? { backgroundColor: colors.primary[600], borderColor: colors.primary[600] }
+                : { backgroundColor: isDark ? '#1e293b' : colors.surface, borderColor: isDark ? '#334155' : colors.border.default },
+            ]}
+            onPress={() => setSelectedCategory(null)}
+            activeOpacity={0.7}
           >
+            <Text
+              style={[
+                styles.categoryChipText,
+                selectedCategory === null ? { color: '#ffffff', fontWeight: '800' } : { color: colors.text.secondary },
+              ]}
+            >
+              الكل
+            </Text>
+          </TouchableOpacity>
+
+          {/* Featured Filter */}
+          <TouchableOpacity
+            style={[
+              styles.categoryChip,
+              selectedCategory === 'featured'
+                ? { backgroundColor: colors.primary[600], borderColor: colors.primary[600] }
+                : { backgroundColor: isDark ? '#1e293b' : colors.surface, borderColor: isDark ? '#334155' : colors.border.default },
+            ]}
+            onPress={() => setSelectedCategory(selectedCategory === 'featured' ? null : 'featured')}
+            activeOpacity={0.7}
+          >
+            <Star size={13} color={selectedCategory === 'featured' ? '#ffffff' : '#f59e0b'} style={{ marginRight: 4 }} />
+            <Text
+              style={[
+                styles.categoryChipText,
+                selectedCategory === 'featured' ? { color: '#ffffff', fontWeight: '800' } : { color: colors.text.secondary },
+              ]}
+            >
+              المميزة
+            </Text>
+          </TouchableOpacity>
+
+          {/* Packs Category */}
+          {packs.length > 0 && (
             <TouchableOpacity
               style={[
                 styles.categoryChip,
-                !selectedCategory
-                  ? { backgroundColor: colors.primary[600], borderColor: colors.primary[600] }
-                  : { backgroundColor: colors.surface, borderColor: colors.border.default },
+                selectedCategory === 'packs'
+                  ? { backgroundColor: colors.purple[600], borderColor: colors.purple[600] }
+                  : { backgroundColor: isDark ? '#1e293b' : colors.surface, borderColor: isDark ? '#334155' : colors.border.default },
               ]}
-              onPress={() => setSelectedCategory(null)}
+              onPress={() => setSelectedCategory(selectedCategory === 'packs' ? null : 'packs')}
               activeOpacity={0.7}
             >
               <Text
                 style={[
                   styles.categoryChipText,
-                  !selectedCategory ? { color: '#ffffff' } : { color: colors.text.secondary },
+                  selectedCategory === 'packs' ? { color: '#ffffff', fontWeight: '800' } : { color: colors.purple[400] },
                 ]}
               >
-                الكل ({products.length})
+                📦 باقات ({packs.length})
               </Text>
             </TouchableOpacity>
+          )}
 
-            {packs.length > 0 && (
+          {/* Dynamic DB Categories */}
+          {categories.map((cat) => {
+            const isSelected = selectedCategory === cat.id;
+            return (
               <TouchableOpacity
+                key={cat.id}
                 style={[
                   styles.categoryChip,
-                  selectedCategory === 'packs'
-                    ? { backgroundColor: colors.purple[600], borderColor: colors.purple[600] }
-                    : { backgroundColor: colors.surface, borderColor: colors.border.default },
+                  isSelected
+                    ? { backgroundColor: colors.primary[600], borderColor: colors.primary[600] }
+                    : { backgroundColor: isDark ? '#1e293b' : colors.surface, borderColor: isDark ? '#334155' : colors.border.default },
                 ]}
-                onPress={() => setSelectedCategory(selectedCategory === 'packs' ? null : 'packs')}
+                onPress={() => setSelectedCategory(isSelected ? null : cat.id)}
                 activeOpacity={0.7}
               >
                 <Text
                   style={[
                     styles.categoryChipText,
-                    selectedCategory === 'packs' ? { color: '#ffffff' } : { color: colors.purple[700] },
+                    isSelected ? { color: '#ffffff', fontWeight: '800' } : { color: colors.text.secondary },
                   ]}
                 >
-                  📦 باقات مجمعة ({packs.length})
+                  {cat.name}
                 </Text>
               </TouchableOpacity>
-            )}
+            );
+          })}
+        </ScrollView>
+      </View>
 
-            {categories.map((cat) => {
-              const count = products.filter((p) => (p as any).category_id === cat.id || p.category === cat.id || p.category === cat.name).length;
-              const isSelected = selectedCategory === cat.id;
-
-              return (
-                <TouchableOpacity
-                  key={cat.id}
-                  style={[
-                    styles.categoryChip,
-                    isSelected
-                      ? { backgroundColor: colors.primary[600], borderColor: colors.primary[600] }
-                      : { backgroundColor: colors.surface, borderColor: colors.border.default },
-                  ]}
-                  onPress={() =>
-                    setSelectedCategory(isSelected ? null : cat.id)
-                  }
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={[
-                      styles.categoryChipText,
-                      isSelected ? { color: '#ffffff' } : { color: colors.text.secondary },
-                    ]}
-                  >
-                    {cat.name} {count > 0 ? `(${count})` : ''}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
-      )}
-
-      {/* Product Catalog Grid */}
+      {/* Product Catalog Grid / List */}
       <ScrollView
         style={styles.catalogArea}
         contentContainerStyle={styles.catalogContent}
@@ -1121,24 +1172,23 @@ export const POSScreen = ({ route, navigation }: any) => {
             title="لا توجد منتجات مطابقة"
             description="جرب البحث بكلمة أخرى أو أضف منتجات جديدة من شاشة المخزون"
           />
-        ) : (
-          <View style={styles.productsGrid}>
+        ) : viewMode === 'grid' ? (
+          /* Grid View Mode */
+          <View style={styles.gridContainer}>
             {filtered.map((product) => {
-              const promo = findPromotion(product.id);
               const inCartItem = cart.find((c) => c.productId === product.id);
-              const hasWholesale = product.wholesalePrice && product.wholesalePrice > 0;
 
               return (
                 <TouchableOpacity
                   key={product.id}
                   activeOpacity={0.75}
                   style={[
-                    styles.productCard,
+                    styles.gridCard,
                     {
-                      backgroundColor: colors.surface,
-                      borderColor: inCartItem ? colors.primary[500] : colors.border.default,
+                      backgroundColor: isDark ? '#111827' : colors.surface,
+                      borderColor: inCartItem ? colors.primary[500] : isDark ? 'rgba(255, 255, 255, 0.08)' : colors.border.default,
                     },
-                    inCartItem && { borderWidth: 1.8 },
+                    inCartItem && { borderWidth: 2 },
                   ]}
                   onPress={() => addToCart(product)}
                 >
@@ -1148,54 +1198,99 @@ export const POSScreen = ({ route, navigation }: any) => {
                     </View>
                   ) : null}
 
-                  {quickMode ? (
-                    <View style={styles.quickCardContent}>
-                      <Text style={[styles.quickProductName, { color: colors.text.primary }]} numberOfLines={2}>
-                        {product.name}
-                      </Text>
-                      <Text style={[styles.quickProductPrice, { color: colors.primary[600] }]}>
-                        {product.retailPrice.toFixed(0)} دج
+                  {/* Top Product Image Box */}
+                  <View style={[styles.gridImageWrapper, { backgroundColor: isDark ? '#1f2937' : colors.slate[100] }]}>
+                    {product.image ? (
+                      <Image source={{ uri: product.image }} style={styles.gridImage} resizeMode="cover" />
+                    ) : (
+                      <Package size={34} color={isDark ? '#475569' : colors.slate[400]} />
+                    )}
+                  </View>
+
+                  {/* Product Card Info */}
+                  <View style={styles.gridCardBody}>
+                    <Text style={[styles.gridCardName, { color: colors.text.primary }]} numberOfLines={1}>
+                      {product.name}
+                    </Text>
+
+                    <View style={[styles.gridStockBadge, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ecfdf5' }]}>
+                      <Text style={[styles.gridStockText, { color: isDark ? '#34d399' : '#059669' }]}>
+                        • {product.quantity} {product.unit || 'قطعة'}
                       </Text>
                     </View>
-                  ) : (
-                    <View style={styles.normalCardContent}>
-                      <View style={styles.productCardHeader}>
-                        <Barcode size={14} color={colors.slate[400]} />
-                        <Badge
-                          variant={product.quantity <= 0 ? 'danger' : product.quantity <= 5 ? 'warning' : 'neutral'}
-                          size="xs"
-                        >
-                          {product.quantity} {product.unit || 'قطع'}
-                        </Badge>
-                      </View>
 
-                      <Text style={[styles.productName, { color: colors.text.primary }]} numberOfLines={2}>
-                        {product.name}
+                    <View style={styles.gridPriceRow}>
+                      <Text style={[styles.gridCurrency, { color: colors.text.tertiary }]}>DA</Text>
+                      <Text style={[styles.gridPrice, { color: isDark ? '#34d399' : colors.emerald[700] }]}>
+                        {product.retailPrice.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : (
+          /* List View Mode */
+          <View style={styles.listContainer}>
+            {filtered.map((product) => {
+              const inCartItem = cart.find((c) => c.productId === product.id);
 
-                      <View style={styles.productPriceRow}>
-                        <Text style={[styles.productPrice, { color: colors.text.primary }]}>
-                          {product.retailPrice.toLocaleString('ar-DZ')}{' '}
-                          <Text style={styles.currency}>دج</Text>
+              return (
+                <TouchableOpacity
+                  key={product.id}
+                  activeOpacity={0.75}
+                  style={[
+                    styles.listCard,
+                    {
+                      backgroundColor: isDark ? '#111827' : colors.surface,
+                      borderColor: inCartItem ? colors.primary[500] : isDark ? 'rgba(255, 255, 255, 0.08)' : colors.border.default,
+                    },
+                    inCartItem && { borderWidth: 2 },
+                  ]}
+                  onPress={() => addToCart(product)}
+                >
+                  {inCartItem ? (
+                    <View style={[styles.inCartBadge, { backgroundColor: colors.primary[600] }]}>
+                      <Text style={styles.inCartBadgeText}>{inCartItem.qty}</Text>
+                    </View>
+                  ) : null}
+
+                  {/* Left: Price & Currency */}
+                  <View style={styles.listLeftColumn}>
+                    <Text style={[styles.listPrice, { color: isDark ? '#34d399' : colors.emerald[700] }]}>
+                      {product.retailPrice.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </Text>
+                    <Text style={[styles.listCurrency, { color: colors.text.tertiary }]}>DA</Text>
+                  </View>
+
+                  {/* Middle: Name, Stock & Barcode */}
+                  <View style={styles.listMiddleColumn}>
+                    <Text style={[styles.listCardName, { color: colors.text.primary }]} numberOfLines={1}>
+                      {product.name}
+                    </Text>
+                    <View style={styles.listMetaRow}>
+                      <View style={[styles.listStockBadge, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ecfdf5' }]}>
+                        <Text style={[styles.listStockText, { color: isDark ? '#34d399' : '#059669' }]}>
+                          {product.quantity} {product.unit || 'قطعة'}
                         </Text>
-                        <View style={[styles.addIconCircle, { backgroundColor: colors.primary[600] }]}>
-                          <Plus size={13} color="#ffffff" />
-                        </View>
                       </View>
-
-                      {hasWholesale && (
-                        <Text style={[styles.wholesaleHint, { color: colors.text.tertiary }]}>
-                          جملة: {product.wholesalePrice} دج (+{product.wholesaleMinQty})
+                      {product.barcode ? (
+                        <Text style={[styles.listBarcode, { color: colors.text.tertiary }]}>
+                          {product.barcode}
                         </Text>
-                      )}
-
-                      {promo ? (
-                        <View style={[styles.promoTag, { backgroundColor: colors.purple[50] }]}>
-                          <Text style={[styles.promoTagText, { color: colors.purple[700] }]}>⚡ {promo.name}</Text>
-                        </View>
                       ) : null}
                     </View>
-                  )}
+                  </View>
+
+                  {/* Right: Thumbnail Image */}
+                  <View style={[styles.listImageWrapper, { backgroundColor: isDark ? '#1f2937' : colors.slate[100] }]}>
+                    {product.image ? (
+                      <Image source={{ uri: product.image }} style={styles.listImage} resizeMode="cover" />
+                    ) : (
+                      <Package size={24} color={isDark ? '#475569' : colors.slate[400]} />
+                    )}
+                  </View>
                 </TouchableOpacity>
               );
             })}
@@ -1223,7 +1318,7 @@ export const POSScreen = ({ route, navigation }: any) => {
                   {item.lineTotal.toLocaleString('ar-DZ')} دج
                 </Text>
 
-                <View style={[styles.cartQtyControls, { backgroundColor: isDark ? colors.surfaceElevated : staticColors.slate[100] }]}>
+                <View style={[styles.cartQtyControls, { backgroundColor: isDark ? colors.surfaceElevated : colors.slate[100] }]}>
                   <TouchableOpacity
                     onPress={() => updateQty(item.productId, 1)}
                     style={styles.qtyStepBtn}
@@ -1338,7 +1433,7 @@ export const POSScreen = ({ route, navigation }: any) => {
             </View>
 
             <View style={styles.modalSearchRow}>
-              <View style={[styles.modalSearch, { backgroundColor: isDark ? colors.surfaceSubtle : staticColors.slate[100], flex: 1 }]}>
+              <View style={[styles.modalSearch, { backgroundColor: isDark ? colors.surfaceSubtle : colors.slate[100], flex: 1 }]}>
                 <Search size={16} color={colors.slate[400]} />
                 <TextInput
                   style={[styles.modalSearchInput, { color: colors.text.primary }]}
@@ -1692,12 +1787,7 @@ export const POSScreen = ({ route, navigation }: any) => {
 
                 {/* Quick Cash Shortcuts */}
                 <View style={styles.cashShortcutsRow}>
-                  {[
-                    { label: 'المبلغ بالضبط', val: total },
-                    { label: '+500 دج', val: Math.ceil(total / 500) * 500 },
-                    { label: '+1000 دج', val: Math.ceil(total / 1000) * 1000 },
-                    { label: '+2000 دج', val: Math.ceil(total / 2000) * 2000 },
-                  ].map((s, idx) => (
+                  {cashShortcuts.map((s, idx) => (
                     <TouchableOpacity
                       key={idx}
                       style={[styles.cashShortcutChip, { backgroundColor: colors.surfaceSubtle }]}
@@ -1911,110 +2001,138 @@ const makeStyles = (colors: any, isDark: boolean) =>
       textAlign: 'right',
     },
 
-    // Toolbar
-    toolbar: {
+    // License Banner
+    licenseBanner: {
       flexDirection: 'row',
       alignItems: 'center',
+      justifyContent: 'space-between',
+      marginHorizontal: spacing.md,
+      marginTop: spacing.sm,
+      marginBottom: spacing.xs,
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.sm,
-      gap: spacing.xs + 2,
-      borderBottomWidth: 1,
-    },
-    searchBox: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      borderRadius: radii.xl,
-      paddingHorizontal: spacing.sm,
-      height: 42,
-    },
-    searchIcon: {
-      marginLeft: 4,
-    },
-    searchInput: {
-      flex: 1,
-      fontFamily: 'Cairo',
-      fontSize: 13,
-      paddingHorizontal: spacing.xs,
-    },
-    clearSearchBtn: {
-      padding: 4,
-    },
-    scanBtn: {
-      width: 32,
-      height: 32,
-      borderRadius: radii.md,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    customItemBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 3,
-      paddingHorizontal: spacing.sm,
-      paddingVertical: 6,
-      borderRadius: radii.lg,
+      borderRadius: radii.xxl,
       borderWidth: 1,
     },
-    customItemBtnText: {
+    licenseUpgradeBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#3b82f6',
+      paddingHorizontal: spacing.sm + 2,
+      paddingVertical: 5,
+      borderRadius: radii.pill,
+      gap: 4,
+    },
+    licenseUpgradeBtnText: {
+      color: '#ffffff',
       fontSize: 11.5,
-      fontWeight: '700',
+      fontWeight: '800',
       fontFamily: 'Cairo',
     },
-    quickToggleBtn: {
-      width: 36,
-      height: 36,
+    licenseBannerContent: {
+      flex: 1,
+      alignItems: 'flex-end',
+      marginRight: spacing.sm,
+    },
+    licenseBannerTitle: {
+      fontSize: 12,
+      fontWeight: '800',
+      fontFamily: 'Cairo',
+    },
+    licenseBannerSubtitle: {
+      fontSize: 10,
+      fontFamily: 'Cairo',
+      marginTop: 1,
+    },
+    licenseFlaskIcon: {
+      width: 32,
+      height: 32,
       borderRadius: radii.lg,
-      backgroundColor: isDark ? colors.surfaceSubtle : staticColors.slate[100],
       alignItems: 'center',
       justifyContent: 'center',
     },
 
-    // Controls Bar
-    controlsBar: {
+    // Top Actions Row (+ عميل, فتح مناوبة)
+    topActionsRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
+      justifyContent: 'flex-end',
       paddingHorizontal: spacing.md,
-      paddingVertical: spacing.xs + 2,
-      borderBottomWidth: 1,
-      gap: spacing.xs,
+      marginTop: 6,
+      marginBottom: 6,
+      gap: spacing.xs + 2,
     },
-    controlPill: {
+    topActionPill: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 5,
-      paddingHorizontal: spacing.sm + 2,
-      paddingVertical: 4,
-      borderRadius: radii.pill,
+      gap: 6,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 6,
+      borderRadius: radii.xl,
       borderWidth: 1,
-      borderColor: colors.border.default,
-      maxWidth: '45%',
     },
-    controlPillText: {
-      fontSize: 11,
+    topActionPillText: {
+      fontSize: 12,
+      fontWeight: '700',
       fontFamily: 'Cairo',
-      fontWeight: '600',
+    },
+
+    // Search Bar
+    searchBarWrapper: {
+      paddingHorizontal: spacing.md,
+      marginBottom: 6,
+    },
+    searchBarContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderRadius: radii.xxl,
+      borderWidth: 1,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 4,
+      height: 48,
+    },
+    searchLeftIcons: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    searchIconBtn: {
+      width: 34,
+      height: 34,
+      borderRadius: radii.lg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    searchTextInput: {
+      flex: 1,
+      fontFamily: 'Cairo',
+      fontSize: 12.5,
+      paddingHorizontal: spacing.sm,
+    },
+    searchRightIcon: {
+      marginLeft: 4,
     },
 
     // Categories Bar
     categoryBarWrapper: {
-      paddingVertical: 6,
+      paddingVertical: 4,
+      marginBottom: 2,
     },
     categoryBar: {
       paddingHorizontal: spacing.md,
       gap: spacing.xs,
     },
     categoryChip: {
-      paddingHorizontal: spacing.md,
-      paddingVertical: 4,
-      borderRadius: radii.pill,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: spacing.md + 2,
+      paddingVertical: 6,
+      borderRadius: radii.xl,
       borderWidth: 1,
     },
     categoryChipText: {
-      fontSize: 11.5,
+      fontSize: 12,
       fontFamily: 'Cairo',
-      fontWeight: '700',
     },
 
     // Catalog Area
@@ -2022,119 +2140,172 @@ const makeStyles = (colors: any, isDark: boolean) =>
       flex: 1,
     },
     catalogContent: {
-      padding: spacing.md,
+      paddingHorizontal: spacing.md,
+      paddingTop: spacing.xs,
       paddingBottom: 220,
     },
-    productsGrid: {
+
+    // Grid View Card
+    gridContainer: {
       flexDirection: 'row',
       flexWrap: 'wrap',
+      justifyContent: 'space-between',
       gap: spacing.sm,
     },
-    productCard: {
-      borderRadius: radii.xl,
+    gridCard: {
+      width: '48.2%',
+      borderRadius: radii.xxl,
       borderWidth: 1,
+      padding: spacing.xs + 2,
+      position: 'relative',
+      overflow: 'hidden',
+      marginBottom: 4,
+      ...shadows.xs,
+    },
+    gridImageWrapper: {
+      width: '100%',
+      height: 136,
+      borderRadius: radii.lg,
+      overflow: 'hidden',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    gridImage: {
+      width: '100%',
+      height: '100%',
+    },
+    gridCardBody: {
+      paddingHorizontal: 2,
+      paddingTop: spacing.xs + 2,
+      paddingBottom: 2,
+    },
+    gridCardName: {
+      fontSize: 13,
+      fontWeight: '800',
+      fontFamily: 'Cairo',
+      textAlign: 'right',
+      marginBottom: 6,
+    },
+    gridStockBadge: {
+      alignSelf: 'flex-end',
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 3,
+      borderRadius: radii.pill,
+      marginBottom: 8,
+    },
+    gridStockText: {
+      fontSize: 11,
+      fontWeight: '700',
+      fontFamily: 'Cairo',
+    },
+    gridPriceRow: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      justifyContent: 'space-between',
+    },
+    gridCurrency: {
+      fontSize: 10.5,
+      fontWeight: '700',
+      fontFamily: 'Cairo',
+    },
+    gridPrice: {
+      fontSize: 14.5,
+      fontWeight: '900',
+      fontFamily: 'Cairo',
+    },
+
+    // List View Card
+    listContainer: {
+      gap: spacing.sm,
+    },
+    listCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      borderRadius: radii.xxl,
+      borderWidth: 1,
+      padding: spacing.sm + 2,
       position: 'relative',
       overflow: 'hidden',
       ...shadows.xs,
     },
-    productCardNormal: {
-      width: '48.2%',
-      padding: spacing.sm + 2,
-      minHeight: 124,
-      justifyContent: 'space-between',
-    },
-    productCardQuick: {
-      width: '31.2%',
-      padding: spacing.sm,
-      minHeight: 80,
+    listLeftColumn: {
+      alignItems: 'flex-start',
       justifyContent: 'center',
     },
+    listPrice: {
+      fontSize: 14.5,
+      fontWeight: '900',
+      fontFamily: 'Cairo',
+    },
+    listCurrency: {
+      fontSize: 10,
+      fontWeight: '700',
+      fontFamily: 'Cairo',
+      marginTop: -2,
+    },
+    listMiddleColumn: {
+      flex: 1,
+      alignItems: 'flex-end',
+      paddingHorizontal: spacing.sm,
+    },
+    listCardName: {
+      fontSize: 13,
+      fontWeight: '800',
+      fontFamily: 'Cairo',
+      textAlign: 'right',
+      marginBottom: 4,
+    },
+    listMetaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    listStockBadge: {
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 2,
+      borderRadius: radii.pill,
+    },
+    listStockText: {
+      fontSize: 10.5,
+      fontWeight: '700',
+      fontFamily: 'Cairo',
+    },
+    listBarcode: {
+      fontSize: 10,
+      fontFamily: 'Cairo',
+    },
+    listImageWrapper: {
+      width: 58,
+      height: 58,
+      borderRadius: radii.lg,
+      overflow: 'hidden',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    listImage: {
+      width: '100%',
+      height: '100%',
+    },
+
+    // In-Cart Badge
     inCartBadge: {
       position: 'absolute',
       top: 6,
       left: 6,
-      width: 20,
+      minWidth: 20,
       height: 20,
       borderRadius: 10,
+      paddingHorizontal: 5,
       alignItems: 'center',
       justifyContent: 'center',
-      zIndex: 2,
+      zIndex: 10,
     },
     inCartBadgeText: {
       color: '#ffffff',
       fontSize: 10,
-      fontWeight: '800',
+      fontWeight: '900',
       fontFamily: 'Cairo',
-    },
-    productCardHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 2,
-    },
-    productName: {
-      fontSize: 12.5,
-      fontWeight: '700',
-      fontFamily: 'Cairo',
-      textAlign: 'right',
-      marginVertical: 3,
-    },
-    productPriceRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginTop: 4,
-    },
-    productPrice: {
-      fontSize: 14,
-      fontWeight: '800',
-      fontFamily: 'Cairo',
-    },
-    currency: {
-      fontSize: 10,
-      fontWeight: '600',
-    },
-    addIconCircle: {
-      width: 24,
-      height: 24,
-      borderRadius: 12,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    wholesaleHint: {
-      fontSize: 9.5,
-      fontFamily: 'Cairo',
-      textAlign: 'right',
-      marginTop: 2,
-    },
-    promoTag: {
-      alignSelf: 'flex-end',
-      paddingHorizontal: 6,
-      paddingVertical: 1,
-      borderRadius: radii.sm,
-      marginTop: 3,
-    },
-    promoTagText: {
-      fontSize: 9.5,
-      fontWeight: '700',
-      fontFamily: 'Cairo',
-    },
-
-    quickCardContent: {
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    quickProductName: {
-      fontSize: 11,
-      fontWeight: '700',
-      fontFamily: 'Cairo',
-      textAlign: 'center',
-    },
-    quickProductPrice: {
-      fontSize: 12,
-      fontWeight: '800',
-      fontFamily: 'Cairo',
-      marginTop: 2,
     },
 
     // Cart Bottom Sheet
@@ -2359,7 +2530,7 @@ const makeStyles = (colors: any, isDark: boolean) =>
       borderRadius: radii.lg,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: isDark ? colors.surfaceSubtle : staticColors.slate[100],
+      backgroundColor: isDark ? colors.surfaceSubtle : colors.slate[100],
     },
     discountToggleText: {
       fontSize: 12,

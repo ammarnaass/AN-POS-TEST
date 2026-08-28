@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -32,14 +32,14 @@ import { db, ensureInit } from '@/lib/db';
 import { generateId } from '@shared/utils';
 import type { CashSession, CapitalEntry } from '@shared/types';
 import { useAuthStore } from '@/store/authStore';
-import { colors as staticColors, useTheme } from '@/theme';
+import { useTheme } from '@/theme';
 import { radii, spacing, typography, shadows } from '@/theme/tokens';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Button, Input, EmptyState } from '@/components/ui';
 
 export const CashScreen = ({ navigation }: any) => {
   const { user } = useAuthStore();
   const { isDark, colors } = useTheme();
-  const styles = makeStyles(colors, isDark);
+  const styles = useMemo(() => makeStyles(colors, isDark), [colors, isDark]);
 
   const [sessions, setSessions] = useState<CashSession[]>([]);
   const [currentSession, setCurrentSession] = useState<CashSession | null>(null);
@@ -789,9 +789,9 @@ const makeStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     paddingVertical: spacing.sm,
     alignItems: 'center',
     borderRadius: radii.lg,
-    backgroundColor: isDark ? colors.surfaceSubtle : staticColors.slate[50],
+    backgroundColor: isDark ? colors.surfaceSubtle : colors.slate[50],
     borderWidth: 1,
-    borderColor: isDark ? colors.border.default : staticColors.slate[200],
+    borderColor: isDark ? colors.border.default : colors.slate[200],
   },
   tabActive: {
     backgroundColor: colors.primary[600],
@@ -816,81 +816,122 @@ const makeStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     paddingBottom: spacing.xxxl,
   },
 
-  // Hero Card
-  heroCard: {
-    padding: spacing.lg,
-    backgroundColor: colors.surface,
-  },
-  heroHeader: {
+  // Active Session View
+  activeSessionBanner: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    backgroundColor: colors.emerald[50],
+    borderWidth: 1,
+    borderColor: colors.emerald[200],
+    borderRadius: radii.xl,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    gap: spacing.md,
   },
-  sessionNumberText: {
-    fontSize: 16,
+  activeIconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: radii.lg,
+    backgroundColor: colors.emerald[600],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeSessionTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.emerald[800],
+    fontFamily: 'Cairo',
+  },
+  activeSessionSub: {
+    fontSize: 12,
+    color: colors.emerald[600],
+    fontFamily: 'Cairo',
+    marginTop: 1,
+  },
+
+  kpiRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  kpiCard: {
+    flex: 1,
+    padding: spacing.md,
+    alignItems: 'center',
+    gap: 4,
+  },
+  kpiLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.text.secondary,
+    fontFamily: 'Cairo',
+    textAlign: 'center',
+  },
+  kpiValue: {
+    fontSize: 14.5,
     fontWeight: '800',
     color: colors.text.primary,
     fontFamily: 'Cairo',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.border.subtle,
-    marginVertical: spacing.md,
+    textAlign: 'center',
   },
 
-  sessionInfoGrid: {
-    gap: spacing.sm,
+  totalsCard: {
+    padding: spacing.md,
+    marginBottom: spacing.md,
   },
-  sessionInfoRow: {
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.text.primary,
+    fontFamily: 'Cairo',
+    marginBottom: spacing.md,
+    textAlign: 'right',
+  },
+  totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingVertical: spacing.xs + 2,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border.subtle,
   },
-  sessionLabel: {
+  totalLabel: {
     fontSize: 12.5,
     color: colors.text.secondary,
     fontFamily: 'Cairo',
   },
-  sessionVal: {
-    fontSize: 13.5,
+  totalVal: {
+    fontSize: 13,
     fontWeight: '700',
     color: colors.text.primary,
     fontFamily: 'Cairo',
   },
-
-  expectedBox: {
-    backgroundColor: isDark ? `${colors.primary[900]}33` : colors.primary[50],
-    borderRadius: radii.lg,
-    padding: spacing.md,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: isDark ? colors.primary[700] : colors.primary[200],
-    marginTop: spacing.md,
+  netRow: {
+    borderBottomWidth: 0,
+    marginTop: spacing.xs,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.default,
   },
-  expectedVal: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: colors.primary[isDark ? 400 : 700],
-    fontFamily: 'Cairo',
-  },
-  expectedCurrency: {
+  netLabel: {
     fontSize: 14,
-    fontWeight: '600',
-  },
-  expectedLabel: {
-    fontSize: 12,
-    color: colors.primary[isDark ? 400 : 600],
+    fontWeight: '800',
+    color: colors.text.primary,
     fontFamily: 'Cairo',
-    marginTop: 2,
-    fontWeight: '600',
+  },
+  netVal: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.primary[700],
+    fontFamily: 'Cairo',
   },
 
-  actionButtonsGrid: {
-    flexDirection: 'row',
-    gap: spacing.md,
+  actionButtonsGroup: {
+    gap: spacing.sm,
+    marginTop: spacing.xs,
   },
 
-  // Closed Card
+  // Closed Session View
   closedCard: {
     padding: spacing.xxl,
     alignItems: 'center',
@@ -900,7 +941,7 @@ const makeStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: radii.circle,
-    backgroundColor: isDark ? colors.surfaceElevated : staticColors.slate[100],
+    backgroundColor: isDark ? colors.surfaceElevated : colors.slate[100],
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.md,
@@ -996,13 +1037,13 @@ const makeStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     paddingVertical: spacing.sm + 2,
     alignItems: 'center',
     borderRadius: radii.lg,
-    backgroundColor: isDark ? colors.surfaceElevated : staticColors.slate[100],
+    backgroundColor: isDark ? colors.surfaceElevated : colors.slate[100],
     borderWidth: 1,
-    borderColor: isDark ? colors.border.default : staticColors.slate[200],
+    borderColor: isDark ? colors.border.default : colors.slate[200],
   },
   capTypeBtnActiveDeposit: {
-    backgroundColor: staticColors.emerald[600],
-    borderColor: staticColors.emerald[700],
+    backgroundColor: colors.emerald[600],
+    borderColor: colors.emerald[700],
   },
   capTypeBtnActiveWithdraw: {
     backgroundColor: colors.danger.main,
@@ -1026,7 +1067,7 @@ const makeStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     textAlign: 'right',
   },
   formInputAmount: {
-    backgroundColor: isDark ? colors.surfaceSubtle : staticColors.slate[50],
+    backgroundColor: isDark ? colors.surfaceSubtle : colors.slate[50],
     borderRadius: radii.xl,
     borderWidth: 1.5,
     borderColor: colors.primary[500],

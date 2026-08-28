@@ -28,7 +28,8 @@ import { db, ensureInit } from '@/lib/db';
 import { generateId } from '@shared/utils';
 import type { Expense } from '@shared/types';
 import { useAuthStore } from '@/store/authStore';
-import { colors, radii, spacing, typography, shadows } from '@/theme';
+import { useTheme } from '@/theme';
+import { radii, spacing, typography, shadows } from '@/theme/tokens';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Button, Input, EmptyState } from '@/components/ui';
 
 const CATEGORIES = [
@@ -42,19 +43,35 @@ const CATEGORIES = [
   'أخرى',
 ];
 
-const CATEGORY_COLORS: Record<string, { bg: string; text: string; variant: any }> = {
-  إيجار: { bg: colors.primary[50], text: colors.primary[700], variant: 'primary' },
-  رواتب: { bg: colors.emerald[50], text: colors.emerald[700], variant: 'emerald' },
-  نقل: { bg: colors.purple[50], text: colors.purple[700], variant: 'purple' },
-  فواتير: { bg: colors.warning.light, text: colors.warning.text, variant: 'warning' },
-  صيانة: { bg: colors.danger.light, text: colors.danger.text, variant: 'danger' },
-  تسويق: { bg: colors.indigo[50], text: colors.indigo[700], variant: 'indigo' },
-  تغليف: { bg: colors.primary[50], text: colors.primary[700], variant: 'primary' },
-  أخرى: { bg: colors.slate[100], text: colors.slate[700], variant: 'neutral' },
+const getCategoryConfig = (
+  cat: string,
+  colors: any,
+  isDark: boolean
+): { bg: string; text: string; variant: 'primary' | 'emerald' | 'purple' | 'warning' | 'danger' | 'indigo' | 'neutral' } => {
+  switch (cat) {
+    case 'إيجار':
+      return { bg: isDark ? 'rgba(59, 130, 246, 0.15)' : colors.primary[50], text: colors.primary[600], variant: 'primary' };
+    case 'رواتب':
+      return { bg: isDark ? 'rgba(16, 185, 129, 0.15)' : colors.emerald[50], text: isDark ? '#34d399' : colors.emerald[700], variant: 'emerald' };
+    case 'نقل':
+      return { bg: isDark ? 'rgba(168, 85, 247, 0.15)' : colors.purple[50], text: isDark ? '#c084fc' : colors.purple[700], variant: 'purple' };
+    case 'فواتير':
+      return { bg: colors.warning.light, text: colors.warning.text, variant: 'warning' };
+    case 'صيانة':
+      return { bg: colors.danger.light, text: colors.danger.text, variant: 'danger' };
+    case 'تسويق':
+      return { bg: isDark ? 'rgba(99, 102, 241, 0.15)' : colors.indigo[50], text: isDark ? '#818cf8' : colors.indigo[700], variant: 'indigo' };
+    case 'تغليف':
+      return { bg: isDark ? 'rgba(59, 130, 246, 0.15)' : colors.primary[50], text: colors.primary[600], variant: 'primary' };
+    default:
+      return { bg: isDark ? colors.surfaceElevated : colors.slate[100], text: colors.text.secondary, variant: 'neutral' };
+  }
 };
 
 export const ExpensesScreen = ({ navigation }: any) => {
   const { user } = useAuthStore();
+  const { isDark, colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors, isDark), [colors, isDark]);
 
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
@@ -282,7 +299,7 @@ export const ExpensesScreen = ({ navigation }: any) => {
         ) : (
           <View style={{ gap: spacing.sm }}>
             {filteredExpenses.map((expense) => {
-              const catConfig = CATEGORY_COLORS[expense.category] || CATEGORY_COLORS['أخرى'];
+              const catConfig = getCategoryConfig(expense.category, colors, isDark);
 
               return (
                 <Card key={expense.id} style={styles.expenseCard}>
@@ -292,7 +309,7 @@ export const ExpensesScreen = ({ navigation }: any) => {
                     </Text>
                     <View style={styles.cardActions}>
                       <TouchableOpacity onPress={() => openEdit(expense)} style={styles.actionBtn} activeOpacity={0.7}>
-                        <Edit2 size={13} color={colors.slate[600]} />
+                        <Edit2 size={13} color={colors.text.secondary} />
                       </TouchableOpacity>
                       <TouchableOpacity onPress={() => handleDelete(expense)} style={[styles.actionBtn, styles.deleteBtn]} activeOpacity={0.7}>
                         <Trash2 size={13} color={colors.danger.main} />
@@ -328,7 +345,7 @@ export const ExpensesScreen = ({ navigation }: any) => {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeModalBtn}>
-                <X size={20} color={colors.slate[500]} />
+                <X size={20} color={colors.text.secondary} />
               </TouchableOpacity>
               <Text style={styles.modalTitle}>
                 {editingExpense ? 'تعديل المصروف' : 'تسجيل مصروف جديد'}
@@ -337,28 +354,30 @@ export const ExpensesScreen = ({ navigation }: any) => {
 
             <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
               <View style={styles.formGroup}>
-                <Input
-                  label="بيان / وصف المصروف *"
-                  placeholder="مثال: فاتورة كهرباء شهرية، بنزين، كراء..."
-                  value={form.label}
-                  onChangeText={(v) => setForm((f) => ({ ...f, label: v }))}
-                />
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>المبلغ (دج) *</Text>
+                <Text style={styles.formLabel}>المبلغ (دج)</Text>
                 <TextInput
                   style={styles.formInputAmount}
-                  placeholder="0"
+                  placeholder="0.00"
+                  placeholderTextColor={colors.text.tertiary}
                   value={form.amount}
-                  onChangeText={(v) => setForm((f) => ({ ...f, amount: v }))}
-                  keyboardType="numeric"
+                  onChangeText={(t) => setForm({ ...form, amount: t })}
+                  keyboardType="decimal-pad"
                   textAlign="center"
                 />
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>تصنيف المصروف</Text>
+                <Text style={styles.formLabel}>بيان المصروف</Text>
+                <Input
+                  placeholder="مثال: فاتورة الكهرباء، بنزين التوصيل..."
+                  value={form.label}
+                  onChangeText={(t) => setForm({ ...form, label: t })}
+                  textAlign="right"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>التصنيف</Text>
                 <View style={styles.categoryGrid}>
                   {CATEGORIES.map((cat) => (
                     <TouchableOpacity
@@ -367,7 +386,7 @@ export const ExpensesScreen = ({ navigation }: any) => {
                         styles.catSelectBtn,
                         form.category === cat && styles.catSelectBtnActive,
                       ]}
-                      onPress={() => setForm((f) => ({ ...f, category: cat }))}
+                      onPress={() => setForm({ ...form, category: cat })}
                       activeOpacity={0.7}
                     >
                       <Text
@@ -384,23 +403,23 @@ export const ExpensesScreen = ({ navigation }: any) => {
               </View>
 
               <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>ملاحظات إضافية (اختياري)</Text>
                 <Input
-                  label="ملاحظات"
-                  placeholder="ملاحظة اختيارية..."
+                  placeholder="أي تفاصيل أخرى..."
                   value={form.notes}
-                  onChangeText={(v) => setForm((f) => ({ ...f, notes: v }))}
+                  onChangeText={(t) => setForm({ ...form, notes: t })}
+                  textAlign="right"
                 />
               </View>
             </ScrollView>
 
             <Button
-              title="حفظ المصروف"
-              variant="destructive"
-              size="lg"
-              loading={saving}
-              icon={<Check size={18} color="#fff" />}
+              title={saving ? 'جاري الحفظ...' : editingExpense ? 'تحديث المصروف' : 'حفظ المصروف'}
               onPress={handleSave}
+              loading={saving}
               fullWidth
+              size="lg"
+              style={{ marginTop: spacing.xs }}
             />
           </View>
         </View>
@@ -409,263 +428,264 @@ export const ExpensesScreen = ({ navigation }: any) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.xl,
-  },
+const makeStyles = (colors: any, isDark: boolean) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    center: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: spacing.xl,
+    },
 
-  header: {
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.default,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.sm,
-  },
-  screenTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.text.primary,
-    fontFamily: 'Cairo',
-  },
+    header: {
+      backgroundColor: colors.surface,
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.md,
+      paddingBottom: spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border.default,
+    },
+    headerTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: spacing.sm,
+    },
+    screenTitle: {
+      fontSize: 18,
+      fontWeight: '800',
+      color: colors.text.primary,
+      fontFamily: 'Cairo',
+    },
 
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.slate[50],
-    borderRadius: radii.lg,
-    paddingHorizontal: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 13.5,
-    color: colors.text.primary,
-    fontFamily: 'Cairo',
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.sm,
-  },
+    searchBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: isDark ? colors.surfaceElevated : colors.slate[50],
+      borderRadius: radii.lg,
+      paddingHorizontal: spacing.md,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+    },
+    searchInput: {
+      flex: 1,
+      fontSize: 13.5,
+      color: colors.text.primary,
+      fontFamily: 'Cairo',
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.sm,
+    },
 
-  chipsRow: {
-    backgroundColor: colors.surface,
-    paddingVertical: spacing.xs + 2,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
-  },
-  chipsScroll: {
-    paddingHorizontal: spacing.lg,
-    gap: spacing.xs + 2,
-  },
-  chip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: 5,
-    borderRadius: radii.pill,
-    backgroundColor: colors.slate[100],
-    borderWidth: 1,
-    borderColor: colors.slate[200],
-  },
-  chipActive: {
-    backgroundColor: colors.danger.main,
-    borderColor: colors.danger.dark,
-  },
-  chipText: {
-    fontSize: 12,
-    color: colors.slate[600],
-    fontWeight: '700',
-    fontFamily: 'Cairo',
-  },
-  chipTextActive: {
-    color: '#ffffff',
-  },
+    chipsRow: {
+      backgroundColor: colors.surface,
+      paddingVertical: spacing.xs + 2,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border.subtle,
+    },
+    chipsScroll: {
+      paddingHorizontal: spacing.lg,
+      gap: spacing.xs + 2,
+    },
+    chip: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: 5,
+      borderRadius: radii.pill,
+      backgroundColor: isDark ? colors.surfaceElevated : colors.slate[100],
+      borderWidth: 1,
+      borderColor: colors.border.default,
+    },
+    chipActive: {
+      backgroundColor: colors.danger.main,
+      borderColor: colors.danger.dark,
+    },
+    chipText: {
+      fontSize: 12,
+      color: colors.text.secondary,
+      fontWeight: '700',
+      fontFamily: 'Cairo',
+    },
+    chipTextActive: {
+      color: '#ffffff',
+    },
 
-  kpiCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    marginHorizontal: spacing.md,
-    marginVertical: spacing.sm,
-    padding: spacing.md,
-    gap: spacing.md,
-  },
-  kpiIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: radii.lg,
-    backgroundColor: colors.danger.light,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  kpiLabel: {
-    fontSize: 11.5,
-    color: colors.text.secondary,
-    fontFamily: 'Cairo',
-  },
-  kpiVal: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.danger.text,
-    fontFamily: 'Cairo',
-    marginTop: 2,
-  },
+    kpiCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      marginHorizontal: spacing.md,
+      marginVertical: spacing.sm,
+      padding: spacing.md,
+      gap: spacing.md,
+    },
+    kpiIconBox: {
+      width: 44,
+      height: 44,
+      borderRadius: radii.lg,
+      backgroundColor: colors.danger.light,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    kpiLabel: {
+      fontSize: 11.5,
+      color: colors.text.secondary,
+      fontFamily: 'Cairo',
+    },
+    kpiVal: {
+      fontSize: 18,
+      fontWeight: '800',
+      color: colors.danger.text,
+      fontFamily: 'Cairo',
+      marginTop: 2,
+    },
 
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: spacing.md,
-    paddingBottom: spacing.xxxl,
-  },
+    scroll: {
+      flex: 1,
+    },
+    scrollContent: {
+      padding: spacing.md,
+      paddingBottom: spacing.xxxl,
+    },
 
-  expenseCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: spacing.md,
-  },
-  cardLeft: {
-    alignItems: 'flex-start',
-    gap: spacing.xs,
-  },
-  expenseAmount: {
-    fontSize: 14.5,
-    fontWeight: '800',
-    color: colors.danger.text,
-    fontFamily: 'Cairo',
-  },
-  cardActions: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  actionBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: radii.md,
-    backgroundColor: colors.slate[100],
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deleteBtn: {
-    backgroundColor: colors.danger.light,
-  },
+    expenseCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: spacing.md,
+    },
+    cardLeft: {
+      alignItems: 'flex-start',
+      gap: spacing.xs,
+    },
+    expenseAmount: {
+      fontSize: 14.5,
+      fontWeight: '800',
+      color: colors.danger.text,
+      fontFamily: 'Cairo',
+    },
+    cardActions: {
+      flexDirection: 'row',
+      gap: 6,
+    },
+    actionBtn: {
+      width: 28,
+      height: 28,
+      borderRadius: radii.md,
+      backgroundColor: isDark ? colors.surfaceElevated : colors.slate[100],
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    deleteBtn: {
+      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.2)' : colors.danger.light,
+    },
 
-  cardRight: {
-    flex: 1,
-    alignItems: 'flex-end',
-    marginRight: spacing.md,
-    gap: 3,
-  },
-  labelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  expenseLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.text.primary,
-    fontFamily: 'Cairo',
-  },
-  expenseDate: {
-    fontSize: 11.5,
-    color: colors.text.tertiary,
-    fontFamily: 'Cairo',
-  },
+    cardRight: {
+      flex: 1,
+      alignItems: 'flex-end',
+      marginRight: spacing.md,
+      gap: 3,
+    },
+    labelRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+    },
+    expenseLabel: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.text.primary,
+      fontFamily: 'Cairo',
+    },
+    expenseDate: {
+      fontSize: 11.5,
+      color: colors.text.tertiary,
+      fontFamily: 'Cairo',
+    },
 
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.65)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: radii.xxl,
-    borderTopRightRadius: radii.xxl,
-    padding: spacing.xl,
-    paddingBottom: spacing.xxxl,
-    gap: spacing.md,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingBottom: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
-  },
-  closeModalBtn: {
-    padding: 4,
-  },
-  modalTitle: {
-    fontSize: 16.5,
-    fontWeight: '800',
-    color: colors.text.primary,
-    fontFamily: 'Cairo',
-  },
+    // Modal
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(15, 23, 42, 0.65)',
+      justifyContent: 'flex-end',
+    },
+    modalContent: {
+      backgroundColor: colors.surface,
+      borderTopLeftRadius: radii.xxl,
+      borderTopRightRadius: radii.xxl,
+      padding: spacing.xl,
+      paddingBottom: spacing.xxxl,
+      gap: spacing.md,
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingBottom: spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border.subtle,
+    },
+    closeModalBtn: {
+      padding: 4,
+    },
+    modalTitle: {
+      fontSize: 16.5,
+      fontWeight: '800',
+      color: colors.text.primary,
+      fontFamily: 'Cairo',
+    },
 
-  formGroup: {
-    marginBottom: spacing.sm,
-    gap: spacing.xs,
-  },
-  formLabel: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: colors.slate[700],
-    fontFamily: 'Cairo',
-    textAlign: 'right',
-  },
-  formInputAmount: {
-    backgroundColor: colors.slate[50],
-    borderRadius: radii.xl,
-    borderWidth: 1.5,
-    borderColor: colors.danger.main,
-    padding: spacing.md,
-    fontSize: 24,
-    fontWeight: '800',
-    color: colors.text.primary,
-    fontFamily: 'Cairo',
-  },
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
-  },
-  catSelectBtn: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-    borderRadius: radii.pill,
-    backgroundColor: colors.slate[100],
-    borderWidth: 1,
-    borderColor: colors.slate[200],
-  },
-  catSelectBtnActive: {
-    backgroundColor: colors.danger.main,
-    borderColor: colors.danger.dark,
-  },
-  catSelectBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.slate[700],
-    fontFamily: 'Cairo',
-  },
-  catSelectBtnTextActive: {
-    color: '#ffffff',
-  },
-});
+    formGroup: {
+      marginBottom: spacing.sm,
+      gap: spacing.xs,
+    },
+    formLabel: {
+      fontSize: 12.5,
+      fontWeight: '700',
+      color: colors.text.secondary,
+      fontFamily: 'Cairo',
+      textAlign: 'right',
+    },
+    formInputAmount: {
+      backgroundColor: isDark ? colors.surfaceElevated : colors.slate[50],
+      borderRadius: radii.xl,
+      borderWidth: 1.5,
+      borderColor: colors.danger.main,
+      padding: spacing.md,
+      fontSize: 24,
+      fontWeight: '800',
+      color: colors.text.primary,
+      fontFamily: 'Cairo',
+    },
+    categoryGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.xs,
+    },
+    catSelectBtn: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: 6,
+      borderRadius: radii.pill,
+      backgroundColor: isDark ? colors.surfaceElevated : colors.slate[100],
+      borderWidth: 1,
+      borderColor: colors.border.default,
+    },
+    catSelectBtnActive: {
+      backgroundColor: colors.danger.main,
+      borderColor: colors.danger.dark,
+    },
+    catSelectBtnText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.text.secondary,
+      fontFamily: 'Cairo',
+    },
+    catSelectBtnTextActive: {
+      color: '#ffffff',
+    },
+  });
 
 export default ExpensesScreen;
 

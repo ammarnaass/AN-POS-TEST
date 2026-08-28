@@ -614,9 +614,13 @@ export const CREATE_INDEXES_SQL: string[] = [
   `CREATE INDEX IF NOT EXISTS idx_supplier_entries_supplier ON supplier_entries(supplier_id)`,
   // Cash Sessions
   `CREATE INDEX IF NOT EXISTS idx_cash_sessions_status ON cash_sessions(status)`,
-  // Print Jobs
+  // Print Jobs & Templates
   `CREATE INDEX IF NOT EXISTS idx_print_jobs_status ON print_jobs(status)`,
   `CREATE INDEX IF NOT EXISTS idx_print_jobs_invoice ON print_jobs(invoice_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_template_assignments_doctype ON template_assignments(doc_type)`,
+  `CREATE INDEX IF NOT EXISTS idx_print_templates_default ON print_templates(is_default)`,
+  `CREATE INDEX IF NOT EXISTS idx_print_history_invoice ON print_history(invoice_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_print_history_doctype ON print_history(doc_type_key)`,
   // Users
   `CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)`,
   `CREATE INDEX IF NOT EXISTS idx_users_status ON users(status)`,

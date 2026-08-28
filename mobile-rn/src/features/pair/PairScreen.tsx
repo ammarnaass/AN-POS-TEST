@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -24,13 +24,17 @@ import CloudStep from './steps/CloudStep';
 import DiscoveryStep from './steps/DiscoveryStep';
 import QRStep from './steps/QRStep';
 import ManualStep from './steps/ManualStep';
-import { colors, radii, spacing, typography, shadows } from '@/theme';
+import { useTheme } from '@/theme';
+import { radii, spacing, typography, shadows } from '@/theme/tokens';
 import { Card, Button, Badge } from '@/components/ui';
 
 type Step = 'hub' | 'cloud' | 'discover' | 'manual' | 'qr' | 'connecting';
 
 export const ConnectionHubScreen = ({ navigation }: any) => {
   const { setServerUrl } = useAuthStore();
+  const { isDark, colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors, isDark), [colors, isDark]);
+
   const [step, setStep] = useState<Step>('hub');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -237,115 +241,116 @@ export const ConnectionHubScreen = ({ navigation }: any) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  content: {
-    padding: spacing.lg,
-    gap: spacing.lg,
-    paddingBottom: spacing.xxxl,
-  },
-  branding: {
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingTop: spacing.md,
-  },
-  logoImg: {
-    width: 68,
-    height: 68,
-    marginBottom: spacing.xs,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: colors.text.primary,
-    fontFamily: 'Cairo',
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 12,
-    color: colors.text.secondary,
-    fontFamily: 'Cairo',
-    textAlign: 'center',
-    maxWidth: 280,
-  },
+const makeStyles = (colors: any, isDark: boolean) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    content: {
+      padding: spacing.lg,
+      gap: spacing.lg,
+      paddingBottom: spacing.xxxl,
+    },
+    branding: {
+      alignItems: 'center',
+      gap: spacing.xs,
+      paddingTop: spacing.md,
+    },
+    logoImg: {
+      width: 68,
+      height: 68,
+      marginBottom: spacing.xs,
+    },
+    title: {
+      fontSize: 22,
+      fontWeight: '800',
+      color: colors.text.primary,
+      fontFamily: 'Cairo',
+      textAlign: 'center',
+    },
+    subtitle: {
+      fontSize: 12,
+      color: colors.text.secondary,
+      fontFamily: 'Cairo',
+      textAlign: 'center',
+      maxWidth: 280,
+    },
 
-  hubContainer: {
-    gap: spacing.md,
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  methodCard: {
-    flex: 1,
-    minWidth: '47%',
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    padding: spacing.md,
-    alignItems: 'center',
-    gap: 4,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    ...shadows.sm,
-  },
-  iconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: radii.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.xs,
-  },
-  cardTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.text.primary,
-    fontFamily: 'Cairo',
-    textAlign: 'center',
-  },
-  cardSubtitle: {
-    fontSize: 11,
-    color: colors.text.secondary,
-    fontFamily: 'Cairo',
-    textAlign: 'center',
-  },
-  recommendedBadge: {
-    marginTop: spacing.xs,
-  },
+    hubContainer: {
+      gap: spacing.md,
+    },
+    grid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+    },
+    methodCard: {
+      flex: 1,
+      minWidth: '47%',
+      backgroundColor: colors.surface,
+      borderRadius: radii.lg,
+      padding: spacing.md,
+      alignItems: 'center',
+      gap: 4,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+      ...shadows.sm,
+    },
+    iconBox: {
+      width: 48,
+      height: 48,
+      borderRadius: radii.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: spacing.xs,
+    },
+    cardTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.text.primary,
+      fontFamily: 'Cairo',
+      textAlign: 'center',
+    },
+    cardSubtitle: {
+      fontSize: 11,
+      color: colors.text.secondary,
+      fontFamily: 'Cairo',
+      textAlign: 'center',
+    },
+    recommendedBadge: {
+      marginTop: spacing.xs,
+    },
 
-  securityNote: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    alignSelf: 'center',
-    marginTop: spacing.xs,
-  },
-  securityText: {
-    fontSize: 11,
-    color: colors.slate[400],
-    fontFamily: 'Cairo',
-  },
-  errorCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    backgroundColor: colors.danger.light,
-    padding: spacing.md,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.danger.border,
-  },
-  errorText: {
-    color: colors.danger.text,
-    fontSize: 12,
-    fontFamily: 'Cairo',
-    flex: 1,
-    textAlign: 'right',
-  },
-});
+    securityNote: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      alignSelf: 'center',
+      marginTop: spacing.xs,
+    },
+    securityText: {
+      fontSize: 11,
+      color: colors.text.tertiary,
+      fontFamily: 'Cairo',
+    },
+    errorCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+      backgroundColor: colors.danger.light,
+      padding: spacing.md,
+      borderRadius: radii.md,
+      borderWidth: 1,
+      borderColor: colors.danger.border,
+    },
+    errorText: {
+      color: colors.danger.text,
+      fontSize: 12,
+      fontFamily: 'Cairo',
+      flex: 1,
+      textAlign: 'right',
+    },
+  });
 
 export default ConnectionHubScreen;

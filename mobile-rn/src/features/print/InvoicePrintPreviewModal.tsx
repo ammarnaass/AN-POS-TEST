@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Alert,
+  Image,
 } from 'react-native';
 import {
   X,
@@ -26,15 +26,27 @@ import {
   getDefaultTemplate,
   getDocTypeAssignment,
   interpolateVariables,
+  DEFAULT_THERMAL_80,
 } from '@/lib/templateService';
 import type {
   DocTypeKey,
   PrintTemplate,
-  Block,
 } from '@shared/types/invoicePrint';
 import { PAPER_LABELS_AR, DOC_TYPE_LABELS_AR } from '@shared/types/invoicePrint';
-import { colors, radii, spacing, shadows } from '@/theme';
+import {
+  TemplateLanguage,
+  TRANSLATIONS,
+  translatePhrase,
+  formatCurrency,
+  formatDate,
+  getLocalizedDocType,
+  getLocalizedPaymentMethod,
+  getLocalizedColumns,
+} from '@shared/services/templateTranslator';
+import { useThemeStore } from '@/store/themeStore';
+import { radii, spacing, shadows, typography } from '@/theme';
 import { BarcodeSvg } from '@/lib/barcodeSvg';
+import { notify } from '@/lib/notify';
 
 interface InvoicePrintPreviewModalProps {
   visible: boolean;
@@ -45,12 +57,22 @@ interface InvoicePrintPreviewModalProps {
   sampleDocType?: DocTypeKey;
 }
 
-const LANGUAGES: Array<{ key: 'ar' | 'ar-fr' | 'fr' | 'en'; label: string; flag: string }> = [
+const LANGUAGES: Array<{ key: TemplateLanguage; label: string; flag: string }> = [
   { key: 'ar', label: 'العربية', flag: '🇩🇿' },
   { key: 'ar-fr', label: 'عربي / FR', flag: '🌐' },
   { key: 'fr', label: 'Français', flag: '🇫🇷' },
   { key: 'en', label: 'English', flag: '🇬🇧' },
 ];
+
+function safeParse<T>(val: any, fallback: T): T {
+  if (!val) return fallback;
+  if (typeof val === 'object') return val;
+  try {
+    return JSON.parse(String(val));
+  } catch {
+    return fallback;
+  }
+}
 
 export const InvoicePrintPreviewModal = ({
   visible,
@@ -60,12 +82,13 @@ export const InvoicePrintPreviewModal = ({
   templateId: initialTemplateId,
   sampleDocType = 'sale-invoice',
 }: InvoicePrintPreviewModalProps) => {
-  const [template, setTemplate] = useState<PrintTemplate | null>(null);
+  const { colors, isDark } = useThemeStore();
+  const [template, setTemplate] = useState<PrintTemplate>(DEFAULT_THERMAL_80);
   const [data, setData] = useState<PrintInvoiceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [printing, setPrinting] = useState(false);
   const [copies, setCopies] = useState(1);
-  const [selectedLang, setSelectedLang] = useState<'ar' | 'ar-fr' | 'fr' | 'en'>('ar');
+  const [selectedLang, setSelectedLang] = useState<TemplateLanguage>('ar');
 
   useEffect(() => {
     if (visible) {
@@ -78,79 +101,122 @@ export const InvoicePrintPreviewModal = ({
     try {
       await ensureInit();
 
-      // Resolve template
+      // 1. Resolve template
       let tpl: PrintTemplate | undefined;
-      if (initialTemplateId) {
-        tpl = await getTemplateById(initialTemplateId);
-      } else {
-        const assign = await getDocTypeAssignment(sampleDocType);
-        if (assign?.templateId) {
-          tpl = await getTemplateById(assign.templateId);
+      try {
+        if (initialTemplateId) {
+          tpl = await getTemplateById(initialTemplateId);
+        } else {
+          const assign = await getDocTypeAssignment(sampleDocType);
+          if (assign?.templateId) {
+            tpl = await getTemplateById(assign.templateId);
+          }
         }
+        if (!tpl) {
+          tpl = await getDefaultTemplate();
+        }
+      } catch (err) {
+        console.warn('[InvoicePreview] Template fetch error:', err);
       }
-      if (!tpl) {
-        tpl = await getDefaultTemplate();
-      }
-      setTemplate(tpl || null);
 
-      // Resolve invoice data
-      if (customInvoiceData) {
+      const activeTpl = tpl || DEFAULT_THERMAL_80;
+      const normalizedTpl: PrintTemplate = {
+        ...activeTpl,
+        layout: safeParse(activeTpl.layout, DEFAULT_THERMAL_80.layout),
+        styles: safeParse(activeTpl.styles, DEFAULT_THERMAL_80.styles),
+        visibility: safeParse(activeTpl.visibility, DEFAULT_THERMAL_80.visibility),
+      };
+      setTemplate(normalizedTpl);
+
+      // 2. Resolve invoice data
+      if (customInvoiceData && (customInvoiceData.items?.length || customInvoiceData.number)) {
         setData(customInvoiceData);
       } else if (saleId) {
-        const sale = await db.sales.get(saleId);
+        let sale = await db.sales.get(saleId);
+        if (!sale) {
+          const allSales = await db.sales.toArray();
+          sale = allSales.find((s: any) => s.id === saleId || s.number === saleId);
+        }
+
         if (sale) {
-          const rawItems = Array.isArray(sale.items)
+          let rawItems: any[] = Array.isArray(sale.items)
             ? sale.items
             : typeof sale.items === 'string'
-            ? JSON.parse(sale.items || '[]')
+            ? safeParse(sale.items, [])
             : [];
+
+          // If rawItems is still empty, look up in sale_items table
+          if (!rawItems || rawItems.length === 0) {
+            try {
+              const allSaleItems = await db.saleItems.toArray();
+              const matching = allSaleItems.filter(
+                (si: any) => si.saleId === sale.id || si.sale_id === sale.id
+              );
+              if (matching.length > 0) {
+                rawItems = matching.map((si: any) => ({
+                  name: si.name,
+                  qty: si.qty || si.quantity || 1,
+                  unitPrice: si.unitPrice || si.unit_price || 0,
+                  lineTotal:
+                    si.lineTotal ||
+                    si.line_total ||
+                    (si.qty || 1) * (si.unitPrice || si.unit_price || 0),
+                }));
+              }
+            } catch (err) {
+              console.warn('[InvoicePreview] Lookup in sale_items error:', err);
+            }
+          }
 
           setData({
             id: sale.id,
-            number: sale.number || '0000',
-            date: new Date(sale.date || sale.createdAt || '').toLocaleString('ar-DZ'),
+            number: sale.number || 'INV-0001',
+            date: sale.date || sale.created_at || new Date().toISOString(),
             items: rawItems.map((i: any) => ({
-              name: i.name,
-              qty: i.qty || 1,
-              unitPrice: i.unitPrice || 0,
-              lineTotal: (i.qty || 1) * (i.unitPrice || 0),
+              name: i.name || 'منتج',
+              qty: Number(i.qty || 1),
+              unitPrice: Number(i.unitPrice || i.unit_price || 0),
+              lineTotal: Number(i.lineTotal || i.line_total || (i.qty || 1) * (i.unitPrice || i.unit_price || 0)),
             })),
-            subtotal: sale.subtotal || sale.total,
-            discount: sale.discount || 0,
-            tvaAmount: sale.tvaAmount || 0,
-            total: sale.total || 0,
-            paymentMethod: sale.paymentMethod === 'credit' ? 'آجل (كريدي)' : 'نقداً',
-            customerName: sale.customerName || 'زبون عام',
-            soldBy: sale.soldBy || 'المسؤول',
+            subtotal: Number(sale.subtotal || sale.total || 0),
+            discount: Number(sale.discount || 0),
+            tvaAmount: Number(sale.tvaAmount || sale.tva_amount || 0),
+            total: Number(sale.total || 0),
+            paymentMethod: sale.paymentMethod || sale.payment_method || 'cash',
+            customerName: sale.customerName || sale.customer_name || 'زبون عام',
+            soldBy: sale.soldBy || sale.sold_by || 'الكاشير',
             docType: sampleDocType,
           });
+        } else {
+          setData(getFallbackInvoice(sampleDocType));
         }
       } else {
-        // Sample mock invoice
-        setData({
-          number: 'INV-2026-0099',
-          date: new Date().toLocaleString('ar-DZ'),
-          items: [
-            { name: 'زيت زيتون بكر ممتاز 1 لتر', qty: 2, unitPrice: 950, lineTotal: 1900 },
-            { name: 'عسل جبلي طبيعي 500 غ', qty: 1, unitPrice: 1400, lineTotal: 1400 },
-            { name: 'تمور دقلة نور فاخرة 1 كغ', qty: 3, unitPrice: 450, lineTotal: 1350 },
-          ],
-          subtotal: 4650,
-          discount: 150,
-          tvaAmount: 0,
-          total: 4500,
-          paymentMethod: 'نقداً',
-          customerName: 'كريم بن علي',
-          customerPhone: '0550 12 34 56',
-          customerAddress: 'الجزائر العاصمة',
-          soldBy: 'أحمد (الكاشير)',
-          docType: sampleDocType,
-        });
+        setData(getFallbackInvoice(sampleDocType));
       }
     } catch (err) {
-      console.warn('Failed to load invoice preview:', err);
+      console.warn('[InvoicePreview] Failed to load invoice preview:', err);
+      setData(getFallbackInvoice(sampleDocType));
     }
     setLoading(false);
+  }
+
+  function getFallbackInvoice(docType: string): PrintInvoiceData {
+    return {
+      number: `INV-${Date.now().toString().slice(-6)}`,
+      date: new Date().toISOString(),
+      items: [
+        { name: 'منتج تجريبي 1', qty: 2, unitPrice: 500, lineTotal: 1000 },
+        { name: 'منتج تجريبي 2', qty: 1, unitPrice: 350, lineTotal: 350 },
+      ],
+      subtotal: 1350,
+      discount: 0,
+      tvaAmount: 0,
+      total: 1350,
+      paymentMethod: 'cash',
+      customerName: 'زبون عام (نقدي)',
+      soldBy: 'الكاشير',
+      docType: docType as any,
+    };
   }
 
   const handlePrint = async () => {
@@ -164,106 +230,150 @@ export const InvoicePrintPreviewModal = ({
         lang: selectedLang,
       });
       if (ok) {
-        Alert.alert('✓ تمت الطباعة', 'تم إرسال الفاتورة إلى الطابعة بنجاح');
+        notify.success('تم إرسال الفاتورة إلى الطابعة بنجاح', '✓ تمت الطباعة');
         onClose();
       } else {
-        Alert.alert('تنبيه الطباعة', 'تعذر إرسال أمر الطباعة المباشر. يرجى مراجعة إعدادات الطابعة.');
+        notify.warning('تعذر الاتصال بالطابعة مباشرة. يرجى مراجعة إعدادات الطابعة.', 'تنبيه الطباعة');
       }
-    } catch {
-      Alert.alert('خطأ', 'فشل تنفيذ عملية الطباعة');
+    } catch (err) {
+      notify.error(err, 'فشل تنفيذ أمر الطباعة');
     }
     setPrinting(false);
   };
 
   if (!visible) return null;
 
-  // Assembly of context for rendering
-  const renderContext = {
-    invoice: data || {},
-    shopLegal: {
-      name: 'سوبرماركت البركة',
-      phone: '023 45 67 89',
-      address: 'شارع فلسطين، الجزائر',
-      footer: 'شكراً لزيارتكم ونتمنى عودتكم قريباً',
-      nif: '001616012345678',
-    },
-    user: { name: data?.soldBy || 'المسؤول' },
-  };
+  const layout = safeParse(template.layout, DEFAULT_THERMAL_80.layout);
+  const tplStyles = safeParse(template.styles, DEFAULT_THERMAL_80.styles);
+  const currentDict = TRANSLATIONS[selectedLang] || TRANSLATIONS.ar;
+
+  // Context for interpolation with localization (Memoized for peak scroll performance)
+  const renderContext = React.useMemo(() => {
+    const rawDate = data?.date || new Date().toISOString();
+    const formattedDate = formatDate(rawDate, selectedLang);
+    const localizedPayment = getLocalizedPaymentMethod(data?.paymentMethod || 'cash', selectedLang);
+
+    return {
+      invoice: {
+        ...(data || {}),
+        date: formattedDate,
+        paymentMethod: localizedPayment,
+        totalFormatted: formatCurrency(data?.total || 0, selectedLang),
+        subtotalFormatted: formatCurrency(data?.subtotal || 0, selectedLang),
+      },
+      shopLegal: {
+        name: 'AN POS - متجر المستقبل',
+        phone: '0550 00 00 00',
+        address: selectedLang === 'fr' ? 'Alger, Algérie' : selectedLang === 'en' ? 'Algiers, Algeria' : 'الجزائر العاصمة',
+        footer: currentDict.defaultFooter,
+        nif: '001616012345678',
+      },
+      user: { name: data?.soldBy || (selectedLang === 'fr' ? 'Caissier' : 'الكاشير') },
+    };
+  }, [data, selectedLang, currentDict]);
+
+  const dynamicStyles = React.useMemo(
+    () => makeStyles(colors, isDark, selectedLang),
+    [colors, isDark, selectedLang]
+  );
 
   return (
-    <Modal visible={visible} transparent animationType="slide">
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
+    <Modal visible={visible} transparent animationType="fade">
+      <View style={dynamicStyles.modalOverlay}>
+        <View style={dynamicStyles.modalContent}>
           {/* Header */}
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={styles.closeBtn}>
-              <X size={20} color={colors.slate[400]} />
+          <View style={dynamicStyles.modalHeader}>
+            <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={dynamicStyles.closeBtn}>
+              <X size={20} color={colors.text.secondary} />
             </TouchableOpacity>
 
-            <View style={{ alignItems: 'flex-end' }}>
-              <Text style={styles.modalTitle}>معاينة وطباعة الفاتورة</Text>
-              <Text style={styles.modalSubtitle}>
-                {template?.name || 'القالب الافتراضي'} • {DOC_TYPE_LABELS_AR[sampleDocType] || sampleDocType}
+            <View style={{ alignItems: selectedLang === 'ar' || selectedLang === 'ar-fr' ? 'flex-end' : 'flex-start' }}>
+              <Text style={dynamicStyles.modalTitle}>
+                {selectedLang === 'fr'
+                  ? 'Aperçu et Impression'
+                  : selectedLang === 'en'
+                  ? 'Invoice Print Preview'
+                  : 'معاينة وطباعة الفاتورة'}
+              </Text>
+              <Text style={dynamicStyles.modalSubtitle}>
+                {template?.name || 'القالب الافتراضي'} • {getLocalizedDocType(sampleDocType, selectedLang)} •{' '}
+                {PAPER_LABELS_AR[template?.paperSize || '80mm']}
               </Text>
             </View>
           </View>
 
           {/* Languages Selector */}
-          <View style={styles.langRow}>
-            <Globe size={14} color={colors.slate[400]} />
+          <View style={dynamicStyles.langRow}>
+            <Globe size={14} color={colors.text.tertiary} />
             {LANGUAGES.map((l) => (
               <TouchableOpacity
                 key={l.key}
-                style={[styles.langChip, selectedLang === l.key && styles.langChipActive]}
+                style={[
+                  dynamicStyles.langChip,
+                  selectedLang === l.key && dynamicStyles.langChipActive,
+                ]}
                 onPress={() => setSelectedLang(l.key)}
                 activeOpacity={0.7}
               >
-                <Text style={styles.langFlag}>{l.flag}</Text>
-                <Text style={[styles.langText, selectedLang === l.key && styles.langTextActive]}>
+                <Text style={dynamicStyles.langFlag}>{l.flag}</Text>
+                <Text
+                  style={[
+                    dynamicStyles.langText,
+                    selectedLang === l.key && dynamicStyles.langTextActive,
+                  ]}
+                >
                   {l.label}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
 
-          {/* Rendered Live Invoice View */}
-          <View style={styles.previewContainer}>
+          {/* Paper Sheet Preview Area */}
+          <View style={dynamicStyles.previewContainer}>
             {loading ? (
-              <View style={styles.center}>
+              <View style={dynamicStyles.center}>
                 <ActivityIndicator size="large" color={colors.primary[600]} />
-              </View>
-            ) : !data || !template ? (
-              <View style={styles.center}>
-                <Text style={styles.emptyText}>تعذر تجهيز معاينة الفاتورة</Text>
+                <Text style={[dynamicStyles.emptyText, { marginTop: spacing.md }]}>
+                  {selectedLang === 'fr' ? 'Génération de l’aperçu...' : 'جاري تجهيز معاينة الفاتورة...'}
+                </Text>
               </View>
             ) : (
-              <ScrollView style={styles.previewScroll} contentContainerStyle={styles.previewScrollContent} showsVerticalScrollIndicator={false}>
+              <ScrollView
+                style={dynamicStyles.previewScroll}
+                contentContainerStyle={dynamicStyles.previewScrollContent}
+                showsVerticalScrollIndicator={false}
+              >
                 <View
                   style={[
-                    styles.invoiceSheet,
+                    dynamicStyles.invoiceSheet,
                     {
-                      width: template.paperSize === '58mm' ? 240 : template.paperSize === '80mm' ? 290 : '98%',
+                      width:
+                        template.paperSize === '58mm'
+                          ? 230
+                          : template.paperSize === '80mm'
+                          ? 295
+                          : '96%',
                     },
                   ]}
                 >
                   {/* Header Section */}
-                  {template.layout.header?.map((b, i) => (
+                  {(layout.header || DEFAULT_THERMAL_80.layout.header).map((b: any, i: number) => (
                     <View key={`h-${i}`} style={{ width: '100%' }}>
-                      {renderBlock(b, renderContext, template)}
+                      {renderBlock(b, renderContext, template, tplStyles, selectedLang, dynamicStyles)}
                     </View>
                   ))}
 
                   {/* Body Section */}
-                  {template.layout.body?.map((b, i) => (
+                  {(layout.body || DEFAULT_THERMAL_80.layout.body).map((b: any, i: number) => (
                     <View key={`b-${i}`} style={{ width: '100%' }}>
-                      {renderBlock(b, renderContext, template)}
+                      {renderBlock(b, renderContext, template, tplStyles, selectedLang, dynamicStyles)}
                     </View>
                   ))}
 
                   {/* Footer Section */}
-                  {template.layout.footer?.map((b, i) => (
+                  {(layout.footer || DEFAULT_THERMAL_80.layout.footer).map((b: any, i: number) => (
                     <View key={`f-${i}`} style={{ width: '100%' }}>
-                      {renderBlock(b, renderContext, template)}
+                      {renderBlock(b, renderContext, template, tplStyles, selectedLang, dynamicStyles)}
                     </View>
                   ))}
                 </View>
@@ -272,28 +382,30 @@ export const InvoicePrintPreviewModal = ({
           </View>
 
           {/* Footer Controls */}
-          <View style={styles.modalFooter}>
-            <View style={styles.copiesControls}>
+          <View style={dynamicStyles.modalFooter}>
+            <View style={dynamicStyles.copiesControls}>
               <TouchableOpacity
-                style={styles.copyBtn}
+                style={dynamicStyles.copyBtn}
                 onPress={() => setCopies(Math.max(1, copies - 1))}
                 activeOpacity={0.7}
               >
                 <Minus size={14} color={colors.text.primary} />
               </TouchableOpacity>
-              <Text style={styles.copiesCount}>{copies}</Text>
+              <Text style={dynamicStyles.copiesCount}>{copies}</Text>
               <TouchableOpacity
-                style={styles.copyBtn}
+                style={dynamicStyles.copyBtn}
                 onPress={() => setCopies(Math.min(10, copies + 1))}
                 activeOpacity={0.7}
               >
                 <Plus size={14} color={colors.text.primary} />
               </TouchableOpacity>
-              <Text style={styles.copiesLabel}>النسخ:</Text>
+              <Text style={dynamicStyles.copiesLabel}>
+                {selectedLang === 'fr' ? 'Copies:' : selectedLang === 'en' ? 'Copies:' : 'النسخ:'}
+              </Text>
             </View>
 
             <TouchableOpacity
-              style={styles.printActionBtn}
+              style={dynamicStyles.printActionBtn}
               onPress={handlePrint}
               disabled={printing || loading}
               activeOpacity={0.7}
@@ -303,7 +415,13 @@ export const InvoicePrintPreviewModal = ({
               ) : (
                 <>
                   <Printer size={16} color="#fff" />
-                  <Text style={styles.printActionBtnText}>طباعة ({copies})</Text>
+                  <Text style={dynamicStyles.printActionBtnText}>
+                    {selectedLang === 'fr'
+                      ? `Imprimer (${copies})`
+                      : selectedLang === 'en'
+                      ? `Print (${copies})`
+                      : `طباعة (${copies})`}
+                  </Text>
                 </>
               )}
             </TouchableOpacity>
@@ -314,22 +432,37 @@ export const InvoicePrintPreviewModal = ({
   );
 };
 
-// Render Block Helper
-function renderBlock(block: Block, ctx: any, template: PrintTemplate) {
+// Render Block Helper with Language Localization
+function renderBlock(
+  block: any,
+  ctx: any,
+  template: PrintTemplate,
+  tplStyles: any,
+  lang: TemplateLanguage,
+  s: ReturnType<typeof makeStyles>
+) {
+  if (!block || !block.type) return null;
+  const dict = TRANSLATIONS[lang] || TRANSLATIONS.ar;
+  const isRtl = lang === 'ar' || lang === 'ar-fr';
+
   switch (block.type) {
     case 'text': {
-      const textVal = Array.isArray(block.text) ? block.text.join('\n') : block.text;
-      const parsed = interpolateVariables(textVal, ctx);
+      const textVal = Array.isArray(block.text) ? block.text.join('\n') : block.text || '';
+      let parsed = interpolateVariables(textVal, ctx);
+      // Translate common static phrases
+      parsed = translatePhrase(parsed, lang);
+
       const isHeader = block.weight === 700 || block.size === 'lg' || block.size === 'xl';
       return (
         <Text
           style={[
-            styles.docText,
+            s.docText,
             {
-              textAlign: block.align || 'center',
+              textAlign: block.align || (isRtl ? 'center' : 'center'),
               fontWeight: isHeader ? 'bold' : 'normal',
-              fontSize: block.size === 'xl' ? 16 : block.size === 'lg' ? 13.5 : block.size === 'sm' ? 10 : 11.5,
-              color: block.colorVar === 'primary' ? template.styles.primaryColor : '#0f172a',
+              fontSize:
+                block.size === 'xl' ? 15 : block.size === 'lg' ? 13 : block.size === 'sm' ? 10 : 11.5,
+              color: block.colorVar === 'primary' ? tplStyles?.primaryColor || '#0284c7' : '#0f172a',
             },
           ]}
         >
@@ -337,43 +470,158 @@ function renderBlock(block: Block, ctx: any, template: PrintTemplate) {
         </Text>
       );
     }
+    case 'image': {
+      if (block.src) {
+        return (
+          <View style={[s.docCenter, { width: '100%' }]}>
+            <Image
+              source={{ uri: block.src }}
+              style={{
+                width: block.width || 60,
+                height: block.height || 60,
+                resizeMode: 'contain',
+              }}
+            />
+          </View>
+        );
+      }
+      return null;
+    }
     case 'separator':
-      return <View style={styles.docSeparator} />;
+      return <View style={s.docSeparator} />;
     case 'qr':
       return (
-        <View style={styles.docCenter}>
-          <BarcodeSvg value={ctx.invoice.number} format="qr" height={65} width={1.2} />
+        <View style={s.docCenter}>
+          <BarcodeSvg value={ctx.invoice.number || 'INV-0001'} format="qr" height={60} width={1.2} />
         </View>
       );
     case 'barcode':
       return (
-        <View style={styles.docCenter}>
-          <BarcodeSvg value={ctx.invoice.number} format="code128" height={32} width={1.1} showText textSize={8} />
+        <View style={s.docCenter}>
+          <BarcodeSvg
+            value={ctx.invoice.number || 'INV-0001'}
+            format="code128"
+            height={28}
+            width={1.1}
+            showText
+            textSize={8}
+          />
         </View>
       );
-    case 'table':
+    case 'table': {
+      const localizedCols = getLocalizedColumns(block.columns, lang);
       return (
-        <View style={styles.docTable}>
-          <View style={[styles.docTableRow, { backgroundColor: template.styles.headerColor }]}>
-            <Text style={[styles.docTableCell, styles.docTableHead, { flex: 2, textAlign: 'right' }]}>المنتج</Text>
-            <Text style={[styles.docTableCell, styles.docTableHead, { flex: 1, textAlign: 'center' }]}>الكمية</Text>
-            <Text style={[styles.docTableCell, styles.docTableHead, { flex: 1.2, textAlign: 'left' }]}>الإجمالي</Text>
-          </View>
-          {ctx.invoice.items?.map((it: any, idx: number) => (
-            <View key={idx} style={styles.docTableRow}>
-              <Text style={[styles.docTableCell, { flex: 2, textAlign: 'right' }]}>{it.name}</Text>
-              <Text style={[styles.docTableCell, { flex: 1, textAlign: 'center' }]}>{it.qty}</Text>
-              <Text style={[styles.docTableCell, { flex: 1.2, textAlign: 'left' }]}>
-                {it.lineTotal?.toLocaleString('ar-DZ')} دج
+        <View style={s.docTable}>
+          {/* Table Header Row */}
+          <View style={[s.docTableRow, { backgroundColor: tplStyles?.headerColor || '#f8fafc' }]}>
+            {localizedCols.map((c, cIdx) => (
+              <Text
+                key={cIdx}
+                style={[
+                  s.docTableCell,
+                  s.docTableHead,
+                  {
+                    flex: c.key === 'name' ? 2 : 1,
+                    textAlign: c.align === 'right' ? (isRtl ? 'right' : 'right') : c.align === 'left' ? (isRtl ? 'left' : 'left') : 'center',
+                  },
+                ]}
+              >
+                {c.label}
               </Text>
+            ))}
+          </View>
+
+          {/* Table Data Rows */}
+          {(ctx.invoice.items || []).map((it: any, idx: number) => (
+            <View key={idx} style={s.docTableRow}>
+              {localizedCols.map((c, cIdx) => {
+                let cellVal = '';
+                if (c.key === 'name') cellVal = it.name;
+                else if (c.key === 'qty') cellVal = String(it.qty);
+                else if (c.key === 'unitPrice' || c.key === 'price')
+                  cellVal = formatCurrency(it.unitPrice || 0, lang);
+                else if (c.key === 'discount')
+                  cellVal = it.discount ? formatCurrency(it.discount, lang) : '-';
+                else if (c.key === 'lineTotal' || c.key === 'total')
+                  cellVal = formatCurrency(it.lineTotal || it.qty * it.unitPrice || 0, lang);
+                else cellVal = String(it[c.key] || '');
+
+                return (
+                  <Text
+                    key={cIdx}
+                    style={[
+                      s.docTableCell,
+                      {
+                        flex: c.key === 'name' ? 2 : 1,
+                        textAlign: c.align === 'right' ? (isRtl ? 'right' : 'right') : c.align === 'left' ? (isRtl ? 'left' : 'left') : 'center',
+                        fontWeight: c.key === 'lineTotal' || c.key === 'name' ? '600' : 'normal',
+                      },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {cellVal}
+                  </Text>
+                );
+              })}
             </View>
           ))}
-          <View style={[styles.docTableRow, styles.docTableTotalRow]}>
-            <Text style={[styles.docTableCell, { fontWeight: 'bold', flex: 2, textAlign: 'right' }]}>المجموع النهائي</Text>
-            <Text style={[styles.docTableCell, { fontWeight: 'bold', flex: 2.2, textAlign: 'left', color: template.styles.primaryColor }]}>
-              {ctx.invoice.total?.toLocaleString('ar-DZ')} دج
-            </Text>
-          </View>
+
+          {/* Table Totals Row */}
+          {block.showTotal !== false && (
+            <View style={[s.docTableRow, s.docTableTotalRow]}>
+              <Text style={[s.docTableCell, { fontWeight: 'bold', flex: 2, textAlign: isRtl ? 'right' : 'left' }]}>
+                {dict.labels.total}
+              </Text>
+              <Text
+                style={[
+                  s.docTableCell,
+                  {
+                    fontWeight: 'bold',
+                    flex: 2,
+                    textAlign: isRtl ? 'left' : 'right',
+                    color: tplStyles?.primaryColor || '#0284c7',
+                    fontSize: 12,
+                  },
+                ]}
+              >
+                {formatCurrency(ctx.invoice.total || 0, lang)}
+              </Text>
+            </View>
+          )}
+        </View>
+      );
+    }
+    case 'row':
+      return (
+        <View
+          style={[
+            s.docRow,
+            {
+              flexDirection: isRtl ? 'row-reverse' : 'row',
+              justifyContent:
+                block.align === 'space-between'
+                  ? 'space-between'
+                  : block.align === 'center'
+                  ? 'center'
+                  : 'flex-start',
+            },
+          ]}
+        >
+          {block.children?.map((child: any, cIdx: number) => (
+            <View key={cIdx} style={{ flexShrink: 1 }}>
+              {renderBlock(child, ctx, template, tplStyles, lang, s)}
+            </View>
+          ))}
+        </View>
+      );
+    case 'column':
+      return (
+        <View style={s.docColumn}>
+          {block.children?.map((child: any, cIdx: number) => (
+            <View key={cIdx} style={{ width: '100%' }}>
+              {renderBlock(child, ctx, template, tplStyles, lang, s)}
+            </View>
+          ))}
         </View>
       );
     default:
@@ -381,73 +629,249 @@ function renderBlock(block: Block, ctx: any, template: PrintTemplate) {
   }
 }
 
-const styles = StyleSheet.create({
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.65)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, height: '90%', padding: spacing.md },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: spacing.xs + 2, borderBottomWidth: 1, borderBottomColor: colors.border.subtle },
-  closeBtn: { width: 34, height: 34, borderRadius: radii.md, backgroundColor: colors.slate[100], alignItems: 'center', justifyContent: 'center' },
-  modalTitle: { fontSize: 16, fontWeight: '800', color: colors.text.primary, fontFamily: 'Cairo' },
-  modalSubtitle: { fontSize: 11, color: colors.text.tertiary, fontFamily: 'Cairo', marginTop: 1 },
+const makeStyles = (colors: any, isDark: boolean, lang: TemplateLanguage) =>
+  StyleSheet.create({
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.75)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: spacing.md,
+    },
+    modalContent: {
+      width: '100%',
+      maxWidth: 440,
+      height: '88%',
+      backgroundColor: colors.surface,
+      borderRadius: radii['2xl'],
+      padding: spacing.lg,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+      ...shadows.lg,
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingBottom: spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border.subtle,
+    },
+    closeBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: radii.md,
+      backgroundColor: isDark ? colors.slate[800] : colors.slate[100],
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    modalTitle: {
+      fontSize: 16,
+      fontWeight: '800',
+      color: colors.text.primary,
+      fontFamily: typography.fontFamily.arabicBold,
+    },
+    modalSubtitle: {
+      fontSize: 11,
+      color: colors.text.tertiary,
+      fontFamily: typography.fontFamily.arabic,
+      marginTop: 2,
+    },
 
-  langRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginVertical: spacing.xs + 2, justifyContent: 'flex-end' },
-  langChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: radii.pill, backgroundColor: colors.slate[100] },
-  langChipActive: { backgroundColor: colors.primary[600] },
-  langFlag: { fontSize: 11 },
-  langText: { fontSize: 10.5, fontWeight: '700', color: colors.slate[600], fontFamily: 'Cairo' },
-  langTextActive: { color: '#fff' },
+    langRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingVertical: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border.subtle,
+    },
+    langChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: radii.pill,
+      backgroundColor: isDark ? colors.slate[800] : colors.slate[100],
+      borderWidth: 1,
+      borderColor: colors.border.default,
+    },
+    langChipActive: {
+      backgroundColor: colors.primary[600],
+      borderColor: colors.primary[600],
+    },
+    langFlag: {
+      fontSize: 12,
+    },
+    langText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.text.secondary,
+      fontFamily: typography.fontFamily.arabic,
+    },
+    langTextActive: {
+      color: '#fff',
+      fontFamily: typography.fontFamily.arabicBold,
+    },
 
-  previewContainer: { flex: 1, backgroundColor: colors.slate[100], borderRadius: radii.xl, overflow: 'hidden', padding: 8 },
-  previewScroll: { flex: 1 },
-  previewScrollContent: { alignItems: 'center', paddingVertical: spacing.sm },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
-  emptyText: { fontSize: 13, color: colors.text.secondary, fontFamily: 'Cairo' },
+    previewContainer: {
+      flex: 1,
+      marginVertical: spacing.md,
+      backgroundColor: isDark ? colors.slate[950] : colors.slate[200],
+      borderRadius: radii.xl,
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: colors.border.default,
+    },
+    previewScroll: {
+      flex: 1,
+    },
+    previewScrollContent: {
+      alignItems: 'center',
+      paddingVertical: spacing.lg,
+    },
 
-  invoiceSheet: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 12,
-    gap: 4,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-  },
-  docText: { fontFamily: 'Cairo', marginVertical: 1 },
-  docSeparator: { height: 1, borderTopWidth: 1, borderTopColor: '#cbd5e1', borderStyle: 'dashed', marginVertical: 4 },
-  docCenter: { alignItems: 'center', marginVertical: 4 },
-  docTable: { marginVertical: 4, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 4, overflow: 'hidden' },
-  docTableRow: { flexDirection: 'row', paddingHorizontal: 6, paddingVertical: 3, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-  docTableHead: { color: '#fff', fontWeight: 'bold' },
-  docTableCell: { fontSize: 10, fontFamily: 'Cairo', color: '#0f172a' },
-  docTableTotalRow: { backgroundColor: '#f8fafc', borderTopWidth: 1, borderTopColor: '#cbd5e1' },
+    invoiceSheet: {
+      backgroundColor: '#ffffff',
+      borderRadius: radii.sm,
+      padding: spacing.md,
+      ...shadows.md,
+      borderWidth: 1,
+      borderColor: '#e2e8f0',
+    },
 
-  modalFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.border.subtle,
-    marginTop: spacing.xs,
-  },
-  copiesControls: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.slate[50], paddingHorizontal: 8, paddingVertical: 4, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.border.default },
-  copiesLabel: { fontSize: 11, fontWeight: '700', color: colors.text.secondary, fontFamily: 'Cairo' },
-  copiesCount: { fontSize: 13, fontWeight: '800', color: colors.text.primary, minWidth: 18, textAlign: 'center', fontFamily: 'Cairo' },
-  copyBtn: { width: 26, height: 26, borderRadius: radii.md, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border.default },
+    docText: {
+      fontFamily: typography.fontFamily.arabic,
+      marginVertical: 1.5,
+    },
+    docCenter: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginVertical: spacing.xs,
+    },
+    docSeparator: {
+      height: 1,
+      borderBottomWidth: 1,
+      borderBottomColor: '#94a3b8',
+      borderStyle: 'dashed',
+      marginVertical: spacing.xs,
+    },
+    docRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginVertical: 2,
+    },
+    docColumn: {
+      flexDirection: 'column',
+      marginVertical: 2,
+    },
 
-  printActionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.primary[600],
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 10,
-    borderRadius: radii.xl,
-    ...shadows.xs,
-  },
-  printActionBtnText: { color: '#fff', fontSize: 13, fontWeight: '800', fontFamily: 'Cairo' },
-});
+    docTable: {
+      width: '100%',
+      marginVertical: spacing.xs,
+      borderTopWidth: 1,
+      borderBottomWidth: 1,
+      borderColor: '#cbd5e1',
+    },
+    docTableRow: {
+      flexDirection: lang === 'ar' || lang === 'ar-fr' ? 'row-reverse' : 'row',
+      paddingVertical: 3.5,
+      paddingHorizontal: 2,
+      borderBottomWidth: 0.5,
+      borderBottomColor: '#e2e8f0',
+      alignItems: 'center',
+    },
+    docTableCell: {
+      fontSize: 10.5,
+      color: '#1e293b',
+      fontFamily: typography.fontFamily.arabic,
+    },
+    docTableHead: {
+      fontWeight: 'bold',
+      color: '#0f172a',
+      fontSize: 11,
+      fontFamily: typography.fontFamily.arabicBold,
+    },
+    docTableTotalRow: {
+      borderTopWidth: 1,
+      borderTopColor: '#0f172a',
+      borderBottomWidth: 0,
+      paddingTop: 5,
+    },
+
+    modalFooter: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingTop: spacing.sm,
+      borderTopWidth: 1,
+      borderTopColor: colors.border.subtle,
+      gap: spacing.md,
+    },
+    copiesControls: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: isDark ? colors.slate[800] : colors.slate[100],
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 4,
+      borderRadius: radii.lg,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+    },
+    copiesLabel: {
+      fontSize: 11.5,
+      fontWeight: '700',
+      color: colors.text.secondary,
+      fontFamily: typography.fontFamily.arabic,
+    },
+    copiesCount: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: colors.text.primary,
+      fontFamily: typography.fontFamily.arabicBold,
+      minWidth: 16,
+      textAlign: 'center',
+    },
+    copyBtn: {
+      width: 26,
+      height: 26,
+      borderRadius: radii.sm,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.border.default,
+    },
+    printActionBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: colors.primary[600],
+      paddingVertical: 10,
+      borderRadius: radii.lg,
+      ...shadows.xs,
+    },
+    printActionBtnText: {
+      color: '#ffffff',
+      fontSize: 13.5,
+      fontWeight: '800',
+      fontFamily: typography.fontFamily.arabicBold,
+    },
+    center: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: spacing.xl,
+    },
+    emptyText: {
+      fontSize: 12,
+      color: colors.text.tertiary,
+      fontFamily: typography.fontFamily.arabic,
+    },
+  });
 
 export default InvoicePrintPreviewModal;

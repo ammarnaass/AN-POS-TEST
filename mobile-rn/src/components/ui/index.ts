@@ -4,3 +4,4 @@ export * from './Badge';
 export * from './Input';
 export * from './EmptyState';
 export * from './Skeleton';
+export * from './Toast';

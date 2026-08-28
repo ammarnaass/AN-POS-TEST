@@ -1,4 +1,5 @@
-// Print Service — Mobile
+// Print Service & Hardware Spooler — Mobile
+// Resilient FIFO Print Queue, Auto-Retry Engine, and ESC/POS Formatting
 import { AnposPrinter, type ReceiptData, type BluetoothPrinter } from '@/modules/AnposPrinter';
 import { AnposSecureStore } from '@/modules/AnposSecureStore';
 import { db, ensureInit } from './db';
@@ -9,6 +10,7 @@ import {
   recordPrint,
 } from './templateService';
 import type { DocTypeKey, PrintTemplate } from '@shared/types/invoicePrint';
+import { getLocalizedPaymentMethod, formatDate } from '@shared/services/templateTranslator';
 
 const PRINTER_ADDR_KEY = 'anpos_last_printer_addr';
 const PRINTER_TYPE_KEY = 'anpos_last_printer_type';
@@ -42,8 +44,63 @@ export interface PrintInvoiceData {
   lang?: 'ar' | 'fr' | 'ar-fr' | 'en';
 }
 
-export async function printInvoice(data: PrintInvoiceData): Promise<boolean> {
-  try {
+// ─── Resilient FIFO Print Queue ──────────────────────────────────────
+type PrintJob = {
+  data: PrintInvoiceData;
+  resolve: (val: boolean) => void;
+  reject: (err: any) => void;
+  attempts: number;
+};
+
+class PrintQueueManager {
+  private queue: PrintJob[] = [];
+  private isProcessing = false;
+  private maxAttempts = 3;
+
+  public enqueue(data: PrintInvoiceData): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      this.queue.push({ data, resolve, reject, attempts: 0 });
+      this.processNext();
+    });
+  }
+
+  private async processNext() {
+    if (this.isProcessing || this.queue.length === 0) return;
+
+    this.isProcessing = true;
+    const job = this.queue[0];
+
+    try {
+      const result = await this.executePrintWithRetry(job);
+      job.resolve(result);
+      this.queue.shift();
+    } catch (err) {
+      job.reject(err);
+      this.queue.shift();
+    } finally {
+      this.isProcessing = false;
+      if (this.queue.length > 0) {
+        this.processNext();
+      }
+    }
+  }
+
+  private async executePrintWithRetry(job: PrintJob): Promise<boolean> {
+    while (job.attempts < this.maxAttempts) {
+      job.attempts++;
+      try {
+        const success = await this.executePrintOnce(job.data);
+        if (success) return true;
+      } catch (err) {
+        console.warn(`[PrintQueue] Attempt ${job.attempts} failed:`, err);
+        if (job.attempts >= this.maxAttempts) throw err;
+        await new Promise((r) => setTimeout(r, job.attempts * 300));
+      }
+    }
+    return false;
+  }
+
+  private async executePrintOnce(data: PrintInvoiceData): Promise<boolean> {
     const addr = await AnposSecureStore.get(PRINTER_ADDR_KEY);
     const type = ((await AnposSecureStore.get(PRINTER_TYPE_KEY)) as 'bluetooth' | 'lan' | 'usb') || 'bluetooth';
 
@@ -51,7 +108,7 @@ export async function printInvoice(data: PrintInvoiceData): Promise<boolean> {
       await AnposPrinter.connect(addr, type);
     }
 
-    // Resolve template
+    // Resolve template from cache or DB
     let template: PrintTemplate | undefined;
     if (data.templateId) {
       template = await getTemplateById(data.templateId);
@@ -73,12 +130,15 @@ export async function printInvoice(data: PrintInvoiceData): Promise<boolean> {
 
     const shopName = settingsMap.store_name || 'AN POS';
     const copies = data.copies || 1;
+    const lang = data.lang || 'ar';
+    const localizedPayment = getLocalizedPaymentMethod(data.paymentMethod, lang);
+    const localizedDate = formatDate(data.date, lang);
 
     for (let c = 0; c < copies; c++) {
       const receipt: ReceiptData = {
         shopName,
         number: data.number,
-        date: data.date,
+        date: localizedDate,
         items: data.items.map((i) => ({
           name: i.name,
           qty: i.qty,
@@ -89,9 +149,9 @@ export async function printInvoice(data: PrintInvoiceData): Promise<boolean> {
         discount: data.discount,
         tax: data.tvaAmount,
         total: data.total,
-        paymentMethod: data.paymentMethod,
+        paymentMethod: localizedPayment,
         customerName: data.customerName || '',
-        soldBy: data.soldBy || '',
+        soldBy: data.soldBy || data.cashierName || '',
       };
 
       const success = await AnposPrinter.printReceipt(receipt);
@@ -100,7 +160,7 @@ export async function printInvoice(data: PrintInvoiceData): Promise<boolean> {
       }
     }
 
-    // Record print job in database
+    // Record print history
     if (data.id || data.number) {
       await recordPrint(
         data.id || data.number,
@@ -114,8 +174,17 @@ export async function printInvoice(data: PrintInvoiceData): Promise<boolean> {
     }
 
     return true;
+  }
+}
+
+const printQueueManager = new PrintQueueManager();
+
+// Main print API function using the queue manager
+export async function printInvoice(data: PrintInvoiceData): Promise<boolean> {
+  try {
+    return await printQueueManager.enqueue(data);
   } catch (err) {
-    console.warn('[print] Failed:', err);
+    console.warn('[print] Print job failed:', err);
     return false;
   }
 }

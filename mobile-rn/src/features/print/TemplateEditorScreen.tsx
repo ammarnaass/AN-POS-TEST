@@ -50,7 +50,8 @@ import type {
   DocTypeKey,
 } from '@shared/types/invoicePrint';
 import { PAPER_LABELS_AR, DOC_TYPE_LABELS_AR, ALL_DOC_TYPES } from '@shared/types/invoicePrint';
-import { colors, radii, spacing, shadows } from '@/theme';
+import { useTheme } from '@/theme';
+import { radii, spacing, shadows, typography } from '@/theme/tokens';
 import { BarcodeSvg } from '@/lib/barcodeSvg';
 
 type ActiveTab = 'blocks' | 'visibility' | 'styles' | 'settings' | 'preview';
@@ -66,6 +67,7 @@ const THEME_PRESETS: Array<{ name: string; primary: string; header: string; foot
 ];
 
 export const TemplateEditorScreen = ({ route, navigation }: any) => {
+  const { isDark, colors } = useTheme();
   const { templateId } = route.params || {};
 
   const [template, setTemplate] = useState<PrintTemplate | null>(null);
@@ -79,6 +81,8 @@ export const TemplateEditorScreen = ({ route, navigation }: any) => {
   // Block editing modal
   const [editingBlock, setEditingBlock] = useState<Block | null>(null);
   const [addBlockModalVisible, setAddBlockModalVisible] = useState(false);
+
+  const styles = React.useMemo(() => makeStyles(colors, isDark), [colors, isDark]);
 
   useEffect(() => {
     if (templateId) {
@@ -649,21 +653,21 @@ export const TemplateEditorScreen = ({ route, navigation }: any) => {
             {/* Header section */}
             {getSectionBlocks('header').map((b, i) => (
               <View key={`prev-h-${i}`} style={{ width: '100%' }}>
-                {renderPreviewBlock(b, mockContext, template)}
+                {renderPreviewBlock(b, mockContext, template, styles)}
               </View>
             ))}
 
             {/* Body section */}
             {getSectionBlocks('body').map((b, i) => (
               <View key={`prev-b-${i}`} style={{ width: '100%' }}>
-                {renderPreviewBlock(b, mockContext, template)}
+                {renderPreviewBlock(b, mockContext, template, styles)}
               </View>
             ))}
 
             {/* Footer section */}
             {getSectionBlocks('footer').map((b, i) => (
               <View key={`prev-f-${i}`} style={{ width: '100%' }}>
-                {renderPreviewBlock(b, mockContext, template)}
+                {renderPreviewBlock(b, mockContext, template, styles)}
               </View>
             ))}
           </View>
@@ -676,7 +680,7 @@ export const TemplateEditorScreen = ({ route, navigation }: any) => {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <TouchableOpacity onPress={() => setAddBlockModalVisible(false)} activeOpacity={0.7}>
-                <X size={20} color={colors.slate[400]} />
+                <X size={20} color={colors.text.tertiary} />
               </TouchableOpacity>
               <Text style={styles.modalTitle}>إضافة عنصر جديد</Text>
             </View>
@@ -723,7 +727,7 @@ export const TemplateEditorScreen = ({ route, navigation }: any) => {
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <TouchableOpacity onPress={() => setEditingBlock(null)} activeOpacity={0.7}>
-                  <X size={20} color={colors.slate[400]} />
+                  <X size={20} color={colors.text.tertiary} />
                 </TouchableOpacity>
                 <Text style={styles.modalTitle}>تعديل خصائص العنصر</Text>
               </View>
@@ -779,7 +783,7 @@ export const TemplateEditorScreen = ({ route, navigation }: any) => {
 };
 
 // Live Block Renderer Helper
-function renderPreviewBlock(block: Block, ctx: any, template: PrintTemplate) {
+function renderPreviewBlock(block: Block, ctx: any, template: PrintTemplate, styles: any) {
   switch (block.type) {
     case 'text': {
       const textVal = Array.isArray(block.text) ? block.text.join('\n') : block.text;
@@ -843,116 +847,124 @@ function renderPreviewBlock(block: Block, ctx: any, template: PrintTemplate) {
   }
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
-  emptyText: { fontSize: 15, color: colors.text.secondary, fontFamily: 'Cairo' },
+const makeStyles = (colors: any, isDark: boolean) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
+    emptyText: { fontSize: 15, color: colors.text.secondary, fontFamily: typography.fontFamily.arabic },
 
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.default,
-  },
-  headerBackBtn: { width: 38, height: 38, borderRadius: radii.lg, backgroundColor: colors.slate[100], alignItems: 'center', justifyContent: 'center' },
-  headerTitleCol: { alignItems: 'center', flex: 1, marginHorizontal: spacing.sm },
-  headerTitle: { fontSize: 15, fontWeight: '800', color: colors.text.primary, fontFamily: 'Cairo' },
-  headerSubtitle: { fontSize: 11, color: colors.text.tertiary, fontFamily: 'Cairo' },
-  saveBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.emerald[600], paddingHorizontal: 14, paddingVertical: 8, borderRadius: radii.lg },
-  saveBtnText: { color: '#fff', fontSize: 12.5, fontWeight: '700', fontFamily: 'Cairo' },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.surface,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border.default,
+    },
+    headerBackBtn: {
+      width: 38,
+      height: 38,
+      borderRadius: radii.lg,
+      backgroundColor: isDark ? colors.slate[800] : colors.slate[100],
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerTitleCol: { alignItems: 'center', flex: 1, marginHorizontal: spacing.sm },
+    headerTitle: { fontSize: 15, fontWeight: '800', color: colors.text.primary, fontFamily: typography.fontFamily.arabicBold },
+    headerSubtitle: { fontSize: 11, color: colors.text.tertiary, fontFamily: typography.fontFamily.arabic },
+    saveBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.emerald[600], paddingHorizontal: 14, paddingVertical: 8, borderRadius: radii.lg },
+    saveBtnText: { color: '#fff', fontSize: 12.5, fontWeight: '700', fontFamily: typography.fontFamily.arabicBold },
 
-  modeTabsRow: { flexDirection: 'row', backgroundColor: colors.surface, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderBottomWidth: 1, borderBottomColor: colors.border.subtle, gap: 4 },
-  modeTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, borderRadius: radii.md },
-  modeTabActive: { backgroundColor: colors.primary[50] },
-  modeTabText: { fontSize: 11.5, fontWeight: '600', color: colors.slate[500], fontFamily: 'Cairo' },
-  modeTabTextActive: { color: colors.primary[700], fontWeight: '800' },
+    modeTabsRow: { flexDirection: 'row', backgroundColor: colors.surface, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderBottomWidth: 1, borderBottomColor: colors.border.subtle, gap: 4 },
+    modeTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, borderRadius: radii.md },
+    modeTabActive: { backgroundColor: isDark ? colors.slate[800] : colors.primary[50] },
+    modeTabText: { fontSize: 11.5, fontWeight: '600', color: colors.text.secondary, fontFamily: typography.fontFamily.arabic },
+    modeTabTextActive: { color: colors.primary[600], fontWeight: '800' },
 
-  sectionTabsRow: { flexDirection: 'row', backgroundColor: colors.slate[100], padding: 4, marginHorizontal: spacing.md, marginTop: spacing.sm, borderRadius: radii.lg, gap: 4 },
-  sectionTab: { flex: 1, paddingVertical: 6, alignItems: 'center', borderRadius: radii.md },
-  sectionTabActive: { backgroundColor: colors.surface, ...shadows.xs },
-  sectionTabText: { fontSize: 12, fontWeight: '600', color: colors.slate[500], fontFamily: 'Cairo' },
-  sectionTabTextActive: { color: colors.primary[700], fontWeight: '800' },
+    sectionTabsRow: { flexDirection: 'row', backgroundColor: isDark ? colors.slate[800] : colors.slate[100], padding: 4, marginHorizontal: spacing.md, marginTop: spacing.sm, borderRadius: radii.lg, gap: 4 },
+    sectionTab: { flex: 1, paddingVertical: 6, alignItems: 'center', borderRadius: radii.md },
+    sectionTabActive: { backgroundColor: colors.surface, ...shadows.xs },
+    sectionTabText: { fontSize: 12, fontWeight: '600', color: colors.text.secondary, fontFamily: typography.fontFamily.arabic },
+    sectionTabTextActive: { color: colors.primary[600], fontWeight: '800' },
 
-  scroll: { flex: 1 },
-  scrollContent: { padding: spacing.md, paddingBottom: spacing.xxxl },
+    scroll: { flex: 1 },
+    scrollContent: { padding: spacing.md, paddingBottom: spacing.xxxl },
 
-  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
-  sectionTitle: { fontSize: 13, fontWeight: '800', color: colors.text.secondary, fontFamily: 'Cairo' },
-  addBlockBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.primary[600], paddingHorizontal: 12, paddingVertical: 6, borderRadius: radii.md },
-  addBlockBtnText: { color: '#fff', fontSize: 12, fontWeight: '700', fontFamily: 'Cairo' },
+    sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
+    sectionTitle: { fontSize: 13, fontWeight: '800', color: colors.text.secondary, fontFamily: typography.fontFamily.arabicBold },
+    addBlockBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.primary[600], paddingHorizontal: 12, paddingVertical: 6, borderRadius: radii.md },
+    addBlockBtnText: { color: '#fff', fontSize: 12, fontWeight: '700', fontFamily: typography.fontFamily.arabicBold },
 
-  emptyBlocksBox: { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing.xl, alignItems: 'center', borderWidth: 1, borderColor: colors.border.default, borderStyle: 'dashed' },
-  emptyBlocksText: { fontSize: 14, fontWeight: '700', color: colors.text.primary, fontFamily: 'Cairo' },
-  emptyBlocksSub: { fontSize: 11.5, color: colors.text.tertiary, fontFamily: 'Cairo', textAlign: 'center', marginTop: 4 },
+    emptyBlocksBox: { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing.xl, alignItems: 'center', borderWidth: 1, borderColor: colors.border.default, borderStyle: 'dashed' },
+    emptyBlocksText: { fontSize: 14, fontWeight: '700', color: colors.text.primary, fontFamily: typography.fontFamily.arabicBold },
+    emptyBlocksSub: { fontSize: 11.5, color: colors.text.tertiary, fontFamily: typography.fontFamily.arabic, textAlign: 'center', marginTop: 4 },
 
-  blockCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing.sm + 2, borderWidth: 1, borderColor: colors.border.default, ...shadows.xs },
-  blockCardLeft: { flexDirection: 'row', gap: 4, alignItems: 'center' },
-  blockActionIcon: { width: 28, height: 28, borderRadius: radii.sm, backgroundColor: colors.slate[100], alignItems: 'center', justifyContent: 'center' },
-  deleteBlockIcon: { backgroundColor: colors.danger.light },
-  blockCardRight: { flex: 1, alignItems: 'flex-end', marginLeft: spacing.sm },
-  blockTypeBadge: { backgroundColor: colors.primary[50], paddingHorizontal: 6, paddingVertical: 2, borderRadius: radii.sm, marginBottom: 2 },
-  blockTypeBadgeText: { fontSize: 10, fontWeight: '800', color: colors.primary[700], fontFamily: 'Cairo' },
-  blockSummary: { fontSize: 12.5, fontWeight: '700', color: colors.text.primary, fontFamily: 'Cairo' },
+    blockCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing.sm + 2, borderWidth: 1, borderColor: colors.border.default, ...shadows.xs },
+    blockCardLeft: { flexDirection: 'row', gap: 4, alignItems: 'center' },
+    blockActionIcon: { width: 28, height: 28, borderRadius: radii.sm, backgroundColor: isDark ? colors.slate[800] : colors.slate[100], alignItems: 'center', justifyContent: 'center' },
+    deleteBlockIcon: { backgroundColor: isDark ? colors.slate[800] : colors.danger.light },
+    blockCardRight: { flex: 1, alignItems: 'flex-end', marginLeft: spacing.sm },
+    blockTypeBadge: { backgroundColor: isDark ? colors.slate[800] : colors.primary[50], paddingHorizontal: 6, paddingVertical: 2, borderRadius: radii.sm, marginBottom: 2 },
+    blockTypeBadgeText: { fontSize: 10, fontWeight: '800', color: colors.primary[600], fontFamily: typography.fontFamily.arabicBold },
+    blockSummary: { fontSize: 12.5, fontWeight: '700', color: colors.text.primary, fontFamily: typography.fontFamily.arabicBold },
 
-  sectionHeader: { fontSize: 13, fontWeight: '800', color: colors.text.secondary, textAlign: 'right', marginBottom: spacing.xs, marginRight: 4, fontFamily: 'Cairo' },
-  optionsCard: { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing.md, borderWidth: 1, borderColor: colors.border.default, ...shadows.xs },
-  toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: spacing.sm },
-  toggleRowBorder: { borderTopWidth: 1, borderTopColor: colors.border.subtle },
-  toggleText: { fontSize: 13, fontWeight: '600', color: colors.text.primary, fontFamily: 'Cairo' },
+    sectionHeader: { fontSize: 13, fontWeight: '800', color: colors.text.secondary, textAlign: 'right', marginBottom: spacing.xs, marginRight: 4, fontFamily: typography.fontFamily.arabicBold },
+    optionsCard: { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing.md, borderWidth: 1, borderColor: colors.border.default, ...shadows.xs },
+    toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: spacing.sm },
+    toggleRowBorder: { borderTopWidth: 1, borderTopColor: colors.border.subtle },
+    toggleText: { fontSize: 13, fontWeight: '600', color: colors.text.primary, fontFamily: typography.fontFamily.arabic },
 
-  themesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  themePresetCard: { width: '48.5%', backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing.sm + 2, borderWidth: 1, borderColor: colors.border.default, alignItems: 'flex-end', ...shadows.xs },
-  themePresetColors: { flexDirection: 'row', gap: 4, marginBottom: 4 },
-  themePColor: { width: 14, height: 14, borderRadius: 7 },
-  themePresetName: { fontSize: 12, fontWeight: '700', color: colors.text.primary, fontFamily: 'Cairo' },
+    themesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    themePresetCard: { width: '48.5%', backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing.sm + 2, borderWidth: 1, borderColor: colors.border.default, alignItems: 'flex-end', ...shadows.xs },
+    themePresetColors: { flexDirection: 'row', gap: 4, marginBottom: 4 },
+    themePColor: { width: 14, height: 14, borderRadius: 7 },
+    themePresetName: { fontSize: 12, fontWeight: '700', color: colors.text.primary, fontFamily: typography.fontFamily.arabicBold },
 
-  colorRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: spacing.sm },
-  colorPreviewBox: { width: 28, height: 28, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border.default },
-  colorLabel: { fontSize: 12.5, fontWeight: '700', color: colors.text.primary, fontFamily: 'Cairo' },
-  colorHex: { fontSize: 11, color: colors.text.tertiary, fontFamily: 'monospace' },
+    colorRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: spacing.sm },
+    colorPreviewBox: { width: 28, height: 28, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border.default },
+    colorLabel: { fontSize: 12.5, fontWeight: '700', color: colors.text.primary, fontFamily: typography.fontFamily.arabicBold },
+    colorHex: { fontSize: 11, color: colors.text.tertiary, fontFamily: 'monospace' },
 
-  fontSizeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: spacing.xs },
-  fontSizeLabel: { fontSize: 13, fontWeight: '700', color: colors.text.primary, fontFamily: 'Cairo' },
-  fontControls: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  fontStepBtn: { width: 32, height: 32, borderRadius: radii.md, backgroundColor: colors.slate[100], alignItems: 'center', justifyContent: 'center' },
-  fontStepText: { fontSize: 16, fontWeight: 'bold', color: colors.text.primary },
-  fontSizeVal: { fontSize: 13, fontWeight: '800', color: colors.primary[700], fontFamily: 'Cairo' },
+    fontSizeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: spacing.xs },
+    fontSizeLabel: { fontSize: 13, fontWeight: '700', color: colors.text.primary, fontFamily: typography.fontFamily.arabicBold },
+    fontControls: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    fontStepBtn: { width: 32, height: 32, borderRadius: radii.md, backgroundColor: isDark ? colors.slate[800] : colors.slate[100], alignItems: 'center', justifyContent: 'center' },
+    fontStepText: { fontSize: 16, fontWeight: 'bold', color: colors.text.primary },
+    fontSizeVal: { fontSize: 13, fontWeight: '800', color: colors.primary[600], fontFamily: typography.fontFamily.arabicBold },
 
-  inputLabel: { fontSize: 12, fontWeight: '700', color: colors.text.secondary, textAlign: 'right', marginBottom: 4, fontFamily: 'Cairo' },
-  modalInput: { backgroundColor: colors.slate[50], borderRadius: radii.md, borderWidth: 1, borderColor: colors.border.default, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, fontSize: 13, color: colors.text.primary, fontFamily: 'Cairo' },
-  helperText: { fontSize: 10.5, color: colors.slate[400], textAlign: 'right', marginTop: 4, fontFamily: 'Cairo' },
+    inputLabel: { fontSize: 12, fontWeight: '700', color: colors.text.secondary, textAlign: 'right', marginBottom: 4, fontFamily: typography.fontFamily.arabicBold },
+    modalInput: { backgroundColor: isDark ? colors.slate[800] : colors.slate[50], borderRadius: radii.md, borderWidth: 1, borderColor: colors.border.default, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, fontSize: 13, color: colors.text.primary, fontFamily: typography.fontFamily.arabic },
+    helperText: { fontSize: 10.5, color: colors.text.tertiary, textAlign: 'right', marginTop: 4, fontFamily: typography.fontFamily.arabic },
 
-  modalSizesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  modalSizeBtn: { flex: 1, minWidth: '45%', paddingVertical: 8, alignItems: 'center', borderRadius: radii.md, backgroundColor: colors.slate[50], borderWidth: 1, borderColor: colors.border.default },
-  modalSizeBtnActive: { backgroundColor: colors.primary[600], borderColor: colors.primary[600] },
-  modalSizeText: { fontSize: 11.5, fontWeight: '700', color: colors.text.secondary, fontFamily: 'Cairo' },
-  modalSizeTextActive: { color: '#fff' },
+    modalSizesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+    modalSizeBtn: { flex: 1, minWidth: '45%', paddingVertical: 8, alignItems: 'center', borderRadius: radii.md, backgroundColor: isDark ? colors.slate[800] : colors.slate[50], borderWidth: 1, borderColor: colors.border.default },
+    modalSizeBtnActive: { backgroundColor: colors.primary[600], borderColor: colors.primary[600] },
+    modalSizeText: { fontSize: 11.5, fontWeight: '700', color: colors.text.secondary, fontFamily: typography.fontFamily.arabicBold },
+    modalSizeTextActive: { color: '#fff' },
 
-  // Live preview styles
-  liveDocBox: { backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: '#cbd5e1', padding: 14, gap: 6, elevation: 3, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 6 },
-  previewText: { fontFamily: 'Cairo', marginVertical: 1 },
-  previewSeparator: { height: 1, borderTopWidth: 1, borderTopColor: '#cbd5e1', borderStyle: 'dashed', marginVertical: 4 },
-  previewCenter: { alignItems: 'center', marginVertical: 4 },
-  previewTable: { marginVertical: 4, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 4, overflow: 'hidden' },
-  previewTableRow: { flexDirection: 'row', paddingHorizontal: 6, paddingVertical: 3, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-  previewTableHead: { color: '#fff', fontWeight: 'bold' },
-  previewTableCell: { fontSize: 10.5, fontFamily: 'Cairo', color: '#0f172a' },
-  previewTableTotalRow: { backgroundColor: '#f8fafc', borderTopWidth: 1, borderTopColor: '#cbd5e1' },
+    // Live preview styles
+    liveDocBox: { backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: '#cbd5e1', padding: 14, gap: 6, elevation: 3, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 6 },
+    previewText: { fontFamily: typography.fontFamily.arabic, marginVertical: 1 },
+    previewSeparator: { height: 1, borderTopWidth: 1, borderTopColor: '#cbd5e1', borderStyle: 'dashed', marginVertical: 4 },
+    previewCenter: { alignItems: 'center', marginVertical: 4 },
+    previewTable: { marginVertical: 4, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 4, overflow: 'hidden' },
+    previewTableRow: { flexDirection: 'row', paddingHorizontal: 6, paddingVertical: 3, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+    previewTableHead: { color: '#fff', fontWeight: 'bold' },
+    previewTableCell: { fontSize: 10.5, fontFamily: typography.fontFamily.arabic, color: '#0f172a' },
+    previewTableTotalRow: { backgroundColor: '#f8fafc', borderTopWidth: 1, borderTopColor: '#cbd5e1' },
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.6)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: spacing.lg },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border.subtle, marginBottom: spacing.md },
-  modalTitle: { fontSize: 16, fontWeight: '800', color: colors.text.primary, fontFamily: 'Cairo' },
-  paletteGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  paletteItem: { width: '30%', backgroundColor: colors.slate[50], borderRadius: radii.xl, padding: spacing.md, alignItems: 'center', gap: 6, borderWidth: 1, borderColor: colors.border.default },
-  paletteLabel: { fontSize: 11, fontWeight: '700', color: colors.text.primary, fontFamily: 'Cairo' },
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.6)', justifyContent: 'flex-end' },
+    modalContent: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: spacing.lg },
+    modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border.subtle, marginBottom: spacing.md },
+    modalTitle: { fontSize: 16, fontWeight: '800', color: colors.text.primary, fontFamily: typography.fontFamily.arabicBold },
+    paletteGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+    paletteItem: { width: '30%', backgroundColor: isDark ? colors.slate[800] : colors.slate[50], borderRadius: radii.xl, padding: spacing.md, alignItems: 'center', gap: 6, borderWidth: 1, borderColor: colors.border.default },
+    paletteLabel: { fontSize: 11, fontWeight: '700', color: colors.text.primary, fontFamily: typography.fontFamily.arabicBold },
 
-  modalSubmitBtn: { backgroundColor: colors.primary[600], paddingVertical: 12, borderRadius: radii.xl, alignItems: 'center', marginTop: spacing.lg },
-  modalSubmitBtnText: { color: '#fff', fontSize: 14, fontWeight: '800', fontFamily: 'Cairo' },
-});
+    modalSubmitBtn: { backgroundColor: colors.primary[600], paddingVertical: 12, borderRadius: radii.xl, alignItems: 'center', marginTop: spacing.lg },
+    modalSubmitBtnText: { color: '#fff', fontSize: 14, fontWeight: '800', fontFamily: typography.fontFamily.arabicBold },
+  });
 
 export default TemplateEditorScreen;

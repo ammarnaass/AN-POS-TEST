@@ -29,6 +29,9 @@ import {
   Sparkles,
   ArrowLeft,
   FlaskConical,
+  BarChart3,
+  Barcode,
+  Printer,
 } from 'lucide-react-native';
 import { db, ensureInit } from '@/lib/db';
 import CameraScanner from '@/features/barcode/CameraScanner';
@@ -107,8 +110,8 @@ export const DashboardScreen = ({ navigation }: any) => {
             `الباركود: ${code}\nالسعر: ${product.retailPrice || (product as any).retail_price || 0} دج\nالكمية المتوفرة: ${product.quantity || 0}`,
             [
               {
-                text: 'فتح نقطة البيع',
-                onPress: () => navigation.navigate('POS'),
+                text: 'إضافة للسلة والبيع',
+                onPress: () => navigation.navigate('POS', { barcode: code }),
               },
               {
                 text: 'تعديل المنتج',
@@ -431,6 +434,96 @@ export const DashboardScreen = ({ navigation }: any) => {
             </View>
             <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>العملاء</Text>
             <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>قاعدة الزبائن</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Row 5: مركز الأرباح & حاسبة الزكاة */}
+        <View style={styles.hubGrid}>
+          {/* 9. مركز الأرباح وهوامش الربح (Profit Center) */}
+          <TouchableOpacity
+            style={[
+              styles.hubCard,
+              { backgroundColor: colors.surface, borderColor: colors.border.default },
+            ]}
+            activeOpacity={0.75}
+            onPress={() => navigation.navigate('ProfitCenter')}
+          >
+            <View
+              style={[
+                styles.hubIconBox,
+                { backgroundColor: isDark ? '#064e3b' : colors.emerald[50] },
+              ]}
+            >
+              <BarChart3 size={22} color={isDark ? '#34d399' : colors.emerald[700]} />
+            </View>
+            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>مركز الأرباح</Text>
+            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>هوامش وتكلفة وأرباح</Text>
+          </TouchableOpacity>
+
+          {/* 10. حاسبة الزكاة الشرعية (Zakat Calculator) */}
+          <TouchableOpacity
+            style={[
+              styles.hubCard,
+              { backgroundColor: colors.surface, borderColor: colors.border.default },
+            ]}
+            activeOpacity={0.75}
+            onPress={() => navigation.navigate('ZakatCalculator')}
+          >
+            <View
+              style={[
+                styles.hubIconBox,
+                { backgroundColor: isDark ? '#451a03' : colors.amber[50] },
+              ]}
+            >
+              <Calculator size={22} color={isDark ? '#fbbf24' : colors.amber[700]} />
+            </View>
+            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>حاسبة الزكاة</Text>
+            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>عروض التجارة والسيولة</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Row 6: طباعة الباركود & قوالب الطباعة */}
+        <View style={styles.hubGrid}>
+          {/* 11. طباعة ملصقات الباركود والأسعار (Barcode Labels) */}
+          <TouchableOpacity
+            style={[
+              styles.hubCard,
+              { backgroundColor: colors.surface, borderColor: colors.border.default },
+            ]}
+            activeOpacity={0.75}
+            onPress={() => navigation.navigate('BarcodeLabels')}
+          >
+            <View
+              style={[
+                styles.hubIconBox,
+                { backgroundColor: isDark ? '#2e1065' : colors.purple[50] },
+              ]}
+            >
+              <Barcode size={22} color={isDark ? '#c084fc' : colors.purple[700]} />
+            </View>
+            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>طباعة الباركود</Text>
+            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>ملصقات الأسعار والـ QR</Text>
+          </TouchableOpacity>
+
+          {/* 12. قوالب الطباعة وتخصيص الفواتير (Print Templates) */}
+          <TouchableOpacity
+            style={[
+              styles.hubCard,
+              { backgroundColor: colors.surface, borderColor: colors.border.default },
+            ]}
+            activeOpacity={0.75}
+            onPress={() => navigation.navigate('PrintTemplates')}
+          >
+            <View
+              style={[
+                styles.hubIconBox,
+                { backgroundColor: isDark ? '#083344' : colors.cyan[50] },
+              ]}
+            >
+              <Printer size={22} color={isDark ? '#22d3ee' : colors.cyan[700]} />
+            </View>
+            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>قوالب الطباعة</Text>
+            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>تخصيص نماذج الفواتير</Text>
           </TouchableOpacity>
         </View>
       </View>

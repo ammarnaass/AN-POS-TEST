@@ -2,9 +2,11 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSyncEngine } from '@/lib/syncEngine';
 import { WifiOff, RefreshCw, AlertCircle, Smartphone } from 'lucide-react-native';
-import { colors, radii, spacing, typography } from '@/theme';
+import { useTheme } from '@/theme';
+import { radii, spacing, typography } from '@/theme/tokens';
 
 export default function SyncIndicator() {
+  const { isDark, colors } = useTheme();
   const {
     isOnline,
     isConnected,
@@ -25,30 +27,30 @@ export default function SyncIndicator() {
     : !isConnected
     ? colors.warning.light
     : isSyncing
-    ? colors.primary[50]
+    ? (isDark ? 'rgba(59, 130, 246, 0.15)' : colors.primary[50])
     : failedCount > 0
     ? colors.danger.light
-    : colors.indigo[50];
+    : (isDark ? 'rgba(99, 102, 241, 0.15)' : colors.indigo[50]);
 
   const borderColor = !isOnline
     ? colors.danger.border
     : !isConnected
     ? colors.warning.border
     : isSyncing
-    ? colors.primary[200]
+    ? (isDark ? colors.primary[700] : colors.primary[200])
     : failedCount > 0
     ? colors.danger.border
-    : colors.indigo[200];
+    : (isDark ? colors.indigo[700] : colors.indigo[200]);
 
   const textColor = !isOnline
     ? colors.danger.main
     : !isConnected
-    ? colors.warning.dark
+    ? colors.warning.text
     : isSyncing
     ? colors.primary[600]
     : failedCount > 0
     ? colors.danger.main
-    : colors.indigo[600];
+    : (isDark ? '#818cf8' : colors.indigo[600]);
 
   return (
     <View style={[styles.container, { backgroundColor: bgColor, borderColor }]}>

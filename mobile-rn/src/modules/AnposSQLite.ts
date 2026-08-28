@@ -27,19 +27,33 @@ export class AnposSQLiteDriver implements DataDriver {
   }
 
   private toSnakeCase(obj: Record<string, unknown>): Record<string, unknown> {
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return {};
     const result: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(obj)) {
-      const snakeKey = key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
-      result[snakeKey] = value;
+    try {
+      for (const [key, value] of Object.entries(obj)) {
+        if (key) {
+          const snakeKey = key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+          result[snakeKey] = value;
+        }
+      }
+    } catch {
+      return {};
     }
     return result;
   }
 
   private toCamelCase(row: Record<string, unknown>): Record<string, unknown> {
+    if (!row || typeof row !== 'object' || Array.isArray(row)) return {};
     const result: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(row)) {
-      const camelKey = key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
-      result[camelKey] = value;
+    try {
+      for (const [key, value] of Object.entries(row)) {
+        if (key) {
+          const camelKey = key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
+          result[camelKey] = value;
+        }
+      }
+    } catch {
+      return {};
     }
     return result;
   }
@@ -56,13 +70,17 @@ export class AnposSQLiteDriver implements DataDriver {
     }
 
     // Exact field filters
-    if (opts.filters) {
-      for (const [field, value] of Object.entries(opts.filters)) {
-        if (value !== undefined && value !== null) {
-          const col = field.replace(/[A-Z]/g, (l) => `_${l.toLowerCase()}`);
-          conditions.push(`${col} = ?`);
-          params.push(value);
+    if (opts.filters && typeof opts.filters === 'object' && !Array.isArray(opts.filters)) {
+      try {
+        for (const [field, value] of Object.entries(opts.filters)) {
+          if (value !== undefined && value !== null) {
+            const col = field.replace(/[A-Z]/g, (l) => `_${l.toLowerCase()}`);
+            conditions.push(`${col} = ?`);
+            params.push(value);
+          }
         }
+      } catch {
+        // ignore filter error
       }
     }
 
@@ -98,26 +116,68 @@ export class AnposSQLiteDriver implements DataDriver {
 
     const result = conn.execute(sql, params as any[]);
     const countResult = conn.execute(countSql, countParams as any[]);
-    const total = Number(countResult.rows?.item(0)?.total ?? 0);
+    const total = Number(countResult.rows?.item?.(0)?.total ?? countResult.rows?._array?.[0]?.total ?? 0);
 
     const data: T[] = [];
     if (result.rows) {
-      for (let i = 0; i < result.rows.length; i++) {
-        const item = result.rows.item(i);
-        if (item) {
-          data.push(this.toCamelCase(item as Record<string, unknown>) as T);
+      const rawRows = result.rows._array;
+      if (Array.isArray(rawRows)) {
+        for (const item of rawRows) {
+          if (item && typeof item === 'object') {
+            data.push(this.toCamelCase(item as Record<string, unknown>) as T);
+          }
+        }
+      } else if (typeof result.rows.length === 'number') {
+        for (let i = 0; i < result.rows.length; i++) {
+          const item = result.rows.item ? result.rows.item(i) : undefined;
+          if (item && typeof item === 'object') {
+            data.push(this.toCamelCase(item as Record<string, unknown>) as T);
+          }
         }
       }
     }
     return { data, total };
   }
 
+  private tableColumnsCache = new Map<string, Set<string>>();
+
+  private getTableColumns(table: string): Set<string> {
+    if (this.tableColumnsCache.has(table)) {
+      return this.tableColumnsCache.get(table)!;
+    }
+    try {
+      const conn = this.getConn();
+      const res = conn.execute(`PRAGMA table_info(${table})`);
+      const cols = new Set<string>();
+      if (res.rows) {
+        const raw = res.rows._array;
+        if (Array.isArray(raw)) {
+          for (const row of raw) {
+            if (row?.name) cols.add(String(row.name));
+          }
+        } else if (typeof res.rows.length === 'number') {
+          for (let i = 0; i < res.rows.length; i++) {
+            const row = res.rows.item ? res.rows.item(i) : undefined;
+            if (row?.name) cols.add(String(row.name));
+          }
+        }
+      }
+      if (cols.size > 0) {
+        this.tableColumnsCache.set(table, cols);
+        return cols;
+      }
+    } catch {
+      // Ignore if table does not exist yet
+    }
+    return new Set<string>();
+  }
+
   async get<T = unknown>(table: string, id: string): Promise<T | null> {
     const conn = this.getConn();
     const result = conn.execute(`SELECT * FROM ${table} WHERE id = ?`, [id]);
     if (!result.rows || result.rows.length === 0) return null;
-    const item = result.rows.item(0);
-    return item ? (this.toCamelCase(item as Record<string, unknown>) as T) : null;
+    const item = result.rows.item ? result.rows.item(0) : (result.rows._array ? result.rows._array[0] : null);
+    return item && typeof item === 'object' ? (this.toCamelCase(item as Record<string, unknown>) as T) : null;
   }
 
   async create<T = unknown, R = T>(table: string, data: T): Promise<R> {
@@ -129,15 +189,22 @@ export class AnposSQLiteDriver implements DataDriver {
     if (!snakeData.created_at) snakeData.created_at = now;
     if (!snakeData.updated_at) snakeData.updated_at = now;
 
-    const columns = Object.keys(snakeData);
+    const validCols = this.getTableColumns(table);
+    const columns = Object.keys(snakeData).filter(
+      (c) => validCols.size === 0 || validCols.has(c)
+    );
+
+    if (columns.length === 0) return data as unknown as R;
+
     const placeholders = columns.map(() => '?').join(', ');
     const values = columns.map((c) => {
       const v = snakeData[c];
       if (v !== null && typeof v === 'object') return JSON.stringify(v);
+      if (typeof v === 'boolean') return v ? 1 : 0;
       return v;
     });
 
-    const sql = `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`;
+    const sql = `INSERT OR REPLACE INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`;
     conn.execute(sql, values as any[]);
     return data as unknown as R;
   }
@@ -147,11 +214,18 @@ export class AnposSQLiteDriver implements DataDriver {
     const snakeData = this.toSnakeCase(data as Record<string, unknown>);
     snakeData.updated_at = new Date().toISOString();
 
-    const columns = Object.keys(snakeData).filter((c) => c !== 'id');
+    const validCols = this.getTableColumns(table);
+    const columns = Object.keys(snakeData).filter(
+      (c) => c !== 'id' && (validCols.size === 0 || validCols.has(c))
+    );
+
+    if (columns.length === 0) return true;
+
     const setClause = columns.map((c) => `${c} = ?`).join(', ');
     const values = columns.map((c) => {
       const v = snakeData[c];
       if (v !== null && typeof v === 'object') return JSON.stringify(v);
+      if (typeof v === 'boolean') return v ? 1 : 0;
       return v;
     });
     values.push(id);
