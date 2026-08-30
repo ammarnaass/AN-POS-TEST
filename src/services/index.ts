@@ -1,5 +1,7 @@
 import type { Sale, SaleItem, Product, Customer, Settings, CashSession, CartItem } from '@/types';
+import type { PrintLanguage } from '@/types/invoicePrint';
 import { generateId, calculateTVA, calculateDiscount, getNextInvoiceNumber } from '@/utils';
+import { t, generateQrSvg, formatFullNumber } from './print/renderTemplate';
 
 export const calculateSaleTotal = (
   items: CartItem[],
@@ -151,9 +153,6 @@ export const getSaleStatus = (
   if (amountPaid > 0) return 'partial';
   return 'unpaid';
 };
-
-import { t, generateQrSvg, formatFullNumber } from './print/renderTemplate';
-import type { PrintLanguage } from '@/types/invoicePrint';
 
 export const generateReceiptHTML = (sale: Sale, settings: Settings): string => {
   const lang: PrintLanguage = (settings as any)?.printLanguage || (settings as any)?.language || 'ar';
