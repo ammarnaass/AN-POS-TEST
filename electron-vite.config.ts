@@ -10,18 +10,8 @@ export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
     build: {
-      target: 'node20',
-      lib: {
-        entry: path.resolve(__dirname_n, 'electron/main/index.ts'),
-        formats: ['cjs'],
-        fileName: () => '[name].cjs',
-      },
       rollupOptions: {
         input: path.resolve(__dirname_n, 'electron/main/index.ts'),
-        output: {
-          format: 'cjs',
-          entryFileNames: '[name].cjs',
-        },
         external: ['better-sqlite3'],
       },
     },
@@ -29,33 +19,25 @@ export default defineConfig({
   preload: {
     plugins: [externalizeDepsPlugin()],
     build: {
-      target: 'node20',
-      lib: {
-        entry: path.resolve(__dirname_n, 'electron/preload/index.ts'),
-        formats: ['cjs'],
-        fileName: () => '[name].cjs',
-      },
       rollupOptions: {
         input: path.resolve(__dirname_n, 'electron/preload/index.ts'),
-        output: {
-          format: 'cjs',
-          entryFileNames: '[name].cjs',
-        },
         external: ['better-sqlite3'],
       },
     },
   },
   renderer: {
-    root: '.',
     plugins: [react(), tailwindcss()],
+    build: {
+      rollupOptions: {
+        input: path.resolve(__dirname_n, 'src/renderer/index.html'),
+      },
+      rolldownOptions: {
+        input: path.resolve(__dirname_n, 'src/renderer/index.html'),
+      },
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname_n, 'src'),
-      },
-    },
-    build: {
-      rollupOptions: {
-        input: { index: path.resolve(__dirname_n, 'index.html') },
       },
     },
   },

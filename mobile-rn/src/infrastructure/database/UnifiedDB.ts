@@ -35,6 +35,7 @@ export async function initSQLiteSchema(driver: AnposSQLiteDriver): Promise<void>
   // Schema migrations — safe ALTER TABLE for existing databases
   const MIGRATIONS = [
     // products — existing DB upgrades
+    "ALTER TABLE products ADD COLUMN product_name TEXT DEFAULT ''",
     'ALTER TABLE products ADD COLUMN cost_price REAL DEFAULT 0',
     'ALTER TABLE products ADD COLUMN purchase_price REAL DEFAULT 0',
     'ALTER TABLE products ADD COLUMN average_price REAL DEFAULT 0',
@@ -91,6 +92,42 @@ export async function initSQLiteSchema(driver: AnposSQLiteDriver): Promise<void>
     "ALTER TABLE print_history ADD COLUMN printer_name TEXT DEFAULT ''",
     'ALTER TABLE print_history ADD COLUMN is_reprint INTEGER DEFAULT 0',
     "ALTER TABLE print_history ADD COLUMN payload TEXT DEFAULT '{}'",
+    // PRD §5.1: Sync columns across all syncable tables
+    "ALTER TABLE products ADD COLUMN category_id TEXT DEFAULT ''",
+    "ALTER TABLE products ADD COLUMN sync_version INTEGER DEFAULT 1",
+    "ALTER TABLE products ADD COLUMN deleted_at TEXT DEFAULT NULL",
+    "ALTER TABLE categories ADD COLUMN icon TEXT DEFAULT 'Tag'",
+    "ALTER TABLE categories ADD COLUMN color TEXT DEFAULT '#3b82f6'",
+    "ALTER TABLE categories ADD COLUMN sync_version INTEGER DEFAULT 1",
+    "ALTER TABLE categories ADD COLUMN deleted_at TEXT DEFAULT NULL",
+    "ALTER TABLE sales ADD COLUMN sync_version INTEGER DEFAULT 1",
+    "ALTER TABLE sales ADD COLUMN deleted_at TEXT DEFAULT NULL",
+    "ALTER TABLE customers ADD COLUMN sync_version INTEGER DEFAULT 1",
+    // settings — full parity with desktop
+    "ALTER TABLE settings ADD COLUMN shop_name TEXT DEFAULT ''",
+    "ALTER TABLE settings ADD COLUMN phone TEXT DEFAULT ''",
+    "ALTER TABLE settings ADD COLUMN phone2 TEXT DEFAULT ''",
+    "ALTER TABLE settings ADD COLUMN email TEXT DEFAULT ''",
+    "ALTER TABLE settings ADD COLUMN address TEXT DEFAULT ''",
+    "ALTER TABLE settings ADD COLUMN city TEXT DEFAULT ''",
+    "ALTER TABLE settings ADD COLUMN logo TEXT DEFAULT ''",
+    "ALTER TABLE settings ADD COLUMN tva_rate REAL DEFAULT 0",
+    "ALTER TABLE settings ADD COLUMN print_width_mm INTEGER DEFAULT 80",
+    "ALTER TABLE settings ADD COLUMN sync_mode TEXT DEFAULT 'single'",
+    "ALTER TABLE settings ADD COLUMN currencies TEXT DEFAULT '[]'",
+    "ALTER TABLE settings ADD COLUMN base_currency TEXT DEFAULT 'دج'",
+    "ALTER TABLE settings ADD COLUMN invoice_prefix TEXT DEFAULT 'INV-'",
+    "ALTER TABLE settings ADD COLUMN invoice_start_number INTEGER DEFAULT 1",
+    "ALTER TABLE settings ADD COLUMN receipt_footer TEXT DEFAULT ''",
+    "ALTER TABLE settings ADD COLUMN zakat_enabled INTEGER DEFAULT 0",
+    "ALTER TABLE settings ADD COLUMN nisab_threshold REAL DEFAULT 0",
+    "ALTER TABLE settings ADD COLUMN shop_logo TEXT DEFAULT ''",
+    "ALTER TABLE settings ADD COLUMN language TEXT DEFAULT 'ar'",
+    "ALTER TABLE settings ADD COLUMN print_language TEXT DEFAULT 'ar'",
+    "ALTER TABLE settings ADD COLUMN commercial_register TEXT DEFAULT ''",
+    "ALTER TABLE settings ADD COLUMN company_nif TEXT DEFAULT ''",
+    "ALTER TABLE settings ADD COLUMN allow_negative_stock INTEGER DEFAULT 0",
+    "ALTER TABLE settings ADD COLUMN operating_mode TEXT DEFAULT 'online'",
   ];
 
   for (const sql of MIGRATIONS) {
@@ -146,18 +183,19 @@ class UnifiedDB {
       }
     }
 
-    if (this.mode === 'standalone' || !this.driver) {
-      try {
-        if (!this.sqliteDriver) {
-          this.sqliteDriver = new AnposSQLiteDriver({ databaseName: 'anpos' });
-          await this.sqliteDriver.initialize();
-        }
-        await initSQLiteSchema(this.sqliteDriver);
-        this.driver = this.sqliteDriver;
-      } catch (err) {
-        console.warn('[UnifiedDB] SQLite init failed:', err);
+    // تهيئة SQLite دائماً ليكون متاحاً للمزامنة والتخزين المؤقت المحلي
+    try {
+      if (!this.sqliteDriver) {
+        this.sqliteDriver = new AnposSQLiteDriver({ databaseName: 'anpos' });
+        await this.sqliteDriver.initialize();
       }
-      this.mode = 'standalone';
+      await initSQLiteSchema(this.sqliteDriver);
+      if (this.mode === 'standalone' || !this.driver) {
+        this.driver = this.sqliteDriver;
+        this.mode = 'standalone';
+      }
+    } catch (err) {
+      console.warn('[UnifiedDB] SQLite init failed:', err);
     }
 
     this.initialized = true;
@@ -167,10 +205,25 @@ class UnifiedDB {
     return this.mode;
   }
 
-  async switchToConnected(serverUrl: string): Promise<void> {
+  getSqliteDriver(): AnposSQLiteDriver {
+    if (!this.sqliteDriver) {
+      this.sqliteDriver = new AnposSQLiteDriver({ databaseName: 'anpos' });
+      this.sqliteDriver.initialize().catch(() => {});
+    }
+    return this.sqliteDriver;
+  }
+
+  async switchToConnected(serverUrl: string, token?: string, deviceId?: string): Promise<void> {
     await this.init();
     await AnposSecureStore.set(PREF_KEY_SERVER_URL, serverUrl);
-    this.restDriver = new RESTDriver({ baseUrl: serverUrl });
+    const sessionToken = token || (await AnposSecureStore.get(PREF_KEY_SESSION_TOKEN)) || '';
+    const devId = deviceId || (await AnposSecureStore.get(PREF_KEY_DEVICE_ID)) || '';
+
+    this.restDriver = new RESTDriver({
+      baseUrl: serverUrl,
+      sessionToken,
+      deviceId: devId,
+    });
     await this.restDriver.initialize();
     this.driver = this.restDriver;
     this.mode = 'connected';
@@ -206,23 +259,161 @@ class UnifiedDB {
   }
 
   async list<T>(table: string, opts?: ListOptions): Promise<ListResult<T>> {
-    return this.getDriver().list<T>(table, opts);
+    await this.init();
+    const sqlite = this.getSqliteDriver();
+    const localResult = await sqlite.list<T>(table, opts).catch(() => ({ data: [] as T[], total: 0 }));
+
+    if (this.mode === 'connected' && this.restDriver) {
+      try {
+        const restResult = await this.restDriver.list<T>(table, opts);
+        if (restResult && Array.isArray(restResult.data)) {
+          // Merge local & remote (remote takes precedence, local unique items are preserved)
+          const remoteMap = new Map<string, T>();
+          for (const item of restResult.data) {
+            const id = (item as any)?.id || (item as any)?._id;
+            if (id) remoteMap.set(String(id), item);
+          }
+
+          // Cache remote items to SQLite in background
+          if (this.sqliteDriver && restResult.data.length > 0) {
+            Promise.resolve().then(async () => {
+              try {
+                for (const item of restResult.data.slice(0, 100)) {
+                  if (item && typeof item === 'object') {
+                    await this.sqliteDriver?.create(table, item).catch(() => {});
+                  }
+                }
+              } catch {}
+            });
+          }
+
+          // Include local items not yet in remote (so mobile created products are immediately visible!)
+          const mergedList = [...restResult.data];
+          for (const localItem of localResult.data) {
+            const localId = (localItem as any)?.id || (localItem as any)?._id;
+            if (localId && !remoteMap.has(String(localId))) {
+              mergedList.unshift(localItem);
+            }
+          }
+
+          // Filter out any items that have a pending delete operation in sync_queue
+          let filteredList = mergedList;
+          try {
+            const pendingDeletes: any = await sqlite.execute(
+              `SELECT record_id FROM sync_queue WHERE table_name = ? AND type = 'delete' AND (status = 'pending' OR status = 'processing')`,
+              [table]
+            );
+            if (Array.isArray(pendingDeletes) && pendingDeletes.length > 0) {
+              const delIds = new Set(pendingDeletes.map((r: any) => String(r.record_id)));
+              filteredList = mergedList.filter((item: any) => !delIds.has(String(item.id || item._id)));
+            }
+          } catch {}
+
+          return {
+            data: filteredList,
+            total: filteredList.length,
+          };
+        }
+      } catch (err) {
+        console.warn(`[UnifiedDB] REST list failed for ${table}, falling back to SQLite:`, err);
+      }
+    }
+
+    return localResult;
   }
 
   async get<T>(table: string, id: string): Promise<T | null> {
-    return this.getDriver().get<T>(table, id);
+    await this.init();
+    if (this.mode === 'connected' && this.restDriver) {
+      try {
+        const restItem = await this.restDriver.get<T>(table, id);
+        if (restItem) {
+          this.sqliteDriver?.create(table, restItem).catch(() => {});
+          return restItem;
+        }
+      } catch {
+        // fallback to sqlite
+      }
+    }
+    const sqlite = this.getSqliteDriver();
+    return sqlite.get<T>(table, id);
   }
 
   async create<T, R = T>(table: string, data: T): Promise<R> {
-    return this.getDriver().create<T, R>(table, data);
+    await this.init();
+    const sqlite = this.getSqliteDriver();
+    // 1. Always save locally to SQLite
+    const localResult = await sqlite.create<T, R>(table, data);
+
+    // 2. If in connected mode, push to server (or queue)
+    if (this.mode === 'connected' && this.restDriver) {
+      try {
+        const remoteResult = await this.restDriver.create<T, R>(table, data);
+        if (remoteResult && typeof remoteResult === 'object') {
+          await sqlite.create(table, remoteResult).catch(() => {});
+          return remoteResult;
+        }
+      } catch (err) {
+        console.warn(`[UnifiedDB] REST create failed for ${table}, enqueued locally:`, err);
+        const recordId = (data as any)?.id || (localResult as any)?.id || '';
+        if (recordId) {
+          const nowIso = new Date().toISOString();
+          const payload = JSON.stringify(data);
+          await sqlite.execute(
+            `INSERT INTO sync_queue (id, type, table_name, record_id, payload, created_at, retries, max_retries, status, error_message)
+             VALUES (?, 'create', ?, ?, ?, ?, 0, 5, 'pending', ?)`,
+            [`sq_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, table, recordId, payload, nowIso, String(err)]
+          ).catch(() => {});
+        }
+      }
+    }
+
+    return localResult;
   }
 
   async update<T>(table: string, id: string, data: T): Promise<boolean> {
-    return this.getDriver().update<T>(table, id, data);
+    await this.init();
+    const sqlite = this.getSqliteDriver();
+    const localOk = await sqlite.update<T>(table, id, data);
+
+    if (this.mode === 'connected' && this.restDriver) {
+      try {
+        await this.restDriver.update<T>(table, id, data);
+      } catch (err) {
+        console.warn(`[UnifiedDB] REST update failed for ${table}, enqueued locally:`, err);
+        const nowIso = new Date().toISOString();
+        const payload = JSON.stringify(data);
+        await sqlite.execute(
+          `INSERT INTO sync_queue (id, type, table_name, record_id, payload, created_at, retries, max_retries, status, error_message)
+           VALUES (?, 'update', ?, ?, ?, ?, 0, 5, 'pending', ?)`,
+          [`sq_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, table, id, payload, nowIso, String(err)]
+        ).catch(() => {});
+      }
+    }
+
+    return localOk;
   }
 
   async remove(table: string, id: string): Promise<boolean> {
-    return this.getDriver().remove(table, id);
+    await this.init();
+    const sqlite = this.getSqliteDriver();
+    const localOk = await sqlite.remove(table, id);
+
+    if (this.mode === 'connected' && this.restDriver) {
+      try {
+        await this.restDriver.remove(table, id);
+      } catch (err) {
+        console.warn(`[UnifiedDB] REST remove failed for ${table}, enqueued locally:`, err);
+        const nowIso = new Date().toISOString();
+        await sqlite.execute(
+          `INSERT INTO sync_queue (id, type, table_name, record_id, payload, created_at, retries, max_retries, status, error_message)
+           VALUES (?, 'delete', ?, ?, '{}', ?, 0, 5, 'pending', ?)`,
+          [`sq_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, table, id, nowIso, String(err)]
+        ).catch(() => {});
+      }
+    }
+
+    return localOk;
   }
 
   async batchCreate<T, R = T>(table: string, records: T[]): Promise<R[]> {

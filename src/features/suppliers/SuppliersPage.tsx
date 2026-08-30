@@ -110,7 +110,7 @@ export default function SuppliersPage() {
   );
 
   const invoiceTotal = useMemo(
-    () => invoiceItems.reduce((sum, item) => sum + item.lineTotal, 0),
+    () => (Array.isArray(invoiceItems) ? invoiceItems : []).reduce((sum, item) => sum + (Number(item?.lineTotal) || 0), 0),
     [invoiceItems]
   );
 

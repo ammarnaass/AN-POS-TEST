@@ -9,6 +9,7 @@ import {
   removeSale,
   type SalesListOptions,
 } from '../../handlers/sales';
+import { normalizeBody } from '../middleware/normalizeFields';
 
 export async function registerSalesRoutes(server: FastifyInstance): Promise<void> {
   // GET /api/sales?type=&docType=&customerId=&status=&search=&from=&to=&limit=&offset=
@@ -33,7 +34,7 @@ export async function registerSalesRoutes(server: FastifyInstance): Promise<void
 
   // POST /api/sales
   server.post('/api/sales', async (request, reply) => {
-    const data = request.body as Record<string, unknown>;
+    const data = normalizeBody(request.body as Record<string, unknown>);
     const result = await createSale(data);
     return reply.code(201).send(result);
   });
@@ -41,7 +42,7 @@ export async function registerSalesRoutes(server: FastifyInstance): Promise<void
   // PUT /api/sales/:id
   server.put('/api/sales/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const data = request.body as Record<string, unknown>;
+    const data = normalizeBody(request.body as Record<string, unknown>);
     const result = await updateSale(id, data);
     return reply.send(result);
   });

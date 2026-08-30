@@ -75,8 +75,18 @@ export default function DashboardPage() {
     .reduce((sum, s) => sum + (s.total || 0), 0);
 
   const totalItemsSold = todaySales.reduce((sum, s) => {
-    const items = (s.items as Array<{ qty?: number }>) || [];
-    return sum + items.reduce((si, i) => si + Number(i.qty || 0), 0);
+    let items = s.items;
+    if (typeof items === 'string') {
+      try {
+        items = JSON.parse(items);
+      } catch {
+        items = [];
+      }
+    }
+    if (!Array.isArray(items)) {
+      items = [];
+    }
+    return sum + (items as Array<{ qty?: number }>).reduce((si, i) => si + Number(i.qty || 0), 0);
   }, 0);
 
   const activeProducts = products.filter((p) => p.status === 'active');
@@ -141,7 +151,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── تبويبات أقسام لوحة التحكم ───────────────────────────────── */}
-      <div className="flex items-center gap-2 p-1.5 bg-surface-container-low rounded-2xl border border-outline-variant/20 overflow-x-auto">
+      <div className="flex items-center gap-2 p-1.5 bg-surface-container-low rounded-2xl border border-outline-variant/20 overflow-x-auto no-scrollbar touch-scroll">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.key;

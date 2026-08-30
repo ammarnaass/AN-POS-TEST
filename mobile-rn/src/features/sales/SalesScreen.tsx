@@ -34,6 +34,7 @@ import { printInvoice } from '@/lib/print';
 import { InvoicePrintPreviewModal } from '@/features/print/InvoicePrintPreviewModal';
 import type { Sale } from '@shared/types';
 import { useTheme } from '@/theme';
+import { useI18n } from '@/store/i18nStore';
 import { radii, spacing, typography, shadows } from '@/theme/tokens';
 import { Badge, EmptyState } from '@/components/ui';
 import { notify } from '@/lib/notify';
@@ -43,6 +44,7 @@ type StatusFilter = 'all' | 'cash' | 'credit' | 'return';
 
 export const SalesScreen = ({ navigation }: any) => {
   const { isDark, colors } = useTheme();
+  const { t, isRTL } = useI18n();
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -139,11 +141,20 @@ export const SalesScreen = ({ navigation }: any) => {
   const handleQuickPrint = async (sale: any) => {
     setQuickPrintingId(sale.id);
     try {
-      let rawItems: any[] = Array.isArray(sale.items)
-        ? sale.items
-        : typeof sale.items === 'string'
-        ? JSON.parse(sale.items || '[]')
-        : [];
+      let rawItems: any[] = [];
+      if (Array.isArray(sale.items)) {
+        rawItems = sale.items;
+      } else if (typeof sale.items === 'string') {
+        try {
+          const parsed = JSON.parse(sale.items);
+          if (Array.isArray(parsed)) rawItems = parsed;
+          else if (parsed && typeof parsed === 'object') rawItems = Object.values(parsed);
+        } catch {
+          rawItems = [];
+        }
+      } else if (sale.items && typeof sale.items === 'object') {
+        rawItems = Object.values(sale.items);
+      }
 
       if (!rawItems || rawItems.length === 0) {
         const allSaleItems = await db.saleItems.toArray();
@@ -164,11 +175,11 @@ export const SalesScreen = ({ navigation }: any) => {
         id: sale.id,
         number: sale.number || 'INV-0001',
         date: sale.date || sale.created_at || new Date().toISOString(),
-        items: rawItems.map((i) => ({
-          name: i.name || 'منتج',
-          qty: Number(i.qty || 1),
-          unitPrice: Number(i.unitPrice || i.unit_price || 0),
-          lineTotal: Number(i.lineTotal || i.line_total || (i.qty || 1) * (i.unitPrice || i.unit_price || 0)),
+        items: (Array.isArray(rawItems) ? rawItems : []).map((i) => ({
+          name: i?.name || 'منتج',
+          qty: Number(i?.qty || i?.quantity || 1),
+          unitPrice: Number(i?.unitPrice || i?.unit_price || 0),
+          lineTotal: Number(i?.lineTotal || i?.line_total || (i?.qty || 1) * (i?.unitPrice || 0)),
         })),
         subtotal: Number(sale.subtotal || sale.total || 0),
         discount: Number(sale.discount || 0),
@@ -334,17 +345,20 @@ export const SalesScreen = ({ navigation }: any) => {
             {filteredSales.map((sale) => {
               const isReturn = sale.type === 'return';
               const payment = String(sale.paymentMethod || (sale as any).payment_method || 'cash');
-              const itemsCount = Array.isArray(sale.items)
-                ? sale.items.length
-                : typeof sale.items === 'string'
-                ? (() => {
-                    try {
-                      return JSON.parse(sale.items).length;
-                    } catch {
-                      return 0;
-                    }
-                  })()
-                : 0;
+              const itemsCount = (() => {
+                if (Array.isArray(sale.items)) return sale.items.length;
+                if (typeof sale.items === 'string') {
+                  try {
+                    const p = JSON.parse(sale.items);
+                    if (Array.isArray(p)) return p.length;
+                    if (p && typeof p === 'object') return Object.keys(p).length;
+                  } catch {
+                    return 0;
+                  }
+                }
+                if (sale.items && typeof sale.items === 'object') return Object.keys(sale.items).length;
+                return 0;
+              })();
 
               return (
                 <TouchableOpacity

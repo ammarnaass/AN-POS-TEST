@@ -622,5 +622,4 @@ export interface InventoryCountLineEntity {
 // تعريفات الأنواع أعلاه (lines 1-617) محفوظة لاستخدام الواجهة.
 // لم نعد نستخدم Dexie أو IndexedDB — البيانات كلها في SQLite محلي.
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const db = (await import('@/lib/db')).db;
+export { db } from '@/lib/db';

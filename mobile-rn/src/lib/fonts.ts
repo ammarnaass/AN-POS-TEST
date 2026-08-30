@@ -1,11 +1,4 @@
-import { I18nManager, Platform } from 'react-native';
-
-if (Platform.OS === 'android' || Platform.OS === 'ios') {
-  if (!I18nManager.isRTL) {
-    I18nManager.forceRTL(true);
-    I18nManager.allowRTL(true);
-  }
-}
+import { I18nManager, Platform, TextStyle } from 'react-native';
 
 // Font loader — for React Native CLI
 // In the final build, these fonts should be placed in:
@@ -32,7 +25,14 @@ export const TEXT_STYLES = {
   button: { fontFamily: FONTS.bold, fontSize: 14, fontWeight: '700' as const },
 };
 
-export const RTL_STYLE = {
-  textAlign: 'right' as const,
-  direction: 'rtl' as const,
+export const RTL_STYLE: TextStyle = {
+  textAlign: 'right',
 };
+
+export const LTR_STYLE: TextStyle = {
+  textAlign: 'left',
+};
+
+export const getDirectionStyle = (isRTL: boolean): TextStyle => ({
+  textAlign: isRTL ? 'right' : 'left',
+});

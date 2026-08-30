@@ -98,16 +98,31 @@ export const ProfitCenterScreen = ({ navigation }: any) => {
       } else {
         grossRevenue += s.total || 0;
 
-        const items: any[] = Array.isArray(s.items)
-          ? s.items
-          : typeof s.items === 'string'
-          ? JSON.parse(s.items || '[]')
-          : [];
+        let items: any[] = [];
+        if (Array.isArray(s.items)) {
+          items = s.items;
+        } else if (typeof s.items === 'string') {
+          try {
+            const parsed = JSON.parse(s.items);
+            if (Array.isArray(parsed)) {
+              items = parsed;
+            } else if (parsed && typeof parsed === 'object') {
+              items = Object.values(parsed);
+            }
+          } catch {
+            items = [];
+          }
+        } else if (s.items && typeof s.items === 'object') {
+          items = Object.values(s.items);
+        }
 
-        items.forEach((item) => {
-          const cost = productCostMap[item.productId] || item.costPrice || 0;
-          cogs += cost * (item.qty || 1);
-        });
+        if (Array.isArray(items)) {
+          items.forEach((item) => {
+            if (!item) return;
+            const cost = productCostMap[item.productId || item.product_id] || item.costPrice || item.cost_price || 0;
+            cogs += cost * (item.qty || item.quantity || 1);
+          });
+        }
       }
     });
 

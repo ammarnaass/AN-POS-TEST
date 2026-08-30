@@ -233,11 +233,20 @@ export const SupplierDetailScreen = ({ route, navigation }: any) => {
           ) : (
             <View style={{ gap: 8 }}>
               {purchases.map((p: any) => {
-                const itemsCount = Array.isArray(p.items)
-                  ? p.items.length
-                  : typeof p.items === 'string'
-                  ? (JSON.parse(p.items || '[]') as any[]).length
-                  : 0;
+                const itemsCount = (() => {
+                  if (Array.isArray(p.items)) return p.items.length;
+                  if (typeof p.items === 'string') {
+                    try {
+                      const parsed = JSON.parse(p.items);
+                      if (Array.isArray(parsed)) return parsed.length;
+                      if (parsed && typeof parsed === 'object') return Object.keys(parsed).length;
+                    } catch {
+                      return 0;
+                    }
+                  }
+                  if (p.items && typeof p.items === 'object') return Object.keys(p.items).length;
+                  return 0;
+                })();
 
                 return (
                   <View key={p.id} style={styles.listCard}>

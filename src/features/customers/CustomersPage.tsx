@@ -228,20 +228,20 @@ export default function CustomersPage() {
   return (
     <div className="space-y-6 glass-card rounded-xl border border-outline-variant/20 p-6">
       {/* Page Header */}
-      <div className="flex flex-row-reverse justify-between items-center">
+      <div className="flex flex-col sm:flex-row-reverse justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="font-headline-lg text-headline-lg text-on-surface">إدارة الزبائن</h2>
           <p className="font-body-md text-body-md text-on-surface-variant">إدارة حسابات الزبائن والديون والدفعات</p>
         </div>
-        <div className="flex gap-3">
-          <label className="flex items-center gap-2 bg-surface-container border border-outline-variant/20 px-5 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-all cursor-pointer text-label-md">
+        <div className="flex flex-wrap gap-2.5 sm:gap-3 w-full sm:w-auto">
+          <label className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-surface-container border border-outline-variant/20 px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl text-on-surface-variant hover:bg-surface-container-high transition-all cursor-pointer text-label-md">
             <Upload className="w-4 h-4" />
             استيراد
             <input type="file" accept=".xlsx,.xls,.csv" onChange={handleImport} className="hidden" />
           </label>
           <button
             onClick={() => { setFormData({ name: '', phone: '', creditLimit: 0 }); setEditingCustomer(null); setShowForm(true); }}
-            className="flex items-center gap-2 bg-primary text-on-primary px-6 py-3 rounded-lg shadow-md hover:bg-primary-container transition-all active:scale-95 text-label-md"
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-primary text-on-primary px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl shadow-md hover:bg-primary-container transition-all active:scale-95 text-label-md cursor-pointer"
           >
             <Plus className="w-5 h-5" />
             إضافة زبون
@@ -250,7 +250,7 @@ export default function CustomersPage() {
       </div>
 
       {/* Metric Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <div className="glass-card rounded-xl border border-outline-variant/20 p-5 hover:shadow-md transition-all">
           <div className="flex justify-between items-start mb-4">
             <div className="bg-primary/10 p-2 rounded-lg text-primary"><Users className="w-5 h-5" /></div>

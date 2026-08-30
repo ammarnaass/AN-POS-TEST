@@ -31,6 +31,7 @@ import {
   Minus,
 } from 'lucide-react-native';
 import { db, ensureInit } from '@/lib/db';
+import { getStoreSettings } from '@/lib/settingService';
 import type { Product } from '@shared/types';
 import {
   BarcodeSvg,
@@ -85,13 +86,13 @@ export const BarcodeLabelsScreen = ({ navigation, route }: any) => {
       await ensureInit();
       const [allProducts, storeSettings, historyList] = await Promise.all([
         db.products.toArray(),
-        db.settings.where('key').equals('store_name').toArray(),
+        getStoreSettings(false),
         db.barcodePrints.toArray(),
       ]);
 
       setProducts(allProducts);
-      if (storeSettings.length > 0 && storeSettings[0].value) {
-        setShopName(storeSettings[0].value);
+      if (storeSettings?.shop_name) {
+        setShopName(storeSettings.shop_name);
       }
 
       if (historyList) {

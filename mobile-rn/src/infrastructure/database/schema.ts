@@ -32,10 +32,60 @@ export const CREATE_TABLES_SQL: string[] = [
   // ── Settings ───────────────────────────────────────────────
   `CREATE TABLE IF NOT EXISTS settings (
     id TEXT PRIMARY KEY NOT NULL,
-    key TEXT UNIQUE NOT NULL,
-    value TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    shop_name TEXT NOT NULL DEFAULT '',
+    phone TEXT NOT NULL DEFAULT '',
+    phone2 TEXT DEFAULT '',
+    email TEXT DEFAULT '',
+    address TEXT DEFAULT '',
+    city TEXT DEFAULT '',
+    logo TEXT DEFAULT '',
+    tva_rate REAL NOT NULL DEFAULT 0,
+    print_width_mm INTEGER NOT NULL DEFAULT 80,
+    sync_mode TEXT NOT NULL DEFAULT 'single',
+    currencies TEXT NOT NULL DEFAULT '[]',
+    base_currency TEXT NOT NULL DEFAULT 'دج',
+    invoice_prefix TEXT NOT NULL DEFAULT 'INV-',
+    invoice_start_number INTEGER NOT NULL DEFAULT 1,
+    receipt_footer TEXT NOT NULL DEFAULT '',
+    zakat_enabled INTEGER NOT NULL DEFAULT 0,
+    nisab_threshold REAL NOT NULL DEFAULT 0,
+    shop_logo TEXT DEFAULT '',
+    language TEXT DEFAULT 'ar',
+    print_language TEXT DEFAULT 'ar',
+    shop_description TEXT DEFAULT '',
+    shop_address TEXT DEFAULT '',
+    shop_phone2 TEXT DEFAULT '',
+    shop_email TEXT DEFAULT '',
+    commercial_register TEXT DEFAULT '',
+    company_rc TEXT DEFAULT '',
+    tax_number TEXT DEFAULT '',
+    company_nif TEXT DEFAULT '',
+    tax_article TEXT DEFAULT '',
+    company_art TEXT DEFAULT '',
+    company_ai TEXT DEFAULT '',
+    tax_id TEXT DEFAULT '',
+    quick_sale INTEGER DEFAULT 0,
+    accounting_only INTEGER DEFAULT 0,
+    allow_negative_stock INTEGER DEFAULT 0,
+    confirm_no_stock INTEGER DEFAULT 0,
+    average_pricing INTEGER DEFAULT 0,
+    invoice_template TEXT DEFAULT 'basic',
+    expense_categories TEXT DEFAULT '[]',
+    date_format TEXT NOT NULL DEFAULT 'DD/MM/YYYY',
+    time_format TEXT NOT NULL DEFAULT '24h',
+    timezone TEXT NOT NULL DEFAULT 'Africa/Algiers',
+    decimal_separator TEXT NOT NULL DEFAULT ',',
+    thousands_separator TEXT NOT NULL DEFAULT '.',
+    text_direction TEXT NOT NULL DEFAULT 'rtl',
+    operating_mode TEXT NOT NULL DEFAULT 'online',
+    auto_sync INTEGER NOT NULL DEFAULT 1,
+    cache_days INTEGER NOT NULL DEFAULT 7,
+    connection_alert INTEGER NOT NULL DEFAULT 1,
+    connection_check_interval INTEGER NOT NULL DEFAULT 5,
+    key TEXT DEFAULT NULL,
+    value TEXT DEFAULT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
 
   // ── Categories ─────────────────────────────────────────────
@@ -576,9 +626,27 @@ export const CREATE_TABLES_SQL: string[] = [
     performed_at TEXT NOT NULL,
     created_at TEXT NOT NULL
   )`,
+
+  // ── Sync Queue (Persistent Offline Sync Queue) ──────────────
+  `CREATE TABLE IF NOT EXISTS sync_queue (
+    id TEXT PRIMARY KEY NOT NULL,
+    type TEXT NOT NULL,
+    table_name TEXT NOT NULL,
+    record_id TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    retries INTEGER NOT NULL DEFAULT 0,
+    max_retries INTEGER NOT NULL DEFAULT 5,
+    status TEXT NOT NULL DEFAULT 'pending',
+    error_message TEXT
+  )`,
 ];
 
 export const CREATE_INDEXES_SQL: string[] = [
+  // Sync Queue
+  `CREATE INDEX IF NOT EXISTS idx_sync_queue_status ON sync_queue(status)`,
+  `CREATE INDEX IF NOT EXISTS idx_sync_queue_created_at ON sync_queue(created_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_sync_queue_table ON sync_queue(table_name)`,
   // Products
   `CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode)`,
   `CREATE INDEX IF NOT EXISTS idx_products_name ON products(name)`,

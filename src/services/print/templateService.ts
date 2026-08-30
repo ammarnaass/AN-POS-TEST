@@ -289,27 +289,12 @@ export function validateTemplate(template: PrintTemplate): { valid: boolean; err
 
   // BR-PRINT-009: قوالب A4 القانونية يجب أن تتضمن المعلومات الإلزامية
   if (template.paperSize === 'A4') {
-    // فحص وجود عناصر الترويسة (الاسم + معلومات قانونية)
-    const headerTexts = template.layout.header
-      .filter(isTextBlock)
-      .map((b) => (Array.isArray(b.text) ? b.text.join(' ') : b.text))
-      .join(' ');
-    const columnTexts = template.layout.header
-      .filter(isColumnBlock)
-      .map((b) =>
-        b.children
-          .filter(isTextBlock)
-          .map((c) => (Array.isArray(c.text) ? c.text.join(' ') : c.text))
-          .join(' '),
-      )
-      .join(' ');
-    const allHeaderText = `${headerTexts} ${columnTexts}`;
-
+    const allHeaderText = JSON.stringify(template.layout.header || []);
     if (!allHeaderText.includes('shopLegal.name')) {
       errors.push('قالب قانوني يجب أن يتضمن اسم المحل ({{shopLegal.name}}) في الترويسة');
     }
     // A4 يجب أن يتضمن على الأقل رقم الفاتورة
-    const bodyText = JSON.stringify(template.layout.body);
+    const bodyText = JSON.stringify(template.layout.body || []);
     if (!bodyText.includes('invoice.number')) {
       errors.push('قالب قانوني يجب أن يتضمن رقم الفاتورة ({{invoice.number}})');
     }
@@ -399,4 +384,59 @@ export async function importTemplateFromJson(
   } catch (e) {
     return { success: false, error: String(e) };
   }
+}
+
+export { TEMPLATE_PRESETS, type PresetDef } from '@shared/services/templatePresets';
+import { TEMPLATE_PRESETS } from '@shared/services/templatePresets';
+
+export function getPresetById(presetId: string) {
+  return TEMPLATE_PRESETS.find((p) => p.id === presetId);
+}
+
+export async function createFromPreset(presetId: string, createdBy = 'user'): Promise<PrintTemplate | null> {
+  const preset = getPresetById(presetId);
+  if (!preset) return null;
+
+  const buildData = preset.build();
+  const now = new Date().toISOString();
+  const newTpl: PrintTemplate = {
+    ...buildData,
+    id: 'tpl-preset-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+    name: preset.nameAr || preset.name,
+    description: preset.description,
+    isDefault: false,
+    isSystem: false,
+    createdBy,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await db.print_templates.put(newTpl as PrintTemplateEntity);
+  return newTpl;
+}
+
+export async function importAllPresets(createdBy = 'user'): Promise<number> {
+  const now = new Date().toISOString();
+  let count = 0;
+
+  for (const preset of TEMPLATE_PRESETS) {
+    const existing = await db.print_templates.get(preset.id);
+    if (!existing) {
+      const buildData = preset.build();
+      const newTpl: PrintTemplate = {
+        ...buildData,
+        id: preset.id,
+        name: preset.nameAr || preset.name,
+        description: preset.description,
+        isDefault: false,
+        isSystem: false,
+        createdBy,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await db.print_templates.put(newTpl as PrintTemplateEntity);
+      count++;
+    }
+  }
+  return count;
 }

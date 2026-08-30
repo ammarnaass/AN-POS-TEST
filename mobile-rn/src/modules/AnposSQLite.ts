@@ -110,30 +110,38 @@ export class AnposSQLiteDriver implements DataDriver {
     return { sql, params, countSql, countParams };
   }
 
+  private extractRows(res: any): any[] {
+    if (!res || !res.rows) return [];
+    if (Array.isArray(res.rows)) return res.rows;
+    if (Array.isArray((res.rows as any)._array)) return (res.rows as any)._array;
+    if (typeof (res.rows as any).length === 'number') {
+      const items: any[] = [];
+      const len = (res.rows as any).length;
+      for (let i = 0; i < len; i++) {
+        const item = typeof (res.rows as any).item === 'function'
+          ? (res.rows as any).item(i)
+          : (res.rows as any)[i];
+        if (item !== undefined && item !== null) items.push(item);
+      }
+      return items;
+    }
+    return [];
+  }
+
   async list<T = unknown>(table: string, opts: ListOptions = {}): Promise<ListResult<T>> {
     const conn = this.getConn();
     const { sql, params, countSql, countParams } = this.buildListQuery(table, opts);
 
     const result = conn.execute(sql, params as any[]);
     const countResult = conn.execute(countSql, countParams as any[]);
-    const total = Number(countResult.rows?.item?.(0)?.total ?? countResult.rows?._array?.[0]?.total ?? 0);
+    const countRows = this.extractRows(countResult);
+    const total = Number(countRows[0]?.total ?? 0);
 
     const data: T[] = [];
-    if (result.rows) {
-      const rawRows = result.rows._array;
-      if (Array.isArray(rawRows)) {
-        for (const item of rawRows) {
-          if (item && typeof item === 'object') {
-            data.push(this.toCamelCase(item as Record<string, unknown>) as T);
-          }
-        }
-      } else if (typeof result.rows.length === 'number') {
-        for (let i = 0; i < result.rows.length; i++) {
-          const item = result.rows.item ? result.rows.item(i) : undefined;
-          if (item && typeof item === 'object') {
-            data.push(this.toCamelCase(item as Record<string, unknown>) as T);
-          }
-        }
+    const rows = this.extractRows(result);
+    for (const item of rows) {
+      if (item && typeof item === 'object') {
+        data.push(this.toCamelCase(item as Record<string, unknown>) as T);
       }
     }
     return { data, total };
@@ -148,26 +156,17 @@ export class AnposSQLiteDriver implements DataDriver {
     try {
       const conn = this.getConn();
       const res = conn.execute(`PRAGMA table_info(${table})`);
+      const rows = this.extractRows(res);
       const cols = new Set<string>();
-      if (res.rows) {
-        const raw = res.rows._array;
-        if (Array.isArray(raw)) {
-          for (const row of raw) {
-            if (row?.name) cols.add(String(row.name));
-          }
-        } else if (typeof res.rows.length === 'number') {
-          for (let i = 0; i < res.rows.length; i++) {
-            const row = res.rows.item ? res.rows.item(i) : undefined;
-            if (row?.name) cols.add(String(row.name));
-          }
-        }
+      for (const row of rows) {
+        if (row && row.name) cols.add(String(row.name));
       }
       if (cols.size > 0) {
         this.tableColumnsCache.set(table, cols);
         return cols;
       }
-    } catch {
-      // Ignore if table does not exist yet
+    } catch (err) {
+      console.warn(`[AnposSQLite] PRAGMA table_info(${table}) error:`, err);
     }
     return new Set<string>();
   }
@@ -175,8 +174,9 @@ export class AnposSQLiteDriver implements DataDriver {
   async get<T = unknown>(table: string, id: string): Promise<T | null> {
     const conn = this.getConn();
     const result = conn.execute(`SELECT * FROM ${table} WHERE id = ?`, [id]);
-    if (!result.rows || result.rows.length === 0) return null;
-    const item = result.rows.item ? result.rows.item(0) : (result.rows._array ? result.rows._array[0] : null);
+    const rows = this.extractRows(result);
+    if (rows.length === 0) return null;
+    const item = rows[0];
     return item && typeof item === 'object' ? (this.toCamelCase(item as Record<string, unknown>) as T) : null;
   }
 
@@ -191,7 +191,7 @@ export class AnposSQLiteDriver implements DataDriver {
 
     const validCols = this.getTableColumns(table);
     const columns = Object.keys(snakeData).filter(
-      (c) => validCols.size === 0 || validCols.has(c)
+      (c) => validCols.size > 0 ? validCols.has(c) : true
     );
 
     if (columns.length === 0) return data as unknown as R;
@@ -216,7 +216,7 @@ export class AnposSQLiteDriver implements DataDriver {
 
     const validCols = this.getTableColumns(table);
     const columns = Object.keys(snakeData).filter(
-      (c) => c !== 'id' && (validCols.size === 0 || validCols.has(c))
+      (c) => c !== 'id' && (validCols.size > 0 ? validCols.has(c) : true)
     );
 
     if (columns.length === 0) return true;
@@ -307,12 +307,10 @@ export class AnposSQLiteDriver implements DataDriver {
     const queryParams = (params && params.length > 0) ? (params as any[]) : undefined;
     const result = conn.execute(sql, queryParams);
     const rows: Record<string, unknown>[] = [];
-    if (result.rows) {
-      for (let i = 0; i < result.rows.length; i++) {
-        const item = result.rows.item(i);
-        if (item) {
-          rows.push(this.toCamelCase(item as Record<string, unknown>));
-        }
+    const rawRows = this.extractRows(result);
+    for (const item of rawRows) {
+      if (item && typeof item === 'object') {
+        rows.push(this.toCamelCase(item as Record<string, unknown>));
       }
     }
     return { rows, rowsAffected: result.rowsAffected ?? 0 };

@@ -8,6 +8,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@shared': path.resolve(__dirname, './shared'),
     },
   },
   server: {
@@ -15,11 +16,11 @@ export default defineConfig({
     host: true,
   },
   optimizeDeps: {
-    entries: ['index.html'],
+    entries: ['src/renderer/index.html'],
   },
   build: {
     rollupOptions: {
-      input: path.resolve(__dirname, 'index.html'),
+      input: path.resolve(__dirname, 'src/renderer/index.html'),
     },
   },
   test: {

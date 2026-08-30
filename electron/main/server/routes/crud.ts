@@ -10,14 +10,12 @@ import {
 } from '../../handlers/crud';
 
 export async function registerCrudRoutes(server: FastifyInstance): Promise<void> {
-  // GET /api/:table?search=...&from=...&to=...&limit=...&offset=...
-  server.get('/api/:table', async (request, reply) => {
+  const handleList = async (request: any, reply: any) => {
     const { table } = request.params as { table: string };
     const opts = request.query as {
       search?: string; from?: string; to?: string;
       limit?: number; offset?: number;
     };
-    // تحويل limit/offset من string إلى number (Fastify قد يمرّرها كـ string)
     const normOpts = {
       ...opts,
       limit: opts.limit ? Number(opts.limit) : undefined,
@@ -29,10 +27,9 @@ export async function registerCrudRoutes(server: FastifyInstance): Promise<void>
     } catch (err) {
       return reply.code(400).send({ error: { status: 400, detail: (err as Error).message } });
     }
-  });
+  };
 
-  // GET /api/:table/:id
-  server.get('/api/:table/:id', async (request, reply) => {
+  const handleGet = async (request: any, reply: any) => {
     const { table, id } = request.params as { table: string; id: string };
     try {
       const result = await getRow(table, id);
@@ -40,10 +37,9 @@ export async function registerCrudRoutes(server: FastifyInstance): Promise<void>
     } catch (err) {
       return reply.code(400).send({ error: { status: 400, detail: (err as Error).message } });
     }
-  });
+  };
 
-  // POST /api/:table
-  server.post('/api/:table', async (request, reply) => {
+  const handleCreate = async (request: any, reply: any) => {
     const { table } = request.params as { table: string };
     const data = request.body as Record<string, unknown>;
     try {
@@ -52,10 +48,9 @@ export async function registerCrudRoutes(server: FastifyInstance): Promise<void>
     } catch (err) {
       return reply.code(400).send({ error: { status: 400, detail: (err as Error).message } });
     }
-  });
+  };
 
-  // PUT /api/:table/:id
-  server.put('/api/:table/:id', async (request, reply) => {
+  const handleUpdate = async (request: any, reply: any) => {
     const { table, id } = request.params as { table: string; id: string };
     const data = request.body as Record<string, unknown>;
     try {
@@ -64,22 +59,9 @@ export async function registerCrudRoutes(server: FastifyInstance): Promise<void>
     } catch (err) {
       return reply.code(400).send({ error: { status: 400, detail: (err as Error).message } });
     }
-  });
+  };
 
-  // PATCH /api/:table/:id (alias للـ PUT — تحديث جزئي)
-  server.patch('/api/:table/:id', async (request, reply) => {
-    const { table, id } = request.params as { table: string; id: string };
-    const data = request.body as Record<string, unknown>;
-    try {
-      const result = await updateRow(table, id, data);
-      return reply.send(result);
-    } catch (err) {
-      return reply.code(400).send({ error: { status: 400, detail: (err as Error).message } });
-    }
-  });
-
-  // DELETE /api/:table/:id
-  server.delete('/api/:table/:id', async (request, reply) => {
+  const handleDelete = async (request: any, reply: any) => {
     const { table, id } = request.params as { table: string; id: string };
     try {
       const result = await removeRow(table, id);
@@ -87,5 +69,37 @@ export async function registerCrudRoutes(server: FastifyInstance): Promise<void>
     } catch (err) {
       return reply.code(400).send({ error: { status: 400, detail: (err as Error).message } });
     }
-  });
+  };
+
+  // GET /api/:table & /api/inventory/:table
+  server.get('/api/:table', handleList);
+  server.get('/api/inventory/:table', handleList);
+
+  // GET /api/:table/:id & /api/inventory/:table/:id
+  server.get('/api/:table/:id', handleGet);
+  server.get('/api/inventory/:table/:id', handleGet);
+
+  // POST /api/:table & /api/inventory/:table & /api/:table/create & /api/inventory/:table/create
+  server.post('/api/:table', handleCreate);
+  server.post('/api/inventory/:table', handleCreate);
+  server.post('/api/:table/create', handleCreate);
+  server.post('/api/inventory/:table/create', handleCreate);
+
+  // PUT & PATCH & POST updates
+  server.put('/api/:table/:id', handleUpdate);
+  server.put('/api/inventory/:table/:id', handleUpdate);
+  server.patch('/api/:table/:id', handleUpdate);
+  server.patch('/api/inventory/:table/:id', handleUpdate);
+  server.post('/api/:table/:id', handleUpdate);
+  server.post('/api/:table/update/:id', handleUpdate);
+  server.post('/api/:table/:id/update', handleUpdate);
+  server.put('/api/:table/update/:id', handleUpdate);
+
+  // DELETE & POST delete
+  server.delete('/api/:table/:id', handleDelete);
+  server.delete('/api/inventory/:table/:id', handleDelete);
+  server.post('/api/:table/delete/:id', handleDelete);
+  server.post('/api/:table/:id/delete', handleDelete);
+  server.delete('/api/:table/delete/:id', handleDelete);
 }
+

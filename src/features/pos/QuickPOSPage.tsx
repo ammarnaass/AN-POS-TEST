@@ -43,6 +43,8 @@ import {
   Percent,
   Wallet,
   AlertTriangle,
+  ChevronRight,
+  ChevronLeft,
 } from 'lucide-react';
 
 const formatMoney = (val: number | null | undefined, decimals = 2) => {
@@ -67,6 +69,7 @@ export default function QuickPOSPage() {
   const addNotification = useNotificationStore((s) => s.addNotification);
 
   // States
+  const [mobileTab, setMobileTab] = useState<'catalog' | 'cart'>('catalog');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedCustomer, setSelectedCustomer] = useState<string>('');
@@ -140,17 +143,50 @@ export default function QuickPOSPage() {
     queryFn: () => db.packs.toArray(),
   });
 
-  const { data: categories = [] } = useQuery<string[]>({
+  const { data: rawCategories = [] } = useQuery<any[]>({
     queryKey: ['categories'],
     queryFn: async () => {
-      const cats = await db.categories.toArray();
-      const productCats = await db.products.orderBy('category').uniqueKeys();
-      const all = new Set<string>();
-      cats.forEach((c) => c.name && all.add(c.name));
-      productCats.forEach((c) => typeof c === 'string' && c.trim() && all.add(c.trim()));
-      return Array.from(all);
+      try {
+        const [cats, prods] = await Promise.all([
+          db.categories.toArray().catch(() => []),
+          db.products.toArray().catch(() => []),
+        ]);
+        const all = new Set<string>();
+        if (Array.isArray(cats)) {
+          cats.forEach((c: any) => {
+            const name = typeof c === 'object' && c !== null ? c.name : c;
+            if (name && typeof name === 'string' && name.trim()) all.add(name.trim());
+          });
+        }
+        if (Array.isArray(prods)) {
+          prods.forEach((p: any) => {
+            const cat = typeof p.category === 'object' && p.category !== null ? p.category.name : p.category;
+            if (cat && typeof cat === 'string' && cat.trim()) all.add(cat.trim());
+          });
+        }
+        return Array.from(all);
+      } catch {
+        return [];
+      }
     },
   });
+
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    if (Array.isArray(rawCategories)) {
+      rawCategories.forEach((c: any) => {
+        const name = typeof c === 'object' && c !== null ? c.name : c;
+        if (name && typeof name === 'string' && name.trim()) set.add(name.trim());
+      });
+    }
+    if (Array.isArray(products)) {
+      products.forEach((p: any) => {
+        const cat = typeof p.category === 'object' && p.category !== null ? p.category.name : p.category;
+        if (cat && typeof cat === 'string' && cat.trim()) set.add(cat.trim());
+      });
+    }
+    return Array.from(set);
+  }, [rawCategories, products]);
 
   const { data: customers = [] } = useQuery<Customer[]>({
     queryKey: ['customers'],
@@ -179,7 +215,7 @@ export default function QuickPOSPage() {
   });
 
   const settingsOrDefault = useMemo(() => ({
-    tvaRate: rawSettings?.tvaRate ?? 19,
+    tvaRate: Number(rawSettings?.tvaRate ?? (rawSettings as any)?.tva_rate ?? 0),
     invoicePrefix: rawSettings?.invoicePrefix ?? 'INV-',
     baseCurrency: rawSettings?.baseCurrency ?? 'دج',
     shopName: rawSettings?.shopName ?? 'AN POS',
@@ -248,7 +284,10 @@ export default function QuickPOSPage() {
   const filteredProducts = useMemo(() => {
     let list = products;
     if (selectedCategory !== 'all') {
-      list = list.filter((p) => p.category === selectedCategory);
+      list = list.filter((p) => {
+        const cat = typeof p.category === 'object' && p.category !== null ? (p.category as any).name : p.category;
+        return cat === selectedCategory || (p as any).categoryId === selectedCategory;
+      });
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
@@ -558,20 +597,20 @@ export default function QuickPOSPage() {
       {/* ───────────────────────────────────────────────────────────── */}
       {/* 1. TOP HEADER: High Contrast & Streamlined Fast Bar           */}
       {/* ───────────────────────────────────────────────────────────── */}
-      <header className="h-14 px-4 bg-surface-container border-b border-outline-variant/20 flex items-center justify-between shrink-0 shadow-xs z-20">
+      <header className="h-14 px-3 sm:px-4 bg-surface-container border-b border-outline-variant/20 flex items-center justify-between shrink-0 shadow-xs z-20 gap-2">
         
         {/* Left / Start: Brand & Mode Switcher */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-extrabold shadow-sm">
+            <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-extrabold shadow-sm shrink-0">
               <Zap className="w-5 h-5 fill-current" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="text-sm font-extrabold tracking-tight text-on-surface">
+                <span className="text-xs sm:text-sm font-extrabold tracking-tight text-on-surface truncate max-w-[100px] sm:max-w-none">
                   {settingsOrDefault.shopName}
                 </span>
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-amber-500/15 text-amber-600 border border-amber-500/30">
+                <span className="hidden xs:inline px-1.5 py-0.5 rounded text-[10px] font-black bg-amber-500/15 text-amber-600 border border-amber-500/30">
                   ⚡ كاشير سريع
                 </span>
               </div>
@@ -583,31 +622,31 @@ export default function QuickPOSPage() {
           {/* Switch to Advanced POS Button */}
           <button
             onClick={() => navigate('/pos')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold transition-all border border-primary/25 cursor-pointer shadow-2xs"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold transition-all border border-primary/25 cursor-pointer shadow-2xs shrink-0"
             title="الانتقال إلى نقطة البيع المتقدمة"
           >
             <Layers className="w-3.5 h-3.5" />
-            <span>نقطة البيع المتقدمة</span>
+            <span className="hidden sm:inline">نقطة البيع المتقدمة</span>
             <span className="px-1 py-0.2 text-[9px] bg-primary text-on-primary rounded font-mono">PRO</span>
           </button>
         </div>
 
-        {/* Center: Dominant Total Bar */}
-        <div className="flex items-center gap-2">
-          <div className="px-4 py-1 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-2 text-amber-700 dark:text-amber-400">
+        {/* Center: Dominant Total Bar (hidden on very small screens, visible in mobile tab) */}
+        <div className="hidden sm:flex items-center gap-2">
+          <div className="px-3.5 py-1 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-2 text-amber-700 dark:text-amber-400">
             <span className="text-xs font-bold">المجموع ({cart.length} أصناف):</span>
-            <span className="text-lg font-black font-mono tracking-tight">
+            <span className="text-base sm:text-lg font-black font-mono tracking-tight">
               {formatMoney(saleSummary.total)} {settingsOrDefault.baseCurrency}
             </span>
           </div>
         </div>
 
         {/* Right / End Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           {/* Quick Sound Toggle */}
           <button
             onClick={() => setSoundEnabled(!soundEnabled)}
-            className="p-2 rounded-xl text-on-surface-variant hover:bg-surface-container-high transition-colors"
+            className="p-1.5 sm:p-2 rounded-xl text-on-surface-variant hover:bg-surface-container-high transition-colors"
             title={soundEnabled ? 'صوت التنبيه مفعل' : 'صوت التنبيه معطل'}
           >
             {soundEnabled ? <Volume2 className="w-4 h-4 text-emerald-600" /> : <VolumeX className="w-4 h-4 text-neutral-400" />}
@@ -616,7 +655,7 @@ export default function QuickPOSPage() {
           {/* Auto Print Receipt Toggle */}
           <button
             onClick={() => setAutoPrintReceipt(!autoPrintReceipt)}
-            className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 ${
+            className={`px-2 sm:px-2.5 py-1 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 ${
               autoPrintReceipt
                 ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30'
                 : 'bg-surface text-on-surface-variant border-outline-variant/20'
@@ -636,7 +675,7 @@ export default function QuickPOSPage() {
           {/* Theme */}
           <button
             onClick={toggleTheme}
-            className="p-2 rounded-xl text-on-surface-variant hover:bg-surface-container-high transition-colors"
+            className="p-1.5 sm:p-2 rounded-xl text-on-surface-variant hover:bg-surface-container-high transition-colors"
           >
             {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </button>
@@ -644,7 +683,7 @@ export default function QuickPOSPage() {
           {/* Exit / Return to Dashboard */}
           <button
             onClick={() => navigate('/')}
-            className="p-2 rounded-xl text-on-surface-variant hover:bg-surface-container-high hover:text-red-500 transition-colors"
+            className="p-1.5 sm:p-2 rounded-xl text-on-surface-variant hover:bg-surface-container-high hover:text-red-500 transition-colors"
             title="العودة للوحة التحكم"
           >
             <ArrowRight className="w-4 h-4 rotate-180" />
@@ -653,12 +692,47 @@ export default function QuickPOSPage() {
       </header>
 
       {/* ───────────────────────────────────────────────────────────── */}
+      {/* MOBILE VIEW SWITCHER (Visible on screens < md)                */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      <div className="md:hidden flex items-center bg-surface-container/90 p-1 mx-3 my-1.5 rounded-2xl border border-outline-variant/20 shrink-0 gap-1 shadow-xs">
+        <button
+          onClick={() => setMobileTab('catalog')}
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+            mobileTab === 'catalog'
+              ? 'bg-amber-500 text-white shadow-sm'
+              : 'text-on-surface-variant hover:text-on-surface'
+          }`}
+        >
+          <Zap className="w-4 h-4" />
+          <span>الأصناف ({products.length})</span>
+        </button>
+        <button
+          onClick={() => setMobileTab('cart')}
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+            mobileTab === 'cart'
+              ? 'bg-amber-500 text-white shadow-sm'
+              : 'text-on-surface-variant hover:text-on-surface'
+          }`}
+        >
+          <ShoppingCart className="w-4 h-4" />
+          <span>السلة ({cart.length})</span>
+          {cart.length > 0 && (
+            <span className="px-1.5 py-0.2 rounded-md bg-white/20 text-white text-[10px] font-mono font-bold">
+              {formatMoney(saleSummary?.total)} دج
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* ───────────────────────────────────────────────────────────── */}
       {/* 2. BODY SPLIT: Left Catalog & Right Cart/Tender               */}
       {/* ───────────────────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
         
         {/* ──────── LEFT/MAIN PANEL: Rapid Search & Quick Touch Grid ──────── */}
-        <div className="flex-1 flex flex-col border-l border-outline-variant/15 overflow-hidden bg-surface">
+        <div className={`flex-1 flex-col border-l border-outline-variant/15 overflow-hidden bg-surface ${
+          mobileTab === 'catalog' ? 'flex' : 'hidden md:flex'
+        }`}>
           
           {/* Top Permanent Barcode / Search Box */}
           <div className="p-3 border-b border-outline-variant/15 bg-surface-container-low flex items-center gap-2">
@@ -689,7 +763,7 @@ export default function QuickPOSPage() {
             {suspendedOrders.length > 0 && (
               <button
                 onClick={() => setShowHeldSalesModal(true)}
-                className="h-11 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-700 dark:text-amber-400 text-xs font-bold flex items-center gap-1.5 transition-all"
+                className="h-11 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-700 dark:text-amber-400 text-xs font-bold flex items-center gap-1.5 transition-all shrink-0"
               >
                 <PauseCircle className="w-4 h-4" />
                 <span>المعلقة ({suspendedOrders.length})</span>
@@ -698,7 +772,7 @@ export default function QuickPOSPage() {
           </div>
 
           {/* Quick Categories Bar */}
-          <div className="px-3 py-2 bg-surface-container-lowest border-b border-outline-variant/10 flex items-center gap-1.5 overflow-x-auto custom-scrollbar shrink-0">
+          <div className="px-3 py-2 bg-surface-container-lowest border-b border-outline-variant/10 flex items-center gap-1.5 overflow-x-auto no-scrollbar touch-scroll shrink-0">
             <button
               onClick={() => setSelectedCategory('all')}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
@@ -725,7 +799,7 @@ export default function QuickPOSPage() {
           </div>
 
           {/* Rapid Touch Items Grid */}
-          <div className="flex-1 p-3 overflow-y-auto custom-scrollbar">
+          <div className="flex-1 p-3 overflow-y-auto custom-scrollbar pb-24 md:pb-3">
             {filteredProducts.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center p-8 text-on-surface-variant">
                 <Barcode className="w-12 h-12 mb-2 opacity-20" />
@@ -767,8 +841,24 @@ export default function QuickPOSPage() {
         </div>
 
         {/* ──────── RIGHT PANEL: Cart, Fast Cash Tender & Checkout ──────── */}
-        <div className="w-full md:w-[380px] lg:w-[420px] bg-surface-container flex flex-col border-r border-outline-variant/20 shadow-md shrink-0">
+        <div className={`w-full md:w-[380px] lg:w-[420px] bg-surface-container flex-col border-r border-outline-variant/20 shadow-md shrink-0 ${
+          mobileTab === 'cart' ? 'flex' : 'hidden md:flex'
+        }`}>
           
+          {/* Mobile Top Bar inside Cart */}
+          <div className="md:hidden p-2 bg-amber-500/10 border-b border-amber-500/20 flex items-center justify-between shrink-0">
+            <button
+              onClick={() => setMobileTab('catalog')}
+              className="text-xs font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1.5 py-1.5 px-3 rounded-xl bg-surface shadow-2xs"
+            >
+              <ChevronRight className="w-4 h-4" />
+              <span>العودة لاختيار الأصناف</span>
+            </button>
+            <span className="text-xs font-black text-on-surface">
+              السلة ({cart.length} أصناف)
+            </span>
+          </div>
+
           {/* Cart Header & Customer */}
           <div className="p-3 border-b border-outline-variant/15 space-y-2 bg-surface-container-high/40">
             <div className="flex items-center justify-between">
@@ -988,6 +1078,36 @@ export default function QuickPOSPage() {
           </div>
         </div>
       </div>
+
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* FLOATING MOBILE CART SUMMARY BAR (Visible on mobile during catalog browsing) */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {mobileTab === 'catalog' && cart.length > 0 && (
+        <div className="md:hidden fixed bottom-3 left-3 right-3 z-40 bg-surface-container-high/95 backdrop-blur-xl border border-amber-500/40 p-3 rounded-2xl shadow-2xl flex items-center justify-between gap-3 animate-in slide-in-from-bottom-5">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shadow-md shadow-amber-500/25 relative shrink-0">
+              <ShoppingCart className="w-5 h-5" />
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-[10px] font-bold flex items-center justify-center font-mono shadow-xs">
+                {cart.length}
+              </span>
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] text-on-surface-variant font-bold">إجمالي السلة:</p>
+              <p className="text-sm font-black font-mono text-amber-600 truncate">
+                {formatMoney(saleSummary?.total)} {settingsOrDefault.baseCurrency}
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setMobileTab('cart')}
+            className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl text-xs font-black shadow-md shadow-amber-500/25 flex items-center gap-1.5 active:scale-95 transition-all shrink-0 cursor-pointer"
+          >
+            <span>عرض السلة والدفع</span>
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* ───────────────────────────────────────────────────────────── */}
       {/* 3. MODALS                                                     */}

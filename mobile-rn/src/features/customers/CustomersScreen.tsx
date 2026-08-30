@@ -34,6 +34,7 @@ import {
 import { db, ensureInit } from '@/lib/db';
 import { generateId } from '@shared/utils';
 import { useTheme } from '@/theme';
+import { useI18n } from '@/store/i18nStore';
 import { radii, spacing, typography, shadows } from '@/theme/tokens';
 import { Card, Badge, Button, Input, EmptyState } from '@/components/ui';
 
@@ -66,6 +67,7 @@ const emptyForm = (): Partial<Customer> => ({
 
 export const CustomersScreen = () => {
   const { isDark, colors } = useTheme();
+  const { t, isRTL } = useI18n();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [filtered, setFiltered] = useState<Customer[]>([]);
   const [search, setSearch] = useState('');

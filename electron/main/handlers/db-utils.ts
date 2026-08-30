@@ -107,7 +107,7 @@ export function toSnakeObj(obj: Record<string, unknown>): Record<string, unknown
  */
 const tableColumnsCache = new Map<string, Set<string>>();
 
-export function tableHasColumn(tableName: string, columnName: string): boolean {
+export function getTableColumns(tableName: string): Set<string> {
   let cols = tableColumnsCache.get(tableName);
   if (!cols) {
     const db = getSqlite();
@@ -115,5 +115,10 @@ export function tableHasColumn(tableName: string, columnName: string): boolean {
     cols = new Set(rows.map((r) => r.name));
     tableColumnsCache.set(tableName, cols);
   }
-  return cols.has(columnName);
+  return cols;
 }
+
+export function tableHasColumn(tableName: string, columnName: string): boolean {
+  return getTableColumns(tableName).has(columnName);
+}
+

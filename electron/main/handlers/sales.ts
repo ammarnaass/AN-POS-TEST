@@ -72,10 +72,31 @@ export async function getSale(id: string): Promise<{ data: Record<string, unknow
 export async function createSale(data: Record<string, unknown>): Promise<{ data: Record<string, unknown> | null }> {
   const id = (data.id as string) || randomUUID();
   const now = new Date().toISOString();
-  const items = data.items ? JSON.stringify(data.items) : '[]';
-  const saleType = (data.type as string) || 'sale';
+  let parsedItems: unknown[] = [];
+  if (Array.isArray(data.items)) {
+    parsedItems = data.items;
+  } else if (typeof data.items === 'string') {
+    try { parsedItems = JSON.parse(data.items); } catch { parsedItems = []; }
+  }
+  const itemsJson = JSON.stringify(parsedItems);
+  const saleType = String(data.type || 'sale');
   const isReturn = saleType === 'return';
   const sign = isReturn ? 1 : -1;
+
+  const docType = String(data.docType ?? data.doc_type ?? 'facture');
+  const discountType = String(data.discountType ?? data.discount_type ?? 'percent');
+  const paymentMethod = String(data.paymentMethod ?? data.payment_method ?? 'cash');
+  const customerId = String(data.customerId ?? data.customer_id ?? '');
+  const customerName = String(data.customerName ?? data.customer_name ?? '');
+  const amountPaid = Number(data.amountPaid ?? data.amount_paid ?? 0);
+  const status = String(data.status || 'paid');
+  const soldBy = String(data.soldBy ?? data.sold_by ?? '');
+  const cashSessionId = String(data.cashSessionId ?? data.cash_session_id ?? data.sessionId ?? data.session_id ?? '');
+  const tvaAmount = Number(data.tvaAmount ?? data.tva_amount ?? 0);
+  const subtotal = Number(data.subtotal ?? 0);
+  const discount = Number(data.discount ?? 0);
+  const total = Number(data.total ?? 0);
+  const note = String(data.note ?? data.notes ?? '');
 
   transaction(() => {
     // 1. إدراج الفاتورة في جدول sales
@@ -88,48 +109,51 @@ export async function createSale(data: Record<string, unknown>): Promise<{ data:
         id,
         data.number || '',
         data.date || now,
-        data.docType || 'facture',
+        docType,
         saleType,
-        items,
-        data.subtotal || 0,
-        data.discount || 0,
-        data.discountType || 'percent',
-        data.tvaAmount || 0,
-        data.total || 0,
-        data.paymentMethod || 'cash',
-        data.customerId || '',
-        data.customerName || '',
-        data.amountPaid || 0,
-        data.status || 'paid',
-        data.soldBy || '',
-        data.cashSessionId || '',
-        data.sessionId || '',
-        data.note || '',
-        now,
+        itemsJson,
+        subtotal,
+        discount,
+        discountType,
+        tvaAmount,
+        total,
+        paymentMethod,
+        customerId,
+        customerName,
+        amountPaid,
+        status,
+        soldBy,
+        cashSessionId,
+        cashSessionId,
+        note,
+        data.created_at || data.createdAt || now,
         now,
       ]
     );
 
     // 2. إدراج بنود البيع في sale_items وتحديث المخزون
-    if (Array.isArray(data.items)) {
-      for (let i = 0; i < data.items.length; i++) {
-        const item = data.items[i] as Record<string, unknown>;
-        const productId = (item.productId as string) || '';
-        const qty = Number(item.qty || 0);
-        const unitPrice = Number(item.unitPrice || 0);
-        const lineTotal = Number(item.lineTotal || 0);
+    if (Array.isArray(parsedItems)) {
+      for (let i = 0; i < parsedItems.length; i++) {
+        const item = parsedItems[i] as Record<string, unknown>;
+        const productId = String(item.productId ?? item.product_id ?? '');
+        const name = String(item.name ?? item.productName ?? item.product_name ?? 'منتج');
+        const qty = Number(item.qty ?? item.quantity ?? 0);
+        const unitPrice = Number(item.unitPrice ?? item.unit_price ?? item.price ?? 0);
+        const lineTotal = Number(item.lineTotal ?? item.line_total ?? (qty * unitPrice));
+        const batchNumber = String(item.batchNumber ?? item.batch_number ?? '');
+        const itemId = String(item.id || randomUUID());
 
         execute(
           'INSERT INTO sale_items (id, sale_id, product_id, name, qty, unit_price, line_total, batch_number) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
           [
-            (item.id as string) || randomUUID(),
+            itemId,
             id,
             productId,
-            item.name || '',
+            name,
             qty,
             unitPrice,
             lineTotal,
-            item.batchNumber || '',
+            batchNumber,
           ]
         );
 
@@ -153,7 +177,7 @@ export async function createSale(data: Record<string, unknown>): Promise<{ data:
                 qty,
                 `${isReturn ? 'مرتجع' : 'مبيعات'} فاتورة رقم ${data.number || ''}`,
                 id,
-                data.soldBy || '',
+                soldBy,
                 now,
                 now,
               ]
@@ -166,9 +190,6 @@ export async function createSale(data: Record<string, unknown>): Promise<{ data:
     }
 
     // 3. تحديث رصيد العميل في حال البيع الآجل
-    const customerId = (data.customerId as string) || '';
-    const total = Number(data.total || 0);
-    const amountPaid = Number(data.amountPaid || 0);
     const remaining = total - amountPaid;
     if (customerId && remaining !== 0) {
       try {
@@ -182,8 +203,7 @@ export async function createSale(data: Record<string, unknown>): Promise<{ data:
     }
 
     // 4. تحديث جلسة الصندوق في حال الدفع النقدي
-    const cashSessionId = (data.cashSessionId as string) || (data.sessionId as string) || '';
-    if (cashSessionId && (data.paymentMethod === 'cash' || !data.paymentMethod) && amountPaid > 0) {
+    if (cashSessionId && (paymentMethod === 'cash' || !paymentMethod) && amountPaid > 0) {
       try {
         const cashSign = isReturn ? -1 : 1;
         execute('UPDATE cash_sessions SET total_sales = total_sales + ?, actual_balance = actual_balance + ?, updated_at = ? WHERE id = ?', [
@@ -223,6 +243,14 @@ export async function removeSale(id: string): Promise<{ success: boolean }> {
   transaction(() => {
     execute('DELETE FROM sale_items WHERE sale_id = ?', [id]);
     execute('DELETE FROM sales WHERE id = ?', [id]);
+    try {
+      execute(
+        `INSERT INTO sync_tombstones (id, table_name, record_id, deleted_at) VALUES (?, 'sales', ?, datetime('now'))`,
+        [randomUUID(), id]
+      );
+    } catch {
+      /* ignore tombstone insertion error */
+    }
   });
   return { success: true };
 }

@@ -23,6 +23,12 @@ import {
   CheckCircle2,
   SlidersHorizontal,
   X,
+  Download,
+  Layers,
+  Receipt,
+  FileSpreadsheet,
+  Check,
+  RefreshCw,
 } from 'lucide-react';
 import {
   getAllTemplates,
@@ -31,6 +37,10 @@ import {
   setTemplateAsDefault,
   duplicateTemplate,
   validateTemplate,
+  importAllPresets,
+  createFromPreset,
+  TEMPLATE_PRESETS,
+  type PresetDef,
 } from '@/services/print/templateService';
 import {
   useCanEditTemplates,
@@ -62,7 +72,9 @@ export default function PrintTemplatesPage() {
   const canDelete = useCanDeleteTemplates();
   const canSetDefault = useCanSetDefaultTemplate();
 
-  // حالات الواجهة
+  // حالات الواجهة والتبويبات
+  const [activeTopTab, setActiveTopTab] = useState<'my-templates' | 'presets' | 'assignments'>('my-templates');
+  const [presetCategoryFilter, setPresetCategoryFilter] = useState<'all' | 'receipt' | 'invoice' | 'document'>('all');
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   const [viewingAssignments, setViewingAssignments] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -86,6 +98,38 @@ export default function PrintTemplatesPage() {
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ['printTemplates'],
     queryFn: getAllTemplates,
+  });
+
+  // استيراد كافة القوالب الجاهزة دفعة واحدة
+  const importAllMutation = useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error('يجب تسجيل الدخول');
+      return importAllPresets(user.id);
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ['printTemplates'] });
+      addNotification({
+        title: 'تم استيراد القوالب',
+        message: count > 0 ? `تمت إضافة ${count} قوالب جاهزة واحترافية بنجاح` : 'جميع القوالب الجاهزة موجودة بالفعل في حسابك',
+        type: 'success',
+      });
+      setActiveTopTab('my-templates');
+    },
+  });
+
+  // إنشاء قالب من نموذج جاهز
+  const createFromPresetMutation = useMutation({
+    mutationFn: async (presetId: string) => {
+      if (!user) throw new Error('يجب تسجيل الدخول');
+      return createFromPreset(presetId, user.id);
+    },
+    onSuccess: (tpl) => {
+      if (tpl) {
+        queryClient.invalidateQueries({ queryKey: ['printTemplates'] });
+        addNotification({ title: 'تم الإنشاء', message: `تم تجهيز قالب "${tpl.name}" بنجاح`, type: 'success' });
+        setEditingTemplateId(tpl.id);
+      }
+    },
   });
 
   // حذف قالب
@@ -336,7 +380,6 @@ export default function PrintTemplatesPage() {
       return `<!doctype html><html dir="rtl"><body style="font-family:sans-serif;padding:2rem;text-align:center;color:#ef4444;"><p>تعذر تجهيز المعاينة: ${String(err)}</p></body></html>`;
     }
   }, [previewTemplate, previewLang]);
-
   // ====== شاشة محرر القوالب المرئي الكامل ======
   if (editingTemplateId && user) {
     return (
@@ -377,8 +420,8 @@ export default function PrintTemplatesPage() {
               <Printer className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold font-cairo text-on-surface tracking-tight">إدارة قوالب الطباعة</h1>
-              <p className="text-xs text-on-surface-variant">إنشاء وتخصيص قوالب الطباعة الحرارية والمستندات التجارية · POS-PRINT-001</p>
+              <h1 className="text-2xl font-bold font-cairo text-on-surface tracking-tight">إدارة وتخصيص قوالب الطباعة</h1>
+              <p className="text-xs text-on-surface-variant">معرض القوالب الجاهزة، التخصيص المرئي، والربط بالوثائق التجارية · POS-PRINT-001</p>
             </div>
           </div>
         </div>
@@ -392,391 +435,612 @@ export default function PrintTemplatesPage() {
             <span>إعدادات الفواتير</span>
           </button>
 
-          <button
-            onClick={() => setViewingAssignments((v) => !v)}
-            className={`px-4 py-2.5 rounded-xl transition-all flex items-center gap-2 text-sm font-semibold border shadow-sm ${
-              viewingAssignments
-                ? 'bg-primary text-on-primary border-primary'
-                : 'bg-surface-container-highest/80 hover:bg-surface-container-highest text-on-surface border-outline-variant/20'
-            }`}
-          >
-            <SlidersHorizontal className="w-4 h-4" />
-            <span>{viewingAssignments ? 'إخفاء التعيينات' : 'تعيين القوالب للوثائق'}</span>
-          </button>
-
           {canEdit && (
             <button
               onClick={() => setIsCreateModalOpen(true)}
               className="px-5 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-on-primary font-bold text-sm shadow-md flex items-center gap-2 transition-all active:scale-95"
             >
               <Plus className="w-5 h-5" />
-              <span>إنشاء قالب جديد</span>
+              <span>إنشاء قالب فارغ</span>
             </button>
           )}
         </div>
       </header>
 
-      {/* بطاقات الإحصائيات الذكية */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="p-4 rounded-2xl bg-surface-container-low border border-outline-variant/15 flex items-center gap-3.5 shadow-sm">
-          <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center font-bold">
-            <FileText className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="text-2xl font-black font-cairo text-on-surface">{stats.total}</div>
-            <div className="text-xs text-on-surface-variant font-medium">إجمالي القوالب</div>
-          </div>
+      {/* شريط التبويبات الرئيسي المتقدم */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-container-low p-2 rounded-2xl border border-outline-variant/20 shadow-xs">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveTopTab('my-templates')}
+            className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
+              activeTopTab === 'my-templates'
+                ? 'bg-primary text-on-primary shadow-sm'
+                : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+            <span>قوالب المتجر النشطة</span>
+            <span className={`px-2 py-0.5 rounded-full text-xs font-black ${
+              activeTopTab === 'my-templates' ? 'bg-on-primary/20 text-on-primary' : 'bg-surface-container-highest text-on-surface-variant'
+            }`}>
+              {templates.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTopTab('presets')}
+            className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
+              activeTopTab === 'presets'
+                ? 'bg-primary text-on-primary shadow-sm'
+                : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
+            }`}
+          >
+            <Sparkles className="w-4 h-4 text-amber-500" />
+            <span>معرض النماذج الجاهزة</span>
+            <span className={`px-2 py-0.5 rounded-full text-xs font-black ${
+              activeTopTab === 'presets' ? 'bg-on-primary/20 text-on-primary' : 'bg-surface-container-highest text-on-surface-variant'
+            }`}>
+              {TEMPLATE_PRESETS.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTopTab('assignments')}
+            className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
+              activeTopTab === 'assignments'
+                ? 'bg-primary text-on-primary shadow-sm'
+                : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
+            }`}
+          >
+            <SlidersHorizontal className="w-4 h-4" />
+            <span>ربط القوالب بالوثائق</span>
+          </button>
         </div>
 
-        <div className="p-4 rounded-2xl bg-surface-container-low border border-outline-variant/15 flex items-center gap-3.5 shadow-sm">
-          <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold">
-            <Printer className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="text-2xl font-black font-cairo text-on-surface">{stats.thermal}</div>
-            <div className="text-xs text-on-surface-variant font-medium">إيصالات حرارية (80/58mm)</div>
-          </div>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-surface-container-low border border-outline-variant/15 flex items-center gap-3.5 shadow-sm">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold">
-            <FileCheck className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="text-2xl font-black font-cairo text-on-surface">{stats.standard}</div>
-            <div className="text-xs text-on-surface-variant font-medium">فواتير قياسية (A4/A5)</div>
-          </div>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-surface-container-low border border-outline-variant/15 flex items-center gap-3.5 shadow-sm">
-          <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-600 flex items-center justify-center font-bold">
-            <Palette className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="text-2xl font-black font-cairo text-on-surface">{stats.custom}</div>
-            <div className="text-xs text-on-surface-variant font-medium">قوالب مخصصة للمتجر</div>
-          </div>
-        </div>
+        {activeTopTab === 'presets' && canEdit && (
+          <button
+            type="button"
+            onClick={() => importAllMutation.mutate()}
+            disabled={importAllMutation.isPending}
+            className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm flex items-center gap-2 transition-all active:scale-95"
+          >
+            <Download className="w-4 h-4" />
+            <span>{importAllMutation.isPending ? 'جاري الاستيراد...' : 'استيراد كافة النماذج (10 قوالب)'}</span>
+          </button>
+        )}
       </div>
 
-      {/* لوحة إدارة التعيينات للوثائق */}
-      {viewingAssignments && (
-        <div className="p-5 rounded-2xl bg-surface-container-low border border-primary/20 shadow-md animate-in fade-in duration-200">
+      {/* تبويب: ربط القوالب بالوثائق */}
+      {activeTopTab === 'assignments' && (
+        <div className="p-6 rounded-3xl bg-surface-container-low border border-outline-variant/20 shadow-md animate-in fade-in duration-200">
           <TemplateAssignmentManager />
         </div>
       )}
 
-      {/* شريط البحث والفلترة */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-surface-container-low p-3.5 rounded-2xl border border-outline-variant/15">
-        <div className="relative w-full sm:w-72">
-          <Search className="w-4 h-4 text-on-surface-variant absolute right-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="بحث في القوالب..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-3 pr-10 py-2 rounded-xl bg-surface-container border border-outline-variant/20 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-          />
-        </div>
+      {/* تبويب: معرض النماذج الجاهزة (Preset Studio) */}
+      {activeTopTab === 'presets' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* بانر النماذج الجاهزة وفلاتر التصنيف */}
+          <div className="bg-gradient-to-l from-primary/10 via-surface-container to-surface-container-low p-6 rounded-3xl border border-primary/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-bold font-cairo text-on-surface flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-amber-500" />
+                <span>نماذج معتمدة ومجهزة مسبقاً وفق المعايير التجارية الجزائرية</span>
+              </h2>
+              <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
+                قوالب متكاملة للإيصالات الحرارية 80mm/58mm، الفواتير A4/A5، سندات التسليم BL، عروض الأسعار Devis، وطلبيات الشراء.
+              </p>
+            </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto">
-          <span className="text-xs font-semibold text-on-surface-variant whitespace-nowrap">المقاس:</span>
-          {['all', '80mm', '58mm', 'A4', 'A5'].map((sz) => (
-            <button
-              key={sz}
-              onClick={() => setSelectedPaperFilter(sz)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                selectedPaperFilter === sz
-                  ? 'bg-primary text-on-primary shadow-sm'
-                  : 'bg-surface-container text-on-surface hover:bg-surface-container-high'
-              }`}
-            >
-              {sz === 'all' ? 'جميع المقاسات' : PAPER_LABELS_AR[sz as PaperSize] || sz}
-            </button>
-          ))}
+            {/* أزرار الفئات */}
+            <div className="flex flex-wrap items-center gap-2">
+              {[
+                { id: 'all', label: 'جميع النماذج' },
+                { id: 'receipt', label: 'إيصالات نقاط البيع (80/58mm)' },
+                { id: 'invoice', label: 'فواتير المبيعات (A4/A5)' },
+                { id: 'document', label: 'سندات وعروض أسعار' },
+              ].map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setPresetCategoryFilter(cat.id as any)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                    presetCategoryFilter === cat.id
+                      ? 'bg-primary text-on-primary shadow-xs'
+                      : 'bg-surface-container-highest/80 text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
-          <div className="h-5 w-px bg-outline-variant/30 mx-1 hidden sm:block" />
+          {/* شبكة النماذج الجاهزة */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {TEMPLATE_PRESETS.filter(
+              (p) => presetCategoryFilter === 'all' || p.category === presetCategoryFilter,
+            ).map((preset) => {
+              const buildData = preset.build();
+              const isAlreadyImported = templates.some(
+                (t) => t.id === preset.id || t.name === (preset.nameAr || preset.name),
+              );
 
-          {/* تبديل وضع العرض */}
-          <div className="flex items-center bg-surface-container rounded-xl p-1 border border-outline-variant/15">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-1.5 rounded-lg transition-all ${
-                viewMode === 'grid' ? 'bg-primary text-on-primary shadow-xs' : 'text-on-surface-variant hover:text-on-surface'
-              }`}
-              title="عرض البطاقات"
-            >
-              <LayoutGrid className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('table')}
-              className={`p-1.5 rounded-lg transition-all ${
-                viewMode === 'table' ? 'bg-primary text-on-primary shadow-xs' : 'text-on-surface-variant hover:text-on-surface'
-              }`}
-              title="عرض الجدول"
-            >
-              <List className="w-4 h-4" />
-            </button>
+              return (
+                <div
+                  key={preset.id}
+                  className="bg-surface-container-low hover:bg-surface-container rounded-2xl border border-outline-variant/20 hover:border-primary/40 p-5 flex flex-col justify-between transition-all duration-200 shadow-sm hover:shadow-md group relative"
+                >
+                  <div>
+                    {/* رأس بطاقة النموذج */}
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-primary/10 text-primary border border-primary/20">
+                          {PAPER_LABELS_AR[preset.paperSize] || preset.paperSize}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-lg text-[11px] font-bold bg-surface-container-highest text-on-surface-variant">
+                          {preset.category === 'receipt'
+                            ? 'إيصال حراري'
+                            : preset.category === 'invoice'
+                            ? 'فاتورة رسمية'
+                            : 'سند تجاري'}
+                        </span>
+                        {isAlreadyImported && (
+                          <span className="px-2 py-0.5 rounded-lg text-[11px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 flex items-center gap-1">
+                            <Check className="w-3 h-3" />
+                            <span>مضاف</span>
+                          </span>
+                        )}
+                      </div>
+
+                      {/* ألوان الثيم للنموذج */}
+                      <div className="flex items-center -space-x-1.5 rtl:space-x-reverse">
+                        <span
+                          className="w-3.5 h-3.5 rounded-full border border-white dark:border-slate-800 shadow-xs"
+                          style={{ backgroundColor: buildData.styles?.primaryColor || '#0891b2' }}
+                        />
+                        <span
+                          className="w-3.5 h-3.5 rounded-full border border-white dark:border-slate-800 shadow-xs"
+                          style={{ backgroundColor: buildData.styles?.headerColor || '#0e7490' }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* الاسم والوصف */}
+                    <h3 className="text-base font-bold font-cairo text-on-surface mb-1 group-hover:text-primary transition-colors">
+                      {preset.nameAr || preset.name}
+                    </h3>
+                    <p className="text-xs text-on-surface-variant line-clamp-2 mb-4 leading-relaxed">
+                      {preset.description}
+                    </p>
+
+                    {/* المستندات المدعومة */}
+                    <div className="mb-4">
+                      <div className="text-[11px] font-bold text-on-surface-variant mb-1.5">الوثائق المدعومة:</div>
+                      <div className="flex flex-wrap gap-1">
+                        {buildData.supportedDocuments?.map((dt) => (
+                          <span key={dt} className="px-2 py-0.5 rounded-md bg-surface-container-high text-[11px] font-semibold text-on-surface">
+                            {DOC_TYPE_LABELS_AR[dt] || dt}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* إجراءات النموذج */}
+                  <div className="pt-3.5 border-t border-outline-variant/15 flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const mockTpl: PrintTemplate = {
+                          ...buildData,
+                          id: preset.id,
+                          name: preset.nameAr || preset.name,
+                          createdAt: new Date().toISOString(),
+                          updatedAt: new Date().toISOString(),
+                        };
+                        setPreviewTemplate(mockTpl);
+                        setPreviewLang('ar');
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-xs font-bold transition-all flex items-center gap-1.5"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-primary" />
+                      <span>معاينة</span>
+                    </button>
+
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => createFromPresetMutation.mutate(preset.id)}
+                        disabled={createFromPresetMutation.isPending}
+                        className="px-3.5 py-1.5 rounded-xl bg-primary hover:bg-primary/90 text-on-primary text-xs font-bold shadow-xs transition-all flex items-center gap-1.5 active:scale-95"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>إنشاء من هذا النموذج</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
-      </div>
+      )}
 
-      {/* عرض القوالب */}
-      {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-3">
-          <div className="w-10 h-10 border-3 border-primary/20 border-t-primary rounded-full animate-spin" />
-          <p className="text-sm text-on-surface-variant">جاري تحميل قوالب الطباعة...</p>
-        </div>
-      ) : filteredTemplates.length === 0 ? (
-        <div className="text-center py-20 bg-surface-container-low rounded-2xl border border-dashed border-outline-variant/30">
-          <Printer className="w-14 h-14 mx-auto mb-3 text-on-surface-variant opacity-30" />
-          <h3 className="text-base font-bold text-on-surface">لم يتم العثور على قوالب</h3>
-          <p className="text-xs text-on-surface-variant mt-1 max-w-sm mx-auto">
-            {searchQuery ? 'لا توجد نتائج مطابقة لبحثك' : 'لا توجد قوالب طباعة مسجلة حالياً'}
-          </p>
-        </div>
-      ) : viewMode === 'grid' ? (
-        /* شبكة البطاقات (Grid View) */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredTemplates.map((tpl) => (
-            <div
-              key={tpl.id}
-              className="bg-surface-container-low hover:bg-surface-container rounded-2xl border border-outline-variant/20 hover:border-primary/30 p-5 flex flex-col justify-between transition-all duration-200 shadow-sm hover:shadow-md group relative"
-            >
-              <div>
-                {/* رأس البطاقة والشارات */}
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-primary/10 text-primary border border-primary/20">
-                      {PAPER_LABELS_AR[tpl.paperSize]}
-                    </span>
-                    {tpl.isDefault && (
-                      <span className="px-2 py-1 rounded-lg text-xs font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20 flex items-center gap-1">
-                        <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
-                        <span>افتراضي</span>
-                      </span>
-                    )}
-                    {tpl.isSystem ? (
-                      <span className="px-2 py-1 rounded-lg text-[11px] font-semibold bg-surface-container-highest text-on-surface-variant">
-                        نظامي
-                      </span>
-                    ) : (
-                      <span className="px-2 py-1 rounded-lg text-[11px] font-semibold bg-purple-500/10 text-purple-600 border border-purple-500/20">
-                        مخصص
-                      </span>
-                    )}
-                  </div>
-
-                  {/* نقاط ألوان الثيم */}
-                  <div className="flex items-center -space-x-1.5 rtl:space-x-reverse" title="ألوان القالب">
-                    <span
-                      className="w-3.5 h-3.5 rounded-full border border-white dark:border-slate-800 shadow-xs"
-                      style={{ backgroundColor: tpl.styles.primaryColor }}
-                    />
-                    <span
-                      className="w-3.5 h-3.5 rounded-full border border-white dark:border-slate-800 shadow-xs"
-                      style={{ backgroundColor: tpl.styles.headerColor }}
-                    />
-                  </div>
-                </div>
-
-                {/* الاسم والوصف */}
-                <h3 className="text-base font-bold font-cairo text-on-surface mb-1 group-hover:text-primary transition-colors">
-                  {tpl.name}
-                </h3>
-                <p className="text-xs text-on-surface-variant line-clamp-2 mb-4 leading-relaxed">
-                  {tpl.description || 'قالب طباعة مستندات تجارية'}
-                </p>
-
-                {/* المستندات المدعومة */}
-                <div className="mb-4">
-                  <div className="text-[11px] font-bold text-on-surface-variant mb-1.5">الوثائق المدعومة:</div>
-                  <div className="flex flex-wrap gap-1">
-                    {tpl.supportedDocuments.length === 0 ? (
-                      <span className="text-xs text-on-surface-variant/70 italic">عام لجميع الوثائق</span>
-                    ) : (
-                      tpl.supportedDocuments.slice(0, 3).map((dt) => (
-                        <span key={dt} className="px-2 py-0.5 rounded-md bg-surface-container-high text-[11px] font-semibold text-on-surface">
-                          {DOC_TYPE_LABELS_AR[dt] || dt}
-                        </span>
-                      ))
-                    )}
-                    {tpl.supportedDocuments.length > 3 && (
-                      <span className="px-1.5 py-0.5 rounded-md bg-surface-container-high text-[11px] font-semibold text-on-surface-variant">
-                        +{tpl.supportedDocuments.length - 3}
-                      </span>
-                    )}
-                  </div>
-                </div>
+      {/* تبويب: قوالب المتجر النشطة */}
+      {activeTopTab === 'my-templates' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* بطاقات الإحصائيات الذكية */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="p-4 rounded-2xl bg-surface-container-low border border-outline-variant/15 flex items-center gap-3.5 shadow-sm">
+              <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center font-bold">
+                <FileText className="w-5 h-5" />
               </div>
-
-              {/* شريط الإجراءات السفلي */}
-              <div className="pt-3.5 border-t border-outline-variant/15 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => {
-                      setPreviewTemplate(tpl);
-                      setPreviewLang('ar');
-                    }}
-                    className="px-3 py-1.5 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-xs font-bold transition-all flex items-center gap-1.5"
-                    title="معاينة حية"
-                  >
-                    <Eye className="w-3.5 h-3.5 text-primary" />
-                    <span>معاينة</span>
-                  </button>
-
-                  {canEdit && (
-                    <button
-                      onClick={() => setEditingTemplateId(tpl.id)}
-                      className="px-3 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold transition-all flex items-center gap-1.5"
-                      title="فتح المحرر المرئي"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                      <span>تخصيص</span>
-                    </button>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-1">
-                  {canSetDefault && !tpl.isDefault && (
-                    <button
-                      onClick={() => setDefaultMutation.mutate(tpl.id)}
-                      className="p-2 rounded-xl text-on-surface-variant hover:text-amber-500 hover:bg-amber-500/10 transition-all"
-                      title="تعيين كافتراضي"
-                    >
-                      <Star className="w-4 h-4" />
-                    </button>
-                  )}
-
-                  {canEdit && (
-                    <button
-                      onClick={() => {
-                        setDuplicateModal({ id: tpl.id, name: tpl.name });
-                        setDuplicateName(`${tpl.name} (نسخة)`);
-                      }}
-                      className="p-2 rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-all"
-                      title="نسخ القالب"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </button>
-                  )}
-
-                  {canDelete && !tpl.isSystem && (
-                    <button
-                      onClick={() => {
-                        if (confirm(`هل أنت متأكد من حذف قالب "${tpl.name}"؟`)) {
-                          deleteMutation.mutate(tpl.id);
-                        }
-                      }}
-                      className="p-2 rounded-xl text-on-surface-variant hover:text-red-600 hover:bg-red-500/10 transition-all"
-                      title="حذف القالب"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
+              <div>
+                <div className="text-2xl font-black font-cairo text-on-surface">{stats.total}</div>
+                <div className="text-xs text-on-surface-variant font-medium">إجمالي القوالب</div>
               </div>
             </div>
-          ))}
-        </div>
-      ) : (
-        /* جدول القوالب (Table View) */
-        <div className="overflow-hidden rounded-2xl border border-outline-variant/20 bg-surface-container-low shadow-sm">
-          <table className="w-full">
-            <thead className="bg-surface-container-high/60 text-on-surface-variant text-xs font-bold text-right border-b border-outline-variant/15">
-              <tr>
-                <th className="px-5 py-3.5">القالب</th>
-                <th className="px-4 py-3.5">المقاس</th>
-                <th className="px-4 py-3.5">الوثائق المدعومة</th>
-                <th className="px-4 py-3.5">الحالة</th>
-                <th className="px-5 py-3.5 text-left">الإجراءات</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-outline-variant/10 text-sm">
+
+            <div className="p-4 rounded-2xl bg-surface-container-low border border-outline-variant/15 flex items-center gap-3.5 shadow-sm">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold">
+                <Printer className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-2xl font-black font-cairo text-on-surface">{stats.thermal}</div>
+                <div className="text-xs text-on-surface-variant font-medium">إيصالات حرارية (80/58mm)</div>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-surface-container-low border border-outline-variant/15 flex items-center gap-3.5 shadow-sm">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold">
+                <FileCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-2xl font-black font-cairo text-on-surface">{stats.standard}</div>
+                <div className="text-xs text-on-surface-variant font-medium">فواتير قياسية (A4/A5)</div>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-surface-container-low border border-outline-variant/15 flex items-center gap-3.5 shadow-sm">
+              <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-600 flex items-center justify-center font-bold">
+                <Palette className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-2xl font-black font-cairo text-on-surface">{stats.custom}</div>
+                <div className="text-xs text-on-surface-variant font-medium">قوالب مخصصة للمتجر</div>
+              </div>
+            </div>
+          </div>
+
+          {/* شريط البحث والفلترة */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-surface-container-low p-3.5 rounded-2xl border border-outline-variant/15">
+            <div className="relative w-full sm:w-72">
+              <Search className="w-4 h-4 text-on-surface-variant absolute right-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="بحث في القوالب..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-3 pr-10 py-2 rounded-xl bg-surface-container border border-outline-variant/20 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto">
+              <span className="text-xs font-semibold text-on-surface-variant whitespace-nowrap">المقاس:</span>
+              {['all', '80mm', '58mm', 'A4', 'A5'].map((sz) => (
+                <button
+                  key={sz}
+                  onClick={() => setSelectedPaperFilter(sz)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                    selectedPaperFilter === sz
+                      ? 'bg-primary text-on-primary shadow-sm'
+                      : 'bg-surface-container text-on-surface hover:bg-surface-container-high'
+                  }`}
+                >
+                  {sz === 'all' ? 'جميع المقاسات' : PAPER_LABELS_AR[sz as PaperSize] || sz}
+                </button>
+              ))}
+
+              <div className="h-5 w-px bg-outline-variant/30 mx-1 hidden sm:block" />
+
+              {/* تبديل وضع العرض */}
+              <div className="flex items-center bg-surface-container rounded-xl p-1 border border-outline-variant/15">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-1.5 rounded-lg transition-all ${
+                    viewMode === 'grid' ? 'bg-primary text-on-primary shadow-xs' : 'text-on-surface-variant hover:text-on-surface'
+                  }`}
+                  title="عرض البطاقات"
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode('table')}
+                  className={`p-1.5 rounded-lg transition-all ${
+                    viewMode === 'table' ? 'bg-primary text-on-primary shadow-xs' : 'text-on-surface-variant hover:text-on-surface'
+                  }`}
+                  title="عرض الجدول"
+                >
+                  <List className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* عرض القوالب */}
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-3">
+              <div className="w-10 h-10 border-3 border-primary/20 border-t-primary rounded-full animate-spin" />
+              <p className="text-sm text-on-surface-variant">جاري تحميل قوالب الطباعة...</p>
+            </div>
+          ) : filteredTemplates.length === 0 ? (
+            <div className="text-center py-20 bg-surface-container-low rounded-3xl border border-dashed border-outline-variant/30 space-y-4">
+              <Printer className="w-14 h-14 mx-auto text-on-surface-variant opacity-30" />
+              <div>
+                <h3 className="text-base font-bold text-on-surface">لم يتم العثور على قوالب</h3>
+                <p className="text-xs text-on-surface-variant mt-1 max-w-sm mx-auto">
+                  {searchQuery ? 'لا توجد نتائج مطابقة لبحثك' : 'لا توجد قوالب طباعة مسجلة حالياً، يمكنك تصفح النماذج الجاهزة واستيرادها بنقرة واحدة.'}
+                </p>
+              </div>
+              {!searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTopTab('presets')}
+                  className="px-4 py-2 rounded-xl bg-primary text-on-primary text-xs font-bold shadow-md hover:bg-primary/90 transition-all inline-flex items-center gap-2"
+                >
+                  <Sparkles className="w-4 h-4 text-amber-300" />
+                  <span>تصفح معرض النماذج الجاهزة</span>
+                </button>
+              )}
+            </div>
+          ) : viewMode === 'grid' ? (
+            /* شبكة البطاقات (Grid View) */
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {filteredTemplates.map((tpl) => (
-                <tr key={tpl.id} className="hover:bg-surface-container/50 transition-colors">
-                  <td className="px-5 py-3.5">
-                    <div className="font-bold text-on-surface">{tpl.name}</div>
-                    <div className="text-xs text-on-surface-variant line-clamp-1">{tpl.description}</div>
-                  </td>
-                  <td className="px-4 py-3.5">
-                    <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-surface-container-high text-on-surface">
-                      {PAPER_LABELS_AR[tpl.paperSize]}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3.5">
-                    <div className="flex flex-wrap gap-1">
-                      {tpl.supportedDocuments.slice(0, 2).map((dt) => (
-                        <span key={dt} className="px-2 py-0.5 rounded bg-primary/10 text-primary text-xs">
-                          {DOC_TYPE_LABELS_AR[dt] || dt}
+                <div
+                  key={tpl.id}
+                  className="bg-surface-container-low hover:bg-surface-container rounded-2xl border border-outline-variant/20 hover:border-primary/30 p-5 flex flex-col justify-between transition-all duration-200 shadow-sm hover:shadow-md group relative"
+                >
+                  <div>
+                    {/* رأس البطاقة والشارات */}
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-primary/10 text-primary border border-primary/20">
+                          {PAPER_LABELS_AR[tpl.paperSize]}
                         </span>
-                      ))}
-                      {tpl.supportedDocuments.length > 2 && (
-                        <span className="text-xs text-on-surface-variant">+{tpl.supportedDocuments.length - 2}</span>
-                      )}
+                        {tpl.isDefault && (
+                          <span className="px-2 py-1 rounded-lg text-xs font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20 flex items-center gap-1">
+                            <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                            <span>افتراضي</span>
+                          </span>
+                        )}
+                        {tpl.isSystem ? (
+                          <span className="px-2 py-1 rounded-lg text-[11px] font-semibold bg-surface-container-highest text-on-surface-variant">
+                            نظامي
+                          </span>
+                        ) : (
+                          <span className="px-2 py-1 rounded-lg text-[11px] font-semibold bg-purple-500/10 text-purple-600 border border-purple-500/20">
+                            مخصص
+                          </span>
+                        )}
+                      </div>
+
+                      {/* نقاط ألوان الثيم */}
+                      <div className="flex items-center -space-x-1.5 rtl:space-x-reverse" title="ألوان القالب">
+                        <span
+                          className="w-3.5 h-3.5 rounded-full border border-white dark:border-slate-800 shadow-xs"
+                          style={{ backgroundColor: tpl.styles?.primaryColor || '#0891b2' }}
+                        />
+                        <span
+                          className="w-3.5 h-3.5 rounded-full border border-white dark:border-slate-800 shadow-xs"
+                          style={{ backgroundColor: tpl.styles?.headerColor || '#0e7490' }}
+                        />
+                      </div>
                     </div>
-                  </td>
-                  <td className="px-4 py-3.5">
+
+                    {/* الاسم والوصف */}
+                    <h3 className="text-base font-bold font-cairo text-on-surface mb-1 group-hover:text-primary transition-colors">
+                      {tpl.name}
+                    </h3>
+                    <p className="text-xs text-on-surface-variant line-clamp-2 mb-4 leading-relaxed">
+                      {tpl.description || 'قالب طباعة مستندات تجارية'}
+                    </p>
+
+                    {/* المستندات المدعومة */}
+                    <div className="mb-4">
+                      <div className="text-[11px] font-bold text-on-surface-variant mb-1.5">الوثائق المدعومة:</div>
+                      <div className="flex flex-wrap gap-1">
+                        {!tpl.supportedDocuments || tpl.supportedDocuments.length === 0 ? (
+                          <span className="text-xs text-on-surface-variant/70 italic">عام لجميع الوثائق</span>
+                        ) : (
+                          tpl.supportedDocuments.slice(0, 3).map((dt) => (
+                            <span key={dt} className="px-2 py-0.5 rounded-md bg-surface-container-high text-[11px] font-semibold text-on-surface">
+                              {DOC_TYPE_LABELS_AR[dt] || dt}
+                            </span>
+                          ))
+                        )}
+                        {tpl.supportedDocuments && tpl.supportedDocuments.length > 3 && (
+                          <span className="px-1.5 py-0.5 rounded-md bg-surface-container-high text-[11px] font-semibold text-on-surface-variant">
+                            +{tpl.supportedDocuments.length - 3}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* شريط الإجراءات السفلي */}
+                  <div className="pt-3.5 border-t border-outline-variant/15 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5">
-                      {tpl.isDefault ? (
-                        <span className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 font-bold text-xs flex items-center gap-1">
-                          <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> افتراضي
-                        </span>
-                      ) : (
-                        <span className="text-xs text-on-surface-variant">عادي</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-5 py-3.5 text-left">
-                    <div className="flex items-center justify-end gap-1">
                       <button
                         onClick={() => {
                           setPreviewTemplate(tpl);
                           setPreviewLang('ar');
                         }}
-                        className="p-2 rounded-lg hover:bg-surface-container-highest text-on-surface-variant hover:text-primary transition-all"
-                        title="معاينة"
+                        className="px-3 py-1.5 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-xs font-bold transition-all flex items-center gap-1.5"
+                        title="معاينة حية"
                       >
-                        <Eye className="w-4 h-4" />
+                        <Eye className="w-3.5 h-3.5 text-primary" />
+                        <span>معاينة</span>
                       </button>
+
                       {canEdit && (
                         <button
                           onClick={() => setEditingTemplateId(tpl.id)}
-                          className="p-2 rounded-lg hover:bg-primary/10 text-primary transition-all"
-                          title="تعديل"
+                          className="px-3 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold transition-all flex items-center gap-1.5"
+                          title="فتح المحرر المرئي"
                         >
-                          <Edit2 className="w-4 h-4" />
+                          <Edit2 className="w-3.5 h-3.5" />
+                          <span>تخصيص</span>
                         </button>
                       )}
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      {canSetDefault && !tpl.isDefault && (
+                        <button
+                          onClick={() => setDefaultMutation.mutate(tpl.id)}
+                          className="p-2 rounded-xl text-on-surface-variant hover:text-amber-500 hover:bg-amber-500/10 transition-all"
+                          title="تعيين كافتراضي"
+                        >
+                          <Star className="w-4 h-4" />
+                        </button>
+                      )}
+
                       {canEdit && (
                         <button
                           onClick={() => {
                             setDuplicateModal({ id: tpl.id, name: tpl.name });
                             setDuplicateName(`${tpl.name} (نسخة)`);
                           }}
-                          className="p-2 rounded-lg hover:bg-surface-container-highest text-on-surface-variant transition-all"
-                          title="نسخ"
+                          className="p-2 rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-all"
+                          title="نسخ القالب"
                         >
                           <Copy className="w-4 h-4" />
                         </button>
                       )}
+
                       {canDelete && !tpl.isSystem && (
                         <button
                           onClick={() => {
-                            if (confirm(`حذف القالب "${tpl.name}"؟`)) deleteMutation.mutate(tpl.id);
+                            if (confirm(`هل أنت متأكد من حذف قالب "${tpl.name}"؟`)) {
+                              deleteMutation.mutate(tpl.id);
+                            }
                           }}
-                          className="p-2 rounded-lg hover:bg-red-500/10 text-red-600 transition-all"
-                          title="حذف"
+                          className="p-2 rounded-xl text-on-surface-variant hover:text-red-600 hover:bg-red-500/10 transition-all"
+                          title="حذف القالب"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       )}
                     </div>
-                  </td>
-                </tr>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+          ) : (
+            /* جدول القوالب (Table View) */
+            <div className="overflow-hidden rounded-2xl border border-outline-variant/20 bg-surface-container-low shadow-sm">
+              <table className="w-full">
+                <thead className="bg-surface-container-high/60 text-on-surface-variant text-xs font-bold text-right border-b border-outline-variant/15">
+                  <tr>
+                    <th className="px-5 py-3.5">القالب</th>
+                    <th className="px-4 py-3.5">المقاس</th>
+                    <th className="px-4 py-3.5">الوثائق المدعومة</th>
+                    <th className="px-4 py-3.5">الحالة</th>
+                    <th className="px-5 py-3.5 text-left">الإجراءات</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-outline-variant/10 text-sm">
+                  {filteredTemplates.map((tpl) => (
+                    <tr key={tpl.id} className="hover:bg-surface-container/50 transition-colors">
+                      <td className="px-5 py-3.5">
+                        <div className="font-bold text-on-surface">{tpl.name}</div>
+                        <div className="text-xs text-on-surface-variant line-clamp-1">{tpl.description}</div>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-primary/10 text-primary border border-primary/20">
+                          {PAPER_LABELS_AR[tpl.paperSize]}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <div className="flex flex-wrap gap-1">
+                          {!tpl.supportedDocuments || tpl.supportedDocuments.length === 0 ? (
+                            <span className="text-xs text-on-surface-variant/70 italic">عام لجميع الوثائق</span>
+                          ) : (
+                            tpl.supportedDocuments.map((dt) => (
+                              <span key={dt} className="px-2 py-0.5 rounded-md bg-surface-container-high text-[11px] font-semibold text-on-surface">
+                                {DOC_TYPE_LABELS_AR[dt] || dt}
+                              </span>
+                            ))
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        {tpl.isDefault ? (
+                          <span className="px-2 py-1 rounded-lg text-xs font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20 inline-flex items-center gap-1">
+                            <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                            <span>افتراضي</span>
+                          </span>
+                        ) : (
+                          <span className="text-xs text-on-surface-variant">عادي</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3.5 text-left">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => {
+                              setPreviewTemplate(tpl);
+                              setPreviewLang('ar');
+                            }}
+                            className="p-2 rounded-lg hover:bg-surface-container-highest text-primary transition-all"
+                            title="معاينة"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          {canEdit && (
+                            <button
+                              onClick={() => setEditingTemplateId(tpl.id)}
+                              className="p-2 rounded-lg hover:bg-surface-container-highest text-on-surface transition-all"
+                              title="تعديل"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                          )}
+                          {canEdit && (
+                            <button
+                              onClick={() => {
+                                setDuplicateModal({ id: tpl.id, name: tpl.name });
+                                setDuplicateName(`${tpl.name} (نسخة)`);
+                              }}
+                              className="p-2 rounded-lg hover:bg-surface-container-highest text-on-surface-variant transition-all"
+                              title="نسخ"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </button>
+                          )}
+                          {canDelete && !tpl.isSystem && (
+                            <button
+                              onClick={() => {
+                                if (confirm(`حذف القالب "${tpl.name}"؟`)) deleteMutation.mutate(tpl.id);
+                              }}
+                              className="p-2 rounded-lg hover:bg-red-500/10 text-red-600 transition-all"
+                              title="حذف"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

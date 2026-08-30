@@ -42,18 +42,30 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
 
   useEffect(() => {
     if (sale) {
-      const saleItems = Array.isArray(sale.items)
-        ? sale.items
-        : typeof sale.items === 'string'
-        ? JSON.parse(sale.items || '[]')
-        : [];
+      let saleItems: any[] = [];
+      if (Array.isArray(sale.items)) {
+        saleItems = sale.items;
+      } else if (typeof sale.items === 'string') {
+        try {
+          const parsed = JSON.parse(sale.items);
+          if (Array.isArray(parsed)) {
+            saleItems = parsed;
+          } else if (parsed && typeof parsed === 'object') {
+            saleItems = Object.values(parsed);
+          }
+        } catch {
+          saleItems = [];
+        }
+      } else if (sale.items && typeof sale.items === 'object') {
+        saleItems = Object.values(sale.items);
+      }
 
       setItems(
-        saleItems.map((item: any) => ({
-          productId: item.productId || item.product_id || '',
-          name: item.name || 'منتج',
-          originalQty: item.qty || 1,
-          unitPrice: item.unitPrice || item.unit_price || 0,
+        (Array.isArray(saleItems) ? saleItems : []).map((item: any) => ({
+          productId: item?.productId || item?.product_id || '',
+          name: item?.name || 'منتج',
+          originalQty: Number(item?.qty || item?.quantity || 1),
+          unitPrice: Number(item?.unitPrice || item?.unit_price || 0),
           returnQty: 0,
         }))
       );

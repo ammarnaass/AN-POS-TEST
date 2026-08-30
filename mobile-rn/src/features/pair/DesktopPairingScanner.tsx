@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -17,11 +17,10 @@ import {
   Keyboard,
   QrCode,
   Wifi,
-  ShieldCheck,
-  Zap,
 } from 'lucide-react-native';
 import { AnposCamera, type ScanResult } from '@/modules/AnposCamera';
-import { radii, spacing, typography } from '@/theme/tokens';
+import { radii, spacing } from '@/theme/tokens';
+import { normalizeServerUrl } from '@/lib/apiClient';
 
 const CameraEventEmitter = new NativeEventEmitter(NativeModules.AnposCamera);
 
@@ -32,61 +31,95 @@ interface DesktopPairingScannerProps {
 }
 
 export interface PairingPayload {
-  ip: string;
+  ip?: string;
+  host?: string;
+  server?: string;
   port?: number | string;
   key?: string;
   token?: string;
+  connectionKey?: string;
   serverUrl?: string;
+  url?: string;
+  baseUrl?: string;
 }
 
+/**
+ * Robust parser for all QR code and pairing code formats
+ */
 export const parsePairingCode = (rawCode: string): { serverUrl: string; key: string } | null => {
-  const code = rawCode.trim();
+  let code = (rawCode || '').trim();
   if (!code) return null;
 
-  // 1. Try parsing JSON format: {"ip":"192.168.1.10","port":4321,"key":"..."}
-  if (code.startsWith('{') && code.endsWith('}')) {
+  // 0. Try Base64 decoding if applicable
+  if (!code.startsWith('{') && !code.startsWith('http') && !code.startsWith('anpos') && code.length > 10) {
     try {
-      const data: PairingPayload = JSON.parse(code);
-      if (data.serverUrl && data.key) {
-        return { serverUrl: data.serverUrl, key: data.key };
-      }
-      if (data.ip) {
-        const port = data.port || 4321;
-        const key = data.key || data.token || '';
-        return { serverUrl: `http://${data.ip}:${port}`, key };
-      }
-    } catch {
-      /* continue to other formats */
-    }
-  }
-
-  // 2. Try parsing URI scheme: anpos://pair?ip=192.168.1.10&port=4321&key=...
-  if (code.startsWith('anpos://pair') || code.startsWith('http://') || code.startsWith('https://')) {
-    try {
-      if (code.startsWith('http://') || code.startsWith('https://')) {
-        return { serverUrl: code, key: '' };
-      }
-      const url = new URL(code.replace('anpos://pair', 'http://localhost'));
-      const ip = url.searchParams.get('ip');
-      const port = url.searchParams.get('port') || '4321';
-      const key = url.searchParams.get('key') || url.searchParams.get('token') || '';
-      if (ip) {
-        return { serverUrl: `http://${ip}:${port}`, key };
+      // Check if it's base64
+      if (/^[A-Za-z0-9+/=]+$/.test(code)) {
+        const decoded = typeof atob === 'function' ? atob(code) : Buffer.from(code, 'base64').toString('utf-8');
+        if (decoded && (decoded.startsWith('{') || decoded.includes(':') || decoded.includes('anpos'))) {
+          code = decoded.trim();
+        }
       }
     } catch {
       /* continue */
     }
   }
 
-  // 3. Try format: 192.168.1.10:4321:connection_key
+  // 1. Try parsing JSON format: {"ip":"192.168.1.10","port":4321,"key":"..."} or {"ips":[...], ...}
+  if (code.startsWith('{') && code.endsWith('}')) {
+    try {
+      const data: PairingPayload & { ips?: string[] } = JSON.parse(code);
+      const serverUrl = data.serverUrl || data.url || data.baseUrl;
+      const key = data.key || data.token || data.connectionKey || '';
+
+      if (serverUrl) {
+        return { serverUrl: normalizeServerUrl(serverUrl), key };
+      }
+
+      const host = data.ip || data.host || data.server || (Array.isArray(data.ips) && data.ips.length > 0 ? data.ips[0] : undefined);
+      if (host) {
+        const port = data.port || '4321';
+        return { serverUrl: normalizeServerUrl(`http://${host}:${port}`), key };
+      }
+    } catch {
+      /* continue */
+    }
+  }
+
+  // 2. Try parsing URI schemes: anpos://pair?... or http://... or https://...
+  if (code.startsWith('anpos://') || code.startsWith('http://') || code.startsWith('https://')) {
+    try {
+      if (code.startsWith('http://') || code.startsWith('https://')) {
+        const u = new URL(code);
+        const key = u.searchParams.get('key') || u.searchParams.get('token') || u.searchParams.get('connectionKey') || '';
+        return { serverUrl: normalizeServerUrl(`${u.protocol}//${u.host}`), key };
+      }
+
+      const url = new URL(code.replace('anpos://pair', 'http://localhost').replace('anpos://', 'http://localhost/'));
+      const host = url.searchParams.get('ip') || url.searchParams.get('host') || url.searchParams.get('server');
+      const port = url.searchParams.get('port') || '4321';
+      const key = url.searchParams.get('key') || url.searchParams.get('token') || url.searchParams.get('connectionKey') || '';
+
+      if (host) {
+        return { serverUrl: normalizeServerUrl(`http://${host}:${port}`), key };
+      }
+    } catch {
+      /* continue */
+    }
+  }
+
+  // 3. Try delimited formats: 192.168.1.10:4321:connection_key or 192.168.1.10:4321 or 192.168.1.10
   const parts = code.split(':');
   if (parts.length >= 2) {
-    const ip = parts[0];
-    const port = parts[1] || '4321';
-    const key = parts.slice(2).join(':') || '';
-    if (ip.includes('.')) {
-      return { serverUrl: `http://${ip}:${port}`, key };
+    const host = parts[0].trim();
+    const port = parts[1].trim() || '4321';
+    const key = parts.slice(2).join(':').trim();
+    if (host.includes('.') || host === 'localhost') {
+      return { serverUrl: normalizeServerUrl(`http://${host}:${port}`), key };
     }
+  } else if (code.includes('.')) {
+    // Bare IP e.g. 192.168.1.10
+    return { serverUrl: normalizeServerUrl(`http://${code}:4321`), key: '' };
   }
 
   return null;
@@ -145,9 +178,32 @@ export const DesktopPairingScanner = ({
     };
   }, [scanLineAnim, reticlePulse]);
 
+  const handleCodeScanned = useCallback(
+    (code: string) => {
+      if (hasScanned) return;
+
+      const parsed = parsePairingCode(code);
+      if (parsed) {
+        setHasScanned(true);
+        try {
+          Vibration.vibrate(60);
+        } catch {}
+        try {
+          AnposCamera.stopScan();
+        } catch {}
+        onConnect(parsed.serverUrl, parsed.key);
+      } else {
+        setErrorMessage('رمز QR غير صالح للاقتران. تأكد من مسح رمز برنامج AN POS على سطح المكتب.');
+        setTimeout(() => setErrorMessage(null), 3500);
+      }
+    },
+    [hasScanned, onConnect]
+  );
+
   // Start Camera and Subscribe to scan events
   useEffect(() => {
-    let sub: any = null;
+    let subScan: any = null;
+    let subScanned: any = null;
 
     const startCamera = async () => {
       try {
@@ -173,7 +229,13 @@ export const DesktopPairingScanner = ({
         AnposCamera.startScan();
         setCameraReady(true);
 
-        sub = CameraEventEmitter.addListener('onBarcodeScanned', (res: ScanResult) => {
+        // Listen to BOTH 'onBarcodeScan' (native emit name) and 'onBarcodeScanned' (alias)
+        subScan = CameraEventEmitter.addListener('onBarcodeScan', (res: ScanResult | { code?: string }) => {
+          if (!res?.code) return;
+          handleCodeScanned(res.code);
+        });
+
+        subScanned = CameraEventEmitter.addListener('onBarcodeScanned', (res: ScanResult | { code?: string }) => {
           if (!res?.code) return;
           handleCodeScanned(res.code);
         });
@@ -188,31 +250,10 @@ export const DesktopPairingScanner = ({
       try {
         AnposCamera.stopScan();
       } catch {}
-      if (sub) sub.remove();
+      if (subScan) subScan.remove();
+      if (subScanned) subScanned.remove();
     };
-  }, [onClose, onManualInput]);
-
-  const handleCodeScanned = useCallback(
-    (code: string) => {
-      if (hasScanned) return;
-
-      const parsed = parsePairingCode(code);
-      if (parsed) {
-        setHasScanned(true);
-        try {
-          Vibration.vibrate(60);
-        } catch {}
-        try {
-          AnposCamera.stopScan();
-        } catch {}
-        onConnect(parsed.serverUrl, parsed.key);
-      } else {
-        setErrorMessage('رمز QR غير صالح للاقتران. تأكد من مسح رمز برنامج AN POS على سطح المكتب.');
-        setTimeout(() => setErrorMessage(null), 3500);
-      }
-    },
-    [hasScanned, onConnect]
-  );
+  }, [onClose, onManualInput, handleCodeScanned]);
 
   const laserTranslateY = scanLineAnim.interpolate({
     inputRange: [0, 1],
@@ -295,7 +336,7 @@ export const DesktopPairingScanner = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
     justifyContent: 'space-between',
   },
   header: {

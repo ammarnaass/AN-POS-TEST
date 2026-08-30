@@ -44,10 +44,12 @@ export default function ProductInfoSection({ form, setForm }: Props) {
         </div>
 
         <div>
-          <label className="block text-label-sm text-on-surface mb-1.5">العائلة</label>
+          <label className="block text-label-sm text-on-surface mb-1.5">العائلة / الفئة</label>
           <CategorySelect
             value={form.categoryId ?? null}
-            onChange={(categoryId) => setForm((p) => ({ ...p, categoryId }))}
+            onChange={(categoryId, categoryName) =>
+              setForm((p) => ({ ...p, categoryId, category: categoryName ?? (categoryId ? p.category : '') }))
+            }
           />
         </div>
 

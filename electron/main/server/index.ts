@@ -111,14 +111,19 @@ export async function startHttpServer(config: ServerConfig = {}): Promise<{ url:
   await server.register(cors, {
     origin: corsOrigins === '*' ? true : corsOrigins.split(',').map((s) => s.trim()),
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'x-session-token', 'x-device-id'],
+    allowedHeaders: ['Content-Type', 'x-session-token', 'x-device-id', 'x-discovery', 'authorization', 'accept'],
     credentials: false,
   });
 
   // ===== مصادقة الجلسة لكل المسارات المحمية =====
   server.addHook('onRequest', async (request, reply) => {
-    // المسارات العامة: health + pair
-    if (request.url.startsWith('/api/health') || request.url.startsWith('/api/pair')) {
+    // المسارات العامة: health + pair + discover
+    const path = request.url.split('?')[0];
+    if (
+      path.startsWith('/api/health') ||
+      path.startsWith('/api/pair') ||
+      path === '/api/discover'
+    ) {
       return;
     }
     const token = request.headers['x-session-token'] as string | undefined;

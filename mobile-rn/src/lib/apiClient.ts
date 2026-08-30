@@ -7,8 +7,41 @@ const SESSION_KEY = 'anpos_session_token';
 const DEVICE_ID_KEY = 'anpos_device_id';
 const CONNECTION_KEY_KEY = 'anpos_connection_key';
 
+/**
+ * Normalizes any IP, host, or URL into a clean http://<host>:<port> string
+ */
+export function normalizeServerUrl(rawUrl: string, defaultPort: string = '4321'): string {
+  let url = (rawUrl || '').trim();
+  if (!url) return '';
+
+  // Remove trailing slashes
+  url = url.replace(/\/+$/, '');
+
+  // If starts with scheme, handle port
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    try {
+      const parsed = new URL(url);
+      if (!parsed.port && defaultPort) {
+        parsed.port = defaultPort;
+        return parsed.toString().replace(/\/+$/, '');
+      }
+      return url;
+    } catch {
+      return url;
+    }
+  }
+
+  // If no scheme: e.g. 192.168.1.5 or 192.168.1.5:4321
+  if (url.includes(':')) {
+    return `http://${url}`;
+  }
+
+  return `http://${url}:${defaultPort}`;
+}
+
 async function getServerUrl(): Promise<string | null> {
-  return AnposSecureStore.get(SERVER_URL_KEY);
+  const raw = await AnposSecureStore.get(SERVER_URL_KEY);
+  return raw ? normalizeServerUrl(raw) : null;
 }
 
 async function getSession(): Promise<{ token: string | null; deviceId: string | null }> {
@@ -26,50 +59,115 @@ async function clearSession(): Promise<void> {
   ]);
 }
 
+export async function checkServerHealth(serverUrl: string): Promise<{ ok: boolean; info?: any; error?: string }> {
+  const normalized = normalizeServerUrl(serverUrl);
+  if (!normalized) return { ok: false, error: 'عنوان الخادم فارغ' };
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4500);
+
+  try {
+    let res = await fetch(`${normalized}/api/discover`, {
+      method: 'GET',
+      headers: { 'X-Discovery': 'anpos-mobile', Accept: 'application/json' },
+      signal: controller.signal,
+    }).catch(() => null);
+
+    if (!res || !res.ok) {
+      res = await fetch(`${normalized}/api/pair/info`, {
+        method: 'GET',
+        headers: { 'X-Discovery': 'anpos-mobile', Accept: 'application/json' },
+        signal: controller.signal,
+      }).catch(() => null);
+    }
+
+    clearTimeout(timer);
+    if (res && res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { ok: true, info: data };
+    }
+    return { ok: false, error: 'الخادم لم يستجب على المنفذ المحدد' };
+  } catch (err: any) {
+    clearTimeout(timer);
+    return { ok: false, error: err?.message || 'تعذر الوصول إلى الخادم' };
+  }
+}
+
 export async function apiCall<T>(
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
-  body?: unknown
+  body?: unknown,
+  timeoutMs: number = 8500
 ): Promise<T> {
   const base = await getServerUrl();
-  if (!base) throw new Error('لم يتم تكوين الخادم — امسح رمز QR أولاً');
+  if (!base) throw new Error('لم يتم تحديد عنوان الخادم — امسح رمز QR أو أدخل عنوان IP أولاً');
 
   const { token, deviceId } = await getSession();
-  const url = `${base}${path.startsWith('/') ? '' : '/'}${path}`;
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  const url = `${base}${cleanPath}`;
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    'Accept': 'application/json',
   };
   if (token) headers['x-session-token'] = token;
   if (deviceId) headers['x-device-id'] = deviceId;
 
-  const res = await fetch(url, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-  if (!res.ok) {
-    if (res.status === 401) {
-      await clearSession();
+  try {
+    const res = await fetch(url, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+
+    if (!res.ok) {
+      if (res.status === 401) {
+        await clearSession();
+      }
+      let errMsg = `خطأ من الخادم (${res.status})`;
+      try {
+        const err = await res.json();
+        errMsg = err?.error?.detail || err?.message || err?.error || errMsg;
+      } catch {
+        // keep default
+      }
+      throw new Error(errMsg);
     }
-    let errMsg = 'خطأ غير متوقع';
-    try {
-      const err = await res.json();
-      errMsg = (err as { error?: { detail?: string } }).error?.detail || errMsg;
-    } catch {
-      // keep default
+
+    return (await res.json()) as T;
+  } catch (err: any) {
+    clearTimeout(timer);
+    if (err?.name === 'AbortError') {
+      throw new Error('مهلة الاتصال بالخادم انتهت (8 ثوانٍ). تأكد من تشغيل البرنامج على الكمبيوتر ومن اتصال الهاتف والحاسوب بنفس شبكة الـ Wi-Fi.');
     }
-    throw new Error(errMsg);
+    if (err?.message?.includes('Network request failed') || err?.message?.includes('Failed to fetch')) {
+      throw new Error('تعذر الوصول إلى جهاز الكمبيوتر. تأكد من أن الهاتف والكمبيوتر على نفس الشبكة ومن إيقاف حظر جدار الحماية (Firewall) في الويندوز.');
+    }
+    throw err;
   }
-
-  return res.json() as Promise<T>;
 }
 
 export const electronAPI = {
   pair: {
     info: () => apiCall<{ shopName: string; requiresKey: boolean }>('GET', '/api/pair/info'),
     pair: (payload: { deviceName: string; connectionKey: string }) =>
-      apiCall<{ success: boolean; sessionToken?: string; deviceId?: string; error?: { status: number; detail: string } }>('POST', '/api/pair', payload),
+      apiCall<{
+        success?: boolean;
+        sessionToken?: string;
+        token?: string;
+        deviceId?: string;
+        id?: string;
+        error?: { status: number; detail: string };
+      }>('POST', '/api/pair', {
+        deviceName: payload.deviceName,
+        connectionKey: payload.connectionKey,
+        key: payload.connectionKey,
+      }),
     unpair: () => apiCall<{ success: boolean }>('POST', '/api/pair/unpair'),
   },
 
@@ -152,6 +250,24 @@ export const electronAPI = {
     },
     create: (data: Record<string, unknown>) => unifiedDB.create('payments', data),
   },
+
+  print: {
+    printReceipt: (payload: { invoice: any; saleId?: string; options?: { copies?: number; templateId?: string; printerId?: string } }) =>
+      apiCall<{ success: boolean; message?: string }>('POST', '/api/print/receipt', payload, 7000),
+    listPrinters: () =>
+      apiCall<{ success: boolean; printers: Array<{ id: string; name: string; type: string; isDefault?: boolean }> }>('GET', '/api/print/printers'),
+  },
+
+  stock: {
+    checkStock: (productIds: string[]) =>
+      apiCall<{ success: boolean; stock: Record<string, number> }>('POST', '/api/products/check-stock', { productIds }, 5000),
+  },
+
+  settings: {
+    get: () => apiCall<{ success?: boolean; settings?: Record<string, any>; data?: Record<string, any> } | Record<string, any>>('GET', '/api/settings', undefined, 6000),
+    update: (data: Record<string, unknown>) =>
+      apiCall<{ success: boolean; settings?: Record<string, any> }>('PUT', '/api/settings', data, 6000),
+  },
 };
 
 let _cachedServerUrl: string | null = null;
@@ -164,7 +280,7 @@ async function refreshSessionCache(): Promise<void> {
     AnposSecureStore.get(SESSION_KEY),
     AnposSecureStore.get(DEVICE_ID_KEY),
   ]);
-  _cachedServerUrl = urlPref;
+  _cachedServerUrl = urlPref ? normalizeServerUrl(urlPref) : null;
   _cachedToken = tokenPref;
   _cachedDeviceId = devicePref;
 }
@@ -173,12 +289,12 @@ refreshSessionCache();
 
 export const session = {
   save: async (serverUrl: string, key: string) => {
+    const normalized = normalizeServerUrl(serverUrl);
     await Promise.all([
-      AnposSecureStore.set(SERVER_URL_KEY, serverUrl),
+      AnposSecureStore.set(SERVER_URL_KEY, normalized),
       AnposSecureStore.set(CONNECTION_KEY_KEY, key),
     ]);
-    _cachedServerUrl = serverUrl;
-    await unifiedDB.switchToConnected(serverUrl);
+    _cachedServerUrl = normalized;
   },
   savePairing: async (token: string, deviceId: string) => {
     await Promise.all([
@@ -187,6 +303,9 @@ export const session = {
     ]);
     _cachedToken = token;
     _cachedDeviceId = deviceId;
+    if (_cachedServerUrl) {
+      await unifiedDB.switchToConnected(_cachedServerUrl);
+    }
   },
   getServerUrl,
   getSession,

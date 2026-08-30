@@ -86,7 +86,7 @@ export async function seedDatabase(driver: DataDriver): Promise<void> {
     { key: 'store_email', value: '' },
     { key: 'currency', value: 'دج' },
     { key: 'currency_code', value: 'DZD' },
-    { key: 'tva_rate', value: '0.19' },
+    { key: 'tva_rate', value: '0' },
     { key: 'tva_enabled', value: 'true' },
     { key: 'receipt_footer', value: 'شكراً لتسوقكم معنا' },
     { key: 'receipt_header', value: '' },

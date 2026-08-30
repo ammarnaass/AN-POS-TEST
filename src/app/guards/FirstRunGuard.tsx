@@ -18,17 +18,11 @@ export function isTrialActive(): boolean {
 
 export default function FirstRunGuard() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const firstRun = isFirstRun();
   const trial = getTrialState();
 
-  if (isAuthenticated) {
+  if (isAuthenticated || trial.isActive) {
     return <Outlet />;
   }
 
-  if (firstRun) {
-    if (!trial.isActive && !trial.isExpired) {
-      return <Navigate to="/login" replace />;
-    }
-  }
-  return <Outlet />;
+  return <Navigate to="/login" replace />;
 }

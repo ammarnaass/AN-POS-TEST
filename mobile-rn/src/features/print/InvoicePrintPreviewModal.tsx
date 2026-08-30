@@ -139,11 +139,20 @@ export const InvoicePrintPreviewModal = ({
         }
 
         if (sale) {
-          let rawItems: any[] = Array.isArray(sale.items)
-            ? sale.items
-            : typeof sale.items === 'string'
-            ? safeParse(sale.items, [])
-            : [];
+          let rawItems: any[] = [];
+          if (Array.isArray(sale.items)) {
+            rawItems = sale.items;
+          } else if (typeof sale.items === 'string') {
+            try {
+              const parsed = JSON.parse(sale.items);
+              if (Array.isArray(parsed)) rawItems = parsed;
+              else if (parsed && typeof parsed === 'object') rawItems = Object.values(parsed);
+            } catch {
+              rawItems = [];
+            }
+          } else if (sale.items && typeof sale.items === 'object') {
+            rawItems = Object.values(sale.items);
+          }
 
           // If rawItems is still empty, look up in sale_items table
           if (!rawItems || rawItems.length === 0) {
@@ -172,11 +181,11 @@ export const InvoicePrintPreviewModal = ({
             id: sale.id,
             number: sale.number || 'INV-0001',
             date: sale.date || sale.created_at || new Date().toISOString(),
-            items: rawItems.map((i: any) => ({
-              name: i.name || 'منتج',
-              qty: Number(i.qty || 1),
-              unitPrice: Number(i.unitPrice || i.unit_price || 0),
-              lineTotal: Number(i.lineTotal || i.line_total || (i.qty || 1) * (i.unitPrice || i.unit_price || 0)),
+            items: (Array.isArray(rawItems) ? rawItems : []).map((i: any) => ({
+              name: i?.name || 'منتج',
+              qty: Number(i?.qty || i?.quantity || 1),
+              unitPrice: Number(i?.unitPrice || i?.unit_price || 0),
+              lineTotal: Number(i?.lineTotal || i?.line_total || (i?.qty || 1) * (i?.unitPrice || 0)),
             })),
             subtotal: Number(sale.subtotal || sale.total || 0),
             discount: Number(sale.discount || 0),

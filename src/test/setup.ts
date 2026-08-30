@@ -1,12 +1,5 @@
 import '@testing-library/jest-dom/vitest';
 
-try {
-  // @ts-ignore
-  await import('fake-indexeddb/auto');
-} catch {
-  // Polyfill IndexedDB if not available
-}
-
 // jsdom لا يوفر ResizeObserver — @dnd-kit/dom يحتاجه عبر ResizeNotifier
 if (typeof globalThis.ResizeObserver === 'undefined') {
   // @ts-expect-error polyfill for jsdom
@@ -18,19 +11,21 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
 }
 
 // jsdom لا يوفر matchMedia — نحتاجه لتطبيقات RTL
-Object.defineProperty(window, 'matchMedia', {
-  writable: true,
-  value: (query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: () => {},
-    removeListener: () => {},
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    dispatchEvent: () => false,
-  }),
-});
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: (query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  });
+}
 
 // crypto.randomUUID متوفر في معظم بيئات الاختبار لكن نضمنه
 if (typeof globalThis.crypto === 'undefined') {

@@ -904,6 +904,38 @@ export const connectedDevices = sqliteTable(
   })
 );
 
+export const deviceSessions = sqliteTable(
+  'device_sessions',
+  {
+    id: text('id').primaryKey(),
+    sessionToken: text('session_token').unique().notNull(),
+    deviceId: text('device_id').notNull(),
+    deviceName: text('device_name').default(''),
+    userId: text('user_id'),
+    pairedAt: text('paired_at').notNull().default(sql`datetime('now')`),
+    lastSeen: text('last_seen').notNull().default(sql`datetime('now')`),
+    expiresAt: text('expires_at'),
+    createdAt: text('created_at').notNull().default(sql`datetime('now')`),
+  },
+  (t) => ({
+    tokenIdx: index('idx_device_sessions_token').on(t.sessionToken),
+    deviceIdx: index('idx_device_sessions_device').on(t.deviceId),
+  })
+);
+
+export const syncTombstones = sqliteTable(
+  'sync_tombstones',
+  {
+    id: text('id').primaryKey(),
+    tableName: text('table_name').notNull(),
+    recordId: text('record_id').notNull(),
+    deletedAt: text('deleted_at').notNull().default(sql`datetime('now')`),
+  },
+  (t) => ({
+    lookupIdx: index('idx_tombstones_lookup').on(t.tableName, t.deletedAt),
+  })
+);
+
 // ============ تصدير المخطط الكامل ============
 
 export const schema = {
@@ -946,4 +978,6 @@ export const schema = {
   printFailureCounter,
   networkSettings,
   connectedDevices,
+  deviceSessions,
+  syncTombstones,
 };

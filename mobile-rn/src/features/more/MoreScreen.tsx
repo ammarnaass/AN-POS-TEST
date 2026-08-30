@@ -48,17 +48,27 @@ import { db, ensureInit } from '@/lib/db';
 import { useSyncEngine } from '@/lib/syncEngine';
 import { getStoredMode } from '@/infrastructure/database/UnifiedDB';
 import { useTheme, type ThemeMode } from '@/theme';
+import { useI18n } from '@/store/i18nStore';
 import { radii, spacing, shadows } from '@/theme/tokens';
-import { Card, CardHeader, CardTitle, CardContent, Badge, Button, Input } from '@/components/ui';
+import { Card, CardHeader, CardTitle, CardContent, Badge, Button, Input, LanguageSelectorGrid } from '@/components/ui';
+import {
+  getStoreSettings,
+  fetchStoreSettingsFromDesktop,
+  saveStoreSettings,
+  type StoreSettings,
+} from '@/lib/settingService';
 
 export const MoreScreen = ({ navigation }: any) => {
   const { user, logout } = useAuthStore();
   const sync = useSyncEngine();
   const { mode, isDark, colors, setMode } = useTheme();
+  const { t } = useI18n();
 
   const [settings, setSettings] = useState<Record<string, string>>({});
+  const [storeData, setStoreData] = useState<StoreSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [fetchingRemote, setFetchingRemote] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
   const [appMode, setAppMode] = useState<'standalone' | 'connected'>('standalone');
@@ -68,45 +78,118 @@ export const MoreScreen = ({ navigation }: any) => {
     loadSettings();
   }, []);
 
-  async function loadSettings() {
-    setLoading(true);
+  async function loadSettings(forceRefresh = false) {
+    if (forceRefresh) setFetchingRemote(true);
+    else setLoading(true);
+
     try {
       await ensureInit();
-      const rows = await db.settings.toArray();
-      const map: Record<string, string> = {};
-      for (const r of rows as any[]) {
-        map[r.key] = r.value;
-      }
-      setSettings(map);
-      setForm({ ...map });
-
       const smode = await getStoredMode();
       setAppMode(smode);
 
       const url = await session.getServerUrlDisplay();
       setServerUrlDisplay(url || '—');
+
+      // Fetch store settings (handles connected desktop fetch + SQLite fallback)
+      const st = await getStoreSettings(forceRefresh || smode === 'connected');
+      setStoreData(st);
+
+      const map: Record<string, string> = {
+        store_name: st.shop_name,
+        shop_name: st.shop_name,
+        store_address: st.address,
+        address: st.address,
+        store_phone: st.phone,
+        phone: st.phone,
+        store_email: st.email,
+        email: st.email,
+        commercial_register: st.commercial_register || '',
+        company_rc: st.commercial_register || '',
+        tax_number: st.tax_number || '',
+        company_nif: st.tax_number || '',
+        tva_rate: String(st.tva_rate),
+        currency: st.base_currency,
+        base_currency: st.base_currency,
+        receipt_footer: st.receipt_footer,
+        invoice_prefix: st.invoice_prefix,
+      };
+      setSettings(map);
+      setForm({ ...map });
     } catch {
       /* ignore */
+    } finally {
+      setLoading(false);
+      setFetchingRemote(false);
     }
-    setLoading(false);
   }
+
+  const handleFetchFromDesktop = async () => {
+    setFetchingRemote(true);
+    try {
+      const res = await fetchStoreSettingsFromDesktop();
+      if (res.success && res.settings) {
+        setStoreData(res.settings);
+        const map: Record<string, string> = {
+          store_name: res.settings.shop_name,
+          shop_name: res.settings.shop_name,
+          store_address: res.settings.address,
+          address: res.settings.address,
+          store_phone: res.settings.phone,
+          phone: res.settings.phone,
+          store_email: res.settings.email,
+          email: res.settings.email,
+          commercial_register: res.settings.commercial_register || '',
+          company_rc: res.settings.commercial_register || '',
+          tax_number: res.settings.tax_number || '',
+          company_nif: res.settings.tax_number || '',
+          tva_rate: String(res.settings.tva_rate),
+          currency: res.settings.base_currency,
+          base_currency: res.settings.base_currency,
+          receipt_footer: res.settings.receipt_footer,
+          invoice_prefix: res.settings.invoice_prefix,
+        };
+        setSettings(map);
+        setForm({ ...map });
+        Alert.alert('✓ تم التحديث', 'تم جلب بيانات وإعدادات المحل بنجاح من تطبيق سطح المكتب');
+      } else {
+        Alert.alert('تنبيه', res.error || 'تعذر الاتصال بسطح المكتب، تم استخدام الإعدادات المخزنة محلياً');
+      }
+    } catch (e: any) {
+      Alert.alert('خطأ', e?.message || 'فشل جلب الإعدادات من سطح المكتب');
+    } finally {
+      setFetchingRemote(false);
+    }
+  };
 
   const handleSaveSettings = async () => {
     setSaving(true);
     try {
-      await ensureInit();
-      for (const [key, value] of Object.entries(form)) {
-        const existing = await db.settings.where('key').equals(key).toArray();
-        if (existing.length > 0) {
-          await db.settings.update(existing[0].id, {
-            value,
-            updated_at: new Date().toISOString(),
-          });
-        }
+      const patch = {
+        shop_name: form.store_name || form.shop_name,
+        store_name: form.store_name || form.shop_name,
+        address: form.store_address || form.address,
+        store_address: form.store_address || form.address,
+        phone: form.store_phone || form.phone,
+        store_phone: form.store_phone || form.phone,
+        email: form.store_email || form.email,
+        store_email: form.store_email || form.email,
+        commercial_register: form.commercial_register || form.company_rc,
+        tax_number: form.tax_number || form.company_nif,
+        tva_rate: parseFloat(form.tva_rate || '0'),
+        base_currency: form.currency || form.base_currency,
+        currency: form.currency || form.base_currency,
+        receipt_footer: form.receipt_footer,
+        invoice_prefix: form.invoice_prefix || 'INV-',
+      };
+
+      const result = await saveStoreSettings(patch);
+      if (result.success) {
+        setSettings({ ...form });
+        setEditMode(false);
+        Alert.alert('✓ تم الحفظ', appMode === 'connected' ? 'تم حفظ الإعدادات ومزامنتها مع الحاسوب بنجاح' : 'تم حفظ الإعدادات محلياً بنجاح');
+      } else {
+        Alert.alert('خطأ', result.error || 'فشل حفظ الإعدادات');
       }
-      setSettings({ ...form });
-      setEditMode(false);
-      Alert.alert('✓ تم الحفظ', 'تم حفظ الإعدادات بنجاح');
     } catch {
       Alert.alert('خطأ', 'فشل حفظ الإعدادات');
     }
@@ -120,6 +203,7 @@ export const MoreScreen = ({ navigation }: any) => {
     }
     await sync.pullUpdates();
     await sync.processQueue();
+    await loadSettings(true);
     Alert.alert(
       'تمت المزامنة',
       `آخر مزامنة: ${sync.lastSyncTime ? new Date(sync.lastSyncTime).toLocaleTimeString('ar') : '—'}`
@@ -177,10 +261,10 @@ export const MoreScreen = ({ navigation }: any) => {
             style={{ marginTop: 2 }}
           >
             {user?.role === 'admin'
-              ? '👑 مدير النظام'
+              ? `👑 ${t('auth.admin')}`
               : user?.role === 'cashier'
-              ? '🏪 كاشير'
-              : '🛒 بائع'}
+              ? `🏪 ${t('auth.cashier')}`
+              : `🛒 ${t('auth.seller')}`}
           </Badge>
         </View>
         <TouchableOpacity
@@ -197,8 +281,12 @@ export const MoreScreen = ({ navigation }: any) => {
         </TouchableOpacity>
       </Card>
 
+      {/* Language Selection Section */}
+      <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>{t('settings.language')}</Text>
+      <LanguageSelectorGrid style={{ marginBottom: spacing.sm }} />
+
       {/* Theme Selection Section */}
-      <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>مظهر وثيم التطبيق (Theme Mode)</Text>
+      <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>{t('settings.themeMode')}</Text>
       <View style={styles.themeSelectorGrid}>
         <TouchableOpacity
           style={[
@@ -220,8 +308,8 @@ export const MoreScreen = ({ navigation }: any) => {
           >
             <Sun size={20} color={mode === 'light' ? '#fff' : colors.warning.dark} />
           </View>
-          <Text style={[styles.themeOptionTitle, { color: colors.text.primary }]}>الوضع المشرق</Text>
-          <Text style={[styles.themeOptionSub, { color: colors.text.tertiary }]}>فاتح وناصع</Text>
+          <Text style={[styles.themeOptionTitle, { color: colors.text.primary }]}>{t('settings.lightMode')}</Text>
+          <Text style={[styles.themeOptionSub, { color: colors.text.tertiary }]}>{t('settings.lightModeSub')}</Text>
           {mode === 'light' && (
             <View style={[styles.themeCheckBadge, { backgroundColor: colors.primary[600] }]}>
               <Check size={12} color="#fff" />
@@ -249,8 +337,8 @@ export const MoreScreen = ({ navigation }: any) => {
           >
             <Moon size={20} color={mode === 'dark' ? '#fff' : colors.purple[700]} />
           </View>
-          <Text style={[styles.themeOptionTitle, { color: colors.text.primary }]}>الوضع المظلم</Text>
-          <Text style={[styles.themeOptionSub, { color: colors.text.tertiary }]}>ليلي أنيق</Text>
+          <Text style={[styles.themeOptionTitle, { color: colors.text.primary }]}>{t('settings.darkMode')}</Text>
+          <Text style={[styles.themeOptionSub, { color: colors.text.tertiary }]}>{t('settings.darkModeSub')}</Text>
           {mode === 'dark' && (
             <View style={[styles.themeCheckBadge, { backgroundColor: colors.primary[600] }]}>
               <Check size={12} color="#fff" />
@@ -278,8 +366,8 @@ export const MoreScreen = ({ navigation }: any) => {
           >
             <Smartphone size={20} color={mode === 'system' ? '#fff' : colors.primary[700]} />
           </View>
-          <Text style={[styles.themeOptionTitle, { color: colors.text.primary }]}>تلقائي (النظام)</Text>
-          <Text style={[styles.themeOptionSub, { color: colors.text.tertiary }]}>حسب إعدادات الهاتف</Text>
+          <Text style={[styles.themeOptionTitle, { color: colors.text.primary }]}>{t('settings.systemTheme')}</Text>
+          <Text style={[styles.themeOptionSub, { color: colors.text.tertiary }]}>{t('settings.systemThemeSub')}</Text>
           {mode === 'system' && (
             <View style={[styles.themeCheckBadge, { backgroundColor: colors.primary[600] }]}>
               <Check size={12} color="#fff" />
@@ -289,7 +377,7 @@ export const MoreScreen = ({ navigation }: any) => {
       </View>
 
       {/* Main Operations Modules Hub */}
-      <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>إدارة العمليات والأنشطة التجارية</Text>
+      <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>{t('settings.operationsHub')}</Text>
       <View style={styles.hubGrid}>
         <TouchableOpacity
           style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
@@ -502,50 +590,100 @@ export const MoreScreen = ({ navigation }: any) => {
 
       {/* Store Settings */}
       <View style={styles.sectionHeaderRow}>
-        <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>بيانات وإعدادات المحل</Text>
-        {!editMode ? (
-          <TouchableOpacity
-            style={[styles.editBtn, { backgroundColor: colors.primary[50] }]}
-            onPress={() => setEditMode(true)}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.editBtnText, { color: colors.primary[700] }]}>تعديل</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.editActions}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+          <Text style={[styles.sectionTitle, { color: colors.text.secondary, marginBottom: 0 }]}>بيانات وإعدادات المحل</Text>
+          {appMode === 'connected' && (
+            <Badge variant="success" size="xs">من سطح المكتب</Badge>
+          )}
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+          {appMode === 'connected' && !editMode && (
             <TouchableOpacity
-              style={[styles.cancelBtn, { backgroundColor: colors.slate[100] }]}
-              onPress={() => {
-                setForm({ ...settings });
-                setEditMode(false);
-              }}
+              style={[styles.fetchDesktopBtn, { backgroundColor: isDark ? colors.surfaceElevated : colors.primary[50], borderColor: colors.primary[200] }]}
+              onPress={handleFetchFromDesktop}
+              disabled={fetchingRemote}
               activeOpacity={0.7}
             >
-              <X size={16} color={colors.slate[400]} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.saveInlineBtn}
-              onPress={handleSaveSettings}
-              disabled={saving}
-              activeOpacity={0.7}
-            >
-              {saving ? (
-                <ActivityIndicator size="small" color="#fff" />
+              {fetchingRemote ? (
+                <ActivityIndicator size="small" color={colors.primary[600]} />
               ) : (
-                <Check size={16} color="#fff" />
+                <>
+                  <RefreshCw size={12} color={colors.primary[700]} />
+                  <Text style={[styles.fetchDesktopBtnText, { color: colors.primary[700] }]}>جلب من الحاسوب</Text>
+                </>
               )}
             </TouchableOpacity>
-          </View>
-        )}
+          )}
+          {!editMode ? (
+            <TouchableOpacity
+              style={[styles.editBtn, { backgroundColor: colors.primary[50] }]}
+              onPress={() => setEditMode(true)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.editBtnText, { color: colors.primary[700] }]}>تعديل</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.editActions}>
+              <TouchableOpacity
+                style={[styles.cancelBtn, { backgroundColor: colors.slate[100] }]}
+                onPress={() => {
+                  setForm({ ...settings });
+                  setEditMode(false);
+                }}
+                activeOpacity={0.7}
+              >
+                <X size={16} color={colors.slate[400]} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.saveInlineBtn}
+                onPress={handleSaveSettings}
+                disabled={saving}
+                activeOpacity={0.7}
+              >
+                {saving ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Check size={16} color="#fff" />
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
       </View>
 
       <Card style={styles.sectionCard}>
+        {appMode === 'connected' && (
+          <View style={[styles.connectedBanner, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.12)' : '#ecfdf5', borderBottomColor: isDark ? 'rgba(16, 185, 129, 0.25)' : '#a7f3d0' }]}>
+            <Wifi size={15} color={colors.emerald[600]} />
+            <Text style={[styles.connectedBannerText, { color: isDark ? colors.emerald[300] : colors.emerald[800] }]}>
+              في وضع الاتصال: يتم جلب بيانات المحل، الضرائب، ورأس وتذييل الفاتورة مباشرة من إعدادات برنامج سطح المكتب.
+            </Text>
+          </View>
+        )}
         <SettingRow
-          label="اسم المحل"
+          label="اسم المحل / المتجر"
           settingKey="store_name"
           form={form}
           setForm={setForm}
           editMode={editMode}
+          colors={colors}
+        />
+        <SettingRow
+          label="رقم الهاتف"
+          settingKey="store_phone"
+          form={form}
+          setForm={setForm}
+          editMode={editMode}
+          keyboardType="phone-pad"
+          colors={colors}
+        />
+        <SettingRow
+          label="البريد الإلكتروني"
+          settingKey="store_email"
+          form={form}
+          setForm={setForm}
+          editMode={editMode}
+          keyboardType="email-address"
           colors={colors}
         />
         <SettingRow
@@ -557,12 +695,19 @@ export const MoreScreen = ({ navigation }: any) => {
           colors={colors}
         />
         <SettingRow
-          label="الهاتف"
-          settingKey="store_phone"
+          label="السجل التجاري (RC)"
+          settingKey="commercial_register"
           form={form}
           setForm={setForm}
           editMode={editMode}
-          keyboardType="phone-pad"
+          colors={colors}
+        />
+        <SettingRow
+          label="رقم التعريف الجبائي (NIF)"
+          settingKey="tax_number"
+          form={form}
+          setForm={setForm}
+          editMode={editMode}
           colors={colors}
         />
         <SettingRow
@@ -578,6 +723,14 @@ export const MoreScreen = ({ navigation }: any) => {
         <SettingRow
           label="العملة الأساسية"
           settingKey="currency"
+          form={form}
+          setForm={setForm}
+          editMode={editMode}
+          colors={colors}
+        />
+        <SettingRow
+          label="بادئة الفواتير"
+          settingKey="invoice_prefix"
           form={form}
           setForm={setForm}
           editMode={editMode}
@@ -892,6 +1045,36 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     fontFamily: 'Cairo',
+  },
+  fetchDesktopBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 4,
+    borderRadius: radii.md,
+    borderWidth: 1,
+  },
+  fetchDesktopBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    fontFamily: 'Cairo',
+  },
+  connectedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+  },
+  connectedBannerText: {
+    flex: 1,
+    fontSize: 11.5,
+    fontFamily: 'Cairo',
+    fontWeight: '600',
+    textAlign: 'right',
+    lineHeight: 18,
   },
   editActions: {
     flexDirection: 'row',

@@ -43,9 +43,6 @@ function loadSessionsFromDB(): void {
   }
 }
 
-// تحميل الجلسات عند تحميل الوحدة
-loadSessionsFromDB();
-
 /**
  * مقارنة آمنة زمنياً (لمكافحة توقيت التخمين)
  */
@@ -193,6 +190,8 @@ export async function unpairDevice(deviceId: string, sessionToken: string): Prom
  * مسارات الاقتران
  */
 export async function registerPairRoutes(server: FastifyInstance): Promise<void> {
+  loadSessionsFromDB();
+
   // POST /api/pair — اقتران جهاز جديد
   // public (لا يتطلب session token)
   server.post('/api/pair', async (request, reply) => {

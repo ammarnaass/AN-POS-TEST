@@ -5,3 +5,4 @@ export * from './Input';
 export * from './EmptyState';
 export * from './Skeleton';
 export * from './Toast';
+export * from './LanguageSelector';

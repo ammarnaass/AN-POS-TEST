@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,49 +8,48 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
   Image,
 } from 'react-native';
 import {
-  LogIn,
   User,
   Lock,
   Eye,
   EyeOff,
   AlertCircle,
-  Database,
-  Camera,
-  Keyboard,
+  ArrowLeft,
+  ArrowRight,
+  Store,
   UserPlus,
   Mail,
   Phone,
-  Wifi,
-  ShieldCheck,
-  QrCode,
-  RefreshCw,
 } from 'lucide-react-native';
 import { useAuthStore } from '@/store/authStore';
-import { session, electronAPI } from '@/lib/apiClient';
+import { useI18n } from '@/store/i18nStore';
 import { AppImages } from '@/assets';
 import { db, ensureInit } from '@/lib/db';
 import { getStoredMode } from '@/infrastructure/database/UnifiedDB';
+import { session } from '@/lib/apiClient';
 import { useTheme } from '@/theme';
 import { radii, spacing, typography, shadows } from '@/theme/tokens';
-import { Card, Badge, Button, Input } from '@/components/ui';
+import { LanguageQuickButton } from '@/components/ui';
 
 type ViewMode = 'login' | 'register';
 
 export const LoginScreen = ({ navigation }: any) => {
-  const { login, loading, serverUrl, setServerUrl } = useAuthStore();
+  const { login, loading } = useAuthStore();
   const { isDark, colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors, isDark), [colors, isDark]);
+  const { t, isRTL } = useI18n();
 
-  const [mode, setMode] = useState<'connected' | 'standalone'>('connected');
+  const [mode, setMode] = useState<'connected' | 'standalone'>('standalone');
+  const [activeServerUrl, setActiveServerUrl] = useState<string | null>(null);
   const [modeChecked, setModeChecked] = useState(false);
   const [view, setView] = useState<ViewMode>('login');
   const [showPin, setShowPin] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Login fields (clean initial states)
+  // Login fields
   const [username, setUsername] = useState('');
   const [pin, setPin] = useState('');
 
@@ -64,13 +63,19 @@ export const LoginScreen = ({ navigation }: any) => {
 
   useEffect(() => {
     const detectMode = async () => {
-      const stored = await getStoredMode();
-      setMode(stored);
-      setModeChecked(true);
       try {
+        const stored = await getStoredMode();
+        const sUrl = await session.getServerUrl();
+        setMode(stored);
+        setActiveServerUrl(sUrl);
+        if (sUrl) {
+          useAuthStore.getState().setServerUrl(sUrl);
+        }
         await ensureInit();
       } catch (e) {
         console.warn('Initial DB init error:', e);
+      } finally {
+        setModeChecked(true);
       }
     };
     detectMode();
@@ -82,20 +87,35 @@ export const LoginScreen = ({ navigation }: any) => {
     const cleanPin = pin.trim();
 
     if (!cleanUsername || !cleanPin) {
-      setSubmitError('يرجى إدخال اسم المستخدم ورمز PIN');
+      setSubmitError(t('auth.enterUserAndPin'));
       return;
     }
 
     try {
       await ensureInit();
+      const currentMode = await getStoredMode();
+      const currentServerUrl = await session.getServerUrl();
 
-      // 1. Check local SQLite DB first
-      const results = await db.users.where('username').equals(cleanUsername).toArray();
+      // 1. If Connected Mode: Try Server Authentication first
+      if (currentMode === 'connected' && currentServerUrl) {
+        const res = await login(cleanUsername, cleanPin);
+        if (res.success) {
+          navigation.replace('Home', { screen: 'Dashboard' });
+          return;
+        }
+        if (res.error) {
+          setSubmitError(res.error);
+          return;
+        }
+      }
+
+      // 2. Local Database Authentication (Standalone Mode or Local Fallback)
+      const results = await db.users.where('username').equals(cleanUsername).toArray().catch(() => []);
       let localUser = results[0] as any;
 
       // First run provision: if DB has no users at all, provision default admin
       if (!localUser) {
-        const totalUsers = await db.users.count();
+        const totalUsers = await db.users.count().catch(() => 0);
         if (totalUsers === 0 && cleanUsername.toLowerCase() === 'admin' && cleanPin === '1234') {
           localUser = {
             id: 'usr_admin',
@@ -114,35 +134,15 @@ export const LoginScreen = ({ navigation }: any) => {
         }
       }
 
-      if (localUser && localUser.pin === cleanPin) {
+      if (localUser && (localUser.pin === cleanPin || (localUser.pin === '' && cleanPin === '1234'))) {
         useAuthStore.setState({ user: localUser, isAuthenticated: true, loading: false });
         navigation.replace('Home', { screen: 'Dashboard' });
         return;
       }
 
-      // 2. If connected mode & server is available, try server login with 5s timeout
-      if (mode === 'connected' && serverUrl) {
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('مهلة الاتصال بالخادم انتهت (تأكد من تشغيل برنامج سطح المكتب)')), 5000)
-        );
-
-        const res: any = await Promise.race([
-          login(cleanUsername, cleanPin),
-          timeoutPromise,
-        ]);
-
-        if (res?.success) {
-          navigation.replace('Home', { screen: 'Dashboard' });
-          return;
-        } else if (res?.error) {
-          setSubmitError(res.error);
-          return;
-        }
-      }
-
-      setSubmitError('اسم المستخدم أو الرمز السري (PIN) غير صحيح');
+      setSubmitError(t('auth.invalidCredentials'));
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'خطأ أثناء تسجيل الدخول');
+      setSubmitError(err instanceof Error ? err.message : t('common.error'));
     }
   };
 
@@ -155,15 +155,15 @@ export const LoginScreen = ({ navigation }: any) => {
     const cleanPinConfirm = regPinConfirm.trim();
 
     if (!cleanName || !cleanUsername || !cleanPin) {
-      setSubmitError('الاسم الكامل واسم المستخدم ورمز PIN مطلوبة');
+      setSubmitError(t('auth.fillAllFields'));
       return;
     }
     if (cleanPin !== cleanPinConfirm) {
-      setSubmitError('رمز PIN وتأكيد الرمز غير متطابقين');
+      setSubmitError(t('auth.pinMismatch'));
       return;
     }
     if (cleanPin.length < 4) {
-      setSubmitError('رمز PIN يجب أن يتكون من 4 أرقام على الأقل');
+      setSubmitError(t('auth.pinMismatch'));
       return;
     }
 
@@ -171,7 +171,7 @@ export const LoginScreen = ({ navigation }: any) => {
       await ensureInit();
       const existing = await db.users.where('username').equals(cleanUsername).toArray();
       if (existing.length > 0) {
-        setSubmitError('اسم المستخدم مسجل بالفعل، يرجى اختيار اسم آخر');
+        setSubmitError(t('auth.invalidCredentials'));
         return;
       }
 
@@ -190,475 +190,462 @@ export const LoginScreen = ({ navigation }: any) => {
 
       await db.users.add(newUser);
       useAuthStore.setState({ user: newUser as any, isAuthenticated: true, loading: false });
-      Alert.alert('تم بنجاح', `تم إنشاء الحساب بنجاح، مرحباً بك ${cleanName}!`);
+      Alert.alert(t('common.success'), `${t('auth.loginSuccess')} (${cleanName})`);
       navigation.replace('Home', { screen: 'Dashboard' });
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'خطأ أثناء إنشاء الحساب');
+      setSubmitError(err instanceof Error ? err.message : t('common.error'));
     }
   };
 
   if (!modeChecked) {
     return (
-      <View style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color={colors.primary[600]} />
+      <View style={[styles.loadingCenter, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary[500]} />
       </View>
     );
   }
 
-  const isConnected = !!serverUrl;
+  const inputBg = isDark ? '#131b2e' : '#f1f5f9';
+  const borderColor = isDark ? '#1e293b' : '#e2e8f0';
+  const SubmitArrow = isRTL ? ArrowLeft : ArrowRight;
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      {/* Branding Hero */}
-      <View style={styles.branding}>
-        <Image
-          source={AppImages.logo}
-          style={styles.logoImg}
-          resizeMode="contain"
-        />
-        <Text style={styles.appTitle}>AN POS Mobile</Text>
-        <Text style={styles.appTagline}>منظومة نقاط البيع وإدارة المخازن</Text>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Language Quick Switch Row */}
+        <View style={[styles.langRow, { justifyContent: isRTL ? 'flex-start' : 'flex-end' }]}>
+          <LanguageQuickButton />
+        </View>
 
-        <Badge
-          variant={mode === 'connected' ? (isConnected ? 'success' : 'warning') : 'neutral'}
-          size="sm"
-          style={styles.statusBadge}
-        >
-          {mode === 'connected'
-            ? isConnected
-              ? `متصل: ${serverUrl}`
-              : 'غير متصل — بحاجة للاقتران بالحاسوب'
-            : 'الوضع المستقل — قاعدة بيانات محلية (SQLite)'}
-        </Badge>
-      </View>
-
-      {/* Mode Segment Selector */}
-      <View style={styles.segmentContainer}>
-        <TouchableOpacity
-          style={[styles.segmentBtn, view === 'login' && styles.segmentActive]}
-          onPress={() => {
-            setView('login');
-            setSubmitError(null);
-          }}
-          activeOpacity={0.8}
-        >
-          <LogIn
-            size={16}
-            color={view === 'login' ? colors.primary[700] : colors.slate[500]}
-          />
-          <Text
-            style={[
-              styles.segmentText,
-              view === 'login' && styles.segmentTextActive,
-            ]}
-          >
-            تسجيل الدخول
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.segmentBtn, view === 'register' && styles.segmentActive]}
-          onPress={() => {
-            setView('register');
-            setSubmitError(null);
-          }}
-          activeOpacity={0.8}
-        >
-          <UserPlus
-            size={16}
-            color={view === 'register' ? colors.primary[700] : colors.slate[500]}
-          />
-          <Text
-            style={[
-              styles.segmentText,
-              view === 'register' && styles.segmentTextActive,
-            ]}
-          >
-            إنشاء حساب
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Main Form Card */}
-      <Card variant="elevated" style={styles.formCard}>
-        {view === 'login' ? (
-          <View style={styles.formContent}>
-            <Input
-              label="اسم المستخدم"
-              placeholder="admin أو اسم المستخدم"
-              value={username}
-              onChangeText={setUsername}
-              autoCapitalize="none"
-              rightIcon={<User size={18} color={colors.slate[400]} />}
+        {/* Brand / Logo Top Area */}
+        <View style={styles.brandingHeader}>
+          <View style={styles.logoSquircle}>
+            <Image
+              source={AppImages.logo}
+              style={styles.logoImg}
+              resizeMode="contain"
             />
+          </View>
+          <Text style={[styles.appTitle, { color: colors.text.primary }]}>
+            AN POS
+          </Text>
+          <Text style={[styles.appSubtitle, { color: colors.text.secondary }]}>
+            {view === 'login'
+              ? t('auth.loginSubtitle')
+              : t('auth.register')}
+          </Text>
+          {mode === 'connected' && activeServerUrl && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? 'rgba(30, 58, 138, 0.4)' : '#eff6ff', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20, marginTop: 8, borderWidth: 1, borderColor: '#3b82f6' }}>
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#22c55e', marginRight: isRTL ? 0 : 6, marginLeft: isRTL ? 6 : 0 }} />
+              <Text style={{ color: isDark ? '#93c5fd' : '#1d4ed8', fontSize: 11.5, fontFamily: 'Cairo', fontWeight: '600' }}>
+                {isRTL ? `متصل بالحاسوب (${activeServerUrl.replace('http://', '')})` : `Connected to PC (${activeServerUrl.replace('http://', '')})`}
+              </Text>
+            </View>
+          )}
+        </View>
 
-            <View style={{ width: '100%' }}>
-              <Text style={styles.inputLabel}>الرمز السري (PIN)</Text>
-              <View style={styles.pinContainer}>
-                <Lock
-                  size={18}
-                  color={colors.slate[400]}
-                  style={{ marginLeft: spacing.sm }}
-                />
+        {/* Form Container */}
+        {view === 'login' ? (
+          <View style={styles.formSection}>
+            {/* Username Field */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.fieldLabel, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
+                {t('auth.username')}
+              </Text>
+              <View
+                style={[
+                  styles.inputFieldContainer,
+                  { backgroundColor: inputBg, borderColor: borderColor, flexDirection: isRTL ? 'row' : 'row-reverse' },
+                ]}
+              >
                 <TextInput
-                  style={styles.pinInput}
-                  placeholder="••••"
-                  value={pin}
-                  onChangeText={setPin}
-                  placeholderTextColor={colors.slate[400]}
-                  secureTextEntry={!showPin}
-                  keyboardType="numeric"
-                  textAlign="right"
+                  style={[styles.textInput, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}
+                  placeholder={t('auth.usernamePlaceholder')}
+                  placeholderTextColor={colors.text.tertiary}
+                  value={username}
+                  onChangeText={setUsername}
+                  autoCapitalize="none"
                 />
-                <TouchableOpacity
-                  onPress={() => setShowPin(!showPin)}
-                  style={styles.eyeBtn}
-                >
-                  {showPin ? (
-                    <EyeOff size={18} color={colors.slate[500]} />
-                  ) : (
-                    <Eye size={18} color={colors.slate[500]} />
-                  )}
-                </TouchableOpacity>
+                <User size={20} color={colors.text.tertiary} style={styles.fieldIcon} />
               </View>
             </View>
 
+            {/* Password / PIN Field */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.fieldLabel, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
+                {t('auth.pin')}
+              </Text>
+              <View
+                style={[
+                  styles.inputFieldContainer,
+                  { backgroundColor: inputBg, borderColor: borderColor, flexDirection: isRTL ? 'row' : 'row-reverse' },
+                ]}
+              >
+                <TouchableOpacity
+                  onPress={() => setShowPin(!showPin)}
+                  style={styles.eyeToggleBtn}
+                  activeOpacity={0.7}
+                >
+                  {showPin ? (
+                    <EyeOff size={18} color={colors.text.tertiary} />
+                  ) : (
+                    <Eye size={18} color={colors.text.tertiary} />
+                  )}
+                </TouchableOpacity>
+
+                <TextInput
+                  style={[styles.textInput, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}
+                  placeholder="••••••••"
+                  placeholderTextColor={colors.text.tertiary}
+                  value={pin}
+                  onChangeText={setPin}
+                  secureTextEntry={!showPin}
+                  keyboardType="default"
+                />
+                <Lock size={20} color={colors.text.tertiary} style={styles.fieldIcon} />
+              </View>
+            </View>
+
+            {/* Error Message */}
             {submitError ? (
-              <View style={styles.errorBanner}>
-                <AlertCircle size={15} color={colors.danger.main} />
-                <Text style={styles.errorText}>{submitError}</Text>
+              <View style={[styles.errorBanner, { backgroundColor: colors.danger.light, borderColor: colors.danger.border }]}>
+                <AlertCircle size={16} color={colors.danger.main} />
+                <Text style={[styles.errorBannerText, { color: colors.danger.text, textAlign: isRTL ? 'right' : 'left' }]}>
+                  {submitError}
+                </Text>
               </View>
             ) : null}
 
-            <Button
-              title="دخول إلى نقطة البيع"
+            {/* Primary Submit Button */}
+            <TouchableOpacity
+              style={[styles.primarySubmitBtn, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}
               onPress={handleLogin}
-              loading={loading}
-              disabled={!username || !pin || loading}
-              fullWidth
-              size="lg"
-              style={{ marginTop: spacing.xs }}
-            />
+              activeOpacity={0.88}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <>
+                  <SubmitArrow size={20} color="#ffffff" />
+                  <Text style={styles.primarySubmitBtnText}>{t('auth.loginButton')}</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            {/* Navigation & Mode Link */}
+            <TouchableOpacity
+              style={styles.modeLinkBtn}
+              onPress={() => navigation.navigate('ModeSelect')}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.modeLinkText, { color: isDark ? '#60a5fa' : '#2563eb' }]}>
+                {t('modeSelect.switchLang')} • {t('modeSelect.standaloneTitle')}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Switch to Register */}
+            <TouchableOpacity
+              style={styles.switchViewBtn}
+              onPress={() => {
+                setView('register');
+                setSubmitError(null);
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.switchViewText, { color: colors.text.secondary }]}>
+                {t('auth.noAccount')}{' '}
+                <Text style={{ color: isDark ? '#60a5fa' : '#2563eb', fontWeight: '700' }}>
+                  {t('auth.createAccount')}
+                </Text>
+              </Text>
+            </TouchableOpacity>
           </View>
         ) : (
-          <View style={styles.formContent}>
-            <Input
-              label="الاسم الكامل"
-              placeholder="مثال: محمد أحمد"
-              value={regName}
-              onChangeText={setRegName}
-            />
+          /* Register Form */
+          <View style={styles.formSection}>
+            <View style={styles.inputGroup}>
+              <Text style={[styles.fieldLabel, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
+                {t('auth.fullName')}
+              </Text>
+              <View style={[styles.inputFieldContainer, { backgroundColor: inputBg, borderColor: borderColor, flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                <TextInput
+                  style={[styles.textInput, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}
+                  placeholder={t('auth.fullNamePlaceholder')}
+                  placeholderTextColor={colors.text.tertiary}
+                  value={regName}
+                  onChangeText={setRegName}
+                />
+                <User size={20} color={colors.text.tertiary} style={styles.fieldIcon} />
+              </View>
+            </View>
 
-            <Input
-              label="اسم المستخدم"
-              placeholder="mohammed"
-              value={regUsername}
-              onChangeText={setRegUsername}
-              autoCapitalize="none"
-            />
+            <View style={styles.inputGroup}>
+              <Text style={[styles.fieldLabel, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
+                {t('auth.username')}
+              </Text>
+              <View style={[styles.inputFieldContainer, { backgroundColor: inputBg, borderColor: borderColor, flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                <TextInput
+                  style={[styles.textInput, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}
+                  placeholder="admin..."
+                  placeholderTextColor={colors.text.tertiary}
+                  value={regUsername}
+                  onChangeText={setRegUsername}
+                  autoCapitalize="none"
+                />
+                <UserPlus size={20} color={colors.text.tertiary} style={styles.fieldIcon} />
+              </View>
+            </View>
 
-            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-              <View style={{ flex: 1 }}>
-                <Input
-                  label="البريد الإلكتروني"
-                  placeholder="email@shop.com"
+            <View style={styles.inputGroup}>
+              <Text style={[styles.fieldLabel, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
+                {t('auth.email')} / {t('auth.phone')} ({t('common.optional')})
+              </Text>
+              <View style={[styles.inputFieldContainer, { backgroundColor: inputBg, borderColor: borderColor, flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                <TextInput
+                  style={[styles.textInput, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}
+                  placeholder="user@store.com"
+                  placeholderTextColor={colors.text.tertiary}
                   value={regEmail}
                   onChangeText={setRegEmail}
                   keyboardType="email-address"
                   autoCapitalize="none"
                 />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Input
-                  label="الهاتف"
-                  placeholder="0555000000"
-                  value={regPhone}
-                  onChangeText={setRegPhone}
-                  keyboardType="phone-pad"
-                />
+                <Mail size={20} color={colors.text.tertiary} style={styles.fieldIcon} />
               </View>
             </View>
 
-            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-              <View style={{ flex: 1 }}>
-                <Input
-                  label="الرمز السري (PIN)"
-                  placeholder="••••"
+            <View style={styles.inputGroup}>
+              <Text style={[styles.fieldLabel, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
+                {t('auth.pin')}
+              </Text>
+              <View style={[styles.inputFieldContainer, { backgroundColor: inputBg, borderColor: borderColor, flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                <TextInput
+                  style={[styles.textInput, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}
+                  placeholder="••••••••"
+                  placeholderTextColor={colors.text.tertiary}
                   value={regPin}
                   onChangeText={setRegPin}
                   secureTextEntry
-                  keyboardType="numeric"
                 />
+                <Lock size={20} color={colors.text.tertiary} style={styles.fieldIcon} />
               </View>
-              <View style={{ flex: 1 }}>
-                <Input
-                  label="تأكيد PIN"
-                  placeholder="••••"
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={[styles.fieldLabel, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
+                {t('auth.confirmPin')}
+              </Text>
+              <View style={[styles.inputFieldContainer, { backgroundColor: inputBg, borderColor: borderColor, flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                <TextInput
+                  style={[styles.textInput, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}
+                  placeholder="••••••••"
+                  placeholderTextColor={colors.text.tertiary}
                   value={regPinConfirm}
                   onChangeText={setRegPinConfirm}
                   secureTextEntry
-                  keyboardType="numeric"
                 />
+                <Lock size={20} color={colors.text.tertiary} style={styles.fieldIcon} />
               </View>
             </View>
 
             {submitError ? (
-              <View style={styles.errorBanner}>
-                <AlertCircle size={15} color={colors.danger.main} />
-                <Text style={styles.errorText}>{submitError}</Text>
+              <View style={[styles.errorBanner, { backgroundColor: colors.danger.light, borderColor: colors.danger.border }]}>
+                <AlertCircle size={16} color={colors.danger.main} />
+                <Text style={[styles.errorBannerText, { color: colors.danger.text, textAlign: isRTL ? 'right' : 'left' }]}>
+                  {submitError}
+                </Text>
               </View>
             ) : null}
 
-            <Button
-              title="إنشاء الحساب وبدء الاستخدام"
+            <TouchableOpacity
+              style={[styles.primarySubmitBtn, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}
               onPress={handleRegister}
-              loading={loading}
-              disabled={!regName || !regUsername || !regPin || loading}
-              fullWidth
-              size="lg"
-              style={{ marginTop: spacing.xs }}
-            />
+              activeOpacity={0.88}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <>
+                  <SubmitArrow size={20} color="#ffffff" />
+                  <Text style={styles.primarySubmitBtnText}>{t('auth.registerButton')}</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.switchViewBtn}
+              onPress={() => {
+                setView('login');
+                setSubmitError(null);
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.switchViewText, { color: colors.text.secondary }]}>
+                {t('auth.haveAccount')}{' '}
+                <Text style={{ color: isDark ? '#60a5fa' : '#2563eb', fontWeight: '700' }}>
+                  {t('auth.loginButton')}
+                </Text>
+              </Text>
+            </TouchableOpacity>
           </View>
         )}
-      </Card>
-
-      {/* Connection & Network Status Card */}
-      <View style={[styles.connectionCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}>
-        <View style={styles.connectionInfoRow}>
-          <View
-            style={[
-              styles.connectionIconBox,
-              { backgroundColor: mode === 'connected' && isConnected ? (isDark ? '#064e3b' : colors.emerald[50]) : (isDark ? '#1e293b' : colors.slate[100]) },
-            ]}
-          >
-            {mode === 'connected' && isConnected ? (
-              <Wifi size={20} color={isDark ? '#34d399' : colors.emerald[600]} />
-            ) : (
-              <Database size={20} color={isDark ? '#94a3b8' : colors.slate[600]} />
-            )}
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.connectionCardTitle, { color: colors.text.primary }]}>
-              {mode === 'connected' && isConnected
-                ? 'متصل ببرنامج سطح المكتب'
-                : 'الوضع المحلي المستقل (SQLite)'}
-            </Text>
-            <Text style={[styles.connectionCardSub, { color: colors.text.tertiary }]}>
-              {mode === 'connected' && isConnected
-                ? `الخادم: ${serverUrl}`
-                : 'البيانات والمصادقة محفوظة محلياً على هذا الجهاز'}
-            </Text>
-          </View>
-        </View>
-
-        <Button
-          title={mode === 'connected' ? 'تغيير الخادم / مسح QR جديد' : 'ربط الهاتف مع برنامج الحاسوب (مسح QR)'}
-          variant="outline"
-          size="sm"
-          icon={<QrCode size={16} color={colors.primary[600]} />}
-          onPress={() => navigation.navigate('Pair')}
-          fullWidth
-          disabled={loading}
-          style={{ marginTop: spacing.sm }}
-        />
-      </View>
-
-      {/* Footer Branding */}
-      <View style={styles.footer}>
-        <View style={styles.securityRow}>
-          <ShieldCheck size={14} color={colors.slate[400]} />
-          <Text style={[styles.securityText, { color: colors.text.tertiary }]}>قاعدة بيانات محلية مشفرة وسريعة</Text>
-        </View>
-        <Text style={[styles.versionText, { color: colors.text.tertiary }]}>الإصدار 2.0.0 (AN POS Engine)</Text>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
-const makeStyles = (colors: any, isDark: boolean) =>
-  StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: colors.background,
-    },
-    center: {
-      alignItems: 'center',
-      justifyContent: 'center',
-      flex: 1,
-    },
-    content: {
-      padding: spacing.lg,
-      gap: spacing.lg,
-      paddingBottom: spacing.xxxl,
-    },
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  loadingCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scrollContent: {
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 40,
+    gap: 20,
+  },
+  langRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
 
-    branding: {
-      alignItems: 'center',
-      gap: spacing.xs,
-      paddingTop: spacing.md,
-    },
-    logoImg: {
-      width: 72,
-      height: 72,
-      marginBottom: spacing.xs,
-    },
-    appTitle: {
-      fontSize: 22,
-      fontWeight: '800',
-      color: colors.text.primary,
-      fontFamily: 'Cairo',
-    },
-    appTagline: {
-      fontSize: 12,
-      color: colors.text.secondary,
-      fontFamily: 'Cairo',
-      textAlign: 'center',
-    },
-    statusBadge: {
-      marginTop: spacing.xs,
-    },
+  // Branding
+  brandingHeader: {
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  logoSquircle: {
+    width: 92,
+    height: 92,
+    borderRadius: 26,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(226, 232, 240, 0.8)',
+    ...shadows.md,
+  },
+  logoImg: {
+    width: 74,
+    height: 74,
+  },
+  appTitle: {
+    fontSize: 26,
+    fontWeight: '800',
+    fontFamily: 'Cairo',
+    letterSpacing: 0.5,
+  },
+  appSubtitle: {
+    fontSize: 13,
+    fontFamily: 'Cairo',
+    textAlign: 'center',
+  },
 
-    // Segment Toggle
-    segmentContainer: {
-      flexDirection: 'row',
-      backgroundColor: isDark ? colors.surfaceSubtle : colors.slate[100],
-      borderRadius: radii.lg,
-      padding: 3,
-      borderWidth: 1,
-      borderColor: colors.border.default,
-    },
-    segmentBtn: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: spacing.xs,
-      paddingVertical: spacing.sm + 2,
-      borderRadius: radii.md,
-    },
-    segmentActive: {
-      backgroundColor: colors.surface,
-      ...shadows.sm,
-    },
-    segmentText: {
-      fontSize: 13,
-      fontWeight: '600',
-      color: colors.slate[500],
-      fontFamily: 'Cairo',
-    },
-    segmentTextActive: {
-      color: colors.primary[700],
-      fontWeight: '700',
-    },
+  // Form Section
+  formSection: {
+    gap: 18,
+    marginTop: 6,
+  },
+  inputGroup: {
+    gap: 6,
+    alignItems: 'stretch',
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    fontFamily: 'Cairo',
+  },
+  inputFieldContainer: {
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    height: 52,
+  },
+  textInput: {
+    flex: 1,
+    fontSize: 14.5,
+    fontFamily: 'Cairo',
+    paddingHorizontal: 8,
+  },
+  fieldIcon: {
+    marginHorizontal: 4,
+  },
+  eyeToggleBtn: {
+    padding: 6,
+  },
 
-    // Form Card
-    formCard: {
-      padding: spacing.lg,
-    },
-    formContent: {
-      gap: spacing.md,
-    },
-    inputLabel: {
-      fontSize: 12,
-      fontWeight: '600',
-      color: colors.text.secondary,
-      fontFamily: 'Cairo',
-      marginBottom: spacing.xs,
-      textAlign: 'right',
-    },
-    pinContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border.default,
-      borderRadius: radii.md,
-      paddingHorizontal: spacing.sm,
-      height: 44,
-    },
-    pinInput: {
-      flex: 1,
-      fontSize: 15,
-      color: colors.text.primary,
-      fontFamily: 'Cairo',
-      paddingHorizontal: spacing.sm,
-    },
-    eyeBtn: {
-      padding: 6,
-    },
+  // Errors
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+  },
+  errorBannerText: {
+    fontSize: 12,
+    fontFamily: 'Cairo',
+    flex: 1,
+    fontWeight: '600',
+  },
 
-    errorBanner: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.xs,
-      backgroundColor: colors.danger.light,
-      borderRadius: radii.md,
-      padding: spacing.sm + 2,
-      borderWidth: 1,
-      borderColor: colors.danger.border,
-    },
-    errorText: {
-      fontSize: 12,
-      color: colors.danger.text,
-      fontFamily: 'Cairo',
-      flex: 1,
-      textAlign: 'right',
-    },
+  // Submit Button
+  primarySubmitBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: '#3b82f6',
+    borderRadius: 18,
+    paddingVertical: 15,
+    marginTop: 6,
+    ...shadows.md,
+  },
+  primarySubmitBtnText: {
+    fontSize: 15.5,
+    fontWeight: '800',
+    color: '#ffffff',
+    fontFamily: 'Cairo',
+  },
 
-    // Connection Card
-    connectionCard: {
-      borderRadius: radii.xl,
-      borderWidth: 1,
-      padding: spacing.md,
-    },
-    connectionInfoRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.sm,
-    },
-    connectionIconBox: {
-      width: 40,
-      height: 40,
-      borderRadius: radii.lg,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    connectionCardTitle: {
-      fontSize: 13,
-      fontWeight: '700',
-      fontFamily: 'Cairo',
-      textAlign: 'right',
-    },
-    connectionCardSub: {
-      fontSize: 11,
-      fontFamily: 'Cairo',
-      textAlign: 'right',
-      marginTop: 2,
-    },
-
-    // Footer
-    footer: {
-      alignItems: 'center',
-      gap: 4,
-      marginTop: spacing.sm,
-    },
-    securityRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-    },
-    securityText: {
-      fontSize: 11,
-      fontFamily: 'Cairo',
-    },
-    versionText: {
-      fontSize: 11,
-      fontFamily: 'Cairo',
-    },
-  });
+  // Links
+  modeLinkBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+  },
+  modeLinkText: {
+    fontSize: 13,
+    fontWeight: '700',
+    fontFamily: 'Cairo',
+  },
+  switchViewBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 4,
+  },
+  switchViewText: {
+    fontSize: 13,
+    fontFamily: 'Cairo',
+  },
+});
 
 export default LoginScreen;

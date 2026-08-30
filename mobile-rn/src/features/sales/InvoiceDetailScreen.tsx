@@ -82,31 +82,45 @@ export const InvoiceDetailScreen = ({ route, navigation }: any) => {
     setLoading(false);
   }
 
-  const rawItems: any[] = sale
-    ? Array.isArray(sale.items)
-      ? sale.items
-      : typeof sale.items === 'string'
-      ? JSON.parse(sale.items || '[]')
-      : []
-    : [];
+function parseSaleItems(raw: unknown): any[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+      if (parsed && typeof parsed === 'object') return Object.values(parsed);
+    } catch {
+      return [];
+    }
+  }
+  if (typeof raw === 'object') {
+    return Object.values(raw);
+  }
+  return [];
+}
 
-  const items = rawItems.length > 0 ? rawItems : dbItems.map((si) => ({
+  const rawItems: any[] = sale ? parseSaleItems(sale.items) : [];
+
+  const parsedDbItems = (dbItems || []).map((si) => ({
     name: si.name || 'منتج',
-    qty: si.qty || si.quantity || 1,
-    unitPrice: si.unitPrice || si.unit_price || 0,
-    lineTotal: si.lineTotal || si.line_total || (si.qty || 1) * (si.unitPrice || si.unit_price || 0),
+    qty: Number(si.qty || si.quantity || 1),
+    unitPrice: Number(si.unitPrice || si.unit_price || 0),
+    lineTotal: Number(si.lineTotal || si.line_total || (si.qty || 1) * (si.unitPrice || si.unit_price || 0)),
   }));
+
+  const items: any[] = rawItems.length > 0 ? rawItems : parsedDbItems;
 
   const invoicePrintData: PrintInvoiceData | null = sale
     ? {
         id: sale.id,
         number: sale.number,
         date: new Date(sale.date || (sale as any).created_at || (sale as any).createdAt || Date.now()).toLocaleString('ar-DZ'),
-        items: items.map((i) => ({
-          name: i.name || '',
-          qty: Number(i.qty || 1),
-          unitPrice: Number(i.unitPrice || 0),
-          lineTotal: Number(i.lineTotal || (i.qty || 1) * (i.unitPrice || 0)),
+        items: (Array.isArray(items) ? items : []).map((i) => ({
+          name: i?.name || '',
+          qty: Number(i?.qty || i?.quantity || 1),
+          unitPrice: Number(i?.unitPrice || i?.unit_price || 0),
+          lineTotal: Number(i?.lineTotal || i?.line_total || (i?.qty || 1) * (i?.unitPrice || 0)),
         })),
         subtotal: Number(sale.subtotal || sale.total || 0),
         discount: Number(sale.discount || 0),
@@ -305,9 +319,9 @@ export const InvoiceDetailScreen = ({ route, navigation }: any) => {
         </Card>
 
         {/* Items List */}
-        <Text style={styles.sectionHeading}>الأصناف والمنتجات ({items.length})</Text>
+        <Text style={styles.sectionHeading}>الأصناف والمنتجات ({(Array.isArray(items) ? items : []).length})</Text>
         <Card style={styles.card}>
-          {items.map((item, idx) => (
+          {(Array.isArray(items) ? items : []).map((item, idx) => (
             <View key={idx} style={[styles.itemRow, idx > 0 && styles.itemRowBorder]}>
               <Text style={styles.itemTotal}>
                 {((item.qty || 1) * (item.unitPrice || 0)).toLocaleString('ar-DZ')} دج

@@ -99,69 +99,71 @@ export const CameraScanner = ({
       }
     };
 
-    const subscription = CameraEventEmitter.addListener(
-      'onBarcodeScan',
-      (result: ScanResult) => {
-        const code = result.code?.trim();
-        if (!code) return;
+    const handleCodeEvent = (result: ScanResult | { code?: string } | string) => {
+      const rawCode = typeof result === 'string' ? result : result?.code;
+      const code = rawCode?.trim();
+      if (!code) return;
 
-        const now = Date.now();
+      const now = Date.now();
 
-        if (mode === 'single') {
-          if (!hasScannedSingle.current) {
-            hasScannedSingle.current = true;
-            try {
-              Vibration.vibrate(60);
-            } catch {}
-            onScan(code, 'single');
-            onClose();
-          }
-        } else {
-          // Multi Mode: debounce repeated scans of the same code within 1.4s
-          if (
-            code === lastCodeScanned.current &&
-            now - lastScanTime.current < 1400
-          ) {
-            return;
-          }
-
-          lastCodeScanned.current = code;
-          lastScanTime.current = now;
-
+      if (mode === 'single') {
+        if (!hasScannedSingle.current) {
+          hasScannedSingle.current = true;
           try {
-            Vibration.vibrate(40);
+            Vibration.vibrate(60);
           } catch {}
-
-          // Visual pulse effect
-          Animated.sequence([
-            Animated.timing(pulseAnim, {
-              toValue: 1.1,
-              duration: 100,
-              useNativeDriver: true,
-            }),
-            Animated.timing(pulseAnim, {
-              toValue: 1,
-              duration: 100,
-              useNativeDriver: true,
-            }),
-          ]).start();
-
-          setScannedCodes((prev) => [...prev, code]);
-          setLastScannedFeedback(code);
-          setTimeout(() => setLastScannedFeedback(null), 1200);
-
-          onScan(code, 'multi');
+          onScan(code, 'single');
+          onClose();
         }
+      } else {
+        // Multi Mode: debounce repeated scans of the same code within 1.4s
+        if (
+          code === lastCodeScanned.current &&
+          now - lastScanTime.current < 1400
+        ) {
+          return;
+        }
+
+        lastCodeScanned.current = code;
+        lastScanTime.current = now;
+
+        try {
+          Vibration.vibrate(40);
+        } catch {}
+
+        // Visual pulse effect
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.1,
+            duration: 100,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 100,
+            useNativeDriver: true,
+          }),
+        ]).start();
+
+        setScannedCodes((prev) => [...prev, code]);
+        setLastScannedFeedback(code);
+        setTimeout(() => setLastScannedFeedback(null), 1200);
+
+        onScan(code, 'multi');
       }
-    );
+    };
+
+    const sub1 = CameraEventEmitter.addListener('onBarcodeScan', handleCodeEvent);
+    const sub2 = CameraEventEmitter.addListener('onBarcodeScanned', handleCodeEvent);
 
     startCamera();
 
     return () => {
-      subscription.remove();
+      sub1.remove();
+      sub2.remove();
       AnposCamera.stopScan();
     };
-  }, [manualMode, mode]);
+  }, [manualMode, mode, onClose, onScan]);
 
   const handleFinishMulti = () => {
     if (onBatchComplete) {

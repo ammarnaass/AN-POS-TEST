@@ -191,11 +191,20 @@ export const PacksScreen = ({ navigation }: any) => {
         ) : (
           <View style={{ gap: 10, paddingHorizontal: 12 }}>
             {packs.map((p) => {
-              const packItemsList: any[] = Array.isArray(p.items)
-                ? p.items
-                : typeof p.items === 'string'
-                ? JSON.parse(p.items || '[]')
-                : [];
+              let packItemsList: any[] = [];
+              if (Array.isArray(p.items)) {
+                packItemsList = p.items;
+              } else if (typeof p.items === 'string') {
+                try {
+                  const parsed = JSON.parse(p.items);
+                  if (Array.isArray(parsed)) packItemsList = parsed;
+                  else if (parsed && typeof parsed === 'object') packItemsList = Object.values(parsed);
+                } catch {
+                  packItemsList = [];
+                }
+              } else if (p.items && typeof p.items === 'object') {
+                packItemsList = Object.values(p.items);
+              }
 
               return (
                 <View key={p.id} style={styles.packCard}>

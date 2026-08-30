@@ -168,7 +168,7 @@ export default function CashPage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-row-reverse justify-between items-center">
+      <div className="flex flex-col sm:flex-row-reverse justify-between items-start sm:items-center gap-3">
         <div>
           <h2 className="font-headline-lg text-headline-lg text-on-surface">إدارة الصندوق</h2>
           <p className="font-body-md text-body-md text-on-surface-variant">إدارة الجلسات النقدية ورأس المال</p>

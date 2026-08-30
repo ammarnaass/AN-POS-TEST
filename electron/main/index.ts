@@ -1,13 +1,16 @@
 // نقطة دخول Electron main process
 // يتولى: تهيئة قاعدة البيانات + إنشاء الجداول + seed + تسجيل IPC + إنشاء النافذة
 
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu } from 'electron';
 import path from 'node:path';
 import { initDatabase, closeDatabase } from './database';
 import { initSchema } from './schema-init';
 import { seedDatabase } from './seed';
 import { registerIpcHandlers } from './ipc/register';
 import { startHttpServer, stopHttpServer, getNetworkSettings, getOrCreateConnectionKey } from './server/index';
+
+// إخفاء شريط القوائم الافتراضي بالكامل (File, Edit, View, Window, etc.)
+Menu.setApplicationMenu(null);
 
 // تعطيل GPU sandbox — مطلوب في بيئات بدون GPU فعلي (خوادم/headless/VNC)
 app.commandLine.appendSwitch('disable-gpu');
@@ -81,21 +84,33 @@ async function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
-    minWidth: 1024,
-    minHeight: 700,
+    minWidth: 360,
+    minHeight: 480,
     show: true,
+    autoHideMenuBar: true,
     title: 'AN POS',
     icon: iconPath,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#0f172a',
     webPreferences: {
-      preload: path.join(__dirname, '../preload/index.cjs'),
+      preload: (() => {
+        const mjs = path.join(__dirname, '../preload/index.mjs');
+        const js = path.join(__dirname, '../preload/index.js');
+        const cjs = path.join(__dirname, '../preload/index.cjs');
+        if (path.extname(__filename) === '.cjs') return cjs;
+        return mjs;
+      })(),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
-      // sandbox: false يسمح للـ preload (CJS) بالوصول لـ require('electron') و ipcRenderer
+      // sandbox: false يسمح للـ preload بالوصول لـ ipcRenderer
       // node:sqlite متاح في main process فقط
     },
   });
+
+  // إخفاء وحذف شريط القوائم (File, Edit, View, Window) نهائياً على جميع المنصات
+  mainWindow.setMenu(null);
+  mainWindow.removeMenu();
+  mainWindow.setMenuBarVisibility(false);
 
   // احتياط: إن لم تكن النافذة ظاهرة، أظهرها عند ready-to-show
   mainWindow.once('ready-to-show', () => {
@@ -112,8 +127,10 @@ async function createWindow() {
 
   // تحميل الواجهة
   const isDev = !app.isPackaged;
-  if (isDev) {
-    // وضع التطوير: Vite dev server
+  if (isDev && process.env['ELECTRON_RENDERER_URL']) {
+    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL']);
+    mainWindow.webContents.openDevTools();
+  } else if (isDev) {
     mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
   } else {
@@ -125,6 +142,13 @@ async function createWindow() {
     mainWindow = null;
   });
 }
+
+// تطبيق إخفاء شريط القوائم على أي نافذة جديدة يتم إنشاؤها في التطبيق
+app.on('browser-window-created', (_event, window) => {
+  window.setMenu(null);
+  window.removeMenu();
+  window.setMenuBarVisibility(false);
+});
 
 app.whenReady().then(createWindow);
 
@@ -142,3 +166,4 @@ app.on('before-quit', async () => {
   closeDatabase();
   await stopHttpServer().catch(() => {});
 });
+

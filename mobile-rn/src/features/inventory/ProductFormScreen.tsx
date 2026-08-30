@@ -41,6 +41,7 @@ import {
 } from 'lucide-react-native';
 import { db, ensureInit } from '@/lib/db';
 import { generateId } from '@shared/utils';
+import { syncEngine } from '@/lib/syncEngine';
 import CameraScanner from '@/features/barcode/CameraScanner';
 import { AnposCamera } from '@/modules/AnposCamera';
 import type { Product, Category, Supplier } from '@shared/types';
@@ -382,14 +383,14 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
     if (!newCatName.trim()) return;
     try {
       const newId = generateId();
-      await db.categories.add({
+      const catObj = {
         id: newId,
         name: newCatName.trim(),
-        color: colors.primary[600],
+        color: colors.primary[600] || '#3b82f6',
         icon: 'Tag',
-      });
-      const updatedCats = await db.categories.toArray();
-      setCategories(updatedCats);
+      };
+      await db.categories.add(catObj);
+      setCategories((prev) => [...prev, catObj as any]);
       handleFieldChange('category', newCatName.trim());
       handleFieldChange('categoryId', newId);
       setNewCatName('');
@@ -432,39 +433,54 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
 
       const productPayload: any = {
         name: form.name.trim(),
+        productName: form.name.trim(),
         barcode: finalBarcode,
         sku: form.barcode.trim() || `PRD-${Math.floor(1000 + Math.random() * 9000)}`,
         category: form.category.trim() || 'عام',
-        category_id: form.categoryId || null,
-        categoryId: form.categoryId || null,
-        unit: form.unit,
+        category_id: form.categoryId || '',
+        categoryId: form.categoryId || '',
+        unit: form.unit || 'قطعة',
         retail_price: retailVal,
         retailPrice: retailVal,
+        price: retailVal,
         cost_price: costVal,
         costPrice: costVal,
+        purchase_price: costVal,
+        purchasePrice: costVal,
         wholesale_price: wholesaleVal,
         wholesalePrice: wholesaleVal,
         wholesale_min_qty: wholesaleMinVal,
         wholesaleMinQty: wholesaleMinVal,
         quantity: qtyVal,
+        qty: qtyVal,
+        stock: qtyVal,
         low_stock_threshold: lowStockVal,
         lowStockThreshold: lowStockVal,
-        description: form.description.trim(),
-        supplier: form.supplier.trim(),
-        supplier_id: form.supplierId || null,
-        color: form.color.trim(),
-        size_or_weight: form.sizeOrWeight.trim(),
-        expiry_date: form.expiryDate.trim() || null,
-        expiryDate: form.expiryDate.trim() || null,
-        location: form.location.trim(),
+        min_quantity: lowStockVal,
+        minQuantity: lowStockVal,
+        description: form.description.trim() || '',
+        supplier: form.supplier.trim() || '',
+        supplier_id: form.supplierId || '',
+        supplierId: form.supplierId || '',
+        warehouse_id: 'main',
+        warehouseId: 'main',
+        color: form.color.trim() || '',
+        size_or_weight: form.sizeOrWeight.trim() || '',
+        expiry_date: form.expiryDate.trim() || '',
+        expiryDate: form.expiryDate.trim() || '',
+        location: form.location.trim() || '',
         wholesale_unit_name: form.wholesaleUnitName.trim() || 'كرتون',
         quick_sale: form.quickSale ? 1 : 0,
         quickSale: form.quickSale,
         has_variants: form.hasVariants ? 1 : 0,
         hasVariants: form.hasVariants,
-        image: form.image || null,
-        image_url: form.image || null,
+        image: form.image || '',
+        image_url: form.image || '',
+        imageUrl: form.image || '',
         custom_prices: JSON.stringify(customPrices),
+        tax_rate: Number((form as any).taxRate ?? (form as any).tax_rate ?? 0),
+        taxRate: Number((form as any).taxRate ?? (form as any).tax_rate ?? 0),
+        status: 'active',
         updated_at: nowIso,
       };
 
@@ -472,25 +488,31 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
 
       if (isEdit) {
         await db.products.update(productId, productPayload);
+        await syncEngine.enqueue('update', 'products', productId, productPayload);
       } else {
-        await db.products.add({
+        const fullProduct = {
           id: finalProductId,
           ...productPayload,
           created_at: nowIso,
           createdAt: nowIso,
-        });
+        };
+        await db.products.add(fullProduct);
+        await syncEngine.enqueue('create', 'products', finalProductId, fullProduct);
       }
+
+      // Trigger background sync in connected mode
+      syncEngine.processQueue().catch(() => {});
 
       // Sync secondary barcodes table
       try {
-        const allSec = await db.productBarcodes.toArray();
+        const allSec = await db.productBarcodes.toArray().catch(() => []);
         const existingForThisProd = allSec.filter(
           (b: any) => b.productId === finalProductId || b.product_id === finalProductId
         );
 
         for (const ex of existingForThisProd) {
           if (!secondaryBarcodes.includes(ex.barcode)) {
-            await db.productBarcodes.delete(ex.id);
+            await db.productBarcodes.delete(ex.id).catch(() => {});
           }
         }
 
@@ -505,7 +527,7 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
               is_primary: 0,
               created_at: nowIso,
               updated_at: nowIso,
-            });
+            }).catch(() => {});
           }
         }
       } catch (err) {
@@ -533,6 +555,7 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
 
     try {
       await db.products.delete(productId);
+      await syncEngine.enqueue('delete', 'products', productId, { id: productId });
       notify.success('تم حذف المنتج بنجاح');
       navigation.goBack();
     } catch (err) {

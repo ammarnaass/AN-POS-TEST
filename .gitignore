@@ -55,3 +55,7 @@ nul
 mobile-rn/*.ico
 mobile-rn/*.png
 
+# Python
+__pycache__/
+*.pyc
+*.pyo

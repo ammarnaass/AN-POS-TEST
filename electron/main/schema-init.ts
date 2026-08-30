@@ -759,8 +759,30 @@ CREATE TABLE IF NOT EXISTS connected_devices (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
-CREATE INDEX IF NOT EXISTS idx_connected_devices_type ON connected_devices(device_type);
-CREATE INDEX IF NOT EXISTS idx_connected_devices_status ON connected_devices(status);
+
+-- جلسات الأجهزة المقترنة
+CREATE TABLE IF NOT EXISTS device_sessions (
+  id TEXT PRIMARY KEY,
+  session_token TEXT UNIQUE NOT NULL,
+  device_id TEXT NOT NULL,
+  device_name TEXT DEFAULT '',
+  user_id TEXT DEFAULT NULL,
+  paired_at TEXT NOT NULL DEFAULT (datetime('now')),
+  last_seen TEXT NOT NULL DEFAULT (datetime('now')),
+  expires_at TEXT DEFAULT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_device_sessions_token ON device_sessions(session_token);
+CREATE INDEX IF NOT EXISTS idx_device_sessions_device ON device_sessions(device_id);
+
+-- جدول تتبع السجلات المحذوفة للمزامنة (Tombstones)
+CREATE TABLE IF NOT EXISTS sync_tombstones (
+  id TEXT PRIMARY KEY,
+  table_name TEXT NOT NULL,
+  record_id TEXT NOT NULL,
+  deleted_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_tombstones_lookup ON sync_tombstones(table_name, deleted_at);
 `;
 
 /**
@@ -772,4 +794,35 @@ export function initSchema(): void {
   // ترقيات آمنة للجداول الموجودة مسبقاً
   try { execSql("ALTER TABLE categories ADD COLUMN icon TEXT NOT NULL DEFAULT '';"); } catch { /* موجود */ }
   try { execSql("ALTER TABLE categories ADD COLUMN color TEXT NOT NULL DEFAULT '';"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE products ADD COLUMN category_id TEXT DEFAULT NULL;"); } catch { /* موجود */ }
+
+  // PRD §5.1: أعمدة المزامنة للجداول القابلة للمزامنة
+  const syncTables = [
+    'products', 'categories', 'product_barcodes', 'promotions', 'packs',
+    'sales', 'sale_items', 'customers', 'payments', 'suppliers',
+    'purchases', 'purchase_items', 'warehouses', 'stock_movements_v2'
+  ];
+
+  for (const tbl of syncTables) {
+    try { execSql(`ALTER TABLE ${tbl} ADD COLUMN device_id TEXT DEFAULT '';`); } catch { /* موجود */ }
+    try { execSql(`ALTER TABLE ${tbl} ADD COLUMN updated_at TEXT DEFAULT (datetime('now'));`); } catch { /* موجود */ }
+    try { execSql(`ALTER TABLE ${tbl} ADD COLUMN sync_version INTEGER DEFAULT 1;`); } catch { /* موجود */ }
+    try { execSql(`ALTER TABLE ${tbl} ADD COLUMN deleted_at TEXT DEFAULT NULL;`); } catch { /* موجود */ }
+  }
+
+  try {
+    execSql(`CREATE TABLE IF NOT EXISTS device_sessions (
+      id TEXT PRIMARY KEY,
+      session_token TEXT UNIQUE NOT NULL,
+      device_id TEXT NOT NULL,
+      device_name TEXT DEFAULT '',
+      user_id TEXT DEFAULT NULL,
+      paired_at TEXT NOT NULL DEFAULT (datetime('now')),
+      last_seen TEXT NOT NULL DEFAULT (datetime('now')),
+      expires_at TEXT DEFAULT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );`);
+    execSql("CREATE INDEX IF NOT EXISTS idx_device_sessions_token ON device_sessions(session_token);");
+    execSql("CREATE INDEX IF NOT EXISTS idx_device_sessions_device ON device_sessions(device_id);");
+  } catch { /* موجود */ }
 }

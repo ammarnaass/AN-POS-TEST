@@ -1,13 +1,19 @@
-// SalesPage — صفحة الفواتير بنظام التبويبات العمودية (POS-PRINT-001 / D phase)
-// 5 تبويبات: الفواتير | القوالب | السجل | الطابعات | الطابور
-// التبويبات أفقية مكدّسة فوق المحتوى (vertical tabs = rows of tabs above content).
+// SalesPage — صفحة الفواتير والطباعة الشاملة (POS-PRINT-001 / D phase)
+// 5 تبويبات تفاعلية: الفواتير | القوالب | سجل الطباعة | الطابعات | طابور الطباعة
 import { useState, lazy, Suspense } from 'react';
-import { useLocation } from 'react-router-dom';
-import { Receipt, FileText, History, Printer, ListChecks } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { db } from '@/infrastructure/database/dexie/db';
+import { listPrinters } from '@/services/print/printerService';
+import { getAllTemplates } from '@/services/print/templateService';
+import {
+  Receipt, FileText, History, Printer, ListChecks,
+  Plus, ShoppingBag, Sparkles, SlidersHorizontal, Layers
+} from 'lucide-react';
 import { useCanAssignTemplate, useCanManagePrinters, useCanPerform } from '@/services/print/permissions';
 import InvoicesTab from './InvoicesTab';
 
-// المكوّنات الثقيلة تُحمّل عند الحاجة فقط (lazy) لتقليل bundle المبدئي
+// Lazy load heavy print components
 const TemplateAssignmentManager = lazy(() => import('@/components/print/TemplateAssignmentManager'));
 const PrintHistoryPanel = lazy(() => import('@/components/print/PrintHistoryPanel'));
 const PrintQueuePanel = lazy(() => import('@/components/print/PrintQueuePanel'));
@@ -18,51 +24,52 @@ type TabKey = 'invoices' | 'templates' | 'history' | 'printers' | 'queue';
 interface TabDef {
   key: TabKey;
   label: string;
-  icon: React.ReactNode;
+  icon: React.ComponentType<{ className?: string }>;
   needsPerm?: 'assign' | 'manage_printers' | 'view_history';
 }
 
 const TABS: TabDef[] = [
-  { key: 'invoices', label: 'الفواتير', icon: <Receipt className="w-4 h-4" /> },
-  { key: 'templates', label: 'القوالب', icon: <FileText className="w-4 h-4" />, needsPerm: 'assign' },
-  { key: 'history', label: 'السجل', icon: <History className="w-4 h-4" />, needsPerm: 'view_history' },
-  { key: 'printers', label: 'الطابعات', icon: <Printer className="w-4 h-4" />, needsPerm: 'manage_printers' },
-  { key: 'queue', label: 'الطابور', icon: <ListChecks className="w-4 h-4" /> },
+  { key: 'invoices', label: 'الفواتير', icon: Receipt },
+  { key: 'templates', label: 'القوالب', icon: FileText, needsPerm: 'assign' },
+  { key: 'history', label: 'السجل', icon: History, needsPerm: 'view_history' },
+  { key: 'printers', label: 'الطابعات', icon: Printer, needsPerm: 'manage_printers' },
+  { key: 'queue', label: 'الطابور', icon: ListChecks },
 ];
-
-function TabButton({ active, onClick, label, icon }: {
-  active: boolean; onClick: () => void; label: string; icon: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-label-lg transition-all whitespace-nowrap ${
-        active
-          ? 'bg-primary text-on-primary shadow-sm'
-          : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
-      }`}
-    >
-      {icon}
-      {label}
-    </button>
-  );
-}
 
 function TabLoading() {
   return (
-    <div className="flex items-center justify-center py-16">
-      <div className="w-8 h-8 border-3 border-primary/30 border-t-primary rounded-full animate-spin" />
+    <div className="flex flex-col items-center justify-center py-20 text-on-surface-variant gap-3">
+      <div className="w-9 h-9 border-3 border-primary/30 border-t-primary rounded-full animate-spin" />
+      <span className="text-body-sm font-medium">جارٍ تحميل القسم...</span>
     </div>
   );
 }
 
 export default function SalesPage() {
   const location = useLocation();
+  const navigate = useNavigate();
   const initialTab = ((location.state as { tab?: TabKey } | null)?.tab ?? 'invoices') as TabKey;
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
+
   const canAssign = useCanAssignTemplate();
   const canManagePrinters = useCanManagePrinters();
   const canViewHistory = useCanPerform('view_history');
+
+  // Queries for live counts on tabs
+  const { data: sales = [] } = useQuery({
+    queryKey: ['sales'],
+    queryFn: () => db.sales.toArray(),
+  });
+
+  const { data: printers = [] } = useQuery({
+    queryKey: ['printers'],
+    queryFn: () => listPrinters(true),
+  });
+
+  const { data: templates = [] } = useQuery({
+    queryKey: ['printTemplates'],
+    queryFn: getAllTemplates,
+  });
 
   const isTabVisible = (tab: TabDef): boolean => {
     if (!tab.needsPerm) return true;
@@ -74,41 +81,85 @@ export default function SalesPage() {
 
   const visibleTabs = TABS.filter(isTabVisible);
 
-  // إذا كان التبويب المُختار مخفيّاً للصلاحية، ارجع للفواتير
   if (!visibleTabs.some((t) => t.key === activeTab)) {
     setActiveTab('invoices');
   }
 
+  const getTabCount = (key: TabKey): number | null => {
+    switch (key) {
+      case 'invoices': return sales.length;
+      case 'printers': return printers.length;
+      case 'templates': return templates.length;
+      default: return null;
+    }
+  };
+
   return (
-    <div className="space-y-4">
-      {/* Page header */}
-      <div className="flex flex-row-reverse justify-between items-center">
+    <div className="space-y-6 animate-fade-in" dir="rtl">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-2 border-b border-outline-variant/15">
         <div>
-          <h2 className="font-cairo text-headline-sm font-bold text-on-surface">الفواتير والطباعة</h2>
-          <p className="text-body-md text-on-surface-variant">إدارة الفواتير، القوالب، الطابعات وسجل الطباعة</p>
+          <div className="flex items-center gap-2">
+            <h2 className="font-cairo text-2xl font-bold text-on-surface">الفواتير والطباعة</h2>
+            <span className="px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-bold">
+              POS & Print Hub
+            </span>
+          </div>
+          <p className="text-body-sm text-on-surface-variant mt-0.5">
+            إدارة فواتير المبيعات، معاينة القوالب، ربط الطابعات، ومتابعة سجلات التدقيق
+          </p>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <button
+            onClick={() => navigate('/pos')}
+            className="flex items-center gap-2 bg-gradient-to-r from-primary to-primary-container text-on-primary px-5 py-2.5 rounded-xl shadow-md hover:shadow-primary/30 hover:opacity-95 transition-all active:scale-95 text-body-sm font-bold cursor-pointer"
+          >
+            <ShoppingBag className="w-4 h-4" />
+            <span>نقطة البيع (POS)</span>
+          </button>
         </div>
       </div>
 
-      {/* Vertical tabs bar — أزرر أفقية مكدّسة فوق المحتوى */}
-      <div className="flex gap-2 overflow-x-auto p-1 bg-surface-container-low/50 rounded-xl border border-outline-variant/20" dir="rtl">
-        {visibleTabs.map((tab) => (
-          <TabButton
-            key={tab.key}
-            active={activeTab === tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            label={tab.label}
-            icon={tab.icon}
-          />
-        ))}
+      {/* Tabs Navigation Strip */}
+      <div className="flex gap-2 overflow-x-auto no-scrollbar touch-scroll p-1.5 bg-surface-container rounded-2xl border border-outline-variant/20">
+        {visibleTabs.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.key;
+          const count = getTabCount(tab.key);
+
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 whitespace-nowrap cursor-pointer ${
+                isActive
+                  ? 'bg-primary text-on-primary shadow-md shadow-primary/20 scale-[1.02]'
+                  : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              <span>{tab.label}</span>
+              {count !== null && (
+                <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                  isActive ? 'bg-white/20 text-white' : 'bg-surface-container-highest text-on-surface-variant'
+                }`}>
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
-      {/* Tab content */}
-      <div className="min-h-[400px]">
+      {/* Tab Content Panels */}
+      <div className="min-h-[450px]">
         {activeTab === 'invoices' && <InvoicesTab />}
 
         {activeTab === 'templates' && (
           <Suspense fallback={<TabLoading />}>
-            <div className="glass-card rounded-xl border border-outline-variant/20 p-6">
+            <div className="bg-surface-container rounded-2xl border border-outline-variant/20 p-6 shadow-sm">
               <TemplateAssignmentManager />
             </div>
           </Suspense>
@@ -116,8 +167,13 @@ export default function SalesPage() {
 
         {activeTab === 'history' && (
           <Suspense fallback={<TabLoading />}>
-            <div className="glass-card rounded-xl border border-outline-variant/20 p-6">
-              {/* saleId فارغ = عرض كل سجل الطباعة (تم تعديل المكوّن لقبول ذلك) */}
+            <div className="bg-surface-container rounded-2xl border border-outline-variant/20 p-6 shadow-sm">
+              <div className="mb-4 pb-3 border-b border-outline-variant/15 flex items-center justify-between">
+                <div>
+                  <h3 className="font-cairo text-lg font-bold text-on-surface">سجل عمليات الطباعة العام</h3>
+                  <p className="text-xs text-on-surface-variant">سجل تدقيق كامل لجميع عمليات الطباعة وإعادة الطباعة المنفذة في النظام</p>
+                </div>
+              </div>
               <PrintHistoryPanel saleId="" />
             </div>
           </Suspense>
@@ -125,14 +181,17 @@ export default function SalesPage() {
 
         {activeTab === 'printers' && (
           <Suspense fallback={<TabLoading />}>
-            {/* prop embedded يلغي الحشو الكامل للصفحة */}
-            <PrintersPage embedded />
+            <div className="bg-surface-container rounded-2xl border border-outline-variant/20 p-6 shadow-sm">
+              <PrintersPage embedded />
+            </div>
           </Suspense>
         )}
 
         {activeTab === 'queue' && (
           <Suspense fallback={<TabLoading />}>
-            <PrintQueuePanel />
+            <div className="bg-surface-container rounded-2xl border border-outline-variant/20 p-6 shadow-sm">
+              <PrintQueuePanel />
+            </div>
           </Suspense>
         )}
       </div>

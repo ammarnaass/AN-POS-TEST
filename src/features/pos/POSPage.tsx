@@ -75,6 +75,8 @@ export default function POSPage() {
   const { data: products = [] } = useQuery({
     queryKey: ['products'],
     queryFn: () => db.products.toArray(),
+    refetchInterval: 3000,
+    refetchOnWindowFocus: true,
   });
 
   const { data: customers = [] } = useQuery({
@@ -229,6 +231,8 @@ export default function POSPage() {
     const saved = localStorage.getItem('pos_ui_zoom');
     return saved ? Number(saved) : 100;
   });
+  // التبديل بين المنتجات والسلة على الشاشات الصغيرة (الهواتف والأجهزة اللوحية)
+  const [mobileTab, setMobileTab] = useState<'products' | 'cart'>('products');
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -241,8 +245,12 @@ export default function POSPage() {
   };
 
   const availableCategories = useMemo(() => {
-    const cats = new Set(products.map((p) => p.category).filter(Boolean));
-    return Array.from(cats);
+    const cats = new Set(
+      products
+        .map((p) => (typeof p.category === 'object' && p.category !== null ? (p.category as any).name : p.category))
+        .filter(Boolean)
+    );
+    return Array.from(cats) as string[];
   }, [products]);
 
   const activeFiltersCount = useMemo(() => {
@@ -321,7 +329,7 @@ export default function POSPage() {
   useEffect(() => { setCurrentPage(1); }, [searchQuery, filterCategory, filterSupplier, filterStockStatus, isFeaturedOnly]);
 
   const settingsOrDefault = useMemo(() => ({
-    tvaRate: settings?.tvaRate ?? 19,
+    tvaRate: Number(settings?.tvaRate ?? (settings as any)?.tva_rate ?? 0),
     invoicePrefix: settings?.invoicePrefix ?? 'INV-',
     baseCurrency: settings?.baseCurrency ?? 'دج',
     shopName: settings?.shopName ?? 'AN POS',
@@ -818,12 +826,21 @@ export default function POSPage() {
       {/* ========================================================= */}
       {/* ZONE 1: TOP HEADER                                        */}
       {/* ========================================================= */}
-      <header className="h-16 px-4 bg-surface-container-lowest/90 backdrop-blur-md border-b border-outline-variant/20 flex items-center justify-between gap-3 shrink-0 z-20 shadow-xs">
-        {/* Right Side (RTL): Search + Barcode + Trial Badge */}
-        <div className="flex items-center gap-3 flex-1 max-w-3xl">
+      <header className="h-16 px-3 sm:px-4 bg-surface-container-lowest/90 backdrop-blur-md border-b border-outline-variant/20 flex items-center justify-between gap-2 sm:gap-3 shrink-0 z-20 shadow-xs">
+        {/* Right Side (RTL): Menu Toggle + Search + Barcode + Trial Badge */}
+        <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 max-w-3xl">
+          {/* Sidebar Menu Button on smaller screens */}
+          <button
+            onClick={openSidebar}
+            className="lg:hidden text-on-surface-variant hover:text-on-surface p-2 rounded-xl hover:bg-surface-container-high transition-colors cursor-pointer shrink-0"
+            title="القائمة الجانبية"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+
           {/* Search by Name */}
-          <div className="relative flex-1 max-w-xs group">
-            <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant group-focus-within:text-primary transition-colors" />
+          <div className="relative flex-1 min-w-[110px] max-w-xs group">
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant group-focus-within:text-primary transition-colors" />
             <input
               ref={searchInputRef}
               type="text"
@@ -842,8 +859,8 @@ export default function POSPage() {
                   }
                 }
               }}
-              placeholder="البحث باسم المنتج..."
-              className="w-full h-10 pr-9 pl-9 bg-surface-container/60 hover:bg-surface-container border border-outline-variant/20 focus:border-primary/60 rounded-xl text-xs text-on-surface focus:outline-none focus:ring-3 focus:ring-primary/15 transition-all placeholder-on-surface-variant/70 shadow-2xs"
+              placeholder="البحث بالاسم..."
+              className="w-full h-10 pr-8 pl-8 sm:pr-9 sm:pl-9 bg-surface-container/60 hover:bg-surface-container border border-outline-variant/20 focus:border-primary/60 rounded-xl text-xs text-on-surface focus:outline-none focus:ring-3 focus:ring-primary/15 transition-all placeholder-on-surface-variant/70 shadow-2xs"
             />
             {searchQuery ? (
               <button
@@ -853,14 +870,14 @@ export default function POSPage() {
                 <X className="w-3.5 h-3.5" />
               </button>
             ) : (
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded bg-surface-container-high/80 border border-outline-variant/30 text-[10px] font-mono font-bold text-on-surface-variant pointer-events-none shadow-2xs">
+              <span className="hidden sm:inline absolute left-2.5 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded bg-surface-container-high/80 border border-outline-variant/30 text-[10px] font-mono font-bold text-on-surface-variant pointer-events-none shadow-2xs">
                 F7
               </span>
             )}
           </div>
 
           {/* Dedicated Barcode Scanner Input */}
-          <div className="relative flex-1 max-w-xs group">
+          <div className="relative hidden sm:flex flex-1 min-w-[110px] max-w-xs group">
             <ScanLine className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-primary group-focus-within:scale-110 transition-transform" />
             <input
               ref={barcodeInputRef}
@@ -880,48 +897,45 @@ export default function POSPage() {
           </div>
 
           {/* Trial / License info pill */}
-          <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs font-bold shrink-0 shadow-2xs">
+          <div className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs font-bold shrink-0 shadow-2xs">
             <Info className="w-4 h-4 text-amber-500 shrink-0" />
-            <span>متبقي 97 مبيعات تجريبية</span>
+            <span>متبقي 97 مبيعات</span>
           </div>
         </div>
 
         {/* Left Side (RTL End): Uniform-Sized Animated Action Icons */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 shrink-0">
           {/* 1. Fullscreen */}
           <button
             onClick={toggleFullscreen}
-            className="group relative w-10 h-10 rounded-xl bg-surface-container/70 hover:bg-primary/10 border border-outline-variant/20 hover:border-primary/40 flex items-center justify-center text-on-surface-variant hover:text-primary hover:scale-110 active:scale-95 transition-all duration-200 shadow-2xs hover:shadow-md hover:shadow-primary/20"
+            className="group relative w-8.5 h-8.5 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-xl bg-surface-container/70 hover:bg-primary/10 border border-outline-variant/20 hover:border-primary/40 flex items-center justify-center text-on-surface-variant hover:text-primary hover:scale-105 active:scale-95 transition-all duration-200 shadow-2xs"
             title={isFullscreen ? 'تصغير الشاشة' : 'ملء الشاشة'}
           >
             {isFullscreen ? (
-              <Minimize className="w-4.5 h-4.5 transition-transform duration-300 group-hover:scale-90" />
+              <Minimize className="w-4 h-4 transition-transform duration-300 group-hover:scale-90" />
             ) : (
-              <Maximize className="w-4.5 h-4.5 transition-transform duration-300 group-hover:rotate-45" />
+              <Maximize className="w-4 h-4 transition-transform duration-300 group-hover:rotate-45" />
             )}
-            <span className="absolute inset-0 rounded-xl bg-primary/0 group-hover:bg-primary/5 transition-colors pointer-events-none" />
           </button>
 
           {/* 2. Help */}
           <button
             onClick={() => setShowShortcutsModal(true)}
-            className="group relative w-10 h-10 rounded-xl bg-surface-container/70 hover:bg-cyan-500/10 border border-outline-variant/20 hover:border-cyan-500/40 flex items-center justify-center text-on-surface-variant hover:text-cyan-600 dark:hover:text-cyan-400 hover:scale-110 active:scale-95 transition-all duration-200 shadow-2xs hover:shadow-md hover:shadow-cyan-500/20"
+            className="group relative w-8.5 h-8.5 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-xl bg-surface-container/70 hover:bg-cyan-500/10 border border-outline-variant/20 hover:border-cyan-500/40 flex items-center justify-center text-on-surface-variant hover:text-cyan-600 dark:hover:text-cyan-400 hover:scale-105 active:scale-95 transition-all duration-200 shadow-2xs"
             title="المساعدة والاختصارات"
           >
-            <HelpCircle className="w-4.5 h-4.5 transition-transform duration-300 group-hover:-rotate-12 group-hover:scale-110" />
-            <span className="absolute inset-0 rounded-xl bg-cyan-500/0 group-hover:bg-cyan-500/5 transition-colors pointer-events-none" />
+            <HelpCircle className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />
           </button>
 
           {/* 3. Active Sessions / Shifts */}
           <button
             onClick={() => setShowOpenSession(true)}
-            className="group relative w-10 h-10 rounded-xl bg-primary/10 hover:bg-primary/20 border border-primary/25 hover:border-primary/50 flex items-center justify-center text-primary hover:scale-110 active:scale-95 transition-all duration-200 shadow-2xs hover:shadow-md hover:shadow-primary/25"
-            title="المناوبات والجلسات النشطة (3 جلسات مفتوحة)"
+            className="group relative w-8.5 h-8.5 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-xl bg-primary/10 hover:bg-primary/20 border border-primary/25 hover:border-primary/50 flex items-center justify-center text-primary hover:scale-105 active:scale-95 transition-all duration-200 shadow-2xs"
+            title="المناوبات والجلسات النشطة"
           >
-            <PlayCircle className="w-4.5 h-4.5 text-primary transition-transform duration-300 group-hover:rotate-90" />
-            <span className="absolute -top-1 -right-1 flex h-4.5 w-4.5 items-center justify-center">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-              <span className="relative w-4.5 h-4.5 rounded-full bg-gradient-to-tr from-red-600 to-rose-500 text-white text-[9.5px] font-black flex items-center justify-center font-mono shadow-xs">
+            <PlayCircle className="w-4 h-4 text-primary" />
+            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center">
+              <span className="relative w-4 h-4 rounded-full bg-gradient-to-tr from-red-600 to-rose-500 text-white text-[9px] font-black flex items-center justify-center font-mono shadow-xs">
                 3
               </span>
             </span>
@@ -930,24 +944,22 @@ export default function POSPage() {
           {/* 4. Keyboard Shortcuts */}
           <button
             onClick={() => setShowShortcutsModal(true)}
-            className="group relative w-10 h-10 rounded-xl bg-surface-container/70 hover:bg-purple-500/10 border border-outline-variant/20 hover:border-purple-500/40 flex items-center justify-center text-on-surface-variant hover:text-purple-600 dark:hover:text-purple-400 hover:scale-110 active:scale-95 transition-all duration-200 shadow-2xs hover:shadow-md hover:shadow-purple-500/20"
+            className="hidden sm:flex group relative w-8.5 h-8.5 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-xl bg-surface-container/70 hover:bg-purple-500/10 border border-outline-variant/20 hover:border-purple-500/40 items-center justify-center text-on-surface-variant hover:text-purple-600 dark:hover:text-purple-400 hover:scale-105 active:scale-95 transition-all duration-200 shadow-2xs"
             title="اختصارات لوحة المفاتيح"
           >
-            <Keyboard className="w-4.5 h-4.5 transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:scale-105" />
-            <span className="absolute inset-0 rounded-xl bg-purple-500/0 group-hover:bg-purple-500/5 transition-colors pointer-events-none" />
+            <Keyboard className="w-4 h-4" />
           </button>
 
           {/* 5. Notifications */}
           <NotificationDropdown>
             <button
-              className="group relative w-10 h-10 rounded-xl bg-surface-container/70 hover:bg-amber-500/10 border border-outline-variant/20 hover:border-amber-500/40 flex items-center justify-center text-on-surface-variant hover:text-amber-500 hover:scale-110 active:scale-95 transition-all duration-200 shadow-2xs hover:shadow-md hover:shadow-amber-500/20"
+              className="group relative w-8.5 h-8.5 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-xl bg-surface-container/70 hover:bg-amber-500/10 border border-outline-variant/20 hover:border-amber-500/40 flex items-center justify-center text-on-surface-variant hover:text-amber-500 hover:scale-105 active:scale-95 transition-all duration-200 shadow-2xs"
               title="الإشعارات والتنبيهات"
             >
-              <Bell className="w-4.5 h-4.5 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
+              <Bell className="w-4 h-4" />
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-4.5 w-4.5 items-center justify-center">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-4.5 w-4.5 bg-gradient-to-tr from-red-600 to-rose-500 text-white text-[9.5px] font-black items-center justify-center font-mono shadow-xs">
+                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center">
+                  <span className="relative inline-flex rounded-full h-4 w-4 bg-gradient-to-tr from-red-600 to-rose-500 text-white text-[9px] font-black items-center justify-center font-mono shadow-xs">
                     {unreadCount}
                   </span>
                 </span>
@@ -958,41 +970,34 @@ export default function POSPage() {
           {/* 6. Connected Devices */}
           <button
             onClick={() => navigate('/settings')}
-            className="group relative w-10 h-10 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 hover:border-emerald-500/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-200 shadow-2xs hover:shadow-md hover:shadow-emerald-500/20"
-            title="الأجهزة المتصلة (جهاز واحد متصل)"
+            className="hidden md:flex group relative w-8.5 h-8.5 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 hover:border-emerald-500/50 text-emerald-600 dark:text-emerald-400 items-center justify-center hover:scale-105 active:scale-95 transition-all duration-200 shadow-2xs"
+            title="الأجهزة المتصلة"
           >
-            <Smartphone className="w-4.5 h-4.5 transition-transform duration-300 group-hover:scale-110" />
-            <span className="absolute -top-1 -right-1 flex h-4.5 w-4.5 items-center justify-center">
-              <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-50"></span>
-              <span className="relative w-4.5 h-4.5 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 text-white text-[9.5px] font-black flex items-center justify-center font-mono shadow-xs">
-                1
-              </span>
-            </span>
+            <Smartphone className="w-4 h-4" />
           </button>
 
           {/* 7. Cloud Sync */}
           <div
-            className="group relative w-10 h-10 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 hover:border-emerald-500/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shadow-2xs hover:shadow-md hover:shadow-emerald-500/25 transition-all duration-200 cursor-default"
-            title="المزامنة السحابية مكتملة (Cloud Sync Online)"
+            className="hidden sm:flex group relative w-8.5 h-8.5 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 items-center justify-center shadow-2xs transition-all duration-200 cursor-default"
+            title="المزامنة السحابية مكتملة"
           >
-            <CloudCheck className="w-4.5 h-4.5 transition-transform duration-300 group-hover:scale-115 text-emerald-600 dark:text-emerald-400 animate-pulse" />
-            <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-emerald-500 shadow-emerald-500/60 shadow-xs" />
+            <CloudCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
           </div>
 
           {/* 8. Dark / Light Mode */}
           <button
             onClick={toggleTheme}
-            className={`group relative w-10 h-10 rounded-xl border flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-300 shadow-2xs ${
+            className={`group relative w-8.5 h-8.5 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-xl border flex items-center justify-center hover:scale-105 active:scale-95 transition-all duration-300 shadow-2xs ${
               theme === 'dark'
-                ? 'bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/25 hover:border-amber-500/50 text-amber-400 hover:shadow-md hover:shadow-amber-500/30'
-                : 'bg-indigo-500/10 hover:bg-indigo-500/20 border-indigo-500/25 hover:border-indigo-500/50 text-indigo-600 hover:shadow-md hover:shadow-indigo-500/30'
+                ? 'bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/25 text-amber-400'
+                : 'bg-indigo-500/10 hover:bg-indigo-500/20 border-indigo-500/25 text-indigo-600'
             }`}
             title={theme === 'dark' ? 'التحويل إلى الوضع النهاري' : 'التحويل إلى الوضع الليلي'}
           >
             {theme === 'dark' ? (
-              <Sun className="w-4.5 h-4.5 text-amber-400 transition-transform duration-500 group-hover:rotate-90 group-hover:scale-110" />
+              <Sun className="w-4 h-4 text-amber-400" />
             ) : (
-              <Moon className="w-4.5 h-4.5 text-indigo-600 transition-transform duration-500 group-hover:-rotate-45 group-hover:scale-110" />
+              <Moon className="w-4 h-4 text-indigo-600" />
             )}
           </button>
         </div>
@@ -1001,16 +1006,16 @@ export default function POSPage() {
       {/* ========================================================= */}
       {/* SUBHEADER: CATEGORY & ACTION TOOLBAR                      */}
       {/* ========================================================= */}
-      <div className="px-4 py-2 bg-surface-container-low/90 backdrop-blur-xs border-b border-outline-variant/15 flex items-center justify-between gap-2 shrink-0 shadow-2xs relative z-30">
-        <div className="flex items-center gap-2 flex-wrap">
+      <div className="px-3 sm:px-4 py-2 bg-surface-container-low/90 backdrop-blur-xs border-b border-outline-variant/15 flex items-center justify-between gap-2 shrink-0 shadow-2xs relative z-30 overflow-x-auto no-scrollbar touch-scroll">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-nowrap sm:flex-wrap shrink-0">
           {/* Category Dropdown Button */}
-          <div className="relative" ref={categoryDropdownRef}>
+          <div className="relative shrink-0" ref={categoryDropdownRef}>
             <button
               onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
-              className="h-10 px-4 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 hover:border-primary/40 text-xs font-bold text-on-surface flex items-center gap-2 transition-all shadow-xs"
+              className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 hover:border-primary/40 text-xs font-bold text-on-surface flex items-center gap-1.5 sm:gap-2 transition-all shadow-xs shrink-0"
             >
               <Layers className="w-4 h-4 text-primary" />
-              <span>{filterCategory || 'جميع المنتجات'}</span>
+              <span className="max-w-[120px] truncate">{filterCategory || 'جميع المنتجات'}</span>
               <ChevronDown className={`w-3.5 h-3.5 opacity-60 transition-transform duration-150 ${showCategoryDropdown ? 'rotate-180' : ''}`} />
             </button>
 
@@ -1024,17 +1029,20 @@ export default function POSPage() {
                 >
                   جميع المنتجات ({products.length})
                 </button>
-                {availableCategories.map((cat) => (
-                  <button
-                    key={cat}
-                    onClick={() => { setFilterCategory(cat); setShowCategoryDropdown(false); }}
-                    className={`w-full text-right px-3 py-2 rounded-xl text-xs font-bold transition-all ${
-                      filterCategory === cat ? 'bg-primary text-on-primary shadow-xs' : 'hover:bg-surface-container-high text-on-surface'
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
+                {availableCategories.map((cat) => {
+                  const catName = typeof cat === 'object' && cat !== null ? (cat as any).name : String(cat);
+                  return (
+                    <button
+                      key={catName}
+                      onClick={() => { setFilterCategory(catName); setShowCategoryDropdown(false); }}
+                      className={`w-full text-right px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                        filterCategory === catName ? 'bg-primary text-on-primary shadow-xs' : 'hover:bg-surface-container-high text-on-surface'
+                      }`}
+                    >
+                      {catName}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1042,7 +1050,7 @@ export default function POSPage() {
           {/* Star / Featured Filter (F6) */}
           <button
             onClick={() => setIsFeaturedOnly(!isFeaturedOnly)}
-            className={`h-10 px-3.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border shadow-xs hover:-translate-y-0.5 active:translate-y-0 ${
+            className={`h-9 sm:h-10 px-2.5 sm:px-3.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border shadow-xs hover:-translate-y-0.5 active:translate-y-0 shrink-0 ${
               isFeaturedOnly
                 ? 'bg-amber-500 text-white border-amber-500 shadow-amber-500/25'
                 : 'bg-surface-container hover:bg-surface-container-high text-on-surface border-outline-variant/20 hover:border-amber-500/40'
@@ -1050,14 +1058,14 @@ export default function POSPage() {
           >
             <Star className={`w-4 h-4 ${isFeaturedOnly ? 'fill-current' : 'text-amber-500'}`} />
             <span>مميزة</span>
-            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-surface-container-high/90 border border-outline-variant/30 text-on-surface-variant font-bold shadow-2xs">F6</span>
+            <span className="hidden sm:inline text-[10px] font-mono px-1.5 py-0.2 rounded bg-surface-container-high/90 border border-outline-variant/30 text-on-surface-variant font-bold shadow-2xs">F6</span>
           </button>
 
           {/* Filters Dropdown (قائمة الفلاتر المنسدلة) */}
-          <div className="relative" ref={filtersDropdownRef}>
+          <div className="relative shrink-0" ref={filtersDropdownRef}>
             <button
               onClick={() => setShowFiltersModal(!showFiltersModal)}
-              className={`h-10 px-3.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs hover:-translate-y-0.5 active:translate-y-0 ${
+              className={`h-9 sm:h-10 px-2.5 sm:px-3.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs hover:-translate-y-0.5 active:translate-y-0 shrink-0 ${
                 showFiltersModal || activeFiltersCount > 0
                   ? 'bg-primary/15 text-primary border-primary/40 shadow-primary/10'
                   : 'bg-surface-container hover:bg-surface-container-high border-outline-variant/20 hover:border-primary/40 text-on-surface'
@@ -1187,7 +1195,7 @@ export default function POSPage() {
           {/* Add Product Prominent Gradient Button */}
           <button
             onClick={() => setShowAddProduct(true)}
-            className="h-10 px-4 rounded-xl bg-gradient-to-r from-primary to-blue-600 hover:from-primary/95 hover:to-blue-700 text-on-primary text-xs font-extrabold transition-all flex items-center gap-2 shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 hover:-translate-y-0.5 active:translate-y-0 active:scale-95"
+            className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl bg-gradient-to-r from-primary to-blue-600 hover:from-primary/95 hover:to-blue-700 text-on-primary text-xs font-extrabold transition-all flex items-center gap-1.5 sm:gap-2 shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 shrink-0"
           >
             <PlusCircle className="w-4 h-4" />
             <span>إضافة منتج</span>
@@ -1199,36 +1207,69 @@ export default function POSPage() {
               if (returnMode) { setReturnMode(false); clearCart(); }
               else setShowReturnSaleModal(true);
             }}
-            className={`h-10 px-3.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border shadow-xs hover:-translate-y-0.5 active:translate-y-0 ${
+            className={`h-9 sm:h-10 px-2.5 sm:px-3.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border shadow-xs hover:-translate-y-0.5 active:translate-y-0 shrink-0 ${
               returnMode
                 ? 'bg-red-500/15 text-red-600 border-red-500/35 shadow-red-500/10'
                 : 'bg-surface-container hover:bg-surface-container-high text-on-surface border-outline-variant/20 hover:border-red-500/30'
             }`}
           >
             <RotateCcw className="w-4 h-4 text-red-500" />
-            <span>وضع الإرجاع</span>
-            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-surface-container-high/90 border border-outline-variant/30 text-on-surface-variant font-bold shadow-2xs">F4</span>
+            <span>الإرجاع</span>
+            <span className="hidden sm:inline text-[10px] font-mono px-1.5 py-0.2 rounded bg-surface-container-high/90 border border-outline-variant/30 text-on-surface-variant font-bold shadow-2xs">F4</span>
           </button>
 
           {/* Free Product (F8) */}
           <button
             onClick={() => setShowFreeProductModal(true)}
-            className="h-10 px-3.5 rounded-xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 hover:from-amber-500/20 hover:to-orange-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs hover:-translate-y-0.5 active:translate-y-0"
+            className="h-9 sm:h-10 px-2.5 sm:px-3.5 rounded-xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 hover:from-amber-500/20 hover:to-orange-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs hover:-translate-y-0.5 active:translate-y-0 shrink-0"
           >
             <Sparkles className="w-4 h-4 text-amber-500" />
             <span>منتج حر</span>
-            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-500/25 text-amber-800 dark:text-amber-200 font-extrabold shadow-2xs">F8</span>
+            <span className="hidden sm:inline text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-500/25 text-amber-800 dark:text-amber-200 font-extrabold shadow-2xs">F8</span>
           </button>
 
           {/* Customize Layout */}
           <button
             onClick={() => setShowCustomizeModal(true)}
-            className="h-10 px-3.5 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 hover:border-primary/40 text-xs font-bold text-on-surface flex items-center gap-1.5 transition-all shadow-xs hover:-translate-y-0.5 active:translate-y-0"
+            className="h-9 sm:h-10 px-2.5 sm:px-3.5 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 hover:border-primary/40 text-xs font-bold text-on-surface flex items-center gap-1.5 transition-all shadow-xs hover:-translate-y-0.5 active:translate-y-0 shrink-0"
           >
             <Sliders className="w-4 h-4 text-on-surface-variant" />
             <span>تخصيص</span>
           </button>
         </div>
+      </div>
+
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* MOBILE VIEW SWITCHER (Visible on screens < md)                */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      <div className="md:hidden flex items-center bg-surface-container/90 p-1 mx-3 my-1.5 rounded-2xl border border-outline-variant/20 shrink-0 gap-1 shadow-xs">
+        <button
+          onClick={() => setMobileTab('products')}
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+            mobileTab === 'products'
+              ? 'bg-primary text-on-primary shadow-sm'
+              : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
+          }`}
+        >
+          <Package className="w-4 h-4" />
+          <span>الأصناف ({products.length})</span>
+        </button>
+        <button
+          onClick={() => setMobileTab('cart')}
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+            mobileTab === 'cart'
+              ? 'bg-primary text-on-primary shadow-sm'
+              : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
+          }`}
+        >
+          <ShoppingCart className="w-4 h-4" />
+          <span>السلة ({cart.length})</span>
+          {cart.length > 0 && (
+            <span className="px-1.5 py-0.2 rounded-md bg-amber-500 text-white text-[10px] font-mono font-bold">
+              {formatNumber(saleSummary?.total)} دج
+            </span>
+          )}
+        </button>
       </div>
 
       {/* ========================================================= */}
@@ -1239,10 +1280,12 @@ export default function POSPage() {
         {/* --------------------------------------------------------- */}
         {/* RIGHT (IN RTL): PRODUCT DISCOVERY AREA (ZONE 2)           */}
         {/* --------------------------------------------------------- */}
-        <main className="flex-1 flex flex-col min-w-0 bg-background border-l border-outline-variant/20 overflow-hidden">
+        <main className={`flex-1 flex-col min-w-0 bg-background border-l border-outline-variant/20 overflow-hidden ${
+          mobileTab === 'products' ? 'flex' : 'hidden md:flex'
+        }`}>
           
           {/* Product Grid / List Area */}
-          <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto p-3 sm:p-4 custom-scrollbar pb-24 md:pb-4">
             {paginatedProducts.length === 0 ? (
               /* Empty Product State */
               <div className="h-full flex flex-col items-center justify-center text-center p-8 max-w-sm mx-auto">
@@ -1263,7 +1306,7 @@ export default function POSPage() {
               </div>
             ) : viewMode === 'grid' ? (
               /* Product Cards Grid matching the Reference Design */
-              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5 sm:gap-3.5">
                 {paginatedProducts.map((product) => {
                   const isPack = String(product.id).startsWith('pack-');
                   const isOutOfStock = !isPack && !posSettings.allowNegativeStock && !posSettings.accountingOnly && product.quantity <= 0;
@@ -1363,7 +1406,7 @@ export default function POSPage() {
                           <div className="flex items-center gap-2 text-[10px] text-on-surface-variant font-mono mt-0.5">
                             <span>{product.barcode || product.sku || 'بدون باركود'}</span>
                             <span>·</span>
-                            <span>{product.category || 'عام'}</span>
+                            <span>{(typeof product.category === 'object' && product.category !== null ? (product.category as any).name : product.category) || 'عام'}</span>
                             {!isPack && <span className="font-bold text-emerald-600">({product.quantity} قطعة)</span>}
                           </div>
                         </div>
@@ -1569,9 +1612,25 @@ export default function POSPage() {
         {/* LEFT (IN RTL): CART PANEL (ZONES 3 & 4)                   */}
         {/* --------------------------------------------------------- */}
         <aside className={`bg-surface-container-low/95 backdrop-blur-md flex flex-col h-full shrink-0 shadow-xl border-r border-outline-variant/20 z-10 transition-all duration-200 ${
-          posLayout === 'bottom' ? 'w-full md:w-[320px] lg:w-[350px]' : 'w-full md:w-[420px] lg:w-[450px]'
+          mobileTab === 'cart' ? 'flex w-full' : 'hidden md:flex'
+        } ${
+          posLayout === 'bottom' ? 'md:w-[320px] lg:w-[350px]' : 'md:w-[420px] lg:w-[450px]'
         }`}>
           
+          {/* Mobile Top Bar inside Cart */}
+          <div className="md:hidden p-2.5 bg-primary/10 border-b border-primary/20 flex items-center justify-between shrink-0">
+            <button
+              onClick={() => setMobileTab('products')}
+              className="text-xs font-bold text-primary flex items-center gap-1.5 py-1.5 px-3 rounded-xl bg-surface hover:bg-surface-container-high transition-colors shadow-2xs"
+            >
+              <ChevronRight className="w-4 h-4" />
+              <span>متابعة اختيار المنتجات</span>
+            </button>
+            <span className="text-xs font-black text-on-surface font-cairo">
+              السلة ({cart.length} أصناف)
+            </span>
+          </div>
+
           {/* Customer Search / Selector Bar */}
           <div className="p-3 bg-surface-container/80 border-b border-outline-variant/15 flex items-center gap-2 shrink-0 shadow-2xs">
             <div className="relative flex-1 group">
@@ -1729,8 +1788,8 @@ export default function POSPage() {
             )}
           </div>
 
-          {/* Cart Summary & Action Buttons (ONLY VISIBLE IN DESIGN 1 / SIDEBAR MODE) */}
-          {posLayout === 'sidebar' && (
+          {/* Cart Summary & Action Buttons (VISIBLE IN SIDEBAR MODE OR MOBILE CART VIEW) */}
+          {(posLayout === 'sidebar' || mobileTab === 'cart') && (
             <div className="p-4 bg-surface-container/90 backdrop-blur-md border-t border-outline-variant/20 space-y-3 shrink-0 shadow-2xl">
               
               {/* Financial Summary */}
@@ -1846,7 +1905,7 @@ export default function POSPage() {
                   setShowPaymentModal(true);
                 }}
                 disabled={cart.length === 0 || isSalePending}
-                className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-primary to-blue-600 hover:from-primary/95 hover:to-blue-700 text-on-primary font-black flex items-center justify-center gap-2.5 transition-all shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/35 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-primary to-blue-600 hover:from-primary/95 hover:to-blue-700 text-on-primary font-black flex items-center justify-center gap-2.5 transition-all shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/35 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
                 <Receipt className="w-5 h-5" />
                 <span className="text-base font-black">تسوية الفاتورة</span>
@@ -1863,7 +1922,7 @@ export default function POSPage() {
                     setShowSaveAsProformaModal(true);
                   }}
                   disabled={cart.length === 0}
-                  className="py-2.5 px-2 rounded-xl bg-amber-500/5 hover:bg-amber-500/15 border border-amber-500/30 text-amber-600 text-xs font-bold flex items-center justify-center gap-1.5 transition-all disabled:opacity-40 shadow-2xs hover:-translate-y-0.5 active:scale-95"
+                  className="py-2.5 px-2 rounded-xl bg-amber-500/5 hover:bg-amber-500/15 border border-amber-500/30 text-amber-600 text-xs font-bold flex items-center justify-center gap-1.5 transition-all disabled:opacity-40 shadow-2xs hover:-translate-y-0.5 active:scale-95 cursor-pointer"
                 >
                   <FileText className="w-3.5 h-3.5 text-amber-500" />
                   <span>حفظ كفاتورة مبدئية</span>
@@ -1875,7 +1934,7 @@ export default function POSPage() {
                     setShowSaveAsOrderModal(true);
                   }}
                   disabled={cart.length === 0}
-                  className="py-2.5 px-2 rounded-xl bg-blue-500/5 hover:bg-blue-500/15 border border-blue-500/30 text-blue-600 text-xs font-bold flex items-center justify-center gap-1.5 transition-all disabled:opacity-40 shadow-2xs hover:-translate-y-0.5 active:scale-95"
+                  className="py-2.5 px-2 rounded-xl bg-blue-500/5 hover:bg-blue-500/15 border border-blue-500/30 text-blue-600 text-xs font-bold flex items-center justify-center gap-1.5 transition-all disabled:opacity-40 shadow-2xs hover:-translate-y-0.5 active:scale-95 cursor-pointer"
                 >
                   <FileCheck className="w-3.5 h-3.5 text-blue-500" />
                   <span>حفظ كطلبية</span>
@@ -1885,6 +1944,36 @@ export default function POSPage() {
           )}
         </aside>
       </div>
+
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* FLOATING MOBILE CART SUMMARY BAR (Visible on mobile during product browsing) */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {mobileTab === 'products' && cart.length > 0 && (
+        <div className="md:hidden fixed bottom-3 left-3 right-3 z-40 bg-surface-container-high/95 backdrop-blur-xl border border-primary/30 p-3 rounded-2xl shadow-2xl flex items-center justify-between gap-3 animate-in slide-in-from-bottom-5">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-primary text-on-primary flex items-center justify-center font-bold shadow-md shadow-primary/25 relative shrink-0">
+              <ShoppingCart className="w-5 h-5" />
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 text-white rounded-full text-[10px] font-bold flex items-center justify-center font-mono shadow-xs">
+                {cart.length}
+              </span>
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] text-on-surface-variant font-bold">إجمالي السلة:</p>
+              <p className="text-sm font-black font-mono text-primary truncate">
+                {formatMoney(saleSummary?.total)} دج
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setMobileTab('cart')}
+            className="px-4 py-2.5 bg-gradient-to-r from-primary to-blue-600 text-white rounded-xl text-xs font-black shadow-md shadow-primary/25 flex items-center gap-1.5 active:scale-95 transition-all shrink-0 cursor-pointer"
+          >
+            <span>عرض السلة والدفع</span>
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* ========================================================= */}
       {/* MODALS                                                    */}

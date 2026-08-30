@@ -114,14 +114,7 @@ export function formatFullNumber(v: unknown, minDecimals: number = 0, maxDecimal
   const num = typeof v === 'number' ? v : Number(v);
   if (Number.isNaN(num)) return String(v);
 
-  if (Number.isInteger(num) && minDecimals === 0) {
-    return num.toLocaleString('en-US');
-  }
-
-  return num.toLocaleString('en-US', {
-    minimumFractionDigits: minDecimals,
-    maximumFractionDigits: maxDecimals,
-  });
+  return num.toFixed(maxDecimals);
 }
 
 export function formatFullCurrency(v: unknown, lang: PrintLanguage = 'ar'): string {
@@ -133,7 +126,7 @@ export function formatFullCurrency(v: unknown, lang: PrintLanguage = 'ar'): stri
 function formatValue(v: unknown, lang: PrintLanguage = 'ar'): string {
   if (v === null || v === undefined) return '';
   if (typeof v === 'number') {
-    return formatFullNumber(v, 2, 2);
+    return Number.isInteger(v) ? String(v) : v.toFixed(2);
   }
   if (v instanceof Date) {
     const locale = lang === 'fr' ? 'fr-FR' : lang === 'en' ? 'en-US' : 'ar-DZ';
@@ -290,9 +283,13 @@ function renderSeparator(b: SeparatorBlock, vars: Record<string, string>): strin
 function renderRow(b: RowBlock, ctx: DocumentContext, vars: Record<string, string>): string {
   const gap = b.gap ?? 8;
   const justify = b.align ?? 'space-between';
+  const isRtl = ctx.lang === 'ar' || ctx.lang === 'ar-fr' || !ctx.lang;
+  const dir = isRtl ? 'row-reverse' : 'row';
   const inner = b.children.map((c) => renderBlock(c, ctx, vars)).join('');
   const style =
-    'display:flex;flex-direction:row;justify-content:' +
+    'display:flex;flex-direction:' +
+    dir +
+    ';justify-content:' +
     justify +
     ';gap:' +
     gap +
@@ -313,7 +310,11 @@ function formatCol(
 ): string {
   const v = (item as Record<string, unknown>)[c.key];
   if (c.format === 'currency') return formatFullNumber(v, 2, 2);
-  if (c.format === 'number') return formatFullNumber(v, 0, 2);
+  if (c.format === 'number') {
+    const num = typeof v === 'number' ? v : Number(v);
+    if (Number.isNaN(num)) return String(v ?? '');
+    return Number.isInteger(num) ? String(num) : num.toFixed(2);
+  }
   return v === undefined || v === null ? '' : String(v);
 }
 
@@ -502,14 +503,36 @@ function renderQr(b: QrBlock, ctx: DocumentContext): string {
   }
 
   const svgHtml = generateQrSvg(value, size);
-  return '<div style="text-align:center;margin:6px 0;">' + svgHtml + '</div>';
+  return (
+    '<div class="print-qr" data-value="' +
+    esc(value) +
+    '" style="text-align:center;margin:6px auto;width:' +
+    size +
+    'px;height:' +
+    size +
+    'px;">' +
+    svgHtml +
+    '</div>'
+  );
 }
 
 function renderBarcode(b: BarcodeBlock, ctx: DocumentContext): string {
   const value = String(getPath(ctx.invoice as Record<string, unknown>, 'number') ?? '');
+  const fmt = b.format || 'CODE128';
+  const w = b.width || 200;
+  const h = b.height || 40;
   return (
     '<div style="text-align:center;margin:6px 0;">' +
-    '<div style="font-family:monospace;font-size:12px;font-weight:bold;letter-spacing:2px;">*' +
+    '<svg class="print-barcode" data-value="' +
+    esc(value) +
+    '" data-format="' +
+    esc(fmt) +
+    '" width="' +
+    w +
+    '" height="' +
+    h +
+    '"></svg>' +
+    '<div style="font-family:monospace;font-size:11px;font-weight:bold;letter-spacing:2px;margin-top:2px;">*' +
     esc(value) +
     '*</div>' +
     '</div>'
@@ -647,11 +670,34 @@ export function buildPrintPage(template: PrintTemplate, bodyHtml: string, title:
     '<style>' +
     css +
     '</style>' +
+    '<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>' +
+    '<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>' +
     '</head>' +
     '<body>' +
     '<div class="print-sheet">' +
     bodyHtml +
     '</div>' +
+    '<script>' +
+    "window.addEventListener('DOMContentLoaded', () => {" +
+    "  document.querySelectorAll('.print-barcode').forEach(el => {" +
+    '    try {' +
+    "      const val = el.getAttribute('data-value');" +
+    "      const fmt = el.getAttribute('data-format') || 'CODE128';" +
+    '      if (val && window.JsBarcode) {' +
+    '        window.JsBarcode(el, val, { format: fmt, displayValue: false, margin: 0 });' +
+    '      }' +
+    '    } catch(e){}' +
+    '  });' +
+    "  document.querySelectorAll('.print-qr').forEach(el => {" +
+    '    try {' +
+    "      const val = el.getAttribute('data-value');" +
+    '      if (val && window.QRCode) {' +
+    '        window.QRCode.toCanvas(el, val, { margin: 1 });' +
+    '      }' +
+    '    } catch(e){}' +
+    '  });' +
+    '});' +
+    '</script>' +
     '</body>' +
     '</html>'
   );

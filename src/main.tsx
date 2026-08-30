@@ -9,25 +9,44 @@ import { useAuthStore } from '@/store/authStore';
 // هنا فقط نستعيد الجلسة ثم نعرض الواجهة.
 // HashRouter بدل BrowserRouter لأن Electron يحمّل file://
 
-async function main() {
-  try {
-    await useAuthStore.getState().restoreSession();
-    console.log('restoreSession done:', useAuthStore.getState().isAuthenticated);
-  } catch (e) {
-    console.error('restoreSession failed:', e);
+let reactRoot: ReturnType<typeof createRoot> | null = null;
+
+function main() {
+  const rootEl = document.getElementById('root');
+  if (!rootEl) return;
+
+  if (!reactRoot) {
+    reactRoot = createRoot(rootEl);
   }
 
-  createRoot(document.getElementById('root')!).render(
+  reactRoot.render(
     <HashRouter>
       <QueryProvider>
         <App />
       </QueryProvider>
     </HashRouter>
   );
+
+  // استعادة الجلسة في الخلفية دون تعطيل تحميل الواجهة
+  try {
+    const sessionPromise = useAuthStore.getState()?.restoreSession?.();
+    if (sessionPromise && typeof sessionPromise.catch === 'function') {
+      sessionPromise.catch((e) => {
+        console.warn('[main] restoreSession background error:', e);
+      });
+    }
+  } catch (e) {
+    console.warn('[main] restoreSession synchronous error:', e);
+  }
 }
 
-main().catch((e) => {
+try {
+  main();
+} catch (e: any) {
   console.error('Fatal init error:', e);
-  document.getElementById('root')!.innerHTML =
-    '<div style="padding:20px;color:red;font-family:monospace"><h2>خطأ في التهيئة</h2><pre>' + (e?.message || e) + '</pre></div>';
-});
+  const rootEl = document.getElementById('root');
+  if (rootEl) {
+    rootEl.innerHTML =
+      '<div style="padding:20px;color:red;font-family:monospace"><h2>خطأ في التهيئة</h2><pre>' + (e?.message || e) + '</pre></div>';
+  }
+}

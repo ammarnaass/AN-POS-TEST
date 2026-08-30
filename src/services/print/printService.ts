@@ -423,10 +423,20 @@ export async function reprintDocument(
 }
 
 /**
- * الحصول على سجل طباعة فاتورة
+ * الحصول على سجل طباعة فاتورة محددة أو كامل سجل الطباعة للنظام
  */
-export async function getPrintHistory(saleId: string): Promise<PrintHistoryRecord[]> {
-  return db.print_history.where('invoiceId').equals(saleId).toArray();
+export async function getPrintHistory(saleId?: string): Promise<PrintHistoryRecord[]> {
+  try {
+    if (!saleId) {
+      const all = await db.print_history.toArray();
+      return (all || []).sort((a, b) => new Date(b.printedAt).getTime() - new Date(a.printedAt).getTime());
+    }
+    const filtered = await db.print_history.where('invoiceId').equals(saleId).toArray();
+    return (filtered || []).sort((a, b) => new Date(b.printedAt).getTime() - new Date(a.printedAt).getTime());
+  } catch (err) {
+    console.warn('Failed to load print history:', err);
+    return [];
+  }
 }
 
 /**

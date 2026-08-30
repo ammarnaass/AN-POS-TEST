@@ -41,22 +41,38 @@ class AnposPrinterModule(reactContext: ReactApplicationContext) : ReactContextBa
     fun connect(address: String, type: String, promise: Promise) {
         try {
             if (type == "bluetooth") {
-                val device = bluetoothAdapter?.getRemoteDevice(address)
+                val adapter = bluetoothAdapter
+                if (adapter == null || !adapter.isEnabled) {
+                    promise.resolve(false)
+                    return
+                }
+                val device = adapter.getRemoteDevice(address)
                 if (device == null) {
                     promise.resolve(false)
                     return
                 }
-                val uuid = UUID.fromString("0000111B-0000-1000-8000-00805F9B34FB") // SPP UUID
-                val socket = device.createRfcommSocketToServiceRecord(uuid)
-                socket.connect()
-                btSocket = socket
-                connectedPrinter = device
-                promise.resolve(true)
+                val uuid = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB") // Standard Serial Port Profile (SPP) UUID
+                try {
+                    val socket = device.createRfcommSocketToServiceRecord(uuid)
+                    socket.connect()
+                    btSocket = socket
+                    connectedPrinter = device
+                    promise.resolve(true)
+                } catch (e: Exception) {
+                    try {
+                        val fallbackSocket = device.createInsecureRfcommSocketToServiceRecord(uuid)
+                        fallbackSocket.connect()
+                        btSocket = fallbackSocket
+                        connectedPrinter = device
+                        promise.resolve(true)
+                    } catch (e2: Exception) {
+                        promise.resolve(false)
+                    }
+                }
             } else {
                 promise.resolve(false)
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
+        } catch (e: Throwable) {
             promise.resolve(false)
         }
     }

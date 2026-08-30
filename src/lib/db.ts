@@ -257,6 +257,9 @@ export const db = new Proxy({} as any, {
         }
       };
     }
+    if (prop === 'open' || prop === 'close' || prop === 'delete') {
+      return async () => {};
+    }
     return createTableProxy(prop);
   },
 });

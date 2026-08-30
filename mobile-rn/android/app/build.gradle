@@ -12,6 +12,10 @@ android {
     buildToolsVersion "35.0.0"
     ndkVersion "27.1.12297006"
 
+    buildFeatures {
+        buildConfig true
+    }
+
     defaultConfig {
         applicationId "com.anpos.mobile"
         minSdk 24

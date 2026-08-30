@@ -37,11 +37,13 @@ import { db, ensureInit } from '@/lib/db';
 import CameraScanner from '@/features/barcode/CameraScanner';
 import type { Product, Sale, Customer, Supplier, CashSession } from '@shared/types';
 import { useTheme } from '@/theme';
+import { useI18n } from '@/store/i18nStore';
 import { radii, spacing, typography, shadows } from '@/theme/tokens';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Button, Skeleton } from '@/components/ui';
 
 export const DashboardScreen = ({ navigation }: any) => {
   const { isDark, colors } = useTheme();
+  const { t, isRTL } = useI18n();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
@@ -168,18 +170,33 @@ export const DashboardScreen = ({ navigation }: any) => {
     }
   };
 
-  const todayRevenue = todaySales.reduce((sum, s) => {
-    if (s.type === 'return') return sum - (s.total || 0);
-    return sum + (s.total || 0);
+  const todayRevenue = (todaySales || []).reduce((sum, s: any) => {
+    if (!s) return sum;
+    const total = Number(s.total || s.total_amount || 0);
+    if (s.type === 'return') return sum - total;
+    return sum + total;
   }, 0);
 
-  const todayItemsSold = todaySales.reduce((sum, s) => {
-    const items: any[] = Array.isArray(s.items)
-      ? s.items
-      : typeof s.items === 'string'
-      ? JSON.parse(s.items || '[]')
-      : [];
-    return sum + items.reduce((si, i) => si + (i.qty || 1), 0);
+  const todayItemsSold = (todaySales || []).reduce((sum, s: any) => {
+    if (!s) return sum;
+    let items: any[] = [];
+    if (Array.isArray(s.items)) {
+      items = s.items;
+    } else if (typeof s.items === 'string') {
+      try {
+        const parsed = JSON.parse(s.items);
+        if (Array.isArray(parsed)) {
+          items = parsed;
+        } else if (parsed && typeof parsed === 'object') {
+          items = Object.values(parsed);
+        }
+      } catch {
+        items = [];
+      }
+    } else if (s.items && typeof s.items === 'object') {
+      items = Object.values(s.items);
+    }
+    return sum + (Array.isArray(items) ? items.reduce((si, i: any) => si + (Number(i?.qty) || Number(i?.quantity) || 1), 0) : 0);
   }, 0);
 
   const lowStockCount = products.filter(

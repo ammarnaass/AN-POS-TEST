@@ -30,11 +30,13 @@ import {
 import { db, ensureInit } from '@/lib/db';
 import type { Product, Category, Warehouse as WarehouseType } from '@shared/types';
 import { useTheme } from '@/theme';
+import { useI18n } from '@/store/i18nStore';
 import { radii, spacing, shadows, typography } from '@/theme/tokens';
 import { Badge, Button, EmptyState, Skeleton } from '@/components/ui';
 
 export const InventoryScreen = ({ navigation }: any) => {
   const { isDark, colors } = useTheme();
+  const { t, isRTL } = useI18n();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [warehouses, setWarehouses] = useState<WarehouseType[]>([]);
@@ -53,27 +55,62 @@ export const InventoryScreen = ({ navigation }: any) => {
         db.warehouses.toArray().catch(() => []),
       ]);
 
-      const mappedProducts: Product[] = allProducts.map((p: any) => ({
-        ...p,
-        id: p.id || p._id,
-        name: p.name || p.productName || 'بدون اسم',
-        retailPrice: Number(p.retailPrice || p.retail_price || p.price || 0),
-        wholesalePrice: Number(p.wholesalePrice || p.wholesale_price || 0),
-        costPrice: Number(p.costPrice || p.cost_price || p.purchase_price || p.purchasePrice || 0),
-        quantity: Number(p.quantity || p.qty || 0),
-        unit: p.unit || 'قطعة',
-        barcode: p.barcode || '',
-        sku: p.sku || '',
-        category: p.category || '',
-        categoryId: p.categoryId || p.category_id || '',
-        warehouseId: p.warehouseId || p.warehouse_id || '',
-        status: p.status || 'active',
-        image: p.image || p.imageUrl || p.image_url || '',
-        lowStockThreshold: Number(p.lowStockThreshold || p.low_stock_threshold || 5),
-      }));
+      const mappedProducts: Product[] = allProducts.map((p: any) => {
+        const retailPrice = Number(p.retailPrice ?? p.retail_price ?? p.price ?? p.selling_price ?? p.sale_price ?? p.sale_price1 ?? 0);
+        const costPrice = Number(p.costPrice ?? p.cost_price ?? p.purchasePrice ?? p.purchase_price ?? p.average_price ?? 0);
+        const wholesalePrice = Number(p.wholesalePrice ?? p.wholesale_price ?? p.sale_price2 ?? 0);
+        const wholesaleMinQty = Number(p.wholesaleMinQty ?? p.wholesale_min_qty ?? 0);
+        const quantity = Number(p.quantity ?? p.qty ?? p.stock ?? 0);
+        const lowStockThreshold = Number(p.lowStockThreshold ?? p.low_stock_threshold ?? 5);
+        const name = p.name || p.productName || p.product_name || 'بدون اسم';
+
+        return {
+          ...p,
+          id: p.id || p._id || p.productId || p.product_id,
+          name,
+          productName: name,
+          product_name: name,
+          retailPrice,
+          retail_price: retailPrice,
+          price: retailPrice,
+          costPrice,
+          cost_price: costPrice,
+          purchasePrice: costPrice,
+          purchase_price: costPrice,
+          wholesalePrice,
+          wholesale_price: wholesalePrice,
+          wholesaleMinQty,
+          wholesale_min_qty: wholesaleMinQty,
+          quantity,
+          qty: quantity,
+          stock: quantity,
+          unit: p.unit || 'قطعة',
+          barcode: p.barcode ? String(p.barcode) : '',
+          category: typeof p.category === 'object' && p.category !== null ? (p.category.name || p.category.id || '') : (p.category || ''),
+          categoryId: p.categoryId || p.category_id || (typeof p.category === 'object' && p.category !== null ? p.category.id : '') || '',
+          warehouseId: p.warehouseId || p.warehouse_id || '',
+          status: p.status || 'active',
+          image: p.image || p.imageUrl || p.image_url || '',
+          lowStockThreshold,
+          low_stock_threshold: lowStockThreshold,
+        };
+      });
+
+      let finalCategories = allCategories;
+      if (finalCategories.length === 0) {
+        const uniqueCatNames = Array.from(
+          new Set(mappedProducts.map((p) => p.category).filter(Boolean))
+        );
+        finalCategories = uniqueCatNames.map((name, idx) => ({
+          id: `cat_${idx}_${name}`,
+          name,
+          color: '#3b82f6',
+          icon: 'Tag',
+        }));
+      }
 
       setProducts(mappedProducts);
-      setCategories(allCategories);
+      setCategories(finalCategories);
       setWarehouses(allWarehouses);
     } catch (err) {
       console.warn('[Inventory] Load error:', err);
@@ -195,7 +232,7 @@ export const InventoryScreen = ({ navigation }: any) => {
             </Text>
             {prod.category ? (
               <Badge variant="neutral" size="sm">
-                {prod.category}
+                {typeof prod.category === 'object' && prod.category !== null ? (prod.category as any).name : prod.category}
               </Badge>
             ) : null}
           </View>

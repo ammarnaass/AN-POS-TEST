@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "main": "out/main/index.cjs",
+  "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev --config electron-vite.config.ts",
     "build": "electron-vite build",

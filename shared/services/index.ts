@@ -27,7 +27,10 @@ export const calculateSaleTotal = (
   discountType: 'percent' | 'amount',
   tvaRate: number
 ): { subtotal: number; discountAmount: number; tvaAmount: number; total: number } => {
-  const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
+  const safeItems: CartItem[] = Array.isArray(items)
+    ? items
+    : (typeof items === 'string' ? (() => { try { const p = JSON.parse(items); return Array.isArray(p) ? p : []; } catch { return []; } })() : []);
+  const subtotal = safeItems.reduce((sum, item) => sum + (Number(item?.lineTotal) || (Number(item?.qty || 0) * Number(item?.unitPrice || 0)) || 0), 0);
   const discountAmount = calculateDiscount(subtotal, discount, discountType);
   const afterDiscount = subtotal - discountAmount;
   const tvaAmount = calculateTVA(afterDiscount, tvaRate);

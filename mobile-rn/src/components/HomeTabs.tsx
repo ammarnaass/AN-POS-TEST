@@ -22,6 +22,7 @@ import MoreScreen from '@/features/more/MoreScreen';
 import SyncIndicator from '@/components/SyncIndicator';
 import { useAuthStore } from '@/store/authStore';
 import { useTheme } from '@/theme';
+import { useI18n } from '@/store/i18nStore';
 import { radii, spacing, shadows } from '@/theme/tokens';
 import { Badge } from '@/components/ui';
 
@@ -54,14 +55,18 @@ const TabIcon = ({ name, focused, colors }: { name: string; focused: boolean; co
 };
 
 const TabLabel = ({ name, focused, colors }: { name: string; focused: boolean; colors: any }) => {
-  const labels: Record<string, string> = {
-    Dashboard: 'الرئيسية',
-    POS: 'نقطة البيع',
-    Inventory: 'المخزون',
-    Sales: 'المبيعات',
-    Customers: 'الزبائن',
-    More: 'المزيد',
+  const { t } = useI18n();
+  const labelKeys: Record<string, any> = {
+    Dashboard: 'nav.dashboard',
+    POS: 'nav.pos',
+    Inventory: 'nav.inventory',
+    Sales: 'nav.sales',
+    Customers: 'nav.customers',
+    More: 'nav.more',
   };
+  const labelKey = labelKeys[name];
+  const translated = labelKey ? t(labelKey) : name;
+
   return (
     <Text
       style={[
@@ -72,7 +77,7 @@ const TabLabel = ({ name, focused, colors }: { name: string; focused: boolean; c
         },
       ]}
     >
-      {labels[name] || name}
+      {translated}
     </Text>
   );
 };
@@ -80,6 +85,7 @@ const TabLabel = ({ name, focused, colors }: { name: string; focused: boolean; c
 export const HomeTabs = ({ navigation }: any) => {
   const { user, logout } = useAuthStore();
   const { isDark, colors, toggleTheme } = useTheme();
+  const { t } = useI18n();
 
   const handleLogout = () => {
     logout();
@@ -88,10 +94,10 @@ export const HomeTabs = ({ navigation }: any) => {
 
   const roleLabel =
     user?.role === 'admin'
-      ? 'مدير'
+      ? t('auth.admin')
       : user?.role === 'cashier'
-      ? 'كاشير'
-      : 'بائع';
+      ? t('auth.cashier')
+      : t('auth.seller');
 
   return (
     <>

@@ -11,8 +11,10 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { useThemeStore } from '@/store/themeStore';
+import { useI18nStore } from '@/store/i18nStore';
 
 // Core Screens
+import ModeSelectScreen from '@/features/pair/ModeSelectScreen';
 import PairScreen from '@/features/pair/PairScreen';
 import LoginScreen from '@/features/auth/LoginScreen';
 import HomeTabs from '@/components/HomeTabs';
@@ -64,9 +66,11 @@ const GestureRoot = GestureHandlerRootView as React.ComponentType<any>;
 
 export default function App() {
   const { isDark, colors, initTheme } = useThemeStore();
+  const { initLanguage } = useI18nStore();
 
   useEffect(() => {
     initTheme();
+    initLanguage();
   }, []);
 
   // Custom Navigation Theme
@@ -106,14 +110,17 @@ export default function App() {
         />
         <NavigationContainer theme={navTheme}>
           <Stack.Navigator
-            initialRouteName="Pair"
+            initialRouteName="ModeSelect"
             screenOptions={{
               animation: 'slide_from_right',
               headerShown: false,
               contentStyle: { backgroundColor: colors.background },
             }}
           >
-            {/* Pair / Onboarding */}
+            {/* Mode Select / Onboarding */}
+            <Stack.Screen name="ModeSelect" component={ModeSelectScreen} />
+
+            {/* Pair / Connection Hub */}
             <Stack.Screen name="Pair" component={PairScreen} />
 
             {/* Auth */}

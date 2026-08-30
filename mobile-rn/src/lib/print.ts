@@ -12,6 +12,9 @@ import {
 import type { DocTypeKey, PrintTemplate } from '@shared/types/invoicePrint';
 import { getLocalizedPaymentMethod, formatDate } from '@shared/services/templateTranslator';
 
+import { session, electronAPI } from './apiClient';
+import { getStoreSettings } from './settingService';
+
 const PRINTER_ADDR_KEY = 'anpos_last_printer_addr';
 const PRINTER_TYPE_KEY = 'anpos_last_printer_type';
 
@@ -90,10 +93,14 @@ class PrintQueueManager {
       job.attempts++;
       try {
         const success = await this.executePrintOnce(job.data);
+        if (!success) {
+          const addr = await AnposSecureStore.get(PRINTER_ADDR_KEY);
+          if (!addr) return false;
+        }
         if (success) return true;
       } catch (err) {
         console.warn(`[PrintQueue] Attempt ${job.attempts} failed:`, err);
-        if (job.attempts >= this.maxAttempts) throw err;
+        if (job.attempts >= this.maxAttempts) return false;
         await new Promise((r) => setTimeout(r, job.attempts * 300));
       }
     }
@@ -104,8 +111,15 @@ class PrintQueueManager {
     const addr = await AnposSecureStore.get(PRINTER_ADDR_KEY);
     const type = ((await AnposSecureStore.get(PRINTER_TYPE_KEY)) as 'bluetooth' | 'lan' | 'usb') || 'bluetooth';
 
-    if (addr) {
-      await AnposPrinter.connect(addr, type);
+    if (!addr) {
+      return false;
+    }
+
+    try {
+      const connected = await AnposPrinter.connect(addr, type);
+      if (!connected) return false;
+    } catch {
+      return false;
     }
 
     // Resolve template from cache or DB
@@ -123,12 +137,8 @@ class PrintQueueManager {
     }
 
     // Fetch store legal settings
-    await ensureInit();
-    const settingsList = await db.settings.toArray();
-    const settingsMap: Record<string, string> = {};
-    for (const s of settingsList) settingsMap[s.key] = s.value;
-
-    const shopName = settingsMap.store_name || 'AN POS';
+    const storeSettings = await getStoreSettings(false);
+    const shopName = storeSettings.shop_name || 'AN POS';
     const copies = data.copies || 1;
     const lang = data.lang || 'ar';
     const localizedPayment = getLocalizedPaymentMethod(data.paymentMethod, lang);
@@ -190,6 +200,23 @@ export async function printInvoice(data: PrintInvoiceData): Promise<boolean> {
 }
 
 export async function printViaDesktop(data: PrintInvoiceData): Promise<boolean> {
+  if (session.isConnectedSync()) {
+    try {
+      const res = await electronAPI.print.printReceipt({
+        invoice: data,
+        saleId: data.id,
+        options: {
+          copies: data.copies || 1,
+          templateId: data.templateId,
+        },
+      });
+      if (res && res.success) {
+        return true;
+      }
+    } catch (err) {
+      console.warn('[printViaDesktop] Remote desktop print failed, falling back to local bluetooth printer:', err);
+    }
+  }
   return printInvoice(data);
 }
 

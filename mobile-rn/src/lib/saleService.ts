@@ -8,6 +8,7 @@ import type { CartItem, Customer, Product, Pack, User } from '@shared/types';
 import type { PrintInvoiceData } from './print';
 import { getOpenSession, addToSessionSales } from './cashSessionService';
 import { validateSale } from '@shared/validators/saleValidator';
+import { syncEngine } from './syncEngine';
 
 export interface CheckoutParams {
   cart: CartItem[];
@@ -42,35 +43,37 @@ export async function findProductByBarcodeOrQuery(code: string): Promise<Product
   if (!code || !code.trim()) return null;
   await ensureInit();
 
-  const query = code.trim().toLowerCase();
-  const allProducts: Product[] = await db.products.toArray();
+  const query = code.trim();
 
-  // 1. Direct match on primary barcode
-  const directBarcode = allProducts.find(
-    (p) => (p.barcode && p.barcode.trim().toLowerCase() === query)
-  );
-  if (directBarcode) return directBarcode;
-
-  // 2. Search in product_barcodes table (secondary barcodes)
+  // 1. Fast direct indexed match on primary barcode
   try {
-    const allSecondaryBarcodes: any[] = await db.productBarcodes.toArray();
-    const matchSecondary = allSecondaryBarcodes.find(
-      (b) => b.barcode && b.barcode.trim().toLowerCase() === query
-    );
-    if (matchSecondary?.productId || matchSecondary?.product_id) {
-      const prodId = matchSecondary.productId || matchSecondary.product_id;
-      const found = allProducts.find((p) => p.id === prodId);
-      if (found) return found;
-    }
-  } catch (err) {
-    // product_barcodes table might be empty or unavailable
-  }
+    const directBarcode = await db.products.where('barcode').equals(query).first();
+    if (directBarcode) return directBarcode;
+  } catch {}
 
-  // 3. Match on SKU
-  const directSku = allProducts.find(
-    (p) => (p.sku && p.sku.trim().toLowerCase() === query)
-  );
-  if (directSku) return directSku;
+  // 2. Fast search in product_barcodes table (secondary barcodes)
+  try {
+    const matchSecondary = await db.productBarcodes.where('barcode').equals(query).first();
+    if (matchSecondary) {
+      const prodId = matchSecondary.productId || matchSecondary.product_id;
+      if (prodId) {
+        const found = await db.products.get(prodId);
+        if (found) return found;
+      }
+    }
+  } catch {}
+
+  // 3. Fast match on SKU
+  try {
+    const directSku = await db.products.where('sku').equals(query).first();
+    if (directSku) return directSku;
+  } catch {}
+
+  // 4. Fallback name/barcode partial search (limit to 1 item)
+  try {
+    const searchRes = await db.products.where('name').equals(query).first();
+    if (searchRes) return searchRes;
+  } catch {}
 
   return null;
 }
@@ -136,7 +139,7 @@ export async function executeCheckout(params: CheckoutParams): Promise<CheckoutR
     isCustom: c.isCustom,
   }));
 
-  await db.sales.add({
+  const saleRecord = {
     id: saleId,
     number: invoiceNumber,
     date: nowIso,
@@ -165,26 +168,28 @@ export async function executeCheckout(params: CheckoutParams): Promise<CheckoutR
     note: checkoutNote.trim(),
     created_at: nowIso,
     updated_at: nowIso,
-  });
+  };
+
+  await db.sales.add(saleRecord);
+  await syncEngine.enqueue('create', 'sales', saleId, saleRecord);
 
   // 2. Insert individual sale_items & handle stock deduction
   for (const item of cart) {
+    const saleItemId = generateId();
+    const saleItemRecord = {
+      id: saleItemId,
+      sale_id: saleId,
+      product_id: item.productId,
+      name: item.name,
+      qty: item.qty,
+      unit_price: item.unitPrice,
+      line_total: item.lineTotal,
+      created_at: nowIso,
+    };
+
     try {
-      await db.saleItems.add({
-        id: generateId(),
-        sale_id: saleId,
-        saleId,
-        product_id: item.productId,
-        productId: item.productId,
-        name: item.name,
-        qty: item.qty,
-        unit_price: item.unitPrice,
-        unitPrice: item.unitPrice,
-        line_total: item.lineTotal,
-        lineTotal: item.lineTotal,
-        promo_name: item.promoName || null,
-        created_at: nowIso,
-      });
+      await db.saleItems.add(saleItemRecord);
+      // البنود تُرسل مدمجة داخل payload الفاتورة الأم في syncEngine لمنع الازدواجية وخصم المخزون المزدوج
     } catch (e) {
       console.warn('[SaleService] Failed to insert sale_item:', e);
     }
@@ -213,11 +218,11 @@ export async function executeCheckout(params: CheckoutParams): Promise<CheckoutR
                 product_id: subProdId,
                 qty: subTotalQty,
                 reason: `مبيعات باقة (${packData.name}) - فاتورة ${invoiceNumber}`,
+                reference: invoiceNumber,
                 reference_id: saleId,
                 created_by: user?.name || user?.username || '',
                 created_at: nowIso,
-                updated_at: nowIso,
-              });
+              }).catch(() => {});
             }
           } catch (err) {
             console.warn('[SaleService] Failed pack stock deduction:', err);
@@ -242,18 +247,20 @@ export async function executeCheckout(params: CheckoutParams): Promise<CheckoutR
             product_id: item.productId,
             qty: item.qty,
             reason: `مبيعات فاتورة ${invoiceNumber}`,
+            reference: invoiceNumber,
             reference_id: saleId,
             created_by: user?.name || user?.username || '',
             created_at: nowIso,
-            updated_at: nowIso,
-          });
+          }).catch(() => {});
 
           // Stock movement v2 for desktop sync parity
-          await db.stockMovementsV2.add({
-            id: generateId(),
+          const movV2Id = generateId();
+          const movV2Record = {
+            id: movV2Id,
             movement_number: `MOV-${Date.now().toString().slice(-6)}`,
             date: nowIso,
             type: 'sale',
+            warehouse_id: (prod as any).warehouseId || (prod as any).warehouse_id || 'main',
             item_id: item.productId,
             quantity: -item.qty,
             unit_price: item.unitPrice,
@@ -263,7 +270,9 @@ export async function executeCheckout(params: CheckoutParams): Promise<CheckoutR
             reviewed_by: user?.name || user?.username || '',
             created_at: nowIso,
             updated_at: nowIso,
-          });
+          };
+          await db.stockMovementsV2.add(movV2Record).catch(() => {});
+          await syncEngine.enqueue('create', 'stock_movements_v2', movV2Id, movV2Record);
         }
       } catch (e) {
         console.warn('[SaleService] Failed product stock update:', e);
@@ -286,8 +295,9 @@ export async function executeCheckout(params: CheckoutParams): Promise<CheckoutR
         }
 
         if (effectivePaid > 0) {
-          await db.payments.add({
-            id: generateId(),
+          const paymentId = generateId();
+          const paymentRecord = {
+            id: paymentId,
             date: nowIso,
             party_type: 'customer',
             party_id: selectedCustomer.id,
@@ -298,7 +308,9 @@ export async function executeCheckout(params: CheckoutParams): Promise<CheckoutR
             note: `سداد فوري لفاتورة ${invoiceNumber}`,
             created_by: user?.name || user?.username || '',
             created_at: nowIso,
-          });
+          };
+          await db.payments.add(paymentRecord);
+          await syncEngine.enqueue('create', 'payments', paymentId, paymentRecord);
         }
       }
     } catch (e) {

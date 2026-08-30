@@ -52,11 +52,15 @@ import { printInvoice, printViaDesktop, type PrintInvoiceData } from '@/lib/prin
 import { getOpenSession, addToSessionSales } from '@/lib/cashSessionService';
 import { suspendOrder, type SuspendedOrder, parseSuspendedItems } from '@/lib/suspendedOrderService';
 import { notify } from '@/lib/notify';
+import { getStoredMode } from '@/infrastructure/database/UnifiedDB';
+import { syncEngine } from '@/lib/syncEngine';
+import { getStoreSettings, fetchStoreSettingsFromDesktop, StoreSettings, DEFAULT_STORE_SETTINGS } from '@/lib/settingService';
 import CameraScanner from '@/features/barcode/CameraScanner';
 import InvoicePrintPreviewModal from '@/features/print/InvoicePrintPreviewModal';
 import type { Product, Customer } from '@/lib/apiClient';
 import { useAuthStore } from '@/store/authStore';
 import { useTheme } from '@/theme';
+import { useI18n } from '@/store/i18nStore';
 import { radii, spacing, typography, shadows } from '@/theme/tokens';
 import { Card, Badge, Button, Input, EmptyState } from '@/components/ui';
 
@@ -75,6 +79,7 @@ interface CartItem {
 export const POSScreen = ({ route, navigation }: any) => {
   const { user } = useAuthStore();
   const { isDark, colors } = useTheme();
+  const { t, isRTL } = useI18n();
   const styles = useMemo(() => makeStyles(colors, isDark), [colors, isDark]);
 
   const [products, setProducts] = useState<Product[]>([]);
@@ -83,6 +88,7 @@ export const POSScreen = ({ route, navigation }: any) => {
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [packs, setPacks] = useState<any[]>([]);
   const [promotions, setPromotions] = useState<any[]>([]);
+  const [storeSettings, setStoreSettings] = useState<StoreSettings>(DEFAULT_STORE_SETTINGS);
   const [search, setSearch] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -157,33 +163,71 @@ export const POSScreen = ({ route, navigation }: any) => {
     setError(null);
     try {
       await ensureInit();
-      const [allProducts, allCustomers, allPromotions, allCategories, allPacks, session] = await Promise.all([
+      const [allProducts, allCustomers, allPromotions, allCategories, allPacks, session, localSettings] = await Promise.all([
         db.products.toArray(),
         db.customers.toArray(),
         db.promotions.toArray().catch(() => []),
         db.categories.toArray().catch(() => []),
         db.packs.toArray().catch(() => []),
         getOpenSession(),
+        getStoreSettings().catch(() => DEFAULT_STORE_SETTINGS),
       ]);
 
-      const mappedProducts: Product[] = allProducts.map((p: any) => ({
-        ...p,
-        id: p.id || p._id,
-        name: p.name || p.productName,
-        retailPrice: p.retailPrice || p.price || 0,
-        wholesalePrice: p.wholesalePrice || 0,
-        wholesaleMinQty: p.wholesaleMinQty || (p as any).wholesale_min_qty || 0,
-        quantity: p.quantity || p.qty || 0,
-        unit: p.unit || 'قطعة',
-        barcode: p.barcode || '',
-        sku: p.sku || '',
-        category: p.category || '',
-        status: p.status || 'active',
-        lowStockThreshold: p.lowStockThreshold || 0,
-        taxRate: p.taxRate || 0.19,
-        image: p.image || p.imageUrl || p.image_url || null,
-        quickSale: p.quickSale ?? (p.quick_sale === 1),
-      }));
+      if (localSettings) {
+        setStoreSettings(localSettings);
+      }
+
+      // If connected in online mode, fetch live settings from Desktop
+      fetchStoreSettingsFromDesktop()
+        .then((res) => {
+          if (res.success && res.settings) {
+            setStoreSettings(res.settings);
+          }
+        })
+        .catch(() => {});
+
+      const mappedProducts: Product[] = allProducts.map((p: any) => {
+        const retailPrice = Number(p.retailPrice ?? p.retail_price ?? p.price ?? p.selling_price ?? p.sale_price ?? p.sale_price1 ?? 0);
+        const costPrice = Number(p.costPrice ?? p.cost_price ?? p.purchasePrice ?? p.purchase_price ?? p.average_price ?? 0);
+        const wholesalePrice = Number(p.wholesalePrice ?? p.wholesale_price ?? p.sale_price2 ?? 0);
+        const wholesaleMinQty = Number(p.wholesaleMinQty ?? p.wholesale_min_qty ?? 0);
+        const quantity = Number(p.quantity ?? p.qty ?? p.stock ?? 0);
+        const lowStockThreshold = Number(p.lowStockThreshold ?? p.low_stock_threshold ?? 0);
+        const taxRate = Number(p.taxRate ?? p.tax_rate ?? p.tax ?? 0);
+        const name = p.name || p.productName || p.product_name || 'بدون اسم';
+
+        return {
+          ...p,
+          id: p.id || p._id || p.productId || p.product_id,
+          name,
+          productName: name,
+          product_name: name,
+          retailPrice,
+          retail_price: retailPrice,
+          price: retailPrice,
+          costPrice,
+          cost_price: costPrice,
+          wholesalePrice,
+          wholesale_price: wholesalePrice,
+          wholesaleMinQty,
+          wholesale_min_qty: wholesaleMinQty,
+          quantity,
+          qty: quantity,
+          stock: quantity,
+          unit: p.unit || 'قطعة',
+          barcode: p.barcode ? String(p.barcode) : '',
+          sku: p.sku ? String(p.sku) : '',
+          category: p.category || '',
+          categoryId: p.categoryId || p.category_id || '',
+          status: p.status || 'active',
+          lowStockThreshold,
+          low_stock_threshold: lowStockThreshold,
+          taxRate,
+          tax_rate: taxRate,
+          image: p.image || p.imageUrl || p.image_url || null,
+          quickSale: p.quickSale !== undefined ? Boolean(p.quickSale) : p.quick_sale !== undefined ? Boolean(p.quick_sale) : true,
+        };
+      });
       setProducts(mappedProducts);
       setFiltered(mappedProducts);
       setCustomers(
@@ -196,8 +240,21 @@ export const POSScreen = ({ route, navigation }: any) => {
           balance: c.balance || 0,
         }))
       );
+      let finalCategories = allCategories;
+      if (finalCategories.length === 0) {
+        const uniqueCatNames = Array.from(
+          new Set(mappedProducts.map((p) => p.category).filter(Boolean))
+        );
+        finalCategories = uniqueCatNames.map((name, idx) => ({
+          id: `cat_${idx}_${name}`,
+          name,
+          color: '#3b82f6',
+          icon: 'Tag',
+        }));
+      }
+
       setPromotions(allPromotions);
-      setCategories(allCategories);
+      setCategories(finalCategories);
       setPacks(allPacks);
       setHasOpenSession(!!session);
     } catch (err) {
@@ -355,7 +412,7 @@ export const POSScreen = ({ route, navigation }: any) => {
 
     const normalized = code.trim().toLowerCase();
 
-    // 1️⃣ Search in products.barcode (primary)
+    // 1️⃣ Search in products.barcode (primary in-memory)
     let found = products.find(
       (p) => (p.barcode ?? '').toLowerCase() === normalized
     );
@@ -372,14 +429,43 @@ export const POSScreen = ({ route, navigation }: any) => {
       try {
         const rows = await db.productBarcodes.where('barcode').equals(code).toArray();
         if (rows && rows.length > 0) {
-          found = products.find((p) => p.id === rows[0]?.product_id || rows[0]?.productId);
+          const matchedId = rows[0]?.product_id || rows[0]?.productId;
+          found = products.find((p) => p.id === matchedId);
         }
       } catch {
         /* ignore */
       }
     }
 
-    // 4️⃣ Search in packs table (bundles)
+    // 4️⃣ Direct Database / Server Query if not loaded in memory (vital for connected mode)
+    if (!found) {
+      try {
+        const directList = await db.products.where('barcode').equals(code).toArray().catch(() => []);
+        if (directList && directList.length > 0) {
+          const p: any = directList[0];
+          found = {
+            ...p,
+            id: p.id || p._id,
+            name: p.name || p.productName || 'منتج',
+            retailPrice: p.retailPrice || p.price || 0,
+            wholesalePrice: p.wholesalePrice || 0,
+            wholesaleMinQty: p.wholesaleMinQty || p.wholesale_min_qty || 0,
+            quantity: p.quantity || p.qty || 0,
+            unit: p.unit || 'قطعة',
+            barcode: p.barcode || code,
+            sku: p.sku || '',
+            category: p.category || '',
+            status: p.status || 'active',
+            taxRate: Number(p.taxRate ?? p.tax_rate ?? 0),
+          };
+          setProducts((prev) => [...prev, found!]);
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    // 5️⃣ Search in packs table (bundles)
     if (!found) {
       const foundPack = packs.find(
         (pk) => (pk.barcode ?? '').toLowerCase() === normalized
@@ -397,7 +483,7 @@ export const POSScreen = ({ route, navigation }: any) => {
       if (mode === 'single') {
         Alert.alert(
           '🔍 لم يتم العثور على المنتج',
-          `الباركود: ${code}\n\nتأكد من أن المنتج مُضاف في المخزون أو مسجل كباركود إضافي.`,
+          `الباركود: ${code}\n\nتأكد من أن المنتج مسجل في مخزون برنامج AN POS على الحاسوب.`,
           [{ text: 'حسناً' }]
         );
       }
@@ -508,7 +594,11 @@ export const POSScreen = ({ route, navigation }: any) => {
       ? (subtotal * (parseFloat(discountValue) || 0)) / 100
       : parseFloat(discountValue) || 0;
   const afterDiscount = Math.max(0, subtotal - discount);
-  const tax = afterDiscount * 0.19;
+
+  // Dynamic TVA calculation based on Store Settings from Desktop or local database
+  const effectiveTvaRate = Number(storeSettings.tva_rate ?? storeSettings.tvaRate ?? 0);
+  const tvaFactor = effectiveTvaRate > 1 ? effectiveTvaRate / 100 : effectiveTvaRate;
+  const tax = afterDiscount * tvaFactor;
   const total = afterDiscount + tax;
 
   // Calculated Payment Change & Balance
@@ -569,9 +659,10 @@ export const POSScreen = ({ route, navigation }: any) => {
     setShowSuspendedModal(false);
   };
 
-  const handleCheckoutTap = () => {
+  const handleCheckoutTap = async () => {
     if (cart.length === 0) return;
-    if (!hasOpenSession) {
+    const currentMode = await getStoredMode();
+    if (!hasOpenSession && currentMode === 'standalone') {
       Alert.alert('تنبيه', 'يجب فتح الصندوق وبدء مناوبة أولاً قبل إجراء أي مبيعات');
       return;
     }
@@ -599,7 +690,7 @@ export const POSScreen = ({ route, navigation }: any) => {
 
     try {
       await ensureInit();
-      await db.customers.add({
+      const newCustRecord = {
         id: newId,
         name: newCust.name,
         phone: newCust.phone,
@@ -608,7 +699,9 @@ export const POSScreen = ({ route, navigation }: any) => {
         balance: 0,
         created_at: newCust.createdAt,
         updated_at: newCust.createdAt,
-      });
+      };
+      await db.customers.add(newCustRecord);
+      await syncEngine.enqueue('create', 'customers', newId, newCustRecord);
 
       setCustomers((prev) => [...prev, newCust]);
       setSelectedCustomer(newCust);
@@ -702,24 +795,26 @@ export const POSScreen = ({ route, navigation }: any) => {
   ) => {
     try {
       // 1. Create main Sale record
-      await db.sales.add({
+      const mappedItems = cart.map((c) => ({
+        productId: c.productId,
+        name: c.name,
+        qty: c.qty,
+        unitPrice: c.unitPrice,
+        lineTotal: c.lineTotal,
+        promoName: c.promoName,
+        isPack: c.isPack,
+        packId: c.packId,
+        isCustom: c.isCustom,
+      }));
+
+      const saleRecord = {
         id: saleId,
         number: invoiceNumber,
         date: nowIso,
         docType: selectedDocType,
         doc_type: selectedDocType,
         type: 'sale',
-        items: cart.map((c) => ({
-          productId: c.productId,
-          name: c.name,
-          qty: c.qty,
-          unitPrice: c.unitPrice,
-          lineTotal: c.lineTotal,
-          promoName: c.promoName,
-          isPack: c.isPack,
-          packId: c.packId,
-          isCustom: c.isCustom,
-        })),
+        items: JSON.stringify(mappedItems),
         subtotal,
         discount,
         discountType,
@@ -738,27 +833,31 @@ export const POSScreen = ({ route, navigation }: any) => {
         status: effectiveStatus,
         soldBy: user?.name || user?.username || 'الكاشير',
         sold_by: user?.name || user?.username || 'الكاشير',
-        cash_session_id: (await getOpenSession())?.id || '',
+        cash_session_id: (await getOpenSession().catch(() => null))?.id || '',
         note: checkoutNote.trim(),
         created_at: nowIso,
         updated_at: nowIso,
-      });
+      };
+      await db.sales.add(saleRecord);
+      await syncEngine.enqueue('create', 'sales', saleId, saleRecord);
 
       // 2. Insert individual sale_items and deduct stock for products / pack items
       for (const item of cart) {
         // 2a. Add to sale_items table
+        const saleItemId = generateId();
+        const saleItemRecord = {
+          id: saleItemId,
+          sale_id: saleId,
+          product_id: item.productId,
+          name: item.name,
+          qty: item.qty,
+          unit_price: item.unitPrice,
+          line_total: item.lineTotal,
+          created_at: nowIso,
+        };
         try {
-          await db.saleItems.add({
-            id: generateId(),
-            sale_id: saleId,
-            product_id: item.productId,
-            name: item.name,
-            qty: item.qty,
-            unit_price: item.unitPrice,
-            line_total: item.lineTotal,
-            promo_name: item.promoName || null,
-            created_at: nowIso,
-          });
+          await db.saleItems.add(saleItemRecord);
+          await syncEngine.enqueue('create', 'sale_items', saleItemId, saleItemRecord);
         } catch (e) {
           console.warn('[PoS] Failed to insert sale_item:', e);
         }
@@ -787,11 +886,11 @@ export const POSScreen = ({ route, navigation }: any) => {
                     product_id: subProdId,
                     qty: subTotalQty,
                     reason: `مبيعات باقة (${packData.name}) - فاتورة ${invoiceNumber}`,
+                    reference: invoiceNumber,
                     reference_id: saleId,
                     created_by: user?.name || user?.username || '',
                     created_at: nowIso,
-                    updated_at: nowIso,
-                  });
+                  }).catch(() => {});
                 }
               } catch (err) {
                 console.warn('[PoS] Failed pack sub-item stock deduction:', err);
@@ -817,18 +916,20 @@ export const POSScreen = ({ route, navigation }: any) => {
                 product_id: item.productId,
                 qty: item.qty,
                 reason: `مبيعات فاتورة ${invoiceNumber}`,
+                reference: invoiceNumber,
                 reference_id: saleId,
                 created_by: user?.name || user?.username || '',
                 created_at: nowIso,
-                updated_at: nowIso,
-              });
+              }).catch(() => {});
 
               // Log to stockMovementsV2 for desktop parity
-              await db.stockMovementsV2.add({
-                id: generateId(),
+              const movV2Id = generateId();
+              const movV2Record = {
+                id: movV2Id,
                 movement_number: `MOV-${Date.now().toString().slice(-6)}`,
                 date: nowIso,
                 type: 'sale',
+                warehouse_id: (prod as any).warehouseId || (prod as any).warehouse_id || 'main',
                 item_id: item.productId,
                 quantity: -item.qty,
                 unit_price: item.unitPrice,
@@ -838,7 +939,9 @@ export const POSScreen = ({ route, navigation }: any) => {
                 reviewed_by: user?.name || user?.username || '',
                 created_at: nowIso,
                 updated_at: nowIso,
-              });
+              };
+              await db.stockMovementsV2.add(movV2Record).catch(() => {});
+              await syncEngine.enqueue('create', 'stock_movements_v2', movV2Id, movV2Record);
             }
           } catch (e) {
             console.warn('[PoS] Failed to update product quantity:', e);
@@ -861,8 +964,9 @@ export const POSScreen = ({ route, navigation }: any) => {
 
           // Record payment if paid portion > 0
           if (effectivePaid > 0) {
-            await db.payments.add({
-              id: generateId(),
+            const paymentId = generateId();
+            const paymentRecord = {
+              id: paymentId,
               date: nowIso,
               party_type: 'customer',
               party_id: selectedCustomer.id,
@@ -873,7 +977,9 @@ export const POSScreen = ({ route, navigation }: any) => {
               note: `سداد فوري لفاتورة ${invoiceNumber}`,
               created_by: user?.name || user?.username || '',
               created_at: nowIso,
-            });
+            };
+            await db.payments.add(paymentRecord).catch(() => {});
+            await syncEngine.enqueue('create', 'payments', paymentId, paymentRecord);
           }
         } catch (e) {
           console.warn('[PoS] Failed to update customer debt balance:', e);
@@ -888,7 +994,7 @@ export const POSScreen = ({ route, navigation }: any) => {
         } catch {}
       }
 
-      // 5. Print invoice
+      // 5. Print invoice safely without blocking checkout completion
       const invoiceData: PrintInvoiceData = {
         number: invoiceNumber,
         date: nowIso,
@@ -907,8 +1013,11 @@ export const POSScreen = ({ route, navigation }: any) => {
         soldBy: user?.name || '',
       };
 
-      const printed = await printViaDesktop(invoiceData);
-      if (!printed) await printInvoice(invoiceData);
+      try {
+        await printViaDesktop(invoiceData).catch(() => false);
+      } catch (printErr) {
+        console.warn('[PoS] Print attempt failed safely:', printErr);
+      }
 
       setLastSaleId(saleId);
       setLastInvoiceData(invoiceData);
@@ -924,6 +1033,7 @@ export const POSScreen = ({ route, navigation }: any) => {
       setSearch('');
       setCheckoutNote('');
       loadData();
+      syncEngine.processQueue().catch(() => {});
     } catch (err) {
       Alert.alert('خطأ', `فشل حفظ الفاتورة: ${err instanceof Error ? err.message : 'خطأ غير معروف'}`);
     } finally {

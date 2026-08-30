@@ -65,6 +65,7 @@ const TABLE_ALIASES: Record<string, string> = {
   templateAssignments: 'template_assignments',
   printerTemplateMappings: 'printer_template_mappings',
   printFailureCounter: 'print_failure_counter',
+  syncQueue: 'sync_queue',
 };
 
 type TableProxy = {
@@ -139,23 +140,23 @@ function createTableProxy(table: string): TableProxy {
       equals: (val: unknown) => ({
         async toArray(): Promise<any[]> {
           await ensureInit();
-          const r = await unifiedDB.list(table);
-          return r.data.filter((row: any) => row[field] === val);
+          const r = await unifiedDB.list(table, { filters: { [field]: val } });
+          return r.data;
         },
         async first(): Promise<any | undefined> {
           await ensureInit();
-          const r = await unifiedDB.list(table);
-          return r.data.find((row: any) => row[field] === val);
+          const r = await unifiedDB.list(table, { filters: { [field]: val }, limit: 1 });
+          return r.data[0];
         },
         async count(): Promise<number> {
           await ensureInit();
-          const r = await unifiedDB.list(table);
-          return r.data.filter((row: any) => row[field] === val).length;
+          const r = await unifiedDB.list(table, { filters: { [field]: val } });
+          return r.total;
         },
       }),
       first: async (): Promise<any | undefined> => {
         await ensureInit();
-        const r = await unifiedDB.list(table);
+        const r = await unifiedDB.list(table, { limit: 1 });
         return r.data[0];
       },
     }),
