@@ -386,8 +386,8 @@ export async function importTemplateFromJson(
   }
 }
 
-export { TEMPLATE_PRESETS, type PresetDef } from '@shared/services/templatePresets';
-import { TEMPLATE_PRESETS } from '@shared/services/templatePresets';
+export { TEMPLATE_PRESETS, type PresetDef } from './templatePresets';
+import { TEMPLATE_PRESETS } from './templatePresets';
 
 export function getPresetById(presetId: string) {
   return TEMPLATE_PRESETS.find((p) => p.id === presetId);

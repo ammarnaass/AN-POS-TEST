@@ -46,14 +46,21 @@ allprojects {
 }
 
 subprojects { subproject ->
-    afterEvaluate {
-        if (subproject.hasProperty("android")) {
-            android {
-                compileSdkVersion rootProject.ext.compileSdkVersion
-                buildToolsVersion rootProject.ext.buildToolsVersion
-                buildFeatures {
-                    buildConfig true
-                }
+    plugins.withId("com.android.library") {
+        android {
+            compileSdkVersion rootProject.ext.compileSdkVersion
+            buildToolsVersion rootProject.ext.buildToolsVersion
+            buildFeatures {
+                buildConfig true
+            }
+        }
+    }
+    plugins.withId("com.android.application") {
+        android {
+            compileSdkVersion rootProject.ext.compileSdkVersion
+            buildToolsVersion rootProject.ext.buildToolsVersion
+            buildFeatures {
+                buildConfig true
             }
         }
     }
