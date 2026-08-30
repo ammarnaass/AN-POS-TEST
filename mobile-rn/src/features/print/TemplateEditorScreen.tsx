@@ -722,50 +722,244 @@ export const TemplateEditorScreen = ({ route, navigation }: any) => {
 
       {/* Edit Block Modal */}
       {editingBlock && (
-        <Modal visible={!!editingBlock} transparent animationType="slide">
+        <Modal visible={!!editingBlock} transparent animationType="slide" onRequestClose={() => setEditingBlock(null)}>
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
-                <TouchableOpacity onPress={() => setEditingBlock(null)} activeOpacity={0.7}>
+                <TouchableOpacity onPress={() => setEditingBlock(null)} activeOpacity={0.7} style={styles.modalCloseBtn}>
                   <X size={20} color={colors.text.tertiary} />
                 </TouchableOpacity>
-                <Text style={styles.modalTitle}>تعديل خصائص العنصر</Text>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={styles.modalTitle}>تعديل خصائص العنصر</Text>
+                  <Text style={styles.modalSubtitle}>نوع العنصر: {editingBlock.type}</Text>
+                </View>
               </View>
 
-              {editingBlock.type === 'text' && (
-                <View>
-                  <Text style={styles.inputLabel}>النص أو المتغير</Text>
-                  <TextInput
-                    style={styles.modalInput}
-                    value={Array.isArray(editingBlock.text) ? editingBlock.text.join('\n') : editingBlock.text}
-                    onChangeText={(t) => setEditingBlock({ ...editingBlock, text: t } as TextBlock)}
-                    multiline
-                    textAlign="right"
-                  />
-                  <Text style={styles.helperText}>
-                    المتغيرات المدعومة: {'{{shopLegal.name}}'}, {'{{invoice.number}}'}, {'{{invoice.total}}'}
-                  </Text>
-                </View>
-              )}
+              <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+                {/* تعديل عنصر النص (Text Block) */}
+                {editingBlock.type === 'text' && (
+                  <View style={{ gap: spacing.md }}>
+                    <View>
+                      <Text style={styles.inputLabel}>المحتوى النصي أو القالب</Text>
+                      <TextInput
+                        style={[styles.modalInput, { minHeight: 70, textAlignVertical: 'top' }]}
+                        value={Array.isArray(editingBlock.text) ? editingBlock.text.join('\n') : editingBlock.text}
+                        onChangeText={(t) => setEditingBlock({ ...editingBlock, text: t } as TextBlock)}
+                        multiline
+                        textAlign="right"
+                        placeholder="اكتب النص هنا..."
+                      />
+                    </View>
 
-              {editingBlock.type === 'separator' && (
-                <View>
-                  <Text style={styles.inputLabel}>نمط الخط الفاصل</Text>
-                  <View style={styles.modalSizesGrid}>
-                    {(['dashed', 'solid', 'dotted'] as const).map((st) => (
+                    {/* رقائق المتغيرات السريعة */}
+                    <View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 6, justifyContent: 'flex-end' }}>
+                        <Text style={styles.inputLabel}>إدراج متغير ذكي:</Text>
+                        <Sparkles size={14} color={colors.primary[600]} />
+                      </View>
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end' }}>
+                        {[
+                          { tag: '{{shopLegal.name}}', label: 'المتجر' },
+                          { tag: '{{shopLegal.phone}}', label: 'الهاتف' },
+                          { tag: '{{shopLegal.address}}', label: 'العنوان' },
+                          { tag: '{{shopLegal.nif}}', label: 'NIF' },
+                          { tag: '{{shopLegal.rc}}', label: 'RC' },
+                          { tag: '{{invoice.number}}', label: 'رقم الفاتورة' },
+                          { tag: '{{invoice.date}}', label: 'التاريخ' },
+                          { tag: '{{invoice.total}}', label: 'الإجمالي' },
+                          { tag: '{{invoice.subtotal}}', label: 'المجموع' },
+                          { tag: '{{user.name}}', label: 'الكاشير' },
+                          { tag: '{{customer.name}}', label: 'العميل' },
+                        ].map((v) => (
+                          <TouchableOpacity
+                            key={v.tag}
+                            style={styles.variableChip}
+                            activeOpacity={0.7}
+                            onPress={() => {
+                              const cur = Array.isArray(editingBlock.text) ? editingBlock.text.join('\n') : editingBlock.text || '';
+                              const updated = cur ? `${cur} ${v.tag}` : v.tag;
+                              setEditingBlock({ ...editingBlock, text: updated } as TextBlock);
+                            }}
+                          >
+                            <Text style={styles.variableChipText}>+{v.label}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+
+                    {/* المحاذاة */}
+                    <View>
+                      <Text style={styles.inputLabel}>المحاذاة</Text>
+                      <View style={styles.segmentedRow}>
+                        {[
+                          { key: 'right', label: 'يمين' },
+                          { key: 'center', label: 'وسط' },
+                          { key: 'left', label: 'يسار' },
+                        ].map((a) => (
+                          <TouchableOpacity
+                            key={a.key}
+                            style={[styles.segmentedBtn, (editingBlock.align || 'center') === a.key && styles.segmentedBtnActive]}
+                            onPress={() => setEditingBlock({ ...editingBlock, align: a.key as any } as TextBlock)}
+                          >
+                            <Text style={[styles.segmentedBtnText, (editingBlock.align || 'center') === a.key && styles.segmentedBtnTextActive]}>
+                              {a.label}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+
+                    {/* الحجم والسماكة */}
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.inputLabel}>الحجم</Text>
+                        <View style={styles.segmentedRow}>
+                          {[
+                            { key: 'sm', label: 'صغير' },
+                            { key: 'md', label: 'عادي' },
+                            { key: 'lg', label: 'كبير' },
+                            { key: 'xl', label: 'عريض' },
+                          ].map((sz) => (
+                            <TouchableOpacity
+                              key={sz.key}
+                              style={[styles.segmentedBtn, (editingBlock.size || 'md') === sz.key && styles.segmentedBtnActive]}
+                              onPress={() => setEditingBlock({ ...editingBlock, size: sz.key as any } as TextBlock)}
+                            >
+                              <Text style={[styles.segmentedBtnText, (editingBlock.size || 'md') === sz.key && styles.segmentedBtnTextActive]}>
+                                {sz.label}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
+
+                      <View style={{ flex: 0.8 }}>
+                        <Text style={styles.inputLabel}>السماكة</Text>
+                        <View style={styles.segmentedRow}>
+                          {[
+                            { key: 400, label: 'عادي' },
+                            { key: 700, label: 'عريض' },
+                          ].map((w) => (
+                            <TouchableOpacity
+                              key={w.key}
+                              style={[styles.segmentedBtn, (editingBlock.weight || 400) === w.key && styles.segmentedBtnActive]}
+                              onPress={() => setEditingBlock({ ...editingBlock, weight: w.key as any } as TextBlock)}
+                            >
+                              <Text style={[styles.segmentedBtnText, (editingBlock.weight || 400) === w.key && styles.segmentedBtnTextActive]}>
+                                {w.label}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+                )}
+
+                {/* تعديل الخط الفاصل (Separator Block) */}
+                {editingBlock.type === 'separator' && (
+                  <View style={{ gap: spacing.md }}>
+                    <Text style={styles.inputLabel}>نمط الخط الفاصل</Text>
+                    <View style={styles.modalSizesGrid}>
+                      {[
+                        { key: 'dashed', label: 'متقطع' },
+                        { key: 'solid', label: 'متصل' },
+                        { key: 'dotted', label: 'منقط' },
+                      ].map((st) => (
+                        <TouchableOpacity
+                          key={st.key}
+                          style={[styles.modalSizeBtn, (editingBlock as SeparatorBlock).style === st.key && styles.modalSizeBtnActive]}
+                          onPress={() => setEditingBlock({ ...editingBlock, style: st.key as any } as SeparatorBlock)}
+                        >
+                          <Text style={[styles.modalSizeText, (editingBlock as SeparatorBlock).style === st.key && styles.modalSizeTextActive]}>
+                            {st.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* تعديل رمز QR (QR Block) */}
+                {editingBlock.type === 'qr' && (
+                  <View style={{ gap: spacing.md }}>
+                    <Text style={styles.inputLabel}>محتوى رمز QR</Text>
+                    {[
+                      { key: 'invoiceNumber', label: 'رقم الفاتورة فقط' },
+                      { key: 'invoiceNumber:date:total', label: 'رقم الفاتورة + التاريخ + الإجمالي (ضريبي)' },
+                      { key: 'invoiceUrl', label: 'رابط الفاتورة الإلكتروني' },
+                    ].map((p) => (
                       <TouchableOpacity
-                        key={st}
-                        style={[styles.modalSizeBtn, (editingBlock as SeparatorBlock).style === st && styles.modalSizeBtnActive]}
-                        onPress={() => setEditingBlock({ ...editingBlock, style: st } as SeparatorBlock)}
+                        key={p.key}
+                        style={[styles.optionSelectBtn, (editingBlock as QrBlock).payload === p.key && styles.optionSelectBtnActive]}
+                        onPress={() => setEditingBlock({ ...editingBlock, payload: p.key as any } as QrBlock)}
                       >
-                        <Text style={[styles.modalSizeText, (editingBlock as SeparatorBlock).style === st && styles.modalSizeTextActive]}>
-                          {st === 'dashed' ? 'متقطع' : st === 'solid' ? 'متصل' : 'منقط'}
+                        <Text style={[styles.optionSelectBtnText, (editingBlock as QrBlock).payload === p.key && styles.optionSelectBtnTextActive]}>
+                          {p.label}
                         </Text>
                       </TouchableOpacity>
                     ))}
                   </View>
-                </View>
-              )}
+                )}
+
+                {/* تعديل الباركود (Barcode Block) */}
+                {editingBlock.type === 'barcode' && (
+                  <View style={{ gap: spacing.md }}>
+                    <Text style={styles.inputLabel}>صيغة الباركود</Text>
+                    <View style={styles.modalSizesGrid}>
+                      {[
+                        { key: 'CODE128', label: 'CODE128 (قياسي شامل)' },
+                        { key: 'EAN13', label: 'EAN-13 (أرقام فقط)' },
+                      ].map((f) => (
+                        <TouchableOpacity
+                          key={f.key}
+                          style={[styles.modalSizeBtn, ((editingBlock as BarcodeBlock).format || 'CODE128') === f.key && styles.modalSizeBtnActive]}
+                          onPress={() => setEditingBlock({ ...editingBlock, format: f.key as any } as BarcodeBlock)}
+                        >
+                          <Text style={[styles.modalSizeText, ((editingBlock as BarcodeBlock).format || 'CODE128') === f.key && styles.modalSizeTextActive]}>
+                            {f.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* تعديل جدول المنتجات (Table Block) */}
+                {editingBlock.type === 'table' && (
+                  <View style={{ gap: spacing.sm }}>
+                    <Text style={styles.inputLabel}>خيارات الإجماليات في أسفل الجدول:</Text>
+                    {[
+                      { key: 'showSubtotal', label: 'عرض المجموع الفرعي' },
+                      { key: 'showDiscount', label: 'عرض حقل الخصم (إن وجد)' },
+                      { key: 'showTva', label: 'عرض ضريبة القيمة المضافة TVA' },
+                      { key: 'showTotal', label: 'عرض الإجمالي النهائي البارز' },
+                    ].map((opt) => {
+                      const active = (editingBlock as TableBlock)[opt.key as keyof TableBlock] ?? false;
+                      return (
+                        <TouchableOpacity
+                          key={opt.key}
+                          style={[styles.toggleCardRow, active && styles.toggleCardRowActive]}
+                          onPress={() =>
+                            setEditingBlock({
+                              ...editingBlock,
+                              [opt.key]: !active,
+                            } as TableBlock)
+                          }
+                          activeOpacity={0.7}
+                        >
+                          <View style={[styles.checkboxBox, active && styles.checkboxBoxActive]}>
+                            {active && <Check size={14} color="#fff" />}
+                          </View>
+                          <Text style={[styles.toggleCardLabel, active && styles.toggleCardLabelActive]}>
+                            {opt.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
+              </ScrollView>
 
               <TouchableOpacity
                 style={styles.modalSubmitBtn}
@@ -958,13 +1152,37 @@ const makeStyles = (colors: any, isDark: boolean) =>
     modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.6)', justifyContent: 'flex-end' },
     modalContent: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: spacing.lg },
     modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border.subtle, marginBottom: spacing.md },
+    modalCloseBtn: { width: 32, height: 32, borderRadius: radii.full, backgroundColor: isDark ? colors.slate[800] : colors.slate[100], alignItems: 'center', justifyContent: 'center' },
     modalTitle: { fontSize: 16, fontWeight: '800', color: colors.text.primary, fontFamily: typography.fontFamily.arabicBold },
+    modalSubtitle: { fontSize: 11, color: colors.text.tertiary, fontFamily: typography.fontFamily.arabic },
     paletteGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
     paletteItem: { width: '30%', backgroundColor: isDark ? colors.slate[800] : colors.slate[50], borderRadius: radii.xl, padding: spacing.md, alignItems: 'center', gap: 6, borderWidth: 1, borderColor: colors.border.default },
     paletteLabel: { fontSize: 11, fontWeight: '700', color: colors.text.primary, fontFamily: typography.fontFamily.arabicBold },
+
+    variableChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: radii.md, backgroundColor: isDark ? colors.slate[800] : colors.slate[100], borderWidth: 1, borderColor: colors.border.default },
+    variableChipText: { fontSize: 10.5, fontWeight: '700', color: colors.primary[600], fontFamily: typography.fontFamily.arabicBold },
+
+    segmentedRow: { flexDirection: 'row', backgroundColor: isDark ? colors.slate[800] : colors.slate[100], padding: 3, borderRadius: radii.lg, gap: 4, marginTop: 4 },
+    segmentedBtn: { flex: 1, paddingVertical: 6, alignItems: 'center', borderRadius: radii.md },
+    segmentedBtnActive: { backgroundColor: colors.primary[600], ...shadows.xs },
+    segmentedBtnText: { fontSize: 11.5, fontWeight: '700', color: colors.text.secondary, fontFamily: typography.fontFamily.arabicBold },
+    segmentedBtnTextActive: { color: '#fff' },
+
+    optionSelectBtn: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: radii.xl, backgroundColor: isDark ? colors.slate[800] : colors.slate[50], borderWidth: 1, borderColor: colors.border.default, alignItems: 'flex-end' },
+    optionSelectBtnActive: { backgroundColor: isDark ? colors.slate[700] : colors.primary[50], borderColor: colors.primary[600] },
+    optionSelectBtnText: { fontSize: 12.5, fontWeight: '700', color: colors.text.primary, fontFamily: typography.fontFamily.arabicBold },
+    optionSelectBtnTextActive: { color: colors.primary[600] },
+
+    toggleCardRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 10, borderRadius: radii.xl, backgroundColor: isDark ? colors.slate[800] : colors.slate[50], borderWidth: 1, borderColor: colors.border.default },
+    toggleCardRowActive: { borderColor: colors.primary[600], backgroundColor: isDark ? colors.slate[750] || colors.slate[800] : colors.primary[50] },
+    toggleCardLabel: { fontSize: 12.5, fontWeight: '700', color: colors.text.secondary, fontFamily: typography.fontFamily.arabicBold, flex: 1, textAlign: 'right' },
+    toggleCardLabelActive: { color: colors.text.primary },
+    checkboxBox: { width: 22, height: 22, borderRadius: radii.sm, borderWidth: 1.5, borderColor: colors.border.default, alignItems: 'center', justifyContent: 'center', marginRight: spacing.sm },
+    checkboxBoxActive: { backgroundColor: colors.primary[600], borderColor: colors.primary[600] },
 
     modalSubmitBtn: { backgroundColor: colors.primary[600], paddingVertical: 12, borderRadius: radii.xl, alignItems: 'center', marginTop: spacing.lg },
     modalSubmitBtnText: { color: '#fff', fontSize: 14, fontWeight: '800', fontFamily: typography.fontFamily.arabicBold },
   });
 
 export default TemplateEditorScreen;
+

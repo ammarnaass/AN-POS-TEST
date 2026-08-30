@@ -1,6 +1,6 @@
 // BlockPropertiesPanel — POS-PRINT-001 / FR-001
 // لوحة الخصائص للبلوك المحدد — تُظهر حقول التحرير حسب نوع الـ block.
-// Bharat: النص — محتوى/محاذاة/حجم/لون. الصورة — مصدر/عرض/ارتفاع. Table — أعمدة. QR/Barcode — payload/source/format.
+import { AlignRight, AlignCenter, AlignLeft, Sparkles, Plus, Trash2, Tag, QrCode as QrIcon, Barcode as BarcodeIcon, Table as TableIcon } from 'lucide-react';
 import type { Block, TableBlock, TextBlock, ImageBlock, QrBlock, BarcodeBlock, SeparatorBlock } from '@/types/invoicePrint';
 import type { Section } from '@/store/templateEditorStore';
 
@@ -14,39 +14,58 @@ const SIZES = [
   { v: 'sm', l: 'صغير' },
   { v: 'md', l: 'متوسط' },
   { v: 'lg', l: 'كبير' },
-  { v: 'xl', l: 'ضخم' },
+  { v: 'xl', l: 'عريض' },
 ] as const;
 
 const ALIGNS = [
-  { v: 'right', l: 'يمين' },
-  { v: 'center', l: 'وسط' },
-  { v: 'left', l: 'يسار' },
+  { v: 'right', l: 'يمين', icon: AlignRight },
+  { v: 'center', l: 'وسط', icon: AlignCenter },
+  { v: 'left', l: 'يسار', icon: AlignLeft },
 ] as const;
 
 const COLOR_VARS = [
-  { v: 'none', l: 'افتراضي' },
-  { v: 'primary', l: 'أساسي' },
-  { v: 'header', l: 'الرأس' },
-  { v: 'footer', l: 'التذييل' },
-  { v: 'table', l: 'الجداول' },
+  { v: 'none', l: 'افتراضي', color: '#0f172a' },
+  { v: 'primary', l: 'اللون الأساسي', color: '#0891b2' },
+  { v: 'header', l: 'لون الترويسة', color: '#0e7490' },
+  { v: 'footer', l: 'لون التذييل', color: '#475569' },
+  { v: 'table', l: 'لون الجداول', color: '#64748b' },
 ] as const;
+
+const VARIABLE_TAGS = [
+  { tag: '{{shopLegal.name}}', label: 'المتجر' },
+  { tag: '{{shopLegal.phone}}', label: 'الهاتف' },
+  { tag: '{{shopLegal.address}}', label: 'العنوان' },
+  { tag: '{{shopLegal.nif}}', label: 'NIF' },
+  { tag: '{{shopLegal.rc}}', label: 'RC' },
+  { tag: '{{invoice.number}}', label: 'رقم الفاتورة' },
+  { tag: '{{invoice.date}}', label: 'التاريخ' },
+  { tag: '{{invoice.total}}', label: 'الإجمالي' },
+  { tag: '{{invoice.subtotal}}', label: 'المجموع الفرعي' },
+  { tag: '{{user.name}}', label: 'الكاشير' },
+  { tag: '{{customer.name}}', label: 'العميل' },
+  { tag: '{{customer.phone}}', label: 'هاتف العميل' },
+];
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div>
-      <label className="block text-xs font-medium text-on-surface mb-1">{label}</label>
+    <div className="space-y-1.5">
+      <label className="block text-xs font-bold text-on-surface">{label}</label>
       {children}
     </div>
   );
 }
 
-const inputCls = 'w-full px-2.5 py-1.5 text-sm border border-outline-variant rounded-md bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary';
+const inputCls = 'w-full px-3 py-2 text-xs border border-outline-variant/30 rounded-xl bg-surface-container text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all';
 
 export default function BlockPropertiesPanel({ section, block, onUpdate }: Props) {
   if (!block) {
     return (
-      <div className="p-4 text-center text-on-surface-variant text-sm">
-        اختر بلوكاً لتحرير خصائصه
+      <div className="p-8 text-center text-on-surface-variant flex flex-col items-center justify-center gap-2">
+        <div className="w-12 h-12 rounded-2xl bg-surface-container flex items-center justify-center text-on-surface-variant/50">
+          <Tag className="w-6 h-6" />
+        </div>
+        <p className="text-sm font-semibold">اختر عنصراً لتعديل خصائصه</p>
+        <p className="text-xs text-on-surface-variant/70">انقر على أي عنصر في لوحة العمل بالأعلى لتخصيصه</p>
       </div>
     );
   }
@@ -54,8 +73,22 @@ export default function BlockPropertiesPanel({ section, block, onUpdate }: Props
   const update = (updates: Partial<Block>) => onUpdate(section, block.id, updates);
 
   return (
-    <div className="space-y-4 p-3">
-      <h3 className="font-label-lg text-on-surface mb-1">خصائص البلوك</h3>
+    <div className="space-y-5 p-4" dir="rtl">
+      <div className="flex items-center justify-between pb-3 border-b border-outline-variant/15">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+            {block.type === 'text' && <Tag className="w-4 h-4" />}
+            {block.type === 'table' && <TableIcon className="w-4 h-4" />}
+            {block.type === 'qr' && <QrIcon className="w-4 h-4" />}
+            {block.type === 'barcode' && <BarcodeIcon className="w-4 h-4" />}
+            {block.type !== 'text' && block.type !== 'table' && block.type !== 'qr' && block.type !== 'barcode' && <Sparkles className="w-4 h-4" />}
+          </div>
+          <div>
+            <h3 className="text-sm font-bold font-cairo text-on-surface">خصائص العنصر</h3>
+            <span className="text-[11px] text-on-surface-variant font-mono">النوع: {block.type}</span>
+          </div>
+        </div>
+      </div>
 
       {/* نص */}
       {block.type === 'text' && (
@@ -82,10 +115,10 @@ export default function BlockPropertiesPanel({ section, block, onUpdate }: Props
         <BarcodeProps block={block as BarcodeBlock} update={update} />
       )}
 
-      {/* row/column — لا خصائص إضافية (hierarchical في V1) */}
+      {/* row/column */}
       {(block.type === 'row' || block.type === 'column') && (
-        <div className="p-3 bg-surface-container/50 rounded-md text-xs text-on-surface-variant">
-          يحتوي على بلوكات فرعية. تحريرها مباشرة سيُضاف في نسخة لاحقة.
+        <div className="p-4 bg-surface-container rounded-2xl border border-outline-variant/20 text-xs text-on-surface-variant leading-relaxed">
+          💡 هذا العنصر عبارة عن حاوية هيكلية متقدمة ({block.type === 'row' ? 'صف أفقي' : 'عمود رأسي'}). يمكنك تحرير العناصر الفرعية بالداخل مباشرة.
         </div>
       )}
     </div>
@@ -94,184 +127,356 @@ export default function BlockPropertiesPanel({ section, block, onUpdate }: Props
 
 function TextProps({ block, update }: { block: TextBlock; update: (u: Partial<Block>) => void }) {
   const text = Array.isArray(block.text) ? block.text.join('\n') : block.text;
+
+  const insertVariable = (tag: string) => {
+    const newText = text ? `${text} ${tag}` : tag;
+    update({ text: newText.split('\n') });
+  };
+
   return (
-    <>
-      <Field label="المحتوى">
+    <div className="space-y-4">
+      <Field label="المحتوى النصي">
         <textarea
           value={text}
           onChange={(e) => update({ text: e.target.value.split('\n') })}
           rows={3}
-          className={inputCls + ' resize-none'}
-          placeholder="اكتب النص... (سطر لكل سطر)"
+          className={inputCls + ' resize-none font-sans'}
+          placeholder="اكتب النص أو اختر من المتغيرات أدناه..."
         />
       </Field>
+
+      {/* رقائق المتغيرات السريعة */}
+      <div>
+        <div className="flex items-center gap-1.5 text-xs font-bold text-on-surface mb-2">
+          <Sparkles className="w-3.5 h-3.5 text-primary" />
+          <span>إدراج متغير ذكي:</span>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {VARIABLE_TAGS.map((vt) => (
+            <button
+              key={vt.tag}
+              type="button"
+              onClick={() => insertVariable(vt.tag)}
+              className="px-2.5 py-1 rounded-lg bg-surface-container-high hover:bg-primary/10 hover:text-primary hover:border-primary/30 border border-outline-variant/20 text-[11px] font-semibold text-on-surface transition-all active:scale-95"
+              title={`إدراج ${vt.tag}`}
+            >
+              +{vt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* المحاذاة */}
       <Field label="المحاذاة">
-        <select value={block.align ?? 'right'} onChange={(e) => update({ align: e.target.value as TextBlock['align'] })} className={inputCls}>
-          {ALIGNS.map((a) => <option key={a.v} value={a.v}>{a.l}</option>)}
+        <div className="grid grid-cols-3 gap-2 bg-surface-container p-1 rounded-xl border border-outline-variant/20">
+          {ALIGNS.map((a) => {
+            const Icon = a.icon;
+            const active = (block.align ?? 'right') === a.v;
+            return (
+              <button
+                key={a.v}
+                type="button"
+                onClick={() => update({ align: a.v as TextBlock['align'] })}
+                className={`py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                  active
+                    ? 'bg-primary text-white shadow-xs'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span>{a.l}</span>
+              </button>
+            );
+          })}
+        </div>
+      </Field>
+
+      {/* الحجم والسماكة */}
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="الحجم">
+          <div className="grid grid-cols-2 gap-1 bg-surface-container p-1 rounded-xl border border-outline-variant/20">
+            {SIZES.map((s) => (
+              <button
+                key={s.v}
+                type="button"
+                onClick={() => update({ size: s.v as TextBlock['size'] })}
+                className={`py-1 text-xs font-bold rounded-lg transition-all ${
+                  (block.size ?? 'md') === s.v
+                    ? 'bg-primary text-white shadow-xs'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                {s.l}
+              </button>
+            ))}
+          </div>
+        </Field>
+
+        <Field label="السماكة">
+          <select
+            value={block.weight ?? 400}
+            onChange={(e) => update({ weight: Number(e.target.value) as TextBlock['weight'] })}
+            className={inputCls}
+          >
+            <option value={300}>خفيف (300)</option>
+            <option value={400}>عادي (400)</option>
+            <option value={500}>متوسط (500)</option>
+            <option value={600}>شبه عريض (600)</option>
+            <option value={700}>عريض بارز (700)</option>
+          </select>
+        </Field>
+      </div>
+
+      {/* اللون */}
+      <Field label="لون النص">
+        <select
+          value={block.colorVar ?? 'none'}
+          onChange={(e) => update({ colorVar: e.target.value as TextBlock['colorVar'] })}
+          className={inputCls}
+        >
+          {COLOR_VARS.map((c) => (
+            <option key={c.v} value={c.v}>{c.l}</option>
+          ))}
         </select>
       </Field>
-      <Field label="الحجم">
-        <select value={block.size ?? 'md'} onChange={(e) => update({ size: e.target.value as TextBlock['size'] })} className={inputCls}>
-          {SIZES.map((s) => <option key={s.v} value={s.v}>{s.l}</option>)}
-        </select>
-      </Field>
-      <Field label="السماكة">
-        <select value={block.weight ?? 400} onChange={(e) => update({ weight: Number(e.target.value) as TextBlock['weight'] })} className={inputCls}>
-          <option value={300}>Light</option>
-          <option value={400}>Regular</option>
-          <option value={500}>Medium</option>
-          <option value={600}>Semi Bold</option>
-          <option value={700}>Bold</option>
-        </select>
-      </Field>
-      <Field label="لون">
-        <select value={block.colorVar ?? 'none'} onChange={(e) => update({ colorVar: e.target.value as TextBlock['colorVar'] })} className={inputCls}>
-          {COLOR_VARS.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
-        </select>
-      </Field>
-    </>
+    </div>
   );
 }
 
 function ImageProps({ block, update }: { block: ImageBlock; update: (u: Partial<Block>) => void }) {
   return (
-    <>
-      <Field label="المصدر (data-URL أو URL)">
-        <input value={block.src} onChange={(e) => update({ src: e.target.value })} className={inputCls} placeholder="اترك فارغاً للشعار الافتراضي" />
+    <div className="space-y-4">
+      <Field label="رابط الصورة (URL أو Base64)">
+        <input
+          value={block.src}
+          onChange={(e) => update({ src: e.target.value })}
+          className={inputCls}
+          placeholder="اترك فارغاً لاستخدام شعار المتجر الافتراضي"
+        />
       </Field>
-      <div className="grid grid-cols-2 gap-2">
-        <Field label="عرض (px)">
-          <input type="number" value={block.width ?? 80} onChange={(e) => update({ width: Number(e.target.value) })} className={inputCls} />
+
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="العرض (px)">
+          <input
+            type="number"
+            value={block.width ?? 80}
+            onChange={(e) => update({ width: Number(e.target.value) })}
+            className={inputCls}
+          />
         </Field>
-        <Field label="ارتفاع (px)">
-          <input type="number" value={block.height ?? 80} onChange={(e) => update({ height: Number(e.target.value) })} className={inputCls} />
+        <Field label="الارتفاع (px)">
+          <input
+            type="number"
+            value={block.height ?? 80}
+            onChange={(e) => update({ height: Number(e.target.value) })}
+            className={inputCls}
+          />
         </Field>
       </div>
+
       <Field label="المحاذاة">
-        <select value={block.align ?? 'center'} onChange={(e) => update({ align: e.target.value as ImageBlock['align'] })} className={inputCls}>
-          {ALIGNS.map((a) => <option key={a.v} value={a.v}>{a.l}</option>)}
-        </select>
+        <div className="grid grid-cols-3 gap-2 bg-surface-container p-1 rounded-xl border border-outline-variant/20">
+          {ALIGNS.map((a) => {
+            const Icon = a.icon;
+            const active = (block.align ?? 'center') === a.v;
+            return (
+              <button
+                key={a.v}
+                type="button"
+                onClick={() => update({ align: a.v as ImageBlock['align'] })}
+                className={`py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                  active
+                    ? 'bg-primary text-white shadow-xs'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span>{a.l}</span>
+              </button>
+            );
+          })}
+        </div>
       </Field>
-      <div className="text-xs text-on-surface-variant">
-        💡 يُفضّل تحويل الصورة إلى data-URL (base64) لضمان ظهورها في الطباعة.
-      </div>
-    </>
+    </div>
   );
 }
 
 function TableProps({ block, update }: { block: TableBlock; update: (u: Partial<Block>) => void }) {
   return (
-    <>
-      <div className="text-sm font-medium text-on-surface mb-1">الأعمدة</div>
-      {block.columns.map((col, idx) => (
-        <div key={idx} className="flex items-center gap-1 mb-1">
-          <input
-            value={col.label}
-            onChange={(e) => {
-              const cols = [...block.columns];
-              cols[idx] = { ...col, label: e.target.value };
-              update({ columns: cols });
-            }}
-            className={inputCls + ' flex-1'}
-            placeholder="اسم العمود"
-          />
-          <button
-            type="button"
-            onClick={() => update({ columns: block.columns.filter((_, i) => i !== idx) })}
-            className="text-red-500 hover:bg-red-50 rounded px-1.5 py-0.5 text-xs"
-            title="حذف"
-          >
-            ✕
-          </button>
+    <div className="space-y-4">
+      <div>
+        <div className="text-xs font-bold text-on-surface mb-2">أعمدة جدول المنتجات</div>
+        <div className="space-y-2">
+          {block.columns.map((col, idx) => (
+            <div key={idx} className="flex items-center gap-2">
+              <input
+                value={col.label}
+                onChange={(e) => {
+                  const cols = [...block.columns];
+                  cols[idx] = { ...col, label: e.target.value };
+                  update({ columns: cols });
+                }}
+                className={inputCls + ' flex-1'}
+                placeholder="عنوان العمود"
+              />
+              <button
+                type="button"
+                onClick={() => update({ columns: block.columns.filter((_, i) => i !== idx) })}
+                className="p-2 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors"
+                title="حذف العمود"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
         </div>
-      ))}
-      <button
-        type="button"
-        onClick={() => {
-          const cols = [...block.columns, { key: 'qty', label: 'عمود', align: 'right' as const, format: 'text' as const }];
-          update({ columns: cols });
-        }}
-        className="text-xs text-primary hover:bg-primary/10 rounded px-2 py-1 mt-1"
-      >
-        + إضافة عمود
-      </button>
-      <div className="border-t border-outline-variant/30 mt-3 pt-3 space-y-1">
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={block.showSubtotal ?? false} onChange={(e) => update({ showSubtotal: e.target.checked })} />
-          المجموع الفرعي
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={block.showDiscount ?? false} onChange={(e) => update({ showDiscount: e.target.checked })} />
-          الخصم
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={block.showTva ?? false} onChange={(e) => update({ showTva: e.target.checked })} />
-          TVA
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={block.showTotal ?? false} onChange={(e) => update({ showTotal: e.target.checked })} />
-          الإجمالي
-        </label>
+
+        <button
+          type="button"
+          onClick={() => {
+            const cols = [...block.columns, { key: 'qty', label: 'عمود جديد', align: 'right' as const, format: 'text' as const }];
+            update({ columns: cols });
+          }}
+          className="mt-2.5 px-3 py-1.5 rounded-xl bg-primary/10 text-primary text-xs font-bold flex items-center gap-1.5 hover:bg-primary/20 transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          <span>إضافة عمود</span>
+        </button>
       </div>
-    </>
+
+      <div className="border-t border-outline-variant/15 pt-3">
+        <div className="text-xs font-bold text-on-surface mb-2">خيارات الإجماليات والتذييل:</div>
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { key: 'showSubtotal', label: 'المجموع الفرعي' },
+            { key: 'showDiscount', label: 'الخصم' },
+            { key: 'showTva', label: 'ضريبة TVA' },
+            { key: 'showTotal', label: 'الإجمالي النهائي' },
+          ].map((item) => (
+            <label
+              key={item.key}
+              className={`p-2.5 rounded-xl border flex items-center gap-2 cursor-pointer transition-all ${
+                (block as any)[item.key]
+                  ? 'bg-primary/10 border-primary/40 text-primary font-bold'
+                  : 'bg-surface-container border-outline-variant/20 text-on-surface hover:bg-surface-container-high'
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={(block as any)[item.key] ?? false}
+                onChange={(e) => update({ [item.key]: e.target.checked })}
+                className="rounded text-primary focus:ring-primary/20"
+              />
+              <span className="text-xs">{item.label}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
 function SeparatorProps({ block, update }: { block: SeparatorBlock; update: (u: Partial<Block>) => void }) {
   return (
-    <Field label="النمط">
-      <select value={block.style ?? 'dashed'} onChange={(e) => update({ style: e.target.value as SeparatorBlock['style'] })} className={inputCls}>
-        <option value="solid">خط متصل</option>
-        <option value="dashed">متقطع</option>
-        <option value="dotted">منقّط</option>
-      </select>
+    <Field label="نمط الخط الفاصل">
+      <div className="grid grid-cols-3 gap-2 bg-surface-container p-1 rounded-xl border border-outline-variant/20">
+        {[
+          { v: 'solid', l: 'متصل' },
+          { v: 'dashed', l: 'متقطع' },
+          { v: 'dotted', l: 'منقط' },
+        ].map((s) => (
+          <button
+            key={s.v}
+            type="button"
+            onClick={() => update({ style: s.v as SeparatorBlock['style'] })}
+            className={`py-1.5 text-xs font-bold rounded-lg transition-all ${
+              (block.style ?? 'dashed') === s.v
+                ? 'bg-primary text-white shadow-xs'
+                : 'text-on-surface-variant hover:text-on-surface'
+            }`}
+          >
+            {s.l}
+          </button>
+        ))}
+      </div>
     </Field>
   );
 }
 
 function QrProps({ block, update }: { block: QrBlock; update: (u: Partial<Block>) => void }) {
   return (
-    <>
-      <Field label="المحتوى">
-        <select value={block.payload} onChange={(e) => update({ payload: e.target.value as QrBlock['payload'] })} className={inputCls}>
-          <option value="invoiceNumber">رقم الفاتورة</option>
-          <option value="invoiceUrl">رابط الفاتورة</option>
-          <option value="invoiceNumber:date:total">رقم + تاريخ + مجموع</option>
+    <div className="space-y-4">
+      <Field label="محتوى رمز QR">
+        <select
+          value={block.payload}
+          onChange={(e) => update({ payload: e.target.value as QrBlock['payload'] })}
+          className={inputCls}
+        >
+          <option value="invoiceNumber">رقم الفاتورة فقط</option>
+          <option value="invoiceUrl">رابط الفاتورة الإلكتروني</option>
+          <option value="invoiceNumber:date:total">رقم الفاتورة + التاريخ + الإجمالي (ضريبي)</option>
         </select>
       </Field>
-      <Field label="الحجم (px)">
-        <input type="number" value={block.size ?? 110} onChange={(e) => update({ size: Number(e.target.value) })} className={inputCls} />
+
+      <Field label="حجم الرمز (px)">
+        <input
+          type="number"
+          value={block.size ?? 110}
+          onChange={(e) => update({ size: Number(e.target.value) })}
+          className={inputCls}
+        />
       </Field>
-      <div className="text-xs text-on-surface-variant">
-        💡 QR يُولَّد وقت الطباعة عبر مكتبة qrcode.js.
+
+      <div className="p-3 bg-primary/5 border border-primary/20 rounded-xl text-xs text-primary leading-relaxed">
+        ⚡ يُولَّد رمز الـ QR Code بصيغة Vector SVG فائقة الوضوح والسرعة ومتوافقة مع كافة أنواع الطابعات الحرارية وA4.
       </div>
-    </>
+    </div>
   );
 }
 
 function BarcodeProps({ block, update }: { block: BarcodeBlock; update: (u: Partial<Block>) => void }) {
   return (
-    <>
-      <Field label="المصدر">
-        <select value={block.source} onChange={(e) => update({ source: e.target.value as BarcodeBlock['source'] })} className={inputCls}>
+    <div className="space-y-4">
+      <Field label="مصدر قيمة الباركود">
+        <select
+          value={block.source}
+          onChange={(e) => update({ source: e.target.value as BarcodeBlock['source'] })}
+          className={inputCls}
+        >
           <option value="invoiceNumber">رقم الفاتورة</option>
           <option value="orderNumber">رقم الطلب</option>
         </select>
       </Field>
-      <Field label="النوع">
-        <select value={block.format ?? 'CODE128'} onChange={(e) => update({ format: e.target.value as BarcodeBlock['format'] })} className={inputCls}>
-          <option value="CODE128">CODE128 (عام)</option>
-          <option value="EAN13">EAN-13 (منتجات)</option>
+
+      <Field label="صيغة الباركود">
+        <select
+          value={block.format ?? 'CODE128'}
+          onChange={(e) => update({ format: e.target.value as BarcodeBlock['format'] })}
+          className={inputCls}
+        >
+          <option value="CODE128">CODE128 (قياسي متوافق مع كافة الرموز)</option>
+          <option value="EAN13">EAN-13 (أكواد تجارية رقمية)</option>
         </select>
       </Field>
-      <div className="grid grid-cols-2 gap-2">
-        <Field label="عرض (px)">
-          <input type="number" value={block.width ?? 200} onChange={(e) => update({ width: Number(e.target.value) })} className={inputCls} />
+
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="العرض (px)">
+          <input
+            type="number"
+            value={block.width ?? 200}
+            onChange={(e) => update({ width: Number(e.target.value) })}
+            className={inputCls}
+          />
         </Field>
-        <Field label="ارتفاع (px)">
-          <input type="number" value={block.height ?? 50} onChange={(e) => update({ height: Number(e.target.value) })} className={inputCls} />
+        <Field label="الارتفاع (px)">
+          <input
+            type="number"
+            value={block.height ?? 40}
+            onChange={(e) => update({ height: Number(e.target.value) })}
+            className={inputCls}
+          />
         </Field>
       </div>
-    </>
+    </div>
   );
 }

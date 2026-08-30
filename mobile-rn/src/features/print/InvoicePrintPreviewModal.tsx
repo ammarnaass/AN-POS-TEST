@@ -575,10 +575,43 @@ function renderBlock(
             </View>
           ))}
 
-          {/* Table Totals Row */}
+          {/* Table Subtotals & Totals Rows */}
+          {block.showSubtotal && (
+            <View style={[s.docTableRow, { backgroundColor: '#f8fafc', borderTopWidth: 1, borderTopColor: '#e2e8f0' }]}>
+              <Text style={[s.docTableCell, { fontWeight: 'bold', flex: 2, textAlign: isRtl ? 'right' : 'left', fontSize: 10.5 }]}>
+                {dict.labels.subtotal || 'المجموع الفرعي:'}
+              </Text>
+              <Text style={[s.docTableCell, { fontWeight: 'bold', flex: 2, textAlign: isRtl ? 'left' : 'right', fontSize: 10.5 }]}>
+                {formatCurrency(ctx.invoice.subtotal || (ctx.invoice.total - (ctx.invoice.tvaAmount || 0)), lang)}
+              </Text>
+            </View>
+          )}
+
+          {block.showDiscount && Number(ctx.invoice.discount) > 0 && (
+            <View style={[s.docTableRow, { backgroundColor: '#fff', borderTopWidth: 0.5, borderTopColor: '#f1f5f9' }]}>
+              <Text style={[s.docTableCell, { fontWeight: '600', flex: 2, textAlign: isRtl ? 'right' : 'left', color: '#dc2626', fontSize: 10.5 }]}>
+                {dict.labels.discount || 'الخصم:'}
+              </Text>
+              <Text style={[s.docTableCell, { fontWeight: '600', flex: 2, textAlign: isRtl ? 'left' : 'right', color: '#dc2626', fontSize: 10.5 }]}>
+                -{formatCurrency(ctx.invoice.discount, lang)}
+              </Text>
+            </View>
+          )}
+
+          {block.showTva && (
+            <View style={[s.docTableRow, { backgroundColor: '#fff', borderTopWidth: 0.5, borderTopColor: '#f1f5f9' }]}>
+              <Text style={[s.docTableCell, { fontWeight: '600', flex: 2, textAlign: isRtl ? 'right' : 'left', fontSize: 10.5 }]}>
+                {dict.labels.tax || 'TVA:'}
+              </Text>
+              <Text style={[s.docTableCell, { fontWeight: '600', flex: 2, textAlign: isRtl ? 'left' : 'right', fontSize: 10.5 }]}>
+                {formatCurrency(ctx.invoice.tvaAmount || (ctx.invoice.tax || 0), lang)}
+              </Text>
+            </View>
+          )}
+
           {block.showTotal !== false && (
-            <View style={[s.docTableRow, s.docTableTotalRow]}>
-              <Text style={[s.docTableCell, { fontWeight: 'bold', flex: 2, textAlign: isRtl ? 'right' : 'left' }]}>
+            <View style={[s.docTableRow, s.docTableTotalRow, { backgroundColor: tplStyles?.primaryColor || '#0284c7' }]}>
+              <Text style={[s.docTableCell, { fontWeight: 'bold', flex: 2, textAlign: isRtl ? 'right' : 'left', color: '#fff', fontSize: 11.5 }]}>
                 {dict.labels.total}
               </Text>
               <Text
@@ -588,7 +621,7 @@ function renderBlock(
                     fontWeight: 'bold',
                     flex: 2,
                     textAlign: isRtl ? 'left' : 'right',
-                    color: tplStyles?.primaryColor || '#0284c7',
+                    color: '#fff',
                     fontSize: 12,
                   },
                 ]}

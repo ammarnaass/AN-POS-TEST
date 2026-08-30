@@ -540,6 +540,14 @@ export const MoreScreen = ({ navigation }: any) => {
         />
         <View style={[styles.menuDivider, { backgroundColor: colors.border.subtle }]} />
         <MenuItem
+          icon={<Store size={18} color={colors.primary[600]} />}
+          title="بيانات وإعدادات المحل والضرائب"
+          subtitle="سحب البيانات الكاملة من الحاسوب، السجل التجاري، NIF، وTVA"
+          onPress={() => navigation.navigate('StoreSettings')}
+          colors={colors}
+        />
+        <View style={[styles.menuDivider, { backgroundColor: colors.border.subtle }]} />
+        <MenuItem
           icon={<HardDrive size={18} color={colors.slate[600]} />}
           title="النسخ الاحتياطي واستعادة البيانات"
           subtitle="تصدير واستيراد قواعد البيانات بصيغة JSON"
@@ -744,6 +752,15 @@ export const MoreScreen = ({ navigation }: any) => {
           editMode={editMode}
           colors={colors}
         />
+        <TouchableOpacity
+          style={[styles.openFullSettingsBtn, { backgroundColor: isDark ? colors.surfaceElevated : colors.primary[50], borderTopColor: colors.border.subtle }]}
+          onPress={() => navigation.navigate('StoreSettings')}
+          activeOpacity={0.75}
+        >
+          <Text style={[styles.openFullSettingsBtnText, { color: colors.primary[700] }]}>
+            فتح لوحة الإعدادات الكاملة والتشخيص المتقدم ↗
+          </Text>
+        </TouchableOpacity>
       </Card>
 
       {/* App Branding Footer */}
@@ -1075,6 +1092,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'right',
     lineHeight: 18,
+  },
+  openFullSettingsBtn: {
+    paddingVertical: spacing.sm + 3,
+    paddingHorizontal: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderTopWidth: 1,
+  },
+  openFullSettingsBtnText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    fontFamily: 'Cairo',
   },
   editActions: {
     flexDirection: 'row',
