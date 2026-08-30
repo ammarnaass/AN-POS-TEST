@@ -19,13 +19,18 @@ import {
   CheckCircle,
   AlertTriangle,
   Info,
+  ArrowLeft,
 } from 'lucide-react-native';
 import { db, ensureInit } from '@/lib/db';
 import type { Product, Customer, Supplier, CashSession } from '@shared/types';
+import { useTheme } from '@/theme';
+import { useI18n } from '@/store/i18nStore';
 
 const ZAKAT_RATE = 0.025; // 2.5%
 
 export const ZakatCalculatorScreen = ({ navigation }: any) => {
+  const { isDark, colors } = useTheme();
+  const { t, isRTL, currency } = useI18n();
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -102,55 +107,56 @@ export const ZakatCalculatorScreen = ({ navigation }: any) => {
     if (includeReceivables) totalWealth += receivablesValue;
     if (deductPayables) totalWealth -= payablesValue;
 
-    const nisabNum = parseFloat(nisab) || 0;
-    const isNisabReached = totalWealth >= nisabNum;
+    const nisabThreshold = parseFloat(nisab) || 0;
+    const isNisabReached = totalWealth >= nisabThreshold && totalWealth > 0;
     const zakatDue = isNisabReached ? totalWealth * ZAKAT_RATE : 0;
 
     return {
       totalWealth: Math.max(0, totalWealth),
       isNisabReached,
       zakatDue,
-      nisabNum,
     };
   }, [
     inventoryCostValue,
-    includeCash,
     effectiveCash,
-    includeReceivables,
     receivablesValue,
-    deductPayables,
     payablesValue,
+    includeCash,
+    includeReceivables,
+    deductPayables,
     nisab,
   ]);
 
+  const BackIcon = isRTL ? ArrowRight : ArrowLeft;
+
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#3b82f6" />
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border.default }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBackBtn}>
-          <ArrowRight size={22} color="#0f172a" />
+          <BackIcon size={22} color={colors.text.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>حاسبة الزكاة الشرعية</Text>
+        <Text style={[styles.headerTitle, { color: colors.text.primary }]}>{t('zakatCalculator.title')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: 40 }}>
         {/* Zakat Result Hero Card */}
-        <View style={styles.heroCard}>
+        <View style={[styles.heroCard, { backgroundColor: isDark ? colors.surfaceElevated : '#065f46', borderColor: colors.border.default }]}>
           <View style={styles.heroIconBox}>
             <Calculator size={26} color="#10b981" />
           </View>
-          <Text style={styles.heroLabel}>مقدار الزكاة الواجب إخراجها (2.5%)</Text>
+          <Text style={styles.heroLabel}>{t('zakatCalculator.zakatDue')}</Text>
           <Text style={styles.heroVal}>
-            {zakatCalculation.zakatDue.toLocaleString('ar-DZ')} دج
+            {zakatCalculation.zakatDue.toLocaleString()} {currency}
           </Text>
 
           <View
@@ -171,19 +177,19 @@ export const ZakatCalculatorScreen = ({ navigation }: any) => {
               ]}
             >
               {zakatCalculation.isNisabReached
-                ? 'بلغ النصاب الشرعي وتجب فيه الزكاة'
-                : 'المال أقل من النصاب الشرعي (لا تجب الزكاة)'}
+                ? t('zakatCalculator.nisabMet')
+                : t('zakatCalculator.nisabNotMet')}
             </Text>
           </View>
         </View>
 
         {/* Nisab Configuration */}
-        <View style={styles.card}>
-          <Text style={styles.cardSectionTitle}>معايير النصاب الشرعي</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border.default }]}>
+          <Text style={[styles.cardSectionTitle, { color: colors.text.primary }]}>{t('zakatCalculator.nisabValue')}</Text>
           <View style={styles.formGroup}>
-            <Text style={styles.formLabel}>قيمة النصاب الحالي (ما يعادل 85 غرام ذهب بالدينار)</Text>
+            <Text style={[styles.formLabel, { color: colors.text.secondary }]}>{t('zakatCalculator.nisabValue')}</Text>
             <TextInput
-              style={styles.formInput}
+              style={[styles.formInput, { color: colors.text.primary, backgroundColor: colors.background, borderColor: colors.border.default }]}
               value={nisab}
               onChangeText={setNisab}
               keyboardType="numeric"
@@ -193,33 +199,33 @@ export const ZakatCalculatorScreen = ({ navigation }: any) => {
         </View>
 
         {/* Wealth Breakdown */}
-        <View style={styles.card}>
-          <Text style={styles.cardSectionTitle}>عناصر الوعاء الزكوي</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border.default }]}>
+          <Text style={[styles.cardSectionTitle, { color: colors.text.primary }]}>{t('zakatCalculator.zakatableAssets')}</Text>
 
           {/* Inventory */}
           <View style={styles.wealthRow}>
-            <Text style={styles.wealthVal}>
-              +{inventoryCostValue.toLocaleString('ar-DZ')} دج
+            <Text style={[styles.wealthVal, { color: colors.text.primary }]}>
+              +{inventoryCostValue.toLocaleString()} {currency}
             </Text>
             <View style={styles.wealthLabelCol}>
               <View style={styles.labelWithIcon}>
-                <Text style={styles.wealthLabel}>قيمة عروض التجارة (المخزون)</Text>
+                <Text style={[styles.wealthLabel, { color: colors.text.primary }]}>{t('zakatCalculator.inventoryValue')}</Text>
                 <Package size={15} color="#3b82f6" />
               </View>
-              <Text style={styles.wealthSub}>محسوب بسعر التكلفة لكافة الأصناف</Text>
+              <Text style={[styles.wealthSub, { color: colors.text.tertiary }]}>{t('profitCenter.costOfGoods')}</Text>
             </View>
           </View>
 
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: colors.border.subtle }]} />
 
           {/* Cash */}
           <View style={styles.wealthRow}>
-            <Text style={styles.wealthVal}>
-              +{effectiveCash.toLocaleString('ar-DZ')} دج
+            <Text style={[styles.wealthVal, { color: colors.text.primary }]}>
+              +{effectiveCash.toLocaleString()} {currency}
             </Text>
             <View style={styles.wealthLabelCol}>
               <View style={styles.labelWithIcon}>
-                <Text style={styles.wealthLabel}>السيولة النقدية في الصندوق</Text>
+                <Text style={[styles.wealthLabel, { color: colors.text.primary }]}>{t('zakatCalculator.cashOnHand')}</Text>
                 <Wallet size={15} color="#10b981" />
               </View>
               <Switch
@@ -230,16 +236,16 @@ export const ZakatCalculatorScreen = ({ navigation }: any) => {
             </View>
           </View>
 
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: colors.border.subtle }]} />
 
           {/* Receivables */}
           <View style={styles.wealthRow}>
-            <Text style={styles.wealthVal}>
-              +{receivablesValue.toLocaleString('ar-DZ')} دج
+            <Text style={[styles.wealthVal, { color: colors.text.primary }]}>
+              +{receivablesValue.toLocaleString()} {currency}
             </Text>
             <View style={styles.wealthLabelCol}>
               <View style={styles.labelWithIcon}>
-                <Text style={styles.wealthLabel}>ديون الكريدي المرجوة السداد</Text>
+                <Text style={[styles.wealthLabel, { color: colors.text.primary }]}>{t('zakatCalculator.receivables')}</Text>
                 <Users size={15} color="#8b5cf6" />
               </View>
               <Switch
@@ -250,16 +256,16 @@ export const ZakatCalculatorScreen = ({ navigation }: any) => {
             </View>
           </View>
 
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: colors.border.subtle }]} />
 
           {/* Payables deduction */}
           <View style={styles.wealthRow}>
             <Text style={[styles.wealthVal, { color: '#ef4444' }]}>
-              -{payablesValue.toLocaleString('ar-DZ')} دج
+              -{payablesValue.toLocaleString()} {currency}
             </Text>
             <View style={styles.wealthLabelCol}>
               <View style={styles.labelWithIcon}>
-                <Text style={styles.wealthLabel}>خصم ديون الموردين المستحقة</Text>
+                <Text style={[styles.wealthLabel, { color: colors.text.primary }]}>{t('zakatCalculator.debtsToDeduct')}</Text>
                 <Truck size={15} color="#ef4444" />
               </View>
               <Switch
@@ -270,14 +276,14 @@ export const ZakatCalculatorScreen = ({ navigation }: any) => {
             </View>
           </View>
 
-          <View style={[styles.divider, { marginVertical: 12 }]} />
+          <View style={[styles.divider, { marginVertical: 12, backgroundColor: colors.border.subtle }]} />
 
           {/* Total Zakatable Pool */}
           <View style={styles.poolTotalRow}>
-            <Text style={styles.poolTotalVal}>
-              {zakatCalculation.totalWealth.toLocaleString('ar-DZ')} دج
+            <Text style={[styles.poolTotalVal, { color: '#10b981' }]}>
+              {zakatCalculation.totalWealth.toLocaleString()} {currency}
             </Text>
-            <Text style={styles.poolTotalLabel}>إجمالي الوعاء الزكوي الخاضع للزكاة</Text>
+            <Text style={[styles.poolTotalLabel, { color: colors.text.primary }]}>{t('zakatCalculator.netZakatable')}</Text>
           </View>
         </View>
       </ScrollView>

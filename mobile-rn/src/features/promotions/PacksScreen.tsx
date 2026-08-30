@@ -21,12 +21,17 @@ import {
   Check,
   Search,
   ArrowRight,
+  ArrowLeft,
 } from 'lucide-react-native';
 import { db, ensureInit } from '@/lib/db';
 import { generateId } from '@shared/utils';
 import type { Pack, Product } from '@shared/types';
+import { useTheme } from '@/theme';
+import { useI18n } from '@/store/i18nStore';
 
 export const PacksScreen = ({ navigation }: any) => {
+  const { isDark, colors } = useTheme();
+  const { t, isRTL, textAlign, alignItems, currency } = useI18n();
   const [packs, setPacks] = useState<Pack[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,16 +91,16 @@ export const PacksScreen = ({ navigation }: any) => {
 
   const handleSavePack = async () => {
     if (!packName.trim()) {
-      Alert.alert('تنبيه', 'يرجى إدخال اسم الباقة');
+      Alert.alert(t('common.warning'), t('promotions.packName'));
       return;
     }
     if (selectedItems.length === 0) {
-      Alert.alert('تنبيه', 'يرجى إضافة منتج واحد على الأقل داخل الباقة');
+      Alert.alert(t('common.warning'), t('promotions.packItems'));
       return;
     }
     const priceNum = parseFloat(packPrice);
     if (!priceNum || priceNum <= 0) {
-      Alert.alert('تنبيه', 'يرجى إدخال سعر صالح للباقة');
+      Alert.alert(t('common.warning'), t('promotions.packPrice'));
       return;
     }
 
@@ -107,13 +112,13 @@ export const PacksScreen = ({ navigation }: any) => {
       await db.packs.add({
         id: generateId(),
         name: packName.trim(),
-        barcode: packBarcode.trim() || `PACK-${Date.now().toString().slice(-6)}`,
-        price: priceNum,
+        barcode: packBarcode.trim() || undefined,
+        pack_price: priceNum,
         items: JSON.stringify(selectedItems),
-        status: 'active',
+        is_active: 1,
         created_at: nowIso,
         updated_at: nowIso,
-      });
+      } as any);
 
       setModalVisible(false);
       setPackName('');
@@ -121,25 +126,25 @@ export const PacksScreen = ({ navigation }: any) => {
       setPackPrice('');
       setSelectedItems([]);
       await loadPacksData();
-      Alert.alert('✓ تم الحفظ', 'تم إنشاء الباقة المجمعة بنجاح.');
+      Alert.alert(t('common.success'), t('common.done'));
     } catch (err) {
-      Alert.alert('خطأ', `فشل حفظ الباقة: ${err instanceof Error ? err.message : 'خطأ'}`);
+      Alert.alert(t('common.error'), `${err instanceof Error ? err.message : t('common.error')}`);
     }
     setSaving(false);
   };
 
   const handleDeletePack = (pack: Pack) => {
-    Alert.alert('حذف الباقة', `هل أنت متأكد من حذف الباقة "${pack.name}"؟`, [
-      { text: 'إلغاء', style: 'cancel' },
+    Alert.alert(t('common.delete'), `${t('common.delete')} "${pack.name}"?`, [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'حذف',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
           try {
             await db.packs.delete(pack.id);
             await loadPacksData();
           } catch {
-            Alert.alert('خطأ', 'فشل حذف الباقة');
+            Alert.alert(t('common.error'), t('common.error'));
           }
         },
       },
@@ -153,23 +158,25 @@ export const PacksScreen = ({ navigation }: any) => {
       (p.barcode && p.barcode.includes(productSearch))
   );
 
+  const BackIcon = isRTL ? ArrowRight : ArrowLeft;
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border.default }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBackBtn}>
-          <ArrowRight size={22} color="#0f172a" />
+          <BackIcon size={22} color={colors.text.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>الحزم والباقات (Packs)</Text>
+        <Text style={[styles.headerTitle, { color: colors.text.primary }]}>{t('promotions.packsTitle')}</Text>
         <TouchableOpacity
-          style={styles.addBtn}
+          style={[styles.addBtn, { backgroundColor: colors.primary[600] }]}
           onPress={() => {
             setSelectedItems([]);
             setModalVisible(true);
           }}
         >
           <Plus size={16} color="#fff" />
-          <Text style={styles.addBtnText}>باقة جديدة</Text>
+          <Text style={styles.addBtnText}>{t('promotions.addPack')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -180,13 +187,13 @@ export const PacksScreen = ({ navigation }: any) => {
       >
         {loading ? (
           <View style={styles.center}>
-            <ActivityIndicator size="large" color="#3b82f6" />
+            <ActivityIndicator size="large" color={colors.primary[600]} />
           </View>
         ) : packs.length === 0 ? (
           <View style={styles.emptyState}>
-            <Layers size={48} color="#cbd5e1" />
-            <Text style={styles.emptyTitle}>لا توجد باقات منشأة</Text>
-            <Text style={styles.emptySub}>اجمع عدة منتجات في حزمة واحدة بسعر مميز وباركود خاص</Text>
+            <Layers size={48} color={colors.text.tertiary} />
+            <Text style={[styles.emptyTitle, { color: colors.text.primary }]}>{t('promotions.noPacks')}</Text>
+            <Text style={[styles.emptySub, { color: colors.text.secondary }]}>{t('promotions.noPacksDesc')}</Text>
           </View>
         ) : (
           <View style={{ gap: 10, paddingHorizontal: 12 }}>
@@ -207,38 +214,38 @@ export const PacksScreen = ({ navigation }: any) => {
               }
 
               return (
-                <View key={p.id} style={styles.packCard}>
+                <View key={p.id} style={[styles.packCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}>
                   <View style={styles.packHeader}>
                     <TouchableOpacity onPress={() => handleDeletePack(p)} style={styles.deleteBtn}>
                       <Trash2 size={16} color="#ef4444" />
                     </TouchableOpacity>
-                    <View style={{ alignItems: 'flex-end', flex: 1, marginRight: 8 }}>
-                      <Text style={styles.packName}>{p.name}</Text>
+                    <View style={{ alignItems, flex: 1, marginHorizontal: 8 }}>
+                      <Text style={[styles.packName, { color: colors.text.primary, textAlign }]}>{p.name}</Text>
                       {p.barcode ? (
                         <View style={styles.barcodeRow}>
-                          <Text style={styles.barcodeText}>{p.barcode}</Text>
-                          <Barcode size={12} color="#94a3b8" />
+                          <Text style={[styles.barcodeText, { color: colors.text.secondary }]}>{p.barcode}</Text>
+                          <Barcode size={12} color={colors.text.tertiary} />
                         </View>
                       ) : null}
                     </View>
                   </View>
 
-                  <View style={styles.divider} />
+                  <View style={[styles.divider, { backgroundColor: colors.border.subtle }]} />
 
                   <View style={styles.itemsPreview}>
-                    <Text style={styles.itemsLabel}>محتويات الباقة:</Text>
+                    <Text style={[styles.itemsLabel, { color: colors.text.secondary, textAlign }]}>{t('promotions.packItems')}:</Text>
                     {packItemsList.map((item, idx) => (
-                      <Text key={idx} style={styles.itemBullet}>
-                        • {item.name || 'منتج'} (الكمية: {item.qty || 1})
+                      <Text key={idx} style={[styles.itemBullet, { color: colors.text.primary, textAlign }]}>
+                        • {item.name || t('inventory.productName')} ({t('inventory.stockQuantity')}: {item.qty || 1})
                       </Text>
                     ))}
                   </View>
 
                   <View style={styles.packFooter}>
-                    <Text style={styles.packPrice}>
-                      {(p.packPrice || (p as any).price || 0).toLocaleString('ar-DZ')} دج
+                    <Text style={[styles.packPrice, { color: colors.primary[600] }]}>
+                      {(p.packPrice || (p as any).price || 0).toLocaleString()} {currency}
                     </Text>
-                    <Text style={styles.priceLabel}>سعر الباقة:</Text>
+                    <Text style={[styles.priceLabel, { color: colors.text.secondary }]}>{t('promotions.packPrice')}:</Text>
                   </View>
                 </View>
               );
@@ -250,12 +257,12 @@ export const PacksScreen = ({ navigation }: any) => {
       {/* Add Pack Modal */}
       <Modal visible={modalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border.default }]}>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <X size={20} color="#64748b" />
+                <X size={20} color={colors.text.secondary} />
               </TouchableOpacity>
-              <Text style={styles.modalTitle}>إنشاء باقة جديدة</Text>
+              <Text style={[styles.modalTitle, { color: colors.text.primary }]}>{t('promotions.addPack')}</Text>
             </View>
 
             <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>

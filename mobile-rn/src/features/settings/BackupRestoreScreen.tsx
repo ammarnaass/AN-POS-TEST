@@ -15,6 +15,7 @@ import {
   Download,
   Upload,
   ArrowRight,
+  ArrowLeft,
   ShieldAlert,
   Check,
   RefreshCw,
@@ -24,9 +25,11 @@ import { db, ensureInit } from '@/lib/db';
 import { generateId } from '@shared/utils';
 import { useTheme } from '@/theme';
 import { radii, spacing, typography, shadows } from '@/theme/tokens';
+import { useI18n } from '@/store/i18nStore';
 
 export const BackupRestoreScreen = ({ navigation }: any) => {
   const { isDark, colors } = useTheme();
+  const { t, isRTL, textAlign, alignItems } = useI18n();
   const styles = useMemo(() => makeStyles(colors, isDark), [colors, isDark]);
 
   const [loading, setLoading] = useState(false);
@@ -89,69 +92,97 @@ export const BackupRestoreScreen = ({ navigation }: any) => {
         message: jsonStr,
       });
     } catch (err) {
-      Alert.alert('خطأ', `فشل تصدير النسخة الاحتياطية: ${err instanceof Error ? err.message : 'خطأ'}`);
+      Alert.alert(t('common.error'), `${err instanceof Error ? err.message : t('common.error')}`);
     }
     setLoading(false);
   };
 
   const handleRestoreBackup = async () => {
     if (!jsonInput.trim()) {
-      Alert.alert('تنبيه', 'يرجى لصق بيانات النسخة الاحتياطية JSON في الحقل المخصص');
+      Alert.alert(t('common.warning'), t('backupRestore.warningText'));
       return;
     }
 
-    Alert.alert(
-      'تأكيد استعادة البيانات',
-      'سيتم دمج واسترجاع كافة السجلات الموجودة في ملف النسخة الاحتياطية إلى قاعدة البيانات الحالية.',
-      [
-        { text: 'إلغاء', style: 'cancel' },
-        {
-          text: 'استعادة الآن',
-          style: 'destructive',
-          onPress: async () => {
-            setLoading(true);
-            try {
-              const parsed = JSON.parse(jsonInput);
-              if (!parsed.data) {
-                throw new Error('صيغة ملف النسخة الاحتياطية غير صالحة');
-              }
-              const d = parsed.data;
+    Alert.alert(t('common.confirm'), t('backupRestore.restoreConfirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('common.confirm'),
+        style: 'destructive',
+        onPress: async () => {
+          setLoading(true);
+          try {
+            await ensureInit();
+            const parsed = JSON.parse(jsonInput.trim());
+            const data = parsed.data || parsed;
 
-              await ensureInit();
-
-              if (d.products?.length) await db.products.bulkPut(d.products);
-              if (d.categories?.length) await db.categories.bulkPut(d.categories);
-              if (d.customers?.length) await db.customers.bulkPut(d.customers);
-              if (d.suppliers?.length) await db.suppliers.bulkPut(d.suppliers);
-              if (d.sales?.length) await db.sales.bulkPut(d.sales);
-              if (d.purchases?.length) await db.purchases.bulkPut(d.purchases);
-              if (d.expenses?.length) await db.expenses.bulkPut(d.expenses);
-              if (d.cashSessions?.length) await db.cashSessions.bulkPut(d.cashSessions);
-              if (d.promotions?.length) await db.promotions.bulkPut(d.promotions);
-              if (d.packs?.length) await db.packs.bulkPut(d.packs);
-              if (d.settings?.length) await db.settings.bulkPut(d.settings);
-
-              Alert.alert('تمت العملية بنجاح ✓', 'تمت استعادة كافة البيانات والمنتجات بنجاح.');
-              setShowRestoreBox(false);
-              setJsonInput('');
-            } catch (e) {
-              Alert.alert('خطأ', `فشل استرجاع النسخة الاحتياطية: ${e instanceof Error ? e.message : 'صيغة غير صالحة'}`);
+            if (data.products && Array.isArray(data.products)) {
+              await db.products.clear();
+              await db.products.bulkAdd(data.products);
             }
+            if (data.categories && Array.isArray(data.categories)) {
+              await db.categories.clear();
+              await db.categories.bulkAdd(data.categories);
+            }
+            if (data.customers && Array.isArray(data.customers)) {
+              await db.customers.clear();
+              await db.customers.bulkAdd(data.customers);
+            }
+            if (data.suppliers && Array.isArray(data.suppliers)) {
+              await db.suppliers.clear();
+              await db.suppliers.bulkAdd(data.suppliers);
+            }
+            if (data.sales && Array.isArray(data.sales)) {
+              await db.sales.clear();
+              await db.sales.bulkAdd(data.sales);
+            }
+            if (data.purchases && Array.isArray(data.purchases)) {
+              await db.purchases.clear();
+              await db.purchases.bulkAdd(data.purchases);
+            }
+            if (data.expenses && Array.isArray(data.expenses)) {
+              await db.expenses.clear();
+              await db.expenses.bulkAdd(data.expenses);
+            }
+            if (data.cashSessions && Array.isArray(data.cashSessions)) {
+              await db.cashSessions.clear();
+              await db.cashSessions.bulkAdd(data.cashSessions);
+            }
+            if (data.promotions && Array.isArray(data.promotions)) {
+              await db.promotions.clear();
+              await db.promotions.bulkAdd(data.promotions);
+            }
+            if (data.packs && Array.isArray(data.packs)) {
+              await db.packs.clear();
+              await db.packs.bulkAdd(data.packs);
+            }
+            if (data.settings && Array.isArray(data.settings)) {
+              await db.settings.clear();
+              await db.settings.bulkAdd(data.settings);
+            }
+
+            Alert.alert(t('common.success'), t('backupRestore.restoreSuccess'));
+            setJsonInput('');
+            setShowRestoreBox(false);
+          } catch (err) {
+            Alert.alert(t('common.error'), `${err instanceof Error ? err.message : t('common.error')}`);
+          } finally {
             setLoading(false);
-          },
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
+
+  const BackIcon = isRTL ? ArrowRight : ArrowLeft;
 
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBackBtn} activeOpacity={0.7}>
-          <ArrowRight size={22} color={colors.text.primary} />
+          <BackIcon size={22} color={colors.text.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>النسخ الاحتياطي واستعادة البيانات</Text>
+        <Text style={styles.headerTitle}>{t('backupRestore.title')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -162,10 +193,10 @@ export const BackupRestoreScreen = ({ navigation }: any) => {
             <View style={styles.iconCircleExport}>
               <Download size={22} color={colors.primary[600]} />
             </View>
-            <View style={{ alignItems: 'flex-end', flex: 1, marginRight: 12 }}>
-              <Text style={styles.cardTitle}>تصدير نسخة احتياطية كاملة</Text>
-              <Text style={styles.cardSub}>
-                تصدير كافة المنتجات، الفواتير، الزبائن، والموردين في ملف JSON لحفظها بأمان
+            <View style={{ alignItems, flex: 1, marginHorizontal: 12 }}>
+              <Text style={[styles.cardTitle, { textAlign }]}>{t('backupRestore.exportJson')}</Text>
+              <Text style={[styles.cardSub, { textAlign }]}>
+                {t('backupRestore.subtitle')}
               </Text>
             </View>
           </View>
@@ -181,7 +212,7 @@ export const BackupRestoreScreen = ({ navigation }: any) => {
             ) : (
               <>
                 <Download size={18} color="#fff" />
-                <Text style={styles.exportBtnText}>تصدير ومشاركة النسخة الاحتياطية</Text>
+                <Text style={styles.exportBtnText}>{t('backupRestore.exportJson')}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -193,10 +224,10 @@ export const BackupRestoreScreen = ({ navigation }: any) => {
             <View style={styles.iconCircleRestore}>
               <Upload size={22} color={isDark ? '#34d399' : colors.emerald[600]} />
             </View>
-            <View style={{ alignItems: 'flex-end', flex: 1, marginRight: 12 }}>
-              <Text style={styles.cardTitle}>استرجاع من نسخة احتياطية</Text>
-              <Text style={styles.cardSub}>
-                استيراد البيانات واسترجاعها من ملف أو نص JSON تم تصديره مسبقاً
+            <View style={{ alignItems, flex: 1, marginHorizontal: 12 }}>
+              <Text style={[styles.cardTitle, { textAlign }]}>{t('backupRestore.importJson')}</Text>
+              <Text style={[styles.cardSub, { textAlign }]}>
+                {t('backupRestore.warningText')}
               </Text>
             </View>
           </View>
@@ -208,18 +239,17 @@ export const BackupRestoreScreen = ({ navigation }: any) => {
               activeOpacity={0.8}
             >
               <Upload size={18} color={isDark ? '#34d399' : colors.emerald[700]} />
-              <Text style={styles.restoreToggleBtnText}>فتح حقل استعادة البيانات</Text>
+              <Text style={styles.restoreToggleBtnText}>{t('backupRestore.importJson')}</Text>
             </TouchableOpacity>
           ) : (
             <View style={{ marginTop: 10 }}>
               <TextInput
-                style={styles.jsonTextInput}
-                placeholder="الصق نص النسخة الاحتياطية JSON هنا..."
+                style={[styles.jsonTextInput, { textAlign }]}
+                placeholder="JSON..."
                 placeholderTextColor={colors.text.tertiary}
                 value={jsonInput}
                 onChangeText={setJsonInput}
                 multiline
-                textAlign="right"
               />
 
               <TouchableOpacity
@@ -233,7 +263,7 @@ export const BackupRestoreScreen = ({ navigation }: any) => {
                 ) : (
                   <>
                     <Check size={18} color="#fff" />
-                    <Text style={styles.restoreConfirmBtnText}>تأكيد الاستعادة الآن</Text>
+                    <Text style={styles.restoreConfirmBtnText}>{t('common.confirm')}</Text>
                   </>
                 )}
               </TouchableOpacity>

@@ -15,6 +15,7 @@ import {
 import {
   Barcode as BarcodeIcon,
   ArrowRight,
+  ArrowLeft,
   Printer,
   Share2,
   Package,
@@ -51,6 +52,7 @@ import {
   type BarcodePrint,
 } from '@shared/types/labelPrint';
 import { useTheme } from '@/theme';
+import { useI18n } from '@/store/i18nStore';
 import { radii, spacing, shadows } from '@/theme/tokens';
 
 interface SelectedProductItem {
@@ -62,6 +64,7 @@ interface SelectedProductItem {
 export const BarcodeLabelsScreen = ({ navigation, route }: any) => {
   const preselectProductId = route?.params?.productId;
   const { isDark, colors } = useTheme();
+  const { t, isRTL, textAlign, currency } = useI18n();
   const styles = useMemo(() => makeStyles(colors, isDark), [colors, isDark]);
 
   const [products, setProducts] = useState<Product[]>([]);
@@ -179,32 +182,31 @@ export const BarcodeLabelsScreen = ({ navigation, route }: any) => {
 
   // Build items for printing / preview
   const labelItems: SelectedProductItem[] = useMemo(() => {
-    const out: SelectedProductItem[] = [];
-    for (const id of selectedIds) {
-      const prod = products.find((p) => p.id === id);
-      if (!prod) continue;
-      const code =
-        opts.entryMode === 'manual' && opts.manualBarcode
-          ? opts.manualBarcode
-          : prod.barcode || generateBarcodeValue();
-
-      if (!code) continue;
-      out.push({ product: prod, barcode: code, copies: opts.copies });
-    }
-    return out;
-  }, [selectedIds, products, opts.entryMode, opts.manualBarcode, opts.copies, generateBarcodeValue]);
+    return products
+      .filter((p) => selectedIds.has(p.id))
+      .map((product) => {
+        let code = product.barcode || '';
+        if (!code) {
+          code = generateCode128(product.sku || product.id.slice(0, 8));
+        }
+        return {
+          product,
+          barcode: code,
+          copies: opts.copies,
+        };
+      });
+  }, [products, selectedIds, opts.copies]);
 
   const totalStickersCount = labelItems.length * opts.copies;
 
   const handlePrint = async () => {
     if (labelItems.length === 0) {
-      Alert.alert('تنبيه', 'يرجى اختيار منتجات للطباعة');
+      Alert.alert(t('common.warning'), t('barcodeLabels.noProductsSelected'));
       return;
     }
 
     try {
       await ensureInit();
-      // Record in barcode_prints history table
       const now = new Date().toISOString();
       for (const item of labelItems) {
         const record: BarcodePrint = {
@@ -231,26 +233,28 @@ export const BarcodeLabelsScreen = ({ navigation, route }: any) => {
       setHistory(updatedHistory.slice().reverse());
 
       Alert.alert(
-        '✓ تم إرسال أمر الطباعة',
-        `تم إرسال ${totalStickersCount} ملصق باركود للطابعة الحرارية (${labelSize.label} ملم - ${opts.barcodeFormat.toUpperCase()}).`,
+        t('common.success'),
+        t('barcodeLabels.printSuccess'),
       );
     } catch {
-      Alert.alert('خطأ', 'فشل حفظ سجل طباعة الملصقات');
+      Alert.alert(t('common.error'), t('common.error'));
     }
   };
 
   const handleShareLabels = async () => {
     if (labelItems.length === 0) return;
     try {
-      let text = `🏷️ *ملصقات الباركود والأسعار (${totalStickersCount} ملصق)*\n`;
-      text += `📏 المقاس: ${labelSize.label} ملم • النوع: ${BARCODE_FORMAT_LABELS[opts.barcodeFormat]}\n`;
+      let text = `🏷️ *${t('barcodeLabels.title')} (${totalStickersCount})*\n`;
+      text += `📏 ${labelSize.label} mm • ${BARCODE_FORMAT_LABELS[opts.barcodeFormat]}\n`;
       text += `------------------------------------\n`;
       labelItems.forEach((it, i) => {
-        text += `${i + 1}. ${it.product.name}\n   الباركود: ${it.barcode} | السعر: ${(it.product.retailPrice || 0).toLocaleString('ar-DZ')} دج | النسخ: ${opts.copies}\n`;
+        text += `${i + 1}. ${it.product.name}\n   Barcode: ${it.barcode} | ${t('inventory.sellingPrice')}: ${(it.product.retailPrice || 0).toLocaleString()} ${currency} | ${t('barcodeLabels.copies')}: ${opts.copies}\n`;
       });
       await Share.share({ message: text });
     } catch {}
   };
+
+  const BackIcon = isRTL ? ArrowRight : ArrowLeft;
 
   if (loading) {
     return (
@@ -265,11 +269,11 @@ export const BarcodeLabelsScreen = ({ navigation, route }: any) => {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBackBtn} activeOpacity={0.7}>
-          <ArrowRight size={22} color={colors.text.primary} />
+          <BackIcon size={22} color={colors.text.primary} />
         </TouchableOpacity>
         <View style={styles.headerTitleCol}>
-          <Text style={styles.headerTitle}>طباعة ملصقات الباركود</Text>
-          <Text style={styles.headerSubtitle}>10 مقاسات • 6 صيغ باركود وQR • توليد تلقائي</Text>
+          <Text style={[styles.headerTitle, { textAlign }]}>{t('barcodeLabels.title')}</Text>
+          <Text style={[styles.headerSubtitle, { textAlign }]}>{t('barcodeLabels.subtitle')}</Text>
         </View>
         <TouchableOpacity
           style={styles.headerActionBtn}
@@ -289,7 +293,7 @@ export const BarcodeLabelsScreen = ({ navigation, route }: any) => {
             activeOpacity={0.7}
           >
             <History size={16} color={colors.slate[700]} />
-            <Text style={styles.historyBtnText}>السجل ({history.length})</Text>
+            <Text style={styles.historyBtnText}>{t('barcodeLabels.history')} ({history.length})</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -298,7 +302,7 @@ export const BarcodeLabelsScreen = ({ navigation, route }: any) => {
             activeOpacity={0.7}
           >
             {previewVisible ? <EyeOff size={16} color={colors.primary[700]} /> : <Eye size={16} color={colors.primary[700]} />}
-            <Text style={styles.previewToggleBtnText}>{previewVisible ? 'إخفاء المعاينة' : 'عرض المعاينة'}</Text>
+            <Text style={styles.previewToggleBtnText}>{t('barcodeLabels.preview')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -308,19 +312,19 @@ export const BarcodeLabelsScreen = ({ navigation, route }: any) => {
             activeOpacity={0.7}
           >
             <Printer size={16} color="#fff" />
-            <Text style={styles.printMainBtnText}>طباعة ({totalStickersCount})</Text>
+            <Text style={styles.printMainBtnText}>{t('barcodeLabels.print')} ({totalStickersCount})</Text>
           </TouchableOpacity>
         </View>
 
         {/* Live Sticker Preview Box */}
         {previewVisible && (
           <View style={styles.previewCard}>
-            <Text style={styles.sectionHeader}>معاينة الملصق المباشرة ({labelSize.label} ملم)</Text>
+            <Text style={[styles.sectionHeader, { textAlign }]}>{t('barcodeLabels.preview')} ({labelSize.label} mm)</Text>
             <View style={styles.stickersPreviewRow}>
               {labelItems.length === 0 ? (
                 <View style={styles.emptyPreview}>
                   <BarcodeIcon size={36} color={colors.slate[300]} />
-                  <Text style={styles.emptyPreviewText}>اختر منتجات لعرض معاينة الملصق الحراري</Text>
+                  <Text style={styles.emptyPreviewText}>{t('barcodeLabels.noProductsSelected')}</Text>
                 </View>
               ) : (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingVertical: 4 }}>
@@ -362,7 +366,7 @@ export const BarcodeLabelsScreen = ({ navigation, route }: any) => {
 
                       {opts.showPrice && (
                         <Text style={[styles.stickerPrice, opts.enlargePrice && styles.stickerPriceEnlarged]}>
-                          {(item.product.retailPrice || 0).toLocaleString('ar-DZ')} دج
+                          {(item.product.retailPrice || 0).toLocaleString()} {currency}
                         </Text>
                       )}
                     </View>

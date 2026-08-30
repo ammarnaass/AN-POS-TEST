@@ -23,10 +23,13 @@ import {
   Tag,
   ArrowRight,
   Sparkles,
+  ArrowLeft,
 } from 'lucide-react-native';
 import { db, ensureInit } from '@/lib/db';
 import { generateId } from '@shared/utils';
 import type { Category } from '@shared/types';
+import { useTheme } from '@/theme';
+import { useI18n } from '@/store/i18nStore';
 
 const COLORS = [
   '#3b82f6',
@@ -40,6 +43,8 @@ const COLORS = [
 ];
 
 export const CategoriesScreen = ({ navigation }: any) => {
+  const { isDark, colors } = useTheme();
+  const { t, isRTL, textAlign, alignItems } = useI18n();
   const [categories, setCategories] = useState<Category[]>([]);
   const [productCounts, setProductCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
@@ -114,7 +119,7 @@ export const CategoriesScreen = ({ navigation }: any) => {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      Alert.alert('تنبيه', 'يرجى إدخال اسم الفئة');
+      Alert.alert(t('common.warning'), t('categories.categoryName'));
       return;
     }
 
@@ -145,7 +150,7 @@ export const CategoriesScreen = ({ navigation }: any) => {
       setModalVisible(false);
       await loadCategories();
     } catch (err) {
-      Alert.alert('خطأ', `فشل حفظ الفئة: ${err instanceof Error ? err.message : 'خطأ'}`);
+      Alert.alert(t('common.error'), `${err instanceof Error ? err.message : t('common.error')}`);
     }
     setSaving(false);
   };
@@ -154,50 +159,54 @@ export const CategoriesScreen = ({ navigation }: any) => {
     const count = productCounts[category.id] || productCounts[category.name] || 0;
     if (count > 0) {
       Alert.alert(
-        'لا يمكن الحذف',
-        `توجد ${count} منتجات مرتبطة بهذه الفئة. يرجى نقل المنتجات أولاً قبل حذف الفئة.`
+        t('common.warning'),
+        t('categories.cannotDeleteWithProducts')
       );
       return;
     }
 
-    Alert.alert('حذف الفئة', `هل أنت متأكد من حذف فئة "${category.name}"؟`, [
-      { text: 'إلغاء', style: 'cancel' },
+    Alert.alert(t('common.delete'), `${t('categories.deleteCategoryConfirm')} "${category.name}"?`, [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'حذف',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
           try {
             await db.categories.delete(category.id);
             await loadCategories();
           } catch {
-            Alert.alert('خطأ', 'فشل حذف الفئة');
+            Alert.alert(t('common.error'), t('common.error'));
           }
         },
       },
     ]);
   };
 
+  const BackIcon = isRTL ? ArrowRight : ArrowLeft;
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border.default }]}>
         <View style={styles.headerTop}>
-          <TouchableOpacity style={styles.addBtn} onPress={openAdd}>
-            <Plus size={18} color="#fff" />
-            <Text style={styles.addBtnText}>فئة جديدة</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBackBtn}>
+            <BackIcon size={22} color={colors.text.primary} />
           </TouchableOpacity>
-          <Text style={styles.screenTitle}>إدارة أقسام وفئات المنتجات</Text>
+          <Text style={[styles.screenTitle, { color: colors.text.primary }]}>{t('categories.title')}</Text>
+          <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.primary[600] }]} onPress={openAdd}>
+            <Plus size={18} color="#fff" />
+            <Text style={styles.addBtnText}>{t('categories.addCategory')}</Text>
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.searchBar}>
-          <Search size={18} color="#94a3b8" />
+        <View style={[styles.searchBar, { backgroundColor: isDark ? colors.surfaceElevated : colors.slate[100], borderColor: colors.border.default }]}>
+          <Search size={18} color={colors.text.tertiary} />
           <TextInput
-            style={styles.searchInput}
-            placeholder="بحث في الأقسام..."
+            style={[styles.searchInput, { color: colors.text.primary, textAlign }]}
+            placeholder={t('categories.searchPlaceholder')}
             value={search}
             onChangeText={setSearch}
-            placeholderTextColor="#94a3b8"
-            textAlign="right"
+            placeholderTextColor={colors.text.tertiary}
           />
         </View>
       </View>
@@ -210,13 +219,13 @@ export const CategoriesScreen = ({ navigation }: any) => {
       >
         {loading ? (
           <View style={styles.center}>
-            <ActivityIndicator size="large" color="#3b82f6" />
+            <ActivityIndicator size="large" color={colors.primary[600]} />
           </View>
         ) : filtered.length === 0 ? (
           <View style={styles.emptyState}>
-            <FolderTree size={48} color="#cbd5e1" />
-            <Text style={styles.emptyTitle}>لا توجد فئات مضافة</Text>
-            <Text style={styles.emptySub}>أضف أقساماً وفئات لتنظيم وتصنيف منتجات المخزون</Text>
+            <FolderTree size={48} color={colors.text.tertiary} />
+            <Text style={[styles.emptyTitle, { color: colors.text.primary }]}>{t('categories.noCategories')}</Text>
+            <Text style={[styles.emptySub, { color: colors.text.secondary }]}>{t('categories.noCategoriesDesc')}</Text>
           </View>
         ) : (
           <View style={styles.grid}>
@@ -225,11 +234,11 @@ export const CategoriesScreen = ({ navigation }: any) => {
               const color = (c as any).color || '#3b82f6';
 
               return (
-                <View key={c.id} style={styles.card}>
+                <View key={c.id} style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border.default }]}>
                   <View style={styles.cardTop}>
                     <View style={styles.cardActions}>
                       <TouchableOpacity onPress={() => openEdit(c)} style={styles.iconActionBtn}>
-                        <Edit2 size={13} color="#64748b" />
+                        <Edit2 size={13} color={colors.text.secondary} />
                       </TouchableOpacity>
                       <TouchableOpacity onPress={() => handleDelete(c)} style={styles.iconActionBtn}>
                         <Trash2 size={13} color="#ef4444" />
@@ -240,16 +249,16 @@ export const CategoriesScreen = ({ navigation }: any) => {
                     </View>
                   </View>
 
-                  <Text style={styles.catName}>{c.name}</Text>
+                  <Text style={[styles.catName, { color: colors.text.primary, textAlign }]}>{c.name}</Text>
                   {c.description ? (
-                    <Text style={styles.catDesc} numberOfLines={1}>
+                    <Text style={[styles.catDesc, { color: colors.text.secondary, textAlign }]} numberOfLines={1}>
                       {c.description}
                     </Text>
                   ) : null}
 
                   <View style={styles.catFooter}>
                     <View style={styles.countBadge}>
-                      <Text style={styles.countText}>{count} صنف</Text>
+                      <Text style={styles.countText}>{count} {t('common.products')}</Text>
                       <Package size={12} color="#64748b" />
                     </View>
                   </View>

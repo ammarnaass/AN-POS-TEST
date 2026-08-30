@@ -92,6 +92,10 @@ export function useI18n() {
     allLanguages: LANGUAGE_METADATA,
     setLanguage,
     t,
+    textAlign: (isRTL ? 'right' : 'left') as 'right' | 'left',
+    alignSelf: (isRTL ? 'flex-end' : 'flex-start') as 'flex-end' | 'flex-start',
+    alignItems: (isRTL ? 'flex-end' : 'flex-start') as 'flex-end' | 'flex-start',
+    currency: strings.common.currency,
   };
 }
 

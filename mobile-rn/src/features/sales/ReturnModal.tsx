@@ -14,6 +14,7 @@ import { db, ensureInit } from '@/lib/db';
 import { generateId } from '@shared/utils';
 import type { Sale } from '@shared/types';
 import { useAuthStore } from '@/store/authStore';
+import { useI18n } from '@/store/i18nStore';
 
 interface ReturnModalProps {
   visible: boolean;
@@ -37,6 +38,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
   onSuccess,
 }) => {
   const { user } = useAuthStore();
+  const { t, isRTL, currency } = useI18n();
   const [items, setItems] = useState<ReturnItemState[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -63,7 +65,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
       setItems(
         (Array.isArray(saleItems) ? saleItems : []).map((item: any) => ({
           productId: item?.productId || item?.product_id || '',
-          name: item?.name || 'منتج',
+          name: item?.name || t('inventory.productName'),
           originalQty: Number(item?.qty || item?.quantity || 1),
           unitPrice: Number(item?.unitPrice || item?.unit_price || 0),
           returnQty: 0,
@@ -90,7 +92,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
 
   const handleConfirmReturn = async () => {
     if (totalReturnQty === 0) {
-      Alert.alert('تنبيه', 'يرجى تحديد كمية صنف واحد على الأقل للإرجاع');
+      Alert.alert(t('common.warning'), t('returns.returnConfirm'));
       return;
     }
 
@@ -130,8 +132,8 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
         payment_method: sale?.paymentMethod || 'cash',
         amount_paid: totalReturnAmount,
         status: 'paid',
-        sold_by: user?.name || 'مستخدم',
-        notes: `مرتجع للفاتورة: ${sale?.number || ''}`,
+        sold_by: user?.name || 'user',
+        notes: `${t('sales.returned')}: ${sale?.number || ''}`,
         created_at: nowIso,
         updated_at: nowIso,
       });
@@ -155,7 +157,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                 type: 'return',
                 product_id: retItem.productId,
                 qty: retItem.qty,
-                reason: `مرتجع فاتورة ${sale?.number}`,
+                reason: `${t('stockMovements.typeReturn')} ${sale?.number}`,
                 reference_id: returnSaleId,
                 created_by: user?.name || '',
                 created_at: nowIso,
@@ -178,11 +180,11 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
         }
       }
 
-      Alert.alert('✓ تم الإرجاع بنجاح', `تم تسجيل إرجاع بمبلغ ${totalReturnAmount.toLocaleString('ar-DZ')} دج وإعادة البضاعة للمخزون.`);
+      Alert.alert(t('common.success'), `${t('returns.returnSuccess')} (${totalReturnAmount.toLocaleString()} ${currency})`);
       onSuccess();
       onClose();
     } catch (err) {
-      Alert.alert('خطأ', `فشل تسجيل الإرجاع: ${err instanceof Error ? err.message : 'خطأ غير متوقع'}`);
+      Alert.alert(t('common.error'), `${err instanceof Error ? err.message : t('common.error')}`);
     }
     setLoading(false);
   };
@@ -199,13 +201,13 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
               <X size={20} color="#64748b" />
             </TouchableOpacity>
             <View style={styles.headerTitleRow}>
-              <Text style={styles.title}>إرجاع بضاعة</Text>
+              <Text style={styles.title}>{t('returns.title')}</Text>
               <RotateCcw size={20} color="#ef4444" />
             </View>
           </View>
 
-          <Text style={styles.subInfo}>
-            الفاتورة: <Text style={{ fontWeight: 'bold' }}>{sale.number}</Text> • العميل: {sale.customerName || 'عميل عام'}
+          <Text style={[styles.subInfo, { textAlign: isRTL ? 'right' : 'left' }]}>
+            {t('sales.invoiceNumber')}: <Text style={{ fontWeight: 'bold' }}>{sale.number}</Text> • {t('pos.customer')}: {sale.customerName || t('pos.guestCustomer')}
           </Text>
 
           {/* Items list */}
@@ -230,14 +232,14 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                   </TouchableOpacity>
                 </View>
 
-                <View style={styles.itemDetails}>
-                  <Text style={styles.itemName}>{item.name}</Text>
-                  <Text style={styles.itemMeta}>
-                    الكمية الأصلية: {item.originalQty} • السعر: {item.unitPrice.toLocaleString('ar-DZ')} دج
+                <View style={[styles.itemDetails, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+                  <Text style={[styles.itemName, { textAlign: isRTL ? 'right' : 'left' }]}>{item.name}</Text>
+                  <Text style={[styles.itemMeta, { textAlign: isRTL ? 'right' : 'left' }]}>
+                    {t('inventory.stockQuantity')}: {item.originalQty} • {t('inventory.sellingPrice')}: {item.unitPrice.toLocaleString()} {currency}
                   </Text>
                   {item.returnQty > 0 && (
-                    <Text style={styles.itemRefundText}>
-                      مبلغ الإرجاع: {(item.returnQty * item.unitPrice).toLocaleString('ar-DZ')} دج
+                    <Text style={[styles.itemRefundText, { textAlign: isRTL ? 'right' : 'left' }]}>
+                      {t('returns.returnQty')}: {(item.returnQty * item.unitPrice).toLocaleString()} {currency}
                     </Text>
                   )}
                 </View>
@@ -248,16 +250,14 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
           {/* Summary footer */}
           <View style={styles.footer}>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryValue}>{totalReturnAmount.toLocaleString('ar-DZ')} دج</Text>
-              <Text style={styles.summaryLabel}>إجمالي المبلغ المسترد:</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryValue}>{totalReturnQty} قطعة</Text>
-              <Text style={styles.summaryLabel}>إجمالي عدد القطع المرجعة:</Text>
+              <Text style={styles.summaryTotalText}>
+                {totalReturnAmount.toLocaleString()} {currency}
+              </Text>
+              <Text style={styles.summaryLabel}>{t('common.total')}:</Text>
             </View>
 
             <TouchableOpacity
-              style={[styles.confirmBtn, totalReturnQty === 0 && styles.confirmBtnDisabled]}
+              style={[styles.confirmBtn, (loading || totalReturnQty === 0) && styles.confirmBtnDisabled]}
               onPress={handleConfirmReturn}
               disabled={loading || totalReturnQty === 0}
             >
@@ -266,7 +266,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
               ) : (
                 <>
                   <Check size={18} color="#fff" />
-                  <Text style={styles.confirmBtnText}>تأكيد عملية الإرجاع</Text>
+                  <Text style={styles.confirmBtnText}>{t('common.confirm')}</Text>
                 </>
               )}
             </TouchableOpacity>

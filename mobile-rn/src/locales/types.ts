@@ -61,6 +61,7 @@ export interface TranslationSchema {
     synced: string;
     offline: string;
     online: string;
+    products: string;
     reset: string;
     apply: string;
   };
@@ -295,8 +296,12 @@ export interface TranslationSchema {
     parentCategory: string;
     productsCount: string;
     deleteCategoryConfirm: string;
+    cannotDeleteWithProducts: string;
     noCategoriesFound: string;
+    noCategories: string;
+    noCategoriesDesc: string;
     searchCategories: string;
+    searchPlaceholder: string;
   };
   promotions: {
     title: string;
@@ -310,12 +315,15 @@ export interface TranslationSchema {
     discountPercent: string;
     discountAmount: string;
     packPrice: string;
+    packItems: string;
     startDate: string;
     endDate: string;
     includedProducts: string;
     isActive: string;
     deletePromoConfirm: string;
     noPromosFound: string;
+    noPacks: string;
+    noPacksDesc: string;
   };
   warehouses: {
     title: string;
@@ -485,11 +493,18 @@ export interface TranslationSchema {
     goldNisab: string;
     silverNisab: string;
     nisabThreshold: string;
+    nisabValue: string;
+    nisabMet: string;
+    nisabNotMet: string;
     cashInHand: string;
+    cashOnHand: string;
     inventoryValuation: string;
+    inventoryValue: string;
     receivables: string;
     liabilities: string;
+    debtsToDeduct: string;
     zakatableAssets: string;
+    netZakatable: string;
     zakatRate: string;
     zakatDue: string;
     isEligible: string;
@@ -532,14 +547,21 @@ export interface TranslationSchema {
     title: string;
     subtitle: string;
     selectProduct: string;
+    selectProducts: string;
+    noProductsSelected: string;
     labelSize: string;
     barcodeFormat: string;
     printCopies: string;
+    copies: string;
     showPrice: string;
     showStoreName: string;
     showBarcodeText: string;
     generateBarcode: string;
+    customText: string;
+    preview: string;
+    print: string;
     printNow: string;
+    printSuccess: string;
     history: string;
   };
   storeSettings: {
@@ -627,6 +649,8 @@ export interface TranslationSchema {
     frSub: string;
     deviceInfo: string;
     syncStatus: string;
+    syncPending: string;
+    syncFailed: string;
     syncNow: string;
     lastSync: string;
     backupData: string;

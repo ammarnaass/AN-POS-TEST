@@ -88,7 +88,7 @@ export const PairScreen = ({ navigation, route }: any) => {
     setError('');
     const normalizedUrl = normalizeServerUrl(serverUrl);
     if (!normalizedUrl) {
-      setError('يرجى إدخال عنوان IP صحيح للحاسوب');
+      setError(t('pair.ipPlaceholder'));
       setLoading(false);
       return;
     }
@@ -103,7 +103,7 @@ export const PairScreen = ({ navigation, route }: any) => {
       });
 
       if (res?.error) {
-        throw new Error(res.error.detail || 'مفتاح الاقتران غير صحيح');
+        throw new Error(res.error.detail || t('pair.connectFailed'));
       }
 
       const token = res?.sessionToken || res?.token || res?.data?.sessionToken || res?.data?.token;
@@ -115,10 +115,10 @@ export const PairScreen = ({ navigation, route }: any) => {
         syncEngine.pullUpdates().catch(() => {});
         navigation.replace('Login');
       } else {
-        throw new Error('استجابة الاقتران من الخادم غير مكتملة، تأكد من تشغيل AN POS Desktop');
+        throw new Error(t('pair.desktopInstructions'));
       }
     } catch (e: any) {
-      setError(e instanceof Error ? e.message : 'فشل الاتصال بالخادم');
+      setError(e instanceof Error ? e.message : t('pair.connectFailed'));
     } finally {
       setLoading(false);
     }
@@ -141,11 +141,11 @@ export const PairScreen = ({ navigation, route }: any) => {
         setScanStatus('found');
       } else {
         setScanStatus('failed');
-        setError('لم يتم العثور على أجهزة على الشبكة');
+        setError(t('pair.connectFailed'));
       }
     } catch (e) {
       setScanStatus('failed');
-      setError(e instanceof Error ? e.message : 'خطأ في البحث التلقائي');
+      setError(e instanceof Error ? e.message : t('common.error'));
     }
   };
 
@@ -153,7 +153,7 @@ export const PairScreen = ({ navigation, route }: any) => {
   const handleManualConnect = () => {
     const rawIp = manualIp.trim();
     if (!rawIp) {
-      setError('يرجى إدخال عنوان IP للحاسوب');
+      setError(t('pair.ipPlaceholder'));
       return;
     }
     const port = manualPort.trim() || '4321';
@@ -177,7 +177,7 @@ export const PairScreen = ({ navigation, route }: any) => {
   const handleConnectPastedCode = () => {
     const raw = qrPastedCode.trim();
     if (!raw) {
-      setError('يرجى لصق كود الاقتران أولاً');
+      setError(t('pair.qrScanDesc'));
       return;
     }
     const parsed = parsePairingCode(raw);

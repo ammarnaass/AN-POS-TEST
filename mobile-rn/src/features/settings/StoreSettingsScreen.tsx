@@ -24,6 +24,7 @@ import {
   ShieldCheck,
   RefreshCw,
   ArrowRight,
+  ArrowLeft,
   Check,
   X,
   Wifi,
@@ -55,7 +56,7 @@ type SettingsTab = 'identity' | 'fiscal' | 'invoicing' | 'system' | 'diagnostics
 
 export const StoreSettingsScreen = ({ navigation }: any) => {
   const { isDark, colors } = useTheme();
-  const { t, isRTL } = useI18n();
+  const { t, isRTL, textAlign, alignSelf, alignItems, language } = useI18n();
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('identity');
   const [loading, setLoading] = useState(true);
@@ -85,7 +86,7 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
       const data = await getStoreSettings(forceRemote || mode === 'connected');
       setSettings(data);
       setForm({ ...data });
-      setLastSyncTimestamp(new Date().toLocaleTimeString('ar-DZ'));
+      setLastSyncTimestamp(new Date().toLocaleTimeString(language === 'ar' ? 'ar-DZ' : language === 'fr' ? 'fr-FR' : 'en-US'));
     } catch (err: any) {
       console.warn('[StoreSettingsScreen] load error:', err);
     } finally {
@@ -93,7 +94,7 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
       setRefreshing(false);
       setFetchingRemote(false);
     }
-  }, []);
+  }, [language]);
 
   useEffect(() => {
     loadData();
@@ -106,16 +107,16 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
       if (res.success && res.settings) {
         setSettings(res.settings);
         setForm({ ...res.settings });
-        setLastSyncTimestamp(new Date().toLocaleTimeString('ar-DZ'));
+        setLastSyncTimestamp(new Date().toLocaleTimeString(language === 'ar' ? 'ar-DZ' : language === 'fr' ? 'fr-FR' : 'en-US'));
         Alert.alert(
-          '✓ تم التحديث بنجاح',
-          `تم جلب كامل بيانات وإعدادات المحل والضرائب من خادم سطح المكتب (${serverUrl})`
+          t('common.success'),
+          `${t('storeSettings.fetchFromDesktop')} (${serverUrl})`
         );
       } else {
-        Alert.alert('تنبيه الاتصال', res.error || 'تعذر الوصول إلى خادم سطح المكتب');
+        Alert.alert(t('common.warning'), res.error || t('pair.connectFailed'));
       }
     } catch (e: any) {
-      Alert.alert('خطأ', e?.message || 'فشل جلب الإعدادات من سطح المكتب');
+      Alert.alert(t('common.error'), e?.message || t('pair.connectFailed'));
     } finally {
       setFetchingRemote(false);
     }
@@ -136,16 +137,16 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
         setSettings(form as StoreSettings);
         setEditMode(false);
         Alert.alert(
-          '✓ تم الحفظ بنجاح',
+          t('common.success'),
           appMode === 'connected'
-            ? 'تم حفظ الإعدادات محلياً ومزامنتها مباشرة مع حاسوب سطح المكتب'
-            : 'تم حفظ إعدادات المحل بنجاح في قاعدة البيانات المحلية'
+            ? t('storeSettings.connectedModeDesc')
+            : t('storeSettings.standaloneModeDesc')
         );
       } else {
-        Alert.alert('خطأ', result.error || 'فشل حفظ الإعدادات');
+        Alert.alert(t('common.error'), result.error || t('common.error'));
       }
     } catch {
-      Alert.alert('خطأ', 'حدث خطأ أثناء حفظ الإعدادات');
+      Alert.alert(t('common.error'), t('common.error'));
     } finally {
       setSaving(false);
     }
@@ -160,11 +161,13 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
       <View style={[styles.center, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary[600]} />
         <Text style={[styles.loadingText, { color: colors.text.secondary }]}>
-          جاري تحميل بيانات وإعدادات المتجر...
+          {t('common.loading')}
         </Text>
       </View>
     );
   }
+
+  const BackIcon = isRTL ? ArrowRight : ArrowLeft;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -183,15 +186,15 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
           onPress={() => navigation.goBack()}
           activeOpacity={0.7}
         >
-          <ArrowRight size={20} color={colors.text.primary} />
+          <BackIcon size={20} color={colors.text.primary} />
         </TouchableOpacity>
 
-        <View style={styles.headerTitleBox}>
-          <Text style={[styles.headerTitle, { color: colors.text.primary }]}>
-            بيانات وإعدادات المحل
+        <View style={[styles.headerTitleBox, { alignItems }]}>
+          <Text style={[styles.headerTitle, { color: colors.text.primary, textAlign }]}>
+            {t('storeSettings.title')}
           </Text>
-          <Text style={[styles.headerSubtitle, { color: colors.text.tertiary }]}>
-            {appMode === 'connected' ? `متصل بالحاسوب (${serverUrl})` : 'الوضع المستقل (بيانات محلية)'}
+          <Text style={[styles.headerSubtitle, { color: colors.text.tertiary, textAlign }]}>
+            {appMode === 'connected' ? `${t('settings.connected')} (${serverUrl})` : t('settings.standalone')}
           </Text>
         </View>
 
@@ -223,7 +226,7 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
               onPress={() => setEditMode(true)}
               activeOpacity={0.8}
             >
-              <Text style={styles.editToggleBtnText}>تعديل</Text>
+              <Text style={styles.editToggleBtnText}>{t('common.edit')}</Text>
             </TouchableOpacity>
           ) : (
             <View style={{ flexDirection: 'row', gap: 6 }}>
@@ -282,12 +285,12 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
           ]}
         >
           <View style={styles.heroTopRow}>
-            <View style={styles.heroTitleGroup}>
-              <Text style={[styles.heroStoreName, { color: colors.text.primary }]}>
-                {form.shop_name || form.store_name || 'اسم المتجر غير محدد'}
+            <View style={[styles.heroTitleGroup, { alignItems }]}>
+              <Text style={[styles.heroStoreName, { color: colors.text.primary, textAlign }]}>
+                {form.shop_name || form.store_name || t('storeSettings.shopName')}
               </Text>
-              <Text style={[styles.heroStoreAddress, { color: colors.text.secondary }]}>
-                {form.address || form.store_address || 'العنوان غير مدخل'}
+              <Text style={[styles.heroStoreAddress, { color: colors.text.secondary, textAlign }]}>
+                {form.address || form.store_address || t('storeSettings.address')}
               </Text>
             </View>
             <View
@@ -310,21 +313,21 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
 
           <View style={styles.heroStatsRow}>
             <View style={styles.heroStatItem}>
-              <Text style={[styles.heroStatLabel, { color: colors.text.tertiary }]}>حالة الربط</Text>
+              <Text style={[styles.heroStatLabel, { color: colors.text.tertiary }]}>{t('storeSettings.syncStatus')}</Text>
               <Badge variant={appMode === 'connected' ? 'emerald' : 'neutral'} size="xs" dot>
-                {appMode === 'connected' ? 'متزامن مع الحاسوب' : 'محلي منفصل'}
+                {appMode === 'connected' ? t('settings.connected') : t('settings.standalone')}
               </Badge>
             </View>
 
             <View style={styles.heroStatItem}>
-              <Text style={[styles.heroStatLabel, { color: colors.text.tertiary }]}>العملة والضريبة</Text>
+              <Text style={[styles.heroStatLabel, { color: colors.text.tertiary }]}>{t('common.currency')}</Text>
               <Text style={[styles.heroStatValue, { color: colors.text.primary }]}>
-                {form.base_currency || 'دج'} • TVA: {form.tva_rate || 0}%
+                {form.base_currency || t('common.currency')} • TVA: {form.tva_rate || 0}%
               </Text>
             </View>
 
             <View style={styles.heroStatItem}>
-              <Text style={[styles.heroStatLabel, { color: colors.text.tertiary }]}>آخر مزامنة</Text>
+              <Text style={[styles.heroStatLabel, { color: colors.text.tertiary }]}>{t('settings.lastSync')}</Text>
               <Text style={[styles.heroStatValue, { color: colors.text.secondary }]}>
                 {lastSyncTimestamp || '—'}
               </Text>
@@ -350,7 +353,7 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
                 <>
                   <RefreshCw size={14} color={colors.emerald[700]} />
                   <Text style={[styles.heroActionBtnText, { color: colors.emerald[800] }]}>
-                    سحب وتحديث كافة بيانات المحل من سطح المكتب الآن
+                    {t('storeSettings.fetchFromDesktop')}
                   </Text>
                 </>
               )}
@@ -367,35 +370,35 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
         >
           <TabButton
             active={activeTab === 'identity'}
-            title="هوية المتجر"
+            title={t('storeSettings.identityTab')}
             icon={<Store size={15} color={activeTab === 'identity' ? '#fff' : colors.text.secondary} />}
             onPress={() => setActiveTab('identity')}
             colors={colors}
           />
           <TabButton
             active={activeTab === 'fiscal'}
-            title="الضرائب والسجل"
+            title={t('storeSettings.fiscalTab')}
             icon={<FileText size={15} color={activeTab === 'fiscal' ? '#fff' : colors.text.secondary} />}
             onPress={() => setActiveTab('fiscal')}
             colors={colors}
           />
           <TabButton
             active={activeTab === 'invoicing'}
-            title="الفواتير والطباعة"
+            title={t('storeSettings.invoicingTab')}
             icon={<Receipt size={15} color={activeTab === 'invoicing' ? '#fff' : colors.text.secondary} />}
             onPress={() => setActiveTab('invoicing')}
             colors={colors}
           />
           <TabButton
             active={activeTab === 'system'}
-            title="المالية والنظام"
+            title={t('storeSettings.systemTab')}
             icon={<Sliders size={15} color={activeTab === 'system' ? '#fff' : colors.text.secondary} />}
             onPress={() => setActiveTab('system')}
             colors={colors}
           />
           <TabButton
             active={activeTab === 'diagnostics'}
-            title="التشخيص والربط"
+            title={t('storeSettings.diagnosticsTab')}
             icon={<HardDrive size={15} color={activeTab === 'diagnostics' ? '#fff' : colors.text.secondary} />}
             onPress={() => setActiveTab('diagnostics')}
             colors={colors}
@@ -409,43 +412,45 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
               <View style={[styles.tabHeaderIcon, { backgroundColor: colors.primary[50] }]}>
                 <Building2 size={18} color={colors.primary[600]} />
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.tabTitle, { color: colors.text.primary }]}>
-                  المعلومات الأساسية وبيانات الاتصال
+              <View style={{ flex: 1, alignItems }}>
+                <Text style={[styles.tabTitle, { color: colors.text.primary, textAlign }]}>
+                  {t('storeSettings.identityTab')}
                 </Text>
-                <Text style={[styles.tabSubtitle, { color: colors.text.tertiary }]}>
-                  تظهر هذه البيانات في ترويسة الفواتير والإيصالات وتقارير المبيعات
+                <Text style={[styles.tabSubtitle, { color: colors.text.tertiary, textAlign }]}>
+                  {t('storeSettings.subtitle')}
                 </Text>
               </View>
             </View>
 
             <FormField
-              label="اسم المحل / الشركة"
+              label={t('storeSettings.shopName')}
               value={form.shop_name || form.store_name}
-              onChangeText={(v) => {
+              onChangeText={(v: string) => {
                 updateField('shop_name', v);
                 updateField('store_name', v);
               }}
               editMode={editMode}
               icon={<Store size={16} color={colors.text.tertiary} />}
               colors={colors}
-              placeholder="مثال: سوبرماركت الأمانة"
+              textAlign={textAlign}
+              placeholder="e.g. Supermarket Al-Amana"
             />
 
             <FormField
-              label="النشاط التجاري / الوصف"
+              label={t('storeSettings.shopDesc')}
               value={form.shop_description}
-              onChangeText={(v) => updateField('shop_description', v)}
+              onChangeText={(v: string) => updateField('shop_description', v)}
               editMode={editMode}
               icon={<Info size={16} color={colors.text.tertiary} />}
               colors={colors}
-              placeholder="مثال: بيع المواد الغذائية والتموينية بالجملة والتجزئة"
+              textAlign={textAlign}
+              placeholder="e.g. Retail & Wholesale Grocery"
             />
 
             <FormField
-              label="رقم الهاتف الأساسي"
+              label={t('storeSettings.mainPhone')}
               value={form.phone || form.store_phone}
-              onChangeText={(v) => {
+              onChangeText={(v: string) => {
                 updateField('phone', v);
                 updateField('store_phone', v);
               }}
@@ -453,13 +458,14 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
               keyboardType="phone-pad"
               icon={<Phone size={16} color={colors.text.tertiary} />}
               colors={colors}
-              placeholder="مثال: 0555123456"
+              textAlign={textAlign}
+              placeholder="0555123456"
             />
 
             <FormField
-              label="رقم الهاتف الثانوي"
+              label={t('storeSettings.secondaryPhone')}
               value={form.phone2 || form.shop_phone2}
-              onChangeText={(v) => {
+              onChangeText={(v: string) => {
                 updateField('phone2', v);
                 updateField('shop_phone2', v);
               }}
@@ -467,13 +473,14 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
               keyboardType="phone-pad"
               icon={<Phone size={16} color={colors.text.tertiary} />}
               colors={colors}
-              placeholder="مثال: 021987654"
+              textAlign={textAlign}
+              placeholder="021987654"
             />
 
             <FormField
-              label="البريد الإلكتروني"
+              label={t('storeSettings.email')}
               value={form.email || form.store_email}
-              onChangeText={(v) => {
+              onChangeText={(v: string) => {
                 updateField('email', v);
                 updateField('store_email', v);
               }}
@@ -481,30 +488,33 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
               keyboardType="email-address"
               icon={<Mail size={16} color={colors.text.tertiary} />}
               colors={colors}
-              placeholder="مثال: contact@store.dz"
+              textAlign={textAlign}
+              placeholder="contact@store.dz"
             />
 
             <FormField
-              label="العنوان والموقع"
+              label={t('storeSettings.address')}
               value={form.address || form.store_address}
-              onChangeText={(v) => {
+              onChangeText={(v: string) => {
                 updateField('address', v);
                 updateField('store_address', v);
               }}
               editMode={editMode}
               icon={<MapPin size={16} color={colors.text.tertiary} />}
               colors={colors}
-              placeholder="مثال: حي النور، شارع الاستقلال، الجزائر"
+              textAlign={textAlign}
+              placeholder="Alger, Algérie"
             />
 
             <FormField
-              label="المدينة / الولاية"
+              label={t('storeSettings.city')}
               value={form.city}
-              onChangeText={(v) => updateField('city', v)}
+              onChangeText={(v: string) => updateField('city', v)}
               editMode={editMode}
               icon={<MapPin size={16} color={colors.text.tertiary} />}
               colors={colors}
-              placeholder="مثال: الجزائر العاصمة"
+              textAlign={textAlign}
+              placeholder="Alger"
             />
           </Card>
         )}
@@ -516,77 +526,82 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
               <View style={[styles.tabHeaderIcon, { backgroundColor: colors.purple[50] }]}>
                 <FileText size={18} color={colors.purple[600]} />
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.tabTitle, { color: colors.text.primary }]}>
-                  البيانات القانونية والجبائية (Fiscal Data)
+              <View style={{ flex: 1, alignItems }}>
+                <Text style={[styles.tabTitle, { color: colors.text.primary, textAlign }]}>
+                  {t('storeSettings.fiscalTab')}
                 </Text>
-                <Text style={[styles.tabSubtitle, { color: colors.text.tertiary }]}>
-                  المعلومات الرسمية المطابقة للمعايير الجبائية والتجارية
+                <Text style={[styles.tabSubtitle, { color: colors.text.tertiary, textAlign }]}>
+                  {t('storeSettings.subtitle')}
                 </Text>
               </View>
             </View>
 
             <FormField
-              label="السجل التجاري (RC)"
+              label={t('storeSettings.rc')}
               value={form.commercial_register || form.company_rc}
-              onChangeText={(v) => {
+              onChangeText={(v: string) => {
                 updateField('commercial_register', v);
                 updateField('company_rc', v);
               }}
               editMode={editMode}
               icon={<Hash size={16} color={colors.text.tertiary} />}
               colors={colors}
-              placeholder="مثال: 16/00-1234567B20"
+              textAlign={textAlign}
+              placeholder="16/00-1234567B20"
             />
 
             <FormField
-              label="الرقم التعريفي الجبائي (NIF)"
+              label={t('storeSettings.nif')}
               value={form.tax_number || form.company_nif}
-              onChangeText={(v) => {
+              onChangeText={(v: string) => {
                 updateField('tax_number', v);
                 updateField('company_nif', v);
               }}
               editMode={editMode}
               icon={<Hash size={16} color={colors.text.tertiary} />}
               colors={colors}
-              placeholder="مثال: 002016123456789"
+              textAlign={textAlign}
+              placeholder="002016123456789"
             />
 
             <FormField
-              label="رقم المادة الضريبية (Article)"
+              label={t('storeSettings.art')}
               value={form.company_art || form.tax_article}
-              onChangeText={(v) => {
+              onChangeText={(v: string) => {
                 updateField('company_art', v);
                 updateField('tax_article', v);
               }}
               editMode={editMode}
               icon={<Hash size={16} color={colors.text.tertiary} />}
               colors={colors}
-              placeholder="مثال: 16123456789"
+              textAlign={textAlign}
+              placeholder="16123456789"
             />
 
             <FormField
-              label="رقم التعريف الإحصائي (NIS / AI)"
+              label={t('storeSettings.nis')}
               value={form.company_ai || form.nis}
-              onChangeText={(v) => {
+              onChangeText={(v: string) => {
                 updateField('company_ai', v);
                 updateField('nis', v);
               }}
               editMode={editMode}
               icon={<Hash size={16} color={colors.text.tertiary} />}
               colors={colors}
-              placeholder="مثال: 001612345678901"
+              textAlign={textAlign}
+              placeholder="001612345678901"
             />
 
             <FormField
-              label="نسبة الضريبة الرسمية TVA (%)"
+              label={t('storeSettings.tvaRate')}
               value={String(form.tva_rate ?? 0)}
-              onChangeText={(v) => updateField('tva_rate', v)}
+              onChangeText={(v: string) => updateField('tva_rate', v)}
               editMode={editMode}
               keyboardType="numeric"
               icon={<Percent size={16} color={colors.text.tertiary} />}
               colors={colors}
-              placeholder="0 أو 19 أو 9"
+              textAlign={textAlign}
+              placeholder="0 / 19 / 9"
             />
           </Card>
         )}
@@ -598,77 +613,83 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
               <View style={[styles.tabHeaderIcon, { backgroundColor: colors.warning.light }]}>
                 <Receipt size={18} color={colors.warning.dark} />
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.tabTitle, { color: colors.text.primary }]}>
-                  إعدادات الفواتير والطباعة الحرارية
+              <View style={{ flex: 1, alignItems }}>
+                <Text style={[styles.tabTitle, { color: colors.text.primary, textAlign }]}>
+                  {t('storeSettings.invoicingTab')}
                 </Text>
-                <Text style={[styles.tabSubtitle, { color: colors.text.tertiary }]}>
-                  تخصيص هوية إيصالات البيع وتسلسل الأرقام وعرض الورق
+                <Text style={[styles.tabSubtitle, { color: colors.text.tertiary, textAlign }]}>
+                  {t('printTemplates.subtitle')}
                 </Text>
               </View>
             </View>
 
             <FormField
-              label="بادئة رقم الفاتورة (Prefix)"
+              label={t('storeSettings.invoicePrefix')}
               value={form.invoice_prefix || 'INV-'}
-              onChangeText={(v) => updateField('invoice_prefix', v)}
+              onChangeText={(v: string) => updateField('invoice_prefix', v)}
               editMode={editMode}
               icon={<FileText size={16} color={colors.text.tertiary} />}
               colors={colors}
-              placeholder="INV- أو FAC-"
+              textAlign={textAlign}
+              placeholder="INV- / FAC-"
             />
 
             <FormField
-              label="رقم بداية تسلسل الفواتير"
+              label={t('storeSettings.startNumber')}
               value={String(form.invoice_start_number ?? 1)}
-              onChangeText={(v) => updateField('invoice_start_number', v)}
+              onChangeText={(v: string) => updateField('invoice_start_number', v)}
               editMode={editMode}
               keyboardType="numeric"
               icon={<Hash size={16} color={colors.text.tertiary} />}
               colors={colors}
+              textAlign={textAlign}
               placeholder="1"
             />
 
             <FormField
-              label="عرض ورق الطابعة الحرارية (mm)"
+              label={t('storeSettings.printWidth')}
               value={String(form.print_width_mm || 80)}
-              onChangeText={(v) => updateField('print_width_mm', v)}
+              onChangeText={(v: string) => updateField('print_width_mm', v)}
               editMode={editMode}
               keyboardType="numeric"
               icon={<Printer size={16} color={colors.text.tertiary} />}
               colors={colors}
-              placeholder="80 أو 58"
+              textAlign={textAlign}
+              placeholder="80 / 58"
             />
 
             <FormField
-              label="لغة الفاتورة الافتراضية"
-              value={form.print_language === 'fr' ? 'الفرنسية (Français)' : form.print_language === 'en' ? 'الإنجليزية (English)' : 'العربية (Arabic)'}
-              onChangeText={(v) => updateField('print_language', v)}
+              label={t('storeSettings.printLang')}
+              value={form.print_language === 'fr' ? 'Français' : form.print_language === 'en' ? 'English' : 'العربية'}
+              onChangeText={(v: string) => updateField('print_language', v)}
               editMode={editMode}
               icon={<Sliders size={16} color={colors.text.tertiary} />}
               colors={colors}
-              placeholder="ar أو fr أو en"
+              textAlign={textAlign}
+              placeholder="ar / fr / en"
             />
 
             <FormField
-              label="نص ترويسة الفاتورة (Header Note)"
+              label={t('print.invoiceHeader')}
               value={form.receipt_header}
-              onChangeText={(v) => updateField('receipt_header', v)}
+              onChangeText={(v: string) => updateField('receipt_header', v)}
               editMode={editMode}
               icon={<Info size={16} color={colors.text.tertiary} />}
               colors={colors}
-              placeholder="نص يظهر في أعلى الفاتورة (اختياري)"
+              textAlign={textAlign}
+              placeholder="Header note..."
             />
 
             <FormField
-              label="نص تذييل الفاتورة (Footer Note)"
-              value={form.receipt_footer || 'شكراً لتسوقكم معنا'}
-              onChangeText={(v) => updateField('receipt_footer', v)}
+              label={t('print.invoiceFooter')}
+              value={form.receipt_footer || 'Merci pour votre visite'}
+              onChangeText={(v: string) => updateField('receipt_footer', v)}
               editMode={editMode}
               multiline
               icon={<Info size={16} color={colors.text.tertiary} />}
               colors={colors}
-              placeholder="شكراً لزيارتكم • البضاعة المباعة تستبدل خلال 48 ساعة"
+              textAlign={textAlign}
+              placeholder="Thank you for your visit..."
             />
           </Card>
         )}
@@ -680,36 +701,34 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
               <View style={[styles.tabHeaderIcon, { backgroundColor: colors.emerald[50] }]}>
                 <Coins size={18} color={colors.emerald[600]} />
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.tabTitle, { color: colors.text.primary }]}>
-                  الخيارات المالية والنظام
+              <View style={{ flex: 1, alignItems }}>
+                <Text style={[styles.tabTitle, { color: colors.text.primary, textAlign }]}>
+                  {t('storeSettings.systemTab')}
                 </Text>
-                <Text style={[styles.tabSubtitle, { color: colors.text.tertiary }]}>
-                  العملات وسياسات البيع والمخزون والتوقيت
+                <Text style={[styles.tabSubtitle, { color: colors.text.tertiary, textAlign }]}>
+                  {t('storeSettings.subtitle')}
                 </Text>
               </View>
             </View>
 
             <FormField
-              label="العملة الأساسية"
-              value={form.base_currency || form.currency || 'دج'}
-              onChangeText={(v) => {
+              label={t('common.currency')}
+              value={form.base_currency || form.currency || t('common.currency')}
+              onChangeText={(v: string) => {
                 updateField('base_currency', v);
                 updateField('currency', v);
               }}
               editMode={editMode}
               icon={<Coins size={16} color={colors.text.tertiary} />}
               colors={colors}
-              placeholder="دج أو DZD"
+              textAlign={textAlign}
+              placeholder="DA / DZD"
             />
 
             <View style={[styles.switchRow, { borderBottomColor: colors.border.subtle }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.switchLabel, { color: colors.text.primary }]}>
-                  تفعيل البيع السريع افتراضياً
-                </Text>
-                <Text style={[styles.switchSub, { color: colors.text.tertiary }]}>
-                  إضافة المنتجات فور مسح الباركود دون تأكيد الكمية
+              <View style={{ flex: 1, alignItems }}>
+                <Text style={[styles.switchLabel, { color: colors.text.primary, textAlign }]}>
+                  {t('storeSettings.quickSale')}
                 </Text>
               </View>
               <Switch
@@ -721,12 +740,9 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
             </View>
 
             <View style={[styles.switchRow, { borderBottomColor: colors.border.subtle }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.switchLabel, { color: colors.text.primary }]}>
-                  السماح بالبيع بالسالب (دون رصيد مخزون)
-                </Text>
-                <Text style={[styles.switchSub, { color: colors.text.tertiary }]}>
-                  إتمام فواتير البيع حتى لو كانت كمية المنتج في المخزن 0
+              <View style={{ flex: 1, alignItems }}>
+                <Text style={[styles.switchLabel, { color: colors.text.primary, textAlign }]}>
+                  {t('storeSettings.allowNegativeStock')}
                 </Text>
               </View>
               <Switch
@@ -738,21 +754,23 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
             </View>
 
             <FormField
-              label="صيغة التاريخ"
+              label={t('storeSettings.dateFormat')}
               value={form.date_format || 'DD/MM/YYYY'}
-              onChangeText={(v) => updateField('date_format', v)}
+              onChangeText={(v: string) => updateField('date_format', v)}
               editMode={editMode}
               icon={<Calendar size={16} color={colors.text.tertiary} />}
               colors={colors}
+              textAlign={textAlign}
             />
 
             <FormField
-              label="المنطقة الزمنية"
+              label={t('storeSettings.timezone')}
               value={form.timezone || 'Africa/Algiers'}
-              onChangeText={(v) => updateField('timezone', v)}
+              onChangeText={(v: string) => updateField('timezone', v)}
               editMode={editMode}
               icon={<Clock size={16} color={colors.text.tertiary} />}
               colors={colors}
+              textAlign={textAlign}
             />
           </Card>
         )}
@@ -764,42 +782,42 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
               <View style={[styles.tabHeaderIcon, { backgroundColor: colors.primary[50] }]}>
                 <HardDrive size={18} color={colors.primary[600]} />
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.tabTitle, { color: colors.text.primary }]}>
-                  فحص الربط ومطابقة البيانات
+              <View style={{ flex: 1, alignItems }}>
+                <Text style={[styles.tabTitle, { color: colors.text.primary, textAlign }]}>
+                  {t('storeSettings.diagnosticsTab')}
                 </Text>
-                <Text style={[styles.tabSubtitle, { color: colors.text.tertiary }]}>
-                  معاينة كائن الإعدادات الكامل المخزن في SQLite وربط HTTP
+                <Text style={[styles.tabSubtitle, { color: colors.text.tertiary, textAlign }]}>
+                  {t('settings.systemConfig')}
                 </Text>
               </View>
             </View>
 
             <View style={[styles.diagRow, { backgroundColor: isDark ? colors.surfaceElevated : colors.slate[50] }]}>
-              <Text style={[styles.diagKey, { color: colors.text.secondary }]}>وضع التشغيل:</Text>
+              <Text style={[styles.diagKey, { color: colors.text.secondary }]}>{t('settings.appMode')}:</Text>
               <Text style={[styles.diagVal, { color: colors.text.primary }]}>{appMode}</Text>
             </View>
 
             <View style={[styles.diagRow, { backgroundColor: isDark ? colors.surfaceElevated : colors.slate[50] }]}>
-              <Text style={[styles.diagKey, { color: colors.text.secondary }]}>خادم سطح المكتب:</Text>
+              <Text style={[styles.diagKey, { color: colors.text.secondary }]}>{t('settings.serverUrl')}:</Text>
               <Text style={[styles.diagVal, { color: colors.text.primary }]}>{serverUrl}</Text>
             </View>
 
             <View style={[styles.diagRow, { backgroundColor: isDark ? colors.surfaceElevated : colors.slate[50] }]}>
-              <Text style={[styles.diagKey, { color: colors.text.secondary }]}>إجمالي الحقول:</Text>
+              <Text style={[styles.diagKey, { color: colors.text.secondary }]}>{t('storeSettings.fieldsCount')}:</Text>
               <Text style={[styles.diagVal, { color: colors.text.primary }]}>
-                {Object.keys(form).length} حقل إعداد
+                {Object.keys(form).length}
               </Text>
             </View>
 
             <View style={[styles.diagRow, { backgroundColor: isDark ? colors.surfaceElevated : colors.slate[50] }]}>
-              <Text style={[styles.diagKey, { color: colors.text.secondary }]}>محرك التخزين:</Text>
+              <Text style={[styles.diagKey, { color: colors.text.secondary }]}>Engine:</Text>
               <Text style={[styles.diagVal, { color: colors.emerald[600] }]}>
-                AnposSQLite + UnifiedDB Dual Cache
+                AnposSQLite + UnifiedDB
               </Text>
             </View>
 
             <Button
-              title="إعادة فحص وسحب البيانات من الحاسوب"
+              title={t('storeSettings.fetchFromDesktop')}
               variant="primary"
               size="md"
               loading={fetchingRemote}
@@ -814,7 +832,7 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
         {editMode && (
           <View style={styles.bottomBar}>
             <Button
-              title="حفظ ومزامنة التعديلات"
+              title={t('storeSettings.saveAndSync')}
               variant="primary"
               size="lg"
               loading={saving}
@@ -868,6 +886,7 @@ const FormField = ({
   multiline = false,
   icon,
   colors,
+  textAlign = 'right',
 }: any) => (
   <View style={[styles.formField, { borderBottomColor: colors.border.subtle }]}>
     <View style={styles.formFieldHeader}>
@@ -891,10 +910,10 @@ const FormField = ({
         placeholderTextColor={colors.slate[400]}
         keyboardType={keyboardType}
         multiline={multiline}
-        textAlign="right"
+        textAlign={textAlign}
       />
     ) : (
-      <Text style={[styles.formValue, { color: colors.text.primary }]}>
+      <Text style={[styles.formValue, { color: colors.text.primary, textAlign }]}>
         {value ? String(value) : '—'}
       </Text>
     )}
@@ -936,7 +955,6 @@ const styles = StyleSheet.create({
   },
   headerTitleBox: {
     flex: 1,
-    alignItems: 'flex-end',
   },
   headerTitle: {
     fontSize: 16,
@@ -1010,19 +1028,16 @@ const styles = StyleSheet.create({
   },
   heroTitleGroup: {
     flex: 1,
-    alignItems: 'flex-end',
   },
   heroStoreName: {
     fontSize: 17,
     fontWeight: '800',
     fontFamily: 'Cairo',
-    textAlign: 'right',
   },
   heroStoreAddress: {
     fontSize: 12,
     fontFamily: 'Cairo',
     marginTop: 2,
-    textAlign: 'right',
   },
   heroAvatar: {
     width: 52,
@@ -1119,12 +1134,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     fontFamily: 'Cairo',
-    textAlign: 'right',
   },
   tabSubtitle: {
     fontSize: 11,
     fontFamily: 'Cairo',
-    textAlign: 'right',
     marginTop: 1,
   },
 
@@ -1148,7 +1161,6 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     fontWeight: '600',
     fontFamily: 'Cairo',
-    textAlign: 'right',
   },
   formInput: {
     fontSize: 13.5,
@@ -1171,13 +1183,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     fontFamily: 'Cairo',
-    textAlign: 'right',
-  },
-  switchSub: {
-    fontSize: 11,
-    fontFamily: 'Cairo',
-    textAlign: 'right',
-    marginTop: 2,
   },
 
   /* Diagnostics */

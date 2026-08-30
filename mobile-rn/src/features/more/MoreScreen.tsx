@@ -62,7 +62,7 @@ export const MoreScreen = ({ navigation }: any) => {
   const { user, logout } = useAuthStore();
   const sync = useSyncEngine();
   const { mode, isDark, colors, setMode } = useTheme();
-  const { t } = useI18n();
+  const { t, isRTL } = useI18n();
 
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [storeData, setStoreData] = useState<StoreSettings | null>(null);
@@ -377,6 +377,7 @@ export const MoreScreen = ({ navigation }: any) => {
       </View>
 
       {/* Main Operations Modules Hub */}
+      {/* Main Operations Modules Hub */}
       <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>{t('settings.operationsHub')}</Text>
       <View style={styles.hubGrid}>
         <TouchableOpacity
@@ -387,8 +388,8 @@ export const MoreScreen = ({ navigation }: any) => {
           <View style={[styles.hubIconBox, { backgroundColor: colors.warning.light }]}>
             <Truck size={20} color={colors.warning.dark} />
           </View>
-          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>الموردون والمشتريات</Text>
-          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>فواتير الشراء وديون الموردين</Text>
+          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('nav.suppliers')}</Text>
+          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('suppliers.purchases')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -399,8 +400,8 @@ export const MoreScreen = ({ navigation }: any) => {
           <View style={[styles.hubIconBox, { backgroundColor: colors.emerald[50] }]}>
             <Wallet size={20} color={colors.emerald[700]} />
           </View>
-          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>الصندوق والمناوبات</Text>
-          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>فتح وإغلاق اليومية ورأس المال</Text>
+          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('nav.cash')}</Text>
+          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('cash.currentShift')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -411,8 +412,8 @@ export const MoreScreen = ({ navigation }: any) => {
           <View style={[styles.hubIconBox, { backgroundColor: colors.danger.light }]}>
             <TrendingDown size={20} color={colors.danger.main} />
           </View>
-          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>إدارة المصاريف</Text>
-          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>المصروفات اليومية والشهرية</Text>
+          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('nav.expenses')}</Text>
+          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('cash.expenses')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -423,8 +424,8 @@ export const MoreScreen = ({ navigation }: any) => {
           <View style={[styles.hubIconBox, { backgroundColor: colors.indigo[50] }]}>
             <Tag size={20} color={colors.indigo[700]} />
           </View>
-          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>أقسام وفئات المنتجات</Text>
-          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>تنظيم العائلات والتصنيفات</Text>
+          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('nav.categories')}</Text>
+          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('categories.title')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -435,8 +436,8 @@ export const MoreScreen = ({ navigation }: any) => {
           <View style={[styles.hubIconBox, { backgroundColor: colors.purple[50] }]}>
             <Layers size={20} color={colors.purple[700]} />
           </View>
-          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>العروض والباقات</Text>
-          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>التخفيضات المجدولة والحزم</Text>
+          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('nav.promotions')}</Text>
+          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('promotions.packsTitle')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -447,8 +448,8 @@ export const MoreScreen = ({ navigation }: any) => {
           <View style={[styles.hubIconBox, { backgroundColor: colors.primary[50] }]}>
             <Store size={20} color={colors.primary[700]} />
           </View>
-          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>طلبات التوصيل</Text>
-          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>متابعة الديليفري والسائقين</Text>
+          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('nav.deliveryOrders')}</Text>
+          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('orders.trackOrder')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -459,8 +460,8 @@ export const MoreScreen = ({ navigation }: any) => {
           <View style={[styles.hubIconBox, { backgroundColor: colors.primary[100] }]}>
             <Warehouse size={20} color={colors.primary[700]} />
           </View>
-          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>المستودعات والتحويل</Text>
-          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>إدارة الفروع ونقاط التخزين</Text>
+          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('nav.warehouses')}</Text>
+          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('warehouses.title')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -471,8 +472,8 @@ export const MoreScreen = ({ navigation }: any) => {
           <View style={[styles.hubIconBox, { backgroundColor: colors.success.light }]}>
             <ClipboardCheck size={20} color={colors.success.dark} />
           </View>
-          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>الجرد الفعلي</Text>
-          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>جلسات التدقيق ورصد الفروقات</Text>
+          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('nav.inventoryCount')}</Text>
+          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('inventoryCount.title')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -483,81 +484,81 @@ export const MoreScreen = ({ navigation }: any) => {
           <View style={[styles.hubIconBox, { backgroundColor: colors.warning.light }]}>
             <History size={20} color={colors.warning.dark} />
           </View>
-          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>حركات المخزون</Text>
-          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>سجل الإدخال والإخراج والتحويل</Text>
+          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('nav.stockMovements')}</Text>
+          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('stockMovements.title')}</Text>
         </TouchableOpacity>
       </View>
 
       {/* Advanced Reports & Tools */}
-      <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>التحليلات المتقدمة والأدوات</Text>
+      <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>{t('dashboard.analytics')}</Text>
       <Card style={styles.sectionMenu}>
         <MenuItem
           icon={<BarChart3 size={18} color={colors.primary[600]} />}
-          title="مركز الأرباح وهوامش الربح"
-          subtitle="تحليل تكلفة البضاعة والمصاريف والأرباح الصافية"
+          title={t('profitCenter.title')}
+          subtitle={t('profitCenter.subtitle')}
           onPress={() => navigation.navigate('ProfitCenter')}
           colors={colors}
         />
         <View style={[styles.menuDivider, { backgroundColor: colors.border.subtle }]} />
         <MenuItem
           icon={<Calculator size={18} color={colors.emerald[700]} />}
-          title="حاسبة الزكاة الشرعية"
-          subtitle="حساب زكاة عروض التجارة والسيولة النقدية"
+          title={t('zakatCalculator.title')}
+          subtitle={t('zakatCalculator.subtitle')}
           onPress={() => navigation.navigate('ZakatCalculator')}
           colors={colors}
         />
         <View style={[styles.menuDivider, { backgroundColor: colors.border.subtle }]} />
         <MenuItem
           icon={<FileText size={18} color={colors.primary[600]} />}
-          title="قوالب الطباعة وتخصيص الفواتير"
-          subtitle="محرر القوالب، النماذج الجاهزة، وتعيينات المستندات"
+          title={t('printTemplates.title')}
+          subtitle={t('printTemplates.subtitle')}
           onPress={() => navigation.navigate('PrintTemplates')}
           colors={colors}
         />
         <View style={[styles.menuDivider, { backgroundColor: colors.border.subtle }]} />
         <MenuItem
           icon={<Printer size={18} color={colors.indigo[600]} />}
-          title="إعدادات الطابعات الحرارية"
-          subtitle="طابعات البلوتوث والشبكة والـ USB واختبار الطباعة"
+          title={t('print.printerSettings')}
+          subtitle={t('print.printerType')}
           onPress={() => navigation.navigate('PrinterSettings')}
           colors={colors}
         />
         <View style={[styles.menuDivider, { backgroundColor: colors.border.subtle }]} />
         <MenuItem
           icon={<Barcode size={18} color={colors.purple[600]} />}
-          title="طباعة ملصقات الباركود والأسعار"
-          subtitle="10 مقاسات ملصقات، 6 صيغ باركود وQR مع التوليد التلقائي"
+          title={t('barcodeLabels.title')}
+          subtitle={t('barcodeLabels.subtitle')}
           onPress={() => navigation.navigate('BarcodeLabels')}
           colors={colors}
         />
         <View style={[styles.menuDivider, { backgroundColor: colors.border.subtle }]} />
         <MenuItem
           icon={<Users size={18} color={colors.warning.dark} />}
-          title="المستخدمون والصلاحيات"
-          subtitle="حسابات البائعين ورموز PIN والأدوار"
+          title={t('users.title')}
+          subtitle={t('settings.userManagement')}
           onPress={() => navigation.navigate('Users')}
           colors={colors}
         />
         <View style={[styles.menuDivider, { backgroundColor: colors.border.subtle }]} />
         <MenuItem
           icon={<Store size={18} color={colors.primary[600]} />}
-          title="بيانات وإعدادات المحل والضرائب"
-          subtitle="سحب البيانات الكاملة من الحاسوب، السجل التجاري، NIF، وTVA"
+          title={t('storeSettings.title')}
+          subtitle={t('storeSettings.subtitle')}
           onPress={() => navigation.navigate('StoreSettings')}
           colors={colors}
         />
         <View style={[styles.menuDivider, { backgroundColor: colors.border.subtle }]} />
         <MenuItem
           icon={<HardDrive size={18} color={colors.slate[600]} />}
-          title="النسخ الاحتياطي واستعادة البيانات"
-          subtitle="تصدير واستيراد قواعد البيانات بصيغة JSON"
+          title={t('backupRestore.title')}
+          subtitle={t('backupRestore.subtitle')}
           onPress={() => navigation.navigate('BackupRestore')}
           colors={colors}
         />
       </Card>
 
       {/* Connection Status */}
-      <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>حالة الاتصال والشبكة</Text>
+      <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>{t('settings.systemConfig')}</Text>
       <Card style={styles.sectionCard}>
         <View style={styles.statusRow}>
           {appMode === 'connected' ? (
@@ -565,27 +566,27 @@ export const MoreScreen = ({ navigation }: any) => {
           ) : (
             <Database size={20} color={colors.slate[400]} />
           )}
-          <View style={{ flex: 1, alignItems: 'flex-end' }}>
+          <View style={{ flex: 1, alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
             <Text style={[styles.statusTitle, { color: colors.text.primary }]}>
-              {appMode === 'connected' ? 'متصل بالحاسوب الرئيسي' : 'وضع محلي مستقل (Offline)'}
+              {appMode === 'connected' ? t('settings.connectedModeDesc') : t('settings.standaloneModeDesc')}
             </Text>
             {appMode === 'connected' && (
               <Text style={[styles.statusSub, { color: colors.text.tertiary }]}>{serverUrlDisplay}</Text>
             )}
           </View>
           <Badge variant={appMode === 'connected' ? 'emerald' : 'neutral'} size="xs" dot>
-            {appMode === 'connected' ? 'متصل' : 'مستقل'}
+            {appMode === 'connected' ? t('settings.connected') : t('settings.standalone')}
           </Badge>
         </View>
 
         {appMode === 'connected' && (
           <View style={[styles.syncRow, { borderTopColor: colors.border.subtle }]}>
             <View>
-              <Text style={[styles.syncLabel, { color: colors.text.secondary }]}>المعلقة: {sync.pendingCount}</Text>
-              <Text style={[styles.syncLabel, { color: colors.text.secondary }]}>الفاشلة: {sync.failedCount}</Text>
+              <Text style={[styles.syncLabel, { color: colors.text.secondary }]}>{t('settings.syncPending')}: {sync.pendingCount}</Text>
+              <Text style={[styles.syncLabel, { color: colors.text.secondary }]}>{t('settings.syncFailed')}: {sync.failedCount}</Text>
             </View>
             <Button
-              title="مزامنة الآن"
+              title={t('settings.syncNow')}
               variant="primary"
               size="sm"
               loading={sync.isSyncing}
@@ -599,9 +600,9 @@ export const MoreScreen = ({ navigation }: any) => {
       {/* Store Settings */}
       <View style={styles.sectionHeaderRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
-          <Text style={[styles.sectionTitle, { color: colors.text.secondary, marginBottom: 0 }]}>بيانات وإعدادات المحل</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text.secondary, marginBottom: 0 }]}>{t('storeSettings.title')}</Text>
           {appMode === 'connected' && (
-            <Badge variant="success" size="xs">من سطح المكتب</Badge>
+            <Badge variant="success" size="xs">{t('settings.connected')}</Badge>
           )}
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
@@ -617,7 +618,7 @@ export const MoreScreen = ({ navigation }: any) => {
               ) : (
                 <>
                   <RefreshCw size={12} color={colors.primary[700]} />
-                  <Text style={[styles.fetchDesktopBtnText, { color: colors.primary[700] }]}>جلب من الحاسوب</Text>
+                  <Text style={[styles.fetchDesktopBtnText, { color: colors.primary[700] }]}>{t('storeSettings.fetchFromDesktop')}</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -628,7 +629,7 @@ export const MoreScreen = ({ navigation }: any) => {
               onPress={() => setEditMode(true)}
               activeOpacity={0.7}
             >
-              <Text style={[styles.editBtnText, { color: colors.primary[700] }]}>تعديل</Text>
+              <Text style={[styles.editBtnText, { color: colors.primary[700] }]}>{t('common.edit')}</Text>
             </TouchableOpacity>
           ) : (
             <View style={styles.editActions}>
@@ -663,13 +664,13 @@ export const MoreScreen = ({ navigation }: any) => {
         {appMode === 'connected' && (
           <View style={[styles.connectedBanner, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.12)' : '#ecfdf5', borderBottomColor: isDark ? 'rgba(16, 185, 129, 0.25)' : '#a7f3d0' }]}>
             <Wifi size={15} color={colors.emerald[600]} />
-            <Text style={[styles.connectedBannerText, { color: isDark ? colors.emerald[300] : colors.emerald[800] }]}>
-              في وضع الاتصال: يتم جلب بيانات المحل، الضرائب، ورأس وتذييل الفاتورة مباشرة من إعدادات برنامج سطح المكتب.
+            <Text style={[styles.connectedBannerText, { color: isDark ? colors.emerald[300] : colors.emerald[800], textAlign: isRTL ? 'right' : 'left' }]}>
+              {t('storeSettings.connectedModeDesc')}
             </Text>
           </View>
         )}
         <SettingRow
-          label="اسم المحل / المتجر"
+          label={t('storeSettings.shopName')}
           settingKey="store_name"
           form={form}
           setForm={setForm}
@@ -677,7 +678,7 @@ export const MoreScreen = ({ navigation }: any) => {
           colors={colors}
         />
         <SettingRow
-          label="رقم الهاتف"
+          label={t('storeSettings.mainPhone')}
           settingKey="store_phone"
           form={form}
           setForm={setForm}
@@ -686,7 +687,7 @@ export const MoreScreen = ({ navigation }: any) => {
           colors={colors}
         />
         <SettingRow
-          label="البريد الإلكتروني"
+          label={t('storeSettings.email')}
           settingKey="store_email"
           form={form}
           setForm={setForm}
@@ -695,7 +696,7 @@ export const MoreScreen = ({ navigation }: any) => {
           colors={colors}
         />
         <SettingRow
-          label="العنوان"
+          label={t('storeSettings.address')}
           settingKey="store_address"
           form={form}
           setForm={setForm}
@@ -703,7 +704,7 @@ export const MoreScreen = ({ navigation }: any) => {
           colors={colors}
         />
         <SettingRow
-          label="السجل التجاري (RC)"
+          label={t('storeSettings.rc')}
           settingKey="commercial_register"
           form={form}
           setForm={setForm}
@@ -711,7 +712,7 @@ export const MoreScreen = ({ navigation }: any) => {
           colors={colors}
         />
         <SettingRow
-          label="رقم التعريف الجبائي (NIF)"
+          label={t('storeSettings.nif')}
           settingKey="tax_number"
           form={form}
           setForm={setForm}
@@ -719,7 +720,7 @@ export const MoreScreen = ({ navigation }: any) => {
           colors={colors}
         />
         <SettingRow
-          label="نسبة الضريبة TVA (%)"
+          label={t('storeSettings.tvaRate')}
           settingKey="tva_rate"
           form={form}
           setForm={setForm}
@@ -729,7 +730,7 @@ export const MoreScreen = ({ navigation }: any) => {
           colors={colors}
         />
         <SettingRow
-          label="العملة الأساسية"
+          label={t('common.currency')}
           settingKey="currency"
           form={form}
           setForm={setForm}
@@ -737,7 +738,7 @@ export const MoreScreen = ({ navigation }: any) => {
           colors={colors}
         />
         <SettingRow
-          label="بادئة الفواتير"
+          label={t('storeSettings.invoicePrefix')}
           settingKey="invoice_prefix"
           form={form}
           setForm={setForm}
@@ -745,7 +746,7 @@ export const MoreScreen = ({ navigation }: any) => {
           colors={colors}
         />
         <SettingRow
-          label="نص أسفل الفاتورة"
+          label={t('print.invoiceFooter')}
           settingKey="receipt_footer"
           form={form}
           setForm={setForm}
@@ -758,7 +759,7 @@ export const MoreScreen = ({ navigation }: any) => {
           activeOpacity={0.75}
         >
           <Text style={[styles.openFullSettingsBtnText, { color: colors.primary[700] }]}>
-            فتح لوحة الإعدادات الكاملة والتشخيص المتقدم ↗
+            {t('storeSettings.title')} ↗
           </Text>
         </TouchableOpacity>
       </Card>

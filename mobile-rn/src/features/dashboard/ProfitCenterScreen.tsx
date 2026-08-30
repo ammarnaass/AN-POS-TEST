@@ -21,10 +21,15 @@ import {
 } from 'lucide-react-native';
 import { db, ensureInit } from '@/lib/db';
 import type { Sale, Product, Expense } from '@shared/types';
+import { useTheme } from '@/theme';
+import { useI18n } from '@/store/i18nStore';
+import { ArrowLeft } from 'lucide-react-native';
 
 type Period = 'today' | 'week' | 'month' | 'year' | 'all';
 
 export const ProfitCenterScreen = ({ navigation }: any) => {
+  const { isDark, colors } = useTheme();
+  const { t, isRTL, currency } = useI18n();
   const [sales, setSales] = useState<Sale[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -98,38 +103,29 @@ export const ProfitCenterScreen = ({ navigation }: any) => {
       } else {
         grossRevenue += s.total || 0;
 
-        let items: any[] = [];
-        if (Array.isArray(s.items)) {
-          items = s.items;
-        } else if (typeof s.items === 'string') {
+        let saleItems: any[] = [];
+        if (Array.isArray(s.items)) saleItems = s.items;
+        else if (typeof s.items === 'string') {
           try {
-            const parsed = JSON.parse(s.items);
-            if (Array.isArray(parsed)) {
-              items = parsed;
-            } else if (parsed && typeof parsed === 'object') {
-              items = Object.values(parsed);
-            }
-          } catch {
-            items = [];
-          }
-        } else if (s.items && typeof s.items === 'object') {
-          items = Object.values(s.items);
+            saleItems = JSON.parse(s.items);
+          } catch {}
         }
 
-        if (Array.isArray(items)) {
-          items.forEach((item) => {
-            if (!item) return;
-            const cost = productCostMap[item.productId || item.product_id] || item.costPrice || item.cost_price || 0;
-            cogs += cost * (item.qty || item.quantity || 1);
+        if (Array.isArray(saleItems)) {
+          saleItems.forEach((it) => {
+            const pId = it.productId || it.product_id;
+            const cost = productCostMap[pId] || 0;
+            const qty = Number(it.qty || it.quantity || 1);
+            cogs += cost * qty;
           });
         }
       }
     });
 
     const netRevenue = Math.max(0, grossRevenue - returnsTotal);
-    const grossProfit = Math.max(0, netRevenue - cogs);
-    const totalOperatingExpenses = filteredExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
-    const netProfit = grossProfit - totalOperatingExpenses;
+    const grossProfit = netRevenue - cogs;
+    const totalExpenses = filteredExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+    const netProfit = grossProfit - totalExpenses;
     const profitMargin = netRevenue > 0 ? (netProfit / netRevenue) * 100 : 0;
 
     return {
@@ -138,55 +134,57 @@ export const ProfitCenterScreen = ({ navigation }: any) => {
       netRevenue,
       cogs,
       grossProfit,
-      totalOperatingExpenses,
+      totalExpenses,
       netProfit,
       profitMargin,
     };
-  }, [sales, products, expenses, period, productCostMap]);
+  }, [sales, expenses, productCostMap, period]);
+
+  const BackIcon = isRTL ? ArrowRight : ArrowLeft;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border.default }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBackBtn}>
-          <ArrowRight size={22} color="#0f172a" />
+          <BackIcon size={22} color={colors.text.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>مركز الأرباح وهوامش الربح</Text>
+        <Text style={[styles.headerTitle, { color: colors.text.primary }]}>{t('profitCenter.title')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
       {/* Period Chips */}
-      <View style={styles.chipsRow}>
+      <View style={[styles.chipsRow, { backgroundColor: colors.surface }]}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsScroll}>
           <TouchableOpacity
             style={[styles.chip, period === 'today' && styles.chipActive]}
             onPress={() => setPeriod('today')}
           >
-            <Text style={[styles.chipText, period === 'today' && styles.chipTextActive]}>اليوم</Text>
+            <Text style={[styles.chipText, period === 'today' && styles.chipTextActive]}>{t('common.today')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.chip, period === 'week' && styles.chipActive]}
             onPress={() => setPeriod('week')}
           >
-            <Text style={[styles.chipText, period === 'week' && styles.chipTextActive]}>هذا الأسبوع</Text>
+            <Text style={[styles.chipText, period === 'week' && styles.chipTextActive]}>{t('common.thisWeek')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.chip, period === 'month' && styles.chipActive]}
             onPress={() => setPeriod('month')}
           >
-            <Text style={[styles.chipText, period === 'month' && styles.chipTextActive]}>هذا الشهر</Text>
+            <Text style={[styles.chipText, period === 'month' && styles.chipTextActive]}>{t('common.thisMonth')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.chip, period === 'year' && styles.chipActive]}
             onPress={() => setPeriod('year')}
           >
-            <Text style={[styles.chipText, period === 'year' && styles.chipTextActive]}>هذا العام</Text>
+            <Text style={[styles.chipText, period === 'year' && styles.chipTextActive]}>{t('common.thisYear')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.chip, period === 'all' && styles.chipActive]}
             onPress={() => setPeriod('all')}
           >
-            <Text style={[styles.chipText, period === 'all' && styles.chipTextActive]}>الكل</Text>
+            <Text style={[styles.chipText, period === 'all' && styles.chipTextActive]}>{t('common.all')}</Text>
           </TouchableOpacity>
         </ScrollView>
       </View>
@@ -198,70 +196,70 @@ export const ProfitCenterScreen = ({ navigation }: any) => {
       >
         {loading ? (
           <View style={styles.center}>
-            <ActivityIndicator size="large" color="#3b82f6" />
+            <ActivityIndicator size="large" color={colors.primary[600]} />
           </View>
         ) : (
           <View style={{ gap: 12 }}>
             {/* Main Net Profit Card */}
-            <View style={styles.mainProfitCard}>
-              <Text style={styles.mainProfitLabel}>صافي الربح الحقيقي المحقق</Text>
+            <View style={[styles.mainProfitCard, { backgroundColor: isDark ? colors.surfaceElevated : colors.primary[50] }]}>
+              <Text style={[styles.mainProfitLabel, { color: colors.text.secondary }]}>{t('profitCenter.netProfit')}</Text>
               <Text
                 style={[
                   styles.mainProfitVal,
                   stats.netProfit >= 0 ? styles.valPositive : styles.valNegative,
                 ]}
               >
-                {stats.netProfit.toLocaleString('ar-DZ')} دج
+                {stats.netProfit.toLocaleString()} {currency}
               </Text>
               <View style={styles.marginBadge}>
                 <Text style={styles.marginBadgeText}>
-                  هامش الربح الصافي: {stats.profitMargin.toFixed(1)}%
+                  {t('profitCenter.marginPercent')}: {stats.profitMargin.toFixed(1)}%
                 </Text>
               </View>
             </View>
 
             {/* Income Statement Breakdown Card */}
-            <View style={styles.breakdownCard}>
-              <Text style={styles.cardSectionTitle}>قائمة الدخل والتحليل المالي</Text>
+            <View style={[styles.breakdownCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}>
+              <Text style={[styles.cardSectionTitle, { color: colors.text.primary }]}>{t('profitCenter.revenueBreakdown')}</Text>
 
               <View style={styles.breakdownRow}>
-                <Text style={styles.breakdownVal}>+{stats.grossRevenue.toLocaleString('ar-DZ')} دج</Text>
-                <Text style={styles.breakdownLabel}>إجمالي الإيرادات (المبيعات)</Text>
+                <Text style={styles.breakdownVal}>+{stats.grossRevenue.toLocaleString()} {currency}</Text>
+                <Text style={[styles.breakdownLabel, { color: colors.text.secondary }]}>{t('profitCenter.grossSales')}</Text>
               </View>
 
               <View style={styles.breakdownRow}>
                 <Text style={[styles.breakdownVal, { color: '#ef4444' }]}>
-                  -{stats.returnsTotal.toLocaleString('ar-DZ')} دج
+                  -{stats.returnsTotal.toLocaleString()} {currency}
                 </Text>
-                <Text style={styles.breakdownLabel}>المرتجعات والتعويضات</Text>
+                <Text style={[styles.breakdownLabel, { color: colors.text.secondary }]}>{t('returns.title')}</Text>
               </View>
 
               <View style={[styles.breakdownRow, styles.subtotalRow]}>
-                <Text style={[styles.breakdownVal, { fontWeight: 'bold' }]}>
-                  {stats.netRevenue.toLocaleString('ar-DZ')} دج
+                <Text style={[styles.breakdownVal, { fontWeight: 'bold', color: colors.text.primary }]}>
+                  {stats.netRevenue.toLocaleString()} {currency}
                 </Text>
-                <Text style={[styles.breakdownLabel, { fontWeight: 'bold' }]}>صافي الإيرادات</Text>
+                <Text style={[styles.breakdownLabel, { fontWeight: 'bold', color: colors.text.primary }]}>{t('profitCenter.grossSales')}</Text>
               </View>
 
               <View style={styles.breakdownRow}>
                 <Text style={[styles.breakdownVal, { color: '#f59e0b' }]}>
-                  -{stats.cogs.toLocaleString('ar-DZ')} دج
+                  -{stats.cogs.toLocaleString()} {currency}
                 </Text>
-                <Text style={styles.breakdownLabel}>تكلفة البضاعة المباعة (COGS)</Text>
+                <Text style={[styles.breakdownLabel, { color: colors.text.secondary }]}>{t('profitCenter.costOfGoods')}</Text>
               </View>
 
               <View style={[styles.breakdownRow, styles.subtotalRow]}>
                 <Text style={[styles.breakdownVal, { color: '#10b981', fontWeight: 'bold' }]}>
-                  {stats.grossProfit.toLocaleString('ar-DZ')} دج
+                  {stats.grossProfit.toLocaleString()} {currency}
                 </Text>
-                <Text style={[styles.breakdownLabel, { fontWeight: 'bold' }]}>إجمالي الربح التجاري</Text>
+                <Text style={[styles.breakdownLabel, { fontWeight: 'bold', color: colors.text.primary }]}>{t('profitCenter.grossProfit')}</Text>
               </View>
 
               <View style={styles.breakdownRow}>
                 <Text style={[styles.breakdownVal, { color: '#ef4444' }]}>
-                  -{stats.totalOperatingExpenses.toLocaleString('ar-DZ')} دج
+                  -{stats.totalExpenses.toLocaleString()} {currency}
                 </Text>
-                <Text style={styles.breakdownLabel}>المصاريف التشغيلية (كراء، رواتب، فواتير)</Text>
+                <Text style={[styles.breakdownLabel, { color: colors.text.secondary }]}>{t('profitCenter.expenses')}</Text>
               </View>
 
               <View style={[styles.breakdownRow, styles.totalRow]}>
@@ -271,9 +269,9 @@ export const ProfitCenterScreen = ({ navigation }: any) => {
                     stats.netProfit >= 0 ? styles.valPositive : styles.valNegative,
                   ]}
                 >
-                  {stats.netProfit.toLocaleString('ar-DZ')} دج
+                  {stats.netProfit.toLocaleString()} {currency}
                 </Text>
-                <Text style={styles.totalProfitLabel}>صافي الربح النهائي</Text>
+                <Text style={[styles.totalProfitLabel, { color: colors.text.primary }]}>{t('profitCenter.netProfit')}</Text>
               </View>
             </View>
           </View>

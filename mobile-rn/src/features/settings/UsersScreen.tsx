@@ -28,18 +28,23 @@ import { db, ensureInit } from '@/lib/db';
 import { generateId } from '@shared/utils';
 import type { User, UserRole } from '@shared/types';
 import { useAuthStore } from '@/store/authStore';
-
-const ROLES: { id: UserRole; label: string; desc: string }[] = [
-  { id: 'admin', label: 'مدير (Admin)', desc: 'كامل الصلاحيات والتقارير والإعدادات' },
-  { id: 'cashier', label: 'كاشير (Cashier)', desc: 'البيع وإدارة الصندوق بدون الإعدادات' },
-  { id: 'seller', label: 'بائع (Seller)', desc: 'البيع وتسجيل الدفعات فقط' },
-];
+import { useI18n } from '@/store/i18nStore';
+import { useTheme } from '@/theme';
+import { ArrowLeft } from 'lucide-react-native';
 
 export const UsersScreen = ({ navigation }: any) => {
   const { user: currentUser } = useAuthStore();
+  const { isDark, colors } = useTheme();
+  const { t, isRTL, textAlign, alignItems } = useI18n();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  const ROLES: { id: UserRole; label: string; desc: string }[] = [
+    { id: 'admin', label: t('users.admin'), desc: 'Full access' },
+    { id: 'cashier', label: t('users.cashier'), desc: 'Sales & cash' },
+    { id: 'seller', label: t('users.seller'), desc: 'Sales only' },
+  ];
 
   // Modal State
   const [modalVisible, setModalVisible] = useState(false);
@@ -98,7 +103,7 @@ export const UsersScreen = ({ navigation }: any) => {
 
   const handleSave = async () => {
     if (!name.trim() || !username.trim() || !pin.trim()) {
-      Alert.alert('تنبيه', 'يرجى إدخال الاسم، اسم المستخدم، ورمز PIN');
+      Alert.alert(t('common.warning'), t('auth.fillAllFields'));
       return;
     }
 
@@ -134,47 +139,49 @@ export const UsersScreen = ({ navigation }: any) => {
 
       setModalVisible(false);
       await loadUsers();
-      Alert.alert('✓ تم بنجاح', 'تم حفظ بيانات المستخدم بنجاح.');
+      Alert.alert(t('common.success'), t('common.done'));
     } catch (err) {
-      Alert.alert('خطأ', `فشل حفظ المستخدم: ${err instanceof Error ? err.message : 'خطأ'}`);
+      Alert.alert(t('common.error'), `${err instanceof Error ? err.message : t('common.error')}`);
     }
     setSaving(false);
   };
 
   const handleDelete = (u: User) => {
     if (u.id === currentUser?.id) {
-      Alert.alert('تنبيه', 'لا يمكنك حذف حسابك الحالي أثناء تسجيل الدخول به');
+      Alert.alert(t('common.warning'), t('users.deleteUserConfirm'));
       return;
     }
 
-    Alert.alert('حذف المستخدم', `هل أنت متأكد من حذف الحساب "${u.name}"؟`, [
-      { text: 'إلغاء', style: 'cancel' },
+    Alert.alert(t('common.delete'), `${t('users.deleteUserConfirm')} (${u.name})`, [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'حذف',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
           try {
             await db.users.delete(u.id);
             await loadUsers();
           } catch {
-            Alert.alert('خطأ', 'فشل حذف المستخدم');
+            Alert.alert(t('common.error'), t('common.error'));
           }
         },
       },
     ]);
   };
 
+  const BackIcon = isRTL ? ArrowRight : ArrowLeft;
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border.default }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBackBtn}>
-          <ArrowRight size={22} color="#0f172a" />
+          <BackIcon size={22} color={colors.text.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>إدارة المستخدمين والصلاحيات</Text>
-        <TouchableOpacity style={styles.addBtn} onPress={openAdd}>
+        <Text style={[styles.headerTitle, { color: colors.text.primary }]}>{t('users.title')}</Text>
+        <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.primary[600] }]} onPress={openAdd}>
           <Plus size={16} color="#fff" />
-          <Text style={styles.addBtnText}>مستخدم جديد</Text>
+          <Text style={styles.addBtnText}>{t('users.addUser')}</Text>
         </TouchableOpacity>
       </View>
 
