@@ -48,6 +48,9 @@ export async function initSQLiteSchema(driver: AnposSQLiteDriver): Promise<void>
     'ALTER TABLE products ADD COLUMN quick_sale INTEGER DEFAULT 1',
     "ALTER TABLE products ADD COLUMN allow_negative_stock INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE products ADD COLUMN warehouse_id TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE products ADD COLUMN custom_prices TEXT DEFAULT '[]'",
+    "ALTER TABLE product_barcodes ADD COLUMN price_label TEXT DEFAULT ''",
+    "ALTER TABLE product_barcodes ADD COLUMN price_name TEXT DEFAULT ''",
     // sales — existing DB upgrades
     "ALTER TABLE sales ADD COLUMN cash_session_id TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE sales ADD COLUMN note TEXT DEFAULT ''",

@@ -67,7 +67,9 @@ const emptyForm = (): Partial<Customer> => ({
 
 export const CustomersScreen = () => {
   const { isDark, colors } = useTheme();
-  const { t, isRTL } = useI18n();
+  const { t, isRTL, textAlign, currency, language } = useI18n();
+  const localeStr = language === 'ar' ? 'ar-DZ' : language === 'fr' ? 'fr-FR' : 'en-US';
+
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [filtered, setFiltered] = useState<Customer[]>([]);
   const [search, setSearch] = useState('');
@@ -163,7 +165,7 @@ export const CustomersScreen = () => {
 
   const handleSave = async () => {
     if (!form.name?.trim()) {
-      Alert.alert('تنبيه', 'يرجى إدخال اسم العميل');
+      Alert.alert(t('common.warning'), t('customers.customerNameRequired'));
       return;
     }
 
@@ -202,23 +204,23 @@ export const CustomersScreen = () => {
       setModalVisible(false);
       await loadData();
     } catch (err) {
-      Alert.alert('خطأ', 'فشل حفظ بيانات العميل');
+      Alert.alert(t('common.error'), t('customers.customerSaveFailed'));
     }
     setSaving(false);
   };
 
   const handleDelete = (c: Customer) => {
-    Alert.alert('حذف العميل', `هل أنت متأكد من حذف العميل "${c.name}"؟`, [
-      { text: 'إلغاء', style: 'cancel' },
+    Alert.alert(t('customers.deleteCustomer'), `${t('customers.deleteConfirm')} "${c.name}"?`, [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'حذف',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
           try {
             await db.customers.delete(c.id);
             await loadData();
           } catch {
-            Alert.alert('خطأ', 'فشل حذف العميل');
+            Alert.alert(t('common.error'), t('customers.deleteFailed'));
           }
         },
       },
@@ -237,20 +239,21 @@ export const CustomersScreen = () => {
           {
             backgroundColor: colors.surface,
             borderBottomColor: colors.border.default,
+            flexDirection: isRTL ? 'row-reverse' : 'row',
           },
         ]}
       >
         <Button
-          title="إضافة عميل"
+          title={t('customers.addNewCustomer')}
           icon={<Plus size={16} color="#ffffff" />}
           onPress={openAdd}
           size="sm"
           variant="primary"
         />
-        <View style={{ alignItems: 'flex-end' }}>
-          <Text style={[styles.headerTitle, { color: colors.text.primary }]}>الزبائن والعملاء</Text>
+        <View style={{ alignItems: isRTL ? 'flex-start' : 'flex-end' }}>
+          <Text style={[styles.headerTitle, { color: colors.text.primary }]}>{t('customers.title')}</Text>
           <Text style={[styles.headerSubtitle, { color: colors.text.secondary }]}>
-            {customers.length} عميل مسجل
+            {customers.length} {t('customers.registeredCustomers')}
           </Text>
         </View>
       </View>
@@ -262,23 +265,24 @@ export const CustomersScreen = () => {
           {
             backgroundColor: colors.surface,
             borderColor: colors.border.default,
+            flexDirection: isRTL ? 'row-reverse' : 'row',
           },
         ]}
       >
         <View style={styles.kpiCard}>
-          <Text style={[styles.kpiLabel, { color: colors.text.secondary }]}>إجمالي الديون (الكريدي)</Text>
+          <Text style={[styles.kpiLabel, { color: colors.text.secondary }]}>{t('customers.totalCredit')}</Text>
           <Text
             style={[
               styles.kpiValue,
               { color: totalCredit > 0 ? colors.warning.main : colors.success.main },
             ]}
           >
-            {totalCredit.toLocaleString('ar-DZ')} دج
+            {totalCredit.toLocaleString(localeStr)} {currency}
           </Text>
         </View>
         <View style={[styles.kpiDivider, { backgroundColor: colors.border.default }]} />
         <View style={styles.kpiCard}>
-          <Text style={[styles.kpiLabel, { color: colors.text.secondary }]}>زبائن عليهم ديون</Text>
+          <Text style={[styles.kpiLabel, { color: colors.text.secondary }]}>{t('customers.customersWithDebt')}</Text>
           <Text style={[styles.kpiValue, { color: colors.primary[600] }]}>
             {customersWithCredit}
           </Text>
@@ -292,17 +296,17 @@ export const CustomersScreen = () => {
           {
             backgroundColor: colors.surface,
             borderColor: colors.border.default,
+            flexDirection: isRTL ? 'row-reverse' : 'row',
           },
         ]}
       >
         <Search size={16} color={colors.text.tertiary} />
         <TextInput
-          style={[styles.searchInput, { color: colors.text.primary }]}
-          placeholder="بحث بالاسم أو الهاتف أو البريد..."
+          style={[styles.searchInput, { color: colors.text.primary, textAlign }]}
+          placeholder={t('customers.searchPlaceholder')}
           placeholderTextColor={colors.text.tertiary}
           value={search}
           onChangeText={setSearch}
-          textAlign="right"
         />
         {search ? (
           <TouchableOpacity onPress={() => setSearch('')}>
@@ -331,9 +335,9 @@ export const CustomersScreen = () => {
         ) : filtered.length === 0 ? (
           <EmptyState
             icon={<Users size={32} color={colors.text.tertiary} />}
-            title="لا يوجد عملاء"
-            description="أضف عملاءك لمتابعة ديونهم ومشترياتهم"
-            actionTitle="إضافة عميل جديد"
+            title={t('customers.noCustomers')}
+            description={t('customers.noCustomersDesc')}
+            actionTitle={t('customers.addNewCustomer')}
             onAction={openAdd}
           />
         ) : (
@@ -346,22 +350,23 @@ export const CustomersScreen = () => {
                   {
                     backgroundColor: colors.surface,
                     borderColor: colors.border.default,
+                    flexDirection: isRTL ? 'row-reverse' : 'row',
                   },
                 ]}
                 onPress={() => openView(c)}
                 activeOpacity={0.8}
               >
-                <View style={styles.cardLeft}>
+                <View style={[styles.cardLeft, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
                   {c.balance > 0 ? (
                     <Badge variant="warning" size="xs">
-                      كريدي: {c.balance.toLocaleString('ar-DZ')} دج
+                      {t('customers.debt')}: {c.balance.toLocaleString(localeStr)} {currency}
                     </Badge>
                   ) : (
                     <Badge variant="success" size="xs">
-                      خالص (0 دج)
+                      {t('customers.settledBalance')}
                     </Badge>
                   )}
-                  <View style={styles.cardActions}>
+                  <View style={[styles.cardActions, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                     <TouchableOpacity
                       style={[
                         styles.actionBtn,
@@ -386,14 +391,14 @@ export const CustomersScreen = () => {
                   </View>
                 </View>
 
-                <View style={styles.cardInfo}>
+                <View style={[styles.cardInfo, { alignItems: isRTL ? 'flex-start' : 'flex-end', marginRight: isRTL ? 0 : spacing.sm, marginLeft: isRTL ? spacing.sm : 0 }]}>
                   <Text
-                    style={[styles.cardName, { color: colors.text.primary }]}
+                    style={[styles.cardName, { color: colors.text.primary, textAlign }]}
                   >
                     {c.name}
                   </Text>
                   {c.phone ? (
-                    <View style={styles.cardRow}>
+                    <View style={[styles.cardRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                       <Phone size={11} color={colors.text.tertiary} />
                       <Text
                         style={[styles.cardSub, { color: colors.text.secondary }]}
@@ -444,7 +449,7 @@ export const CustomersScreen = () => {
             <View
               style={[
                 styles.modalHeader,
-                { borderBottomColor: colors.border.default },
+                { borderBottomColor: colors.border.default, flexDirection: isRTL ? 'row-reverse' : 'row' },
               ]}
             >
               <TouchableOpacity onPress={() => setModalVisible(false)}>
@@ -453,7 +458,7 @@ export const CustomersScreen = () => {
               <Text
                 style={[styles.modalTitle, { color: colors.text.primary }]}
               >
-                {modalMode === 'add' ? 'إضافة عميل جديد' : 'تعديل بيانات العميل'}
+                {modalMode === 'add' ? t('customers.addNewCustomer') : t('customers.editCustomer')}
               </Text>
             </View>
 
@@ -462,33 +467,33 @@ export const CustomersScreen = () => {
               showsVerticalScrollIndicator={false}
             >
               <Input
-                label="اسم العميل *"
+                label={t('customers.name')}
                 value={form.name || ''}
                 onChangeText={(v) => setForm((f) => ({ ...f, name: v }))}
-                placeholder="الاسم الكامل للعميل أو الشركة"
+                placeholder={t('customers.name')}
               />
               <Input
-                label="رقم الهاتف"
+                label={t('customers.phone')}
                 value={form.phone || ''}
                 onChangeText={(v) => setForm((f) => ({ ...f, phone: v }))}
                 placeholder="05 / 06 / 07..."
                 keyboardType="phone-pad"
               />
               <Input
-                label="البريد الإلكتروني"
+                label={t('customers.email')}
                 value={form.email || ''}
                 onChangeText={(v) => setForm((f) => ({ ...f, email: v }))}
                 placeholder="email@example.com"
                 keyboardType="email-address"
               />
               <Input
-                label="العنوان"
+                label={t('customers.address')}
                 value={form.address || ''}
                 onChangeText={(v) => setForm((f) => ({ ...f, address: v }))}
-                placeholder="الحي، المدينة"
+                placeholder={t('customers.address')}
               />
               <Input
-                label="سقف الائتمان (دج)"
+                label={`${t('customers.creditLimit')} (${currency})`}
                 value={String(form.creditLimit || 0)}
                 onChangeText={(v) =>
                   setForm((f) => ({ ...f, creditLimit: parseFloat(v) || 0 }))
@@ -497,14 +502,14 @@ export const CustomersScreen = () => {
                 keyboardType="numeric"
               />
               <Input
-                label="ملاحظات"
+                label={t('customers.notes')}
                 value={form.notes || ''}
                 onChangeText={(v) => setForm((f) => ({ ...f, notes: v }))}
-                placeholder="ملاحظات اختيارية..."
+                placeholder={t('customers.notes')}
               />
 
               <Button
-                title={modalMode === 'add' ? 'إضافة العميل' : 'حفظ التعديلات'}
+                title={modalMode === 'add' ? t('customers.addNewCustomer') : t('common.save')}
                 variant="primary"
                 size="lg"
                 loading={saving}
@@ -537,7 +542,7 @@ export const CustomersScreen = () => {
               <View
                 style={[
                   styles.modalHeader,
-                  { borderBottomColor: colors.border.default },
+                  { borderBottomColor: colors.border.default, flexDirection: isRTL ? 'row-reverse' : 'row' },
                 ]}
               >
                 <TouchableOpacity onPress={() => setModalVisible(false)}>
@@ -571,7 +576,7 @@ export const CustomersScreen = () => {
                 </View>
 
                 <View style={styles.infoRowContainer}>
-                  <View style={styles.infoRow}>
+                  <View style={[styles.infoRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                     <Text
                       style={[
                         styles.infoVal,
@@ -580,20 +585,20 @@ export const CustomersScreen = () => {
                     >
                       {selected.phone || '—'}
                     </Text>
-                    <View style={styles.infoLabelGroup}>
+                    <View style={[styles.infoLabelGroup, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                       <Text
                         style={[
                           styles.infoLabel,
                           { color: colors.text.secondary },
                         ]}
                       >
-                        الهاتف
+                        {t('customers.phone')}
                       </Text>
                       <Phone size={16} color={colors.primary[600]} />
                     </View>
                   </View>
 
-                  <View style={styles.infoRow}>
+                  <View style={[styles.infoRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                     <Text
                       style={[
                         styles.infoVal,
@@ -602,20 +607,20 @@ export const CustomersScreen = () => {
                     >
                       {selected.email || '—'}
                     </Text>
-                    <View style={styles.infoLabelGroup}>
+                    <View style={[styles.infoLabelGroup, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                       <Text
                         style={[
                           styles.infoLabel,
                           { color: colors.text.secondary },
                         ]}
                       >
-                        البريد
+                        {t('customers.email')}
                       </Text>
                       <Mail size={16} color={colors.primary[600]} />
                     </View>
                   </View>
 
-                  <View style={styles.infoRow}>
+                  <View style={[styles.infoRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                     <Text
                       style={[
                         styles.infoVal,
@@ -624,20 +629,20 @@ export const CustomersScreen = () => {
                     >
                       {selected.address || '—'}
                     </Text>
-                    <View style={styles.infoLabelGroup}>
+                    <View style={[styles.infoLabelGroup, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                       <Text
                         style={[
                           styles.infoLabel,
                           { color: colors.text.secondary },
                         ]}
                       >
-                        العنوان
+                        {t('customers.address')}
                       </Text>
                       <MapPin size={16} color={colors.primary[600]} />
                     </View>
                   </View>
 
-                  <View style={styles.infoRow}>
+                  <View style={[styles.infoRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                     <Text
                       style={[
                         styles.infoVal,
@@ -650,47 +655,47 @@ export const CustomersScreen = () => {
                         },
                       ]}
                     >
-                      {selected.balance.toLocaleString('ar-DZ')} دج
+                      {selected.balance.toLocaleString(localeStr)} {currency}
                     </Text>
-                    <View style={styles.infoLabelGroup}>
+                    <View style={[styles.infoLabelGroup, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                       <Text
                         style={[
                           styles.infoLabel,
                           { color: colors.text.secondary },
                         ]}
                       >
-                        الرصيد المتبقي
+                        {t('customers.remainingBalance')}
                       </Text>
                       <CreditCard size={16} color={colors.purple[600]} />
                     </View>
                   </View>
 
-                  <View style={styles.infoRow}>
+                  <View style={[styles.infoRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                     <Text
                       style={[
                         styles.infoVal,
                         { color: colors.text.primary },
                       ]}
                     >
-                      {selected.creditLimit.toLocaleString('ar-DZ')} دج
+                      {selected.creditLimit.toLocaleString(localeStr)} {currency}
                     </Text>
-                    <View style={styles.infoLabelGroup}>
+                    <View style={[styles.infoLabelGroup, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                       <Text
                         style={[
                           styles.infoLabel,
                           { color: colors.text.secondary },
                         ]}
                       >
-                        سقف الائتمان
+                        {t('customers.creditLimit')}
                       </Text>
                       <CreditCard size={16} color={colors.warning.main} />
                     </View>
                   </View>
                 </View>
 
-                <View style={styles.viewActions}>
+                <View style={[styles.viewActions, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                   <Button
-                    title="تعديل"
+                    title={t('common.edit')}
                     variant="outline"
                     icon={<Edit2 size={16} color={colors.primary[600]} />}
                     onPress={() => {
@@ -700,7 +705,7 @@ export const CustomersScreen = () => {
                     style={{ flex: 1 }}
                   />
                   <Button
-                    title="حذف"
+                    title={t('common.delete')}
                     variant="destructive"
                     icon={<Trash2 size={16} color="#fff" />}
                     onPress={() => {

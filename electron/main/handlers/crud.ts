@@ -10,6 +10,7 @@ import {
   toSnakeKey,
   tableHasColumn,
   getTableColumns,
+  notifyTableChange,
   type Row,
 } from './db-utils';
 
@@ -108,6 +109,117 @@ function normalizePayloadForTable(
   }
 
   // Field Aliases for Products
+  if (tableName === 'settings') {
+    const rawShopName = data.shop_name ?? data.shopName ?? data.store_name ?? data.name;
+    if (rawShopName !== undefined && rawShopName !== null) {
+      normalized.shop_name = String(rawShopName).trim();
+    }
+
+    const rawAddress = data.address ?? data.store_address ?? data.shop_address ?? data.shopAddress;
+    if (rawAddress !== undefined && rawAddress !== null) {
+      const addr = String(rawAddress).trim();
+      normalized.address = addr;
+      normalized.shop_address = addr;
+    }
+
+    const rawPhone = data.phone ?? data.store_phone ?? data.shop_phone ?? data.shopPhone;
+    if (rawPhone !== undefined && rawPhone !== null) {
+      normalized.phone = String(rawPhone).trim();
+    }
+
+    const rawPhone2 = data.phone2 ?? data.shop_phone2 ?? data.shopPhone2;
+    if (rawPhone2 !== undefined && rawPhone2 !== null) {
+      const p2 = String(rawPhone2).trim();
+      normalized.phone2 = p2;
+      normalized.shop_phone2 = p2;
+    }
+
+    const rawEmail = data.email ?? data.store_email ?? data.shop_email ?? data.shopEmail;
+    if (rawEmail !== undefined && rawEmail !== null) {
+      const em = String(rawEmail).trim();
+      normalized.email = em;
+      normalized.shop_email = em;
+    }
+
+    const rawCity = data.city;
+    if (rawCity !== undefined && rawCity !== null) {
+      normalized.city = String(rawCity).trim();
+    }
+
+    const rawLogo = data.logo ?? data.shop_logo ?? data.shopLogo ?? data.logo_url ?? data.imageUrl;
+    if (rawLogo !== undefined && rawLogo !== null) {
+      const lg = String(rawLogo).trim();
+      normalized.logo = lg;
+      normalized.shop_logo = lg;
+    }
+
+    const rawRc = data.commercial_register ?? data.commercialRegister ?? data.company_rc ?? data.companyRC ?? data.rc;
+    if (rawRc !== undefined && rawRc !== null) {
+      const rc = String(rawRc).trim();
+      normalized.commercial_register = rc;
+      normalized.company_rc = rc;
+    }
+
+    const rawNif = data.tax_number ?? data.taxNumber ?? data.company_nif ?? data.companyNif ?? data.companyNIF ?? data.nif ?? data.tax_id;
+    if (rawNif !== undefined && rawNif !== null) {
+      const nif = String(rawNif).trim();
+      normalized.tax_number = nif;
+      normalized.company_nif = nif;
+    }
+
+    const rawArt = data.tax_article ?? data.taxArticle ?? data.company_art ?? data.companyArt ?? data.art;
+    if (rawArt !== undefined && rawArt !== null) {
+      const art = String(rawArt).trim();
+      normalized.tax_article = art;
+      normalized.company_art = art;
+    }
+
+    const rawAi = data.company_ai ?? data.companyAI ?? data.nis ?? data.ai;
+    if (rawAi !== undefined && rawAi !== null) {
+      normalized.company_ai = String(rawAi).trim();
+    }
+
+    const rawCurrency = data.base_currency ?? data.baseCurrency ?? data.currency ?? data.currency_code;
+    if (rawCurrency !== undefined && rawCurrency !== null) {
+      normalized.base_currency = String(rawCurrency).trim();
+    }
+
+    const rawFooter = data.receipt_footer ?? data.receiptFooter;
+    if (rawFooter !== undefined && rawFooter !== null) {
+      normalized.receipt_footer = String(rawFooter).trim();
+    }
+
+    const rawPrefix = data.invoice_prefix ?? data.invoicePrefix;
+    if (rawPrefix !== undefined && rawPrefix !== null) {
+      normalized.invoice_prefix = String(rawPrefix).trim();
+    }
+
+    const rawStartNum = data.invoice_start_number ?? data.invoiceStartNumber;
+    if (rawStartNum !== undefined && rawStartNum !== null) {
+      normalized.invoice_start_number = Number(rawStartNum) || 1;
+    }
+
+    const rawTva = data.tva_rate ?? data.tvaRate;
+    if (rawTva !== undefined && rawTva !== null) {
+      normalized.tva_rate = Number(rawTva) || 0;
+    }
+
+    const rawPrintWidth = data.print_width_mm ?? data.printWidthMm;
+    if (rawPrintWidth !== undefined && rawPrintWidth !== null) {
+      normalized.print_width_mm = Number(rawPrintWidth) || 80;
+    }
+
+    const rawPrintLang = data.print_language ?? data.printLanguage;
+    if (rawPrintLang !== undefined && rawPrintLang !== null) {
+      normalized.print_language = String(rawPrintLang).trim();
+    }
+
+    const rawLang = data.language;
+    if (rawLang !== undefined && rawLang !== null) {
+      normalized.language = String(rawLang).trim();
+    }
+  }
+
   if (tableName === 'products') {
     if (data.name !== undefined || data.productName !== undefined || data.product_name !== undefined) {
       normalized.name = data.name ?? data.productName ?? data.product_name;
@@ -244,6 +356,7 @@ export async function createRow(
   const placeholders = cols.map(() => '?').join(', ');
 
   execute(`INSERT INTO ${tableName} (${cols.join(', ')}) VALUES (${placeholders})`, vals);
+  notifyTableChange(tableName, 'create', id);
   const created = queryOne(`SELECT * FROM ${tableName} WHERE ${idField} = ?`, [id]);
   return { data: created ? (config ? transformRow(created, config) : created) : null };
 }
@@ -287,6 +400,7 @@ export async function updateRow(
   } else {
     execute(`UPDATE ${tableName} SET ${setClause} WHERE ${idField} = ?`, [...vals, resolvedId]);
   }
+  notifyTableChange(tableName, 'update', resolvedId);
   const updated = queryOne(`SELECT * FROM ${tableName} WHERE ${idField} = ?`, [resolvedId]);
   return { data: updated ? (config ? transformRow(updated, config) : updated) : null };
 }
@@ -299,6 +413,7 @@ export async function removeRow(
   const config = tableConfigs.get(tableName);
   const idField = config?.idField ?? 'id';
   execute(`DELETE FROM ${tableName} WHERE ${idField} = ?`, [id]);
+  notifyTableChange(tableName, 'delete', id);
   if (tableName !== 'sync_tombstones' && tableName !== 'sync_queue' && tableName !== 'device_sessions') {
     try {
       execute(

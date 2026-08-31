@@ -36,7 +36,8 @@ import { Badge, Button, EmptyState, Skeleton } from '@/components/ui';
 
 export const InventoryScreen = ({ navigation }: any) => {
   const { isDark, colors } = useTheme();
-  const { t, isRTL } = useI18n();
+  const { t, isRTL, textAlign, currency, language } = useI18n();
+  const localeStr = language === 'ar' ? 'ar-DZ' : language === 'fr' ? 'fr-FR' : 'en-US';
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [warehouses, setWarehouses] = useState<WarehouseType[]>([]);
@@ -142,11 +143,19 @@ export const InventoryScreen = ({ navigation }: any) => {
         (p.category && p.category.toLowerCase().includes(q));
 
       // 2. Category Filter
-      const matchesCategory =
-        !selectedCategory ||
-        selectedCategory === 'all' ||
-        p.category === selectedCategory ||
-        p.categoryId === selectedCategory;
+      let matchesCategory = true;
+      if (selectedCategory && selectedCategory !== 'all') {
+        const catObj = categories.find((c) => c.id === selectedCategory || c.name === selectedCategory);
+        const catId = catObj ? catObj.id : selectedCategory;
+        const catName = catObj ? catObj.name.toLowerCase() : selectedCategory.toLowerCase();
+        matchesCategory =
+          p.category === selectedCategory ||
+          p.categoryId === selectedCategory ||
+          (p as any).category_id === selectedCategory ||
+          (p.categoryId && p.categoryId === catId) ||
+          ((p as any).category_id && (p as any).category_id === catId) ||
+          (Boolean(p.category) && p.category.toLowerCase() === catName);
+      }
 
       // 3. Stock Status Filter
       let matchesStock = true;
@@ -257,10 +266,10 @@ export const InventoryScreen = ({ navigation }: any) => {
             {/* Price & Margin */}
             <View style={dynamicStyles.priceBox}>
               <Text style={dynamicStyles.retailPrice}>
-                {prod.retailPrice.toLocaleString('ar-DZ')} دج
+                {prod.retailPrice.toLocaleString(localeStr)} {currency}
               </Text>
               {profit > 0 ? (
-                <Text style={dynamicStyles.profitPill}>+{marginPercent}% ربح</Text>
+                <Text style={dynamicStyles.profitPill}>+{marginPercent}%</Text>
               ) : null}
             </View>
 
@@ -285,13 +294,13 @@ export const InventoryScreen = ({ navigation }: any) => {
                     : dynamicStyles.stockTextNormal,
                 ]}
               >
-                {prod.quantity} {prod.unit || 'قطعة'}
+                {prod.quantity} {prod.unit || t('inventory.unitPiece')}
               </Text>
             </View>
           </View>
         </View>
 
-        <ChevronLeft size={18} color={colors.text.tertiary} style={{ marginLeft: 4 }} />
+        <ChevronLeft size={18} color={colors.text.tertiary} style={{ marginLeft: 4, transform: [{ rotate: isRTL ? '0deg' : '180deg' }] }} />
       </TouchableOpacity>
     );
   };
@@ -301,15 +310,15 @@ export const InventoryScreen = ({ navigation }: any) => {
       {/* ── Top Header ── */}
       <View style={dynamicStyles.header}>
         <Button
-          title="إضافة منتج"
+          title={t('inventory.addProduct')}
           icon={<Plus size={16} color="#ffffff" />}
           onPress={() => navigation.navigate('ProductForm')}
           size="sm"
           variant="primary"
         />
-        <View style={{ alignItems: 'flex-end' }}>
-          <Text style={dynamicStyles.title}>إدارة المخزون</Text>
-          <Text style={dynamicStyles.subtitle}>{products.length} منتج مسجل في النظام</Text>
+        <View style={{ alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
+          <Text style={dynamicStyles.title}>{t('inventory.products')}</Text>
+          <Text style={dynamicStyles.subtitle}>{products.length} {t('inventory.totalProducts')}</Text>
         </View>
       </View>
 
@@ -323,7 +332,7 @@ export const InventoryScreen = ({ navigation }: any) => {
           onPress={() => setStockFilter('all')}
           activeOpacity={0.7}
         >
-          <Text style={dynamicStyles.statLabel}>إجمالي الأصناف</Text>
+          <Text style={dynamicStyles.statLabel}>{t('inventory.totalProducts')}</Text>
           <Text style={[dynamicStyles.statValue, { color: colors.primary[600] }]}>
             {products.length}
           </Text>
@@ -339,7 +348,7 @@ export const InventoryScreen = ({ navigation }: any) => {
           onPress={() => setStockFilter(stockFilter === 'low' ? 'all' : 'low')}
           activeOpacity={0.7}
         >
-          <Text style={dynamicStyles.statLabel}>نواقص المخزون</Text>
+          <Text style={dynamicStyles.statLabel}>{t('inventory.lowStock')}</Text>
           <Text style={[dynamicStyles.statValue, { color: colors.warning.main }]}>
             {lowStockCount}
           </Text>
@@ -355,7 +364,7 @@ export const InventoryScreen = ({ navigation }: any) => {
           onPress={() => setStockFilter(stockFilter === 'out' ? 'all' : 'out')}
           activeOpacity={0.7}
         >
-          <Text style={dynamicStyles.statLabel}>نفد من المخزن</Text>
+          <Text style={dynamicStyles.statLabel}>{t('inventory.outOfStock')}</Text>
           <Text style={[dynamicStyles.statValue, { color: colors.danger.main }]}>
             {outOfStockCount}
           </Text>
@@ -375,7 +384,7 @@ export const InventoryScreen = ({ navigation }: any) => {
             activeOpacity={0.7}
           >
             <Warehouse size={14} color={colors.primary[600]} />
-            <Text style={dynamicStyles.shortcutText}>المستودعات</Text>
+            <Text style={dynamicStyles.shortcutText}>{t('warehouses.title')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -384,7 +393,7 @@ export const InventoryScreen = ({ navigation }: any) => {
             activeOpacity={0.7}
           >
             <ClipboardCheck size={14} color={colors.success.main} />
-            <Text style={dynamicStyles.shortcutText}>الجرد الفعلي</Text>
+            <Text style={dynamicStyles.shortcutText}>{t('inventoryCount.title')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -393,7 +402,7 @@ export const InventoryScreen = ({ navigation }: any) => {
             activeOpacity={0.7}
           >
             <History size={14} color={colors.warning.main} />
-            <Text style={dynamicStyles.shortcutText}>حركات المخزن</Text>
+            <Text style={dynamicStyles.shortcutText}>{t('stockMovements.title')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -402,7 +411,7 @@ export const InventoryScreen = ({ navigation }: any) => {
             activeOpacity={0.7}
           >
             <Tag size={14} color={colors.indigo[500]} />
-            <Text style={dynamicStyles.shortcutText}>الفئات والتصنيفات</Text>
+            <Text style={dynamicStyles.shortcutText}>{t('categories.title')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -411,7 +420,7 @@ export const InventoryScreen = ({ navigation }: any) => {
             activeOpacity={0.7}
           >
             <Barcode size={14} color={colors.text.secondary} />
-            <Text style={dynamicStyles.shortcutText}>ملصقات باركود</Text>
+            <Text style={dynamicStyles.shortcutText}>{t('inventory.barcode')}</Text>
           </TouchableOpacity>
         </ScrollView>
       </View>
@@ -420,12 +429,11 @@ export const InventoryScreen = ({ navigation }: any) => {
       <View style={dynamicStyles.searchContainer}>
         <Search size={18} color={colors.text.tertiary} style={dynamicStyles.searchIcon} />
         <TextInput
-          style={dynamicStyles.searchInput}
-          placeholder="ابحث بالاسم أو الباركود أو الصنف..."
+          style={[dynamicStyles.searchInput, { textAlign }]}
+          placeholder={t('inventory.searchProducts')}
           value={search}
           onChangeText={setSearch}
           placeholderTextColor={colors.text.tertiary}
-          textAlign="right"
         />
         {search ? (
           <TouchableOpacity onPress={() => setSearch('')} style={dynamicStyles.clearBtn}>
@@ -455,7 +463,7 @@ export const InventoryScreen = ({ navigation }: any) => {
                 selectedCategory === 'all' && dynamicStyles.categoryTextActive,
               ]}
             >
-              الكل ({products.length})
+              {t('common.all')} ({products.length})
             </Text>
           </TouchableOpacity>
 
@@ -509,13 +517,13 @@ export const InventoryScreen = ({ navigation }: any) => {
         ListEmptyComponent={
           <EmptyState
             icon={<Package size={42} color={colors.text.tertiary} />}
-            title="لا توجد منتجات مطابقة"
+            title={t('inventory.noProductsFound')}
             description={
               search
-                ? `لم نجد أي منتج يطابق "${search}"`
-                : 'ابدأ بإضافة منتجاتك لإدارتها ومتابعة مخزونها'
+                ? `${t('inventory.noProductsFound')} "${search}"`
+                : t('inventory.noProductsFound')
             }
-            actionTitle={search ? 'مسح البحث' : 'إضافة أول منتج'}
+            actionTitle={search ? t('common.reset') : t('inventory.addProduct')}
             onAction={search ? () => setSearch('') : () => navigation.navigate('ProductForm')}
           />
         }

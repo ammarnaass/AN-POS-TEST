@@ -88,7 +88,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     queryFn: () => db.settings.get('default'),
   });
 
-  const shopName = rawSettings?.shopName || 'AN POS';
+  const shopName = rawSettings?.shopName || (rawSettings as any)?.shop_name || 'AN POS';
+  const shopLogo = (rawSettings as any)?.shopLogo || (rawSettings as any)?.shop_logo || (rawSettings as any)?.logo;
 
   const handleLogout = () => {
     logout();
@@ -114,9 +115,13 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         {/* ── رأس القائمة مع اسم المحل والشعار ───────────────────────── */}
         <div className="p-5 flex items-center justify-between border-b border-outline-variant/15">
           <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-primary to-blue-600 flex items-center justify-center text-white shadow-md shadow-primary/25">
-              <Store className="w-6 h-6" />
-            </div>
+            {shopLogo ? (
+              <img src={shopLogo} alt={shopName} className="w-11 h-11 rounded-2xl object-cover border border-outline-variant/20 shadow-md" />
+            ) : (
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-primary to-blue-600 flex items-center justify-center text-white shadow-md shadow-primary/25">
+                <Store className="w-6 h-6" />
+              </div>
+            )}
             <div>
               <h1 className="text-base font-black text-on-surface font-cairo tracking-tight leading-none">
                 {shopName}

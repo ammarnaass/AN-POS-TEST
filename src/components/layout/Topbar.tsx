@@ -52,7 +52,7 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
     queryFn: () => db.settings.get('default'),
   });
 
-  const shopName = rawSettings?.shopName || 'AN POS';
+  const shopName = rawSettings?.shopName || (rawSettings as any)?.shop_name || 'AN POS';
   const currentSession = allSessions.find((s) => s.status === 'open') || null;
 
   return (

@@ -23,6 +23,7 @@ import { registerMiscRoutes } from './routes/misc';
 import { registerPairRoutes, verifySession } from './routes/pair';
 import { registerDiscoveryRoutes } from './routes/discovery';
 import { registerSyncRoutes } from './routes/sync';
+import { registerSettingsRoutes } from './routes/settings';
 
 export interface ServerConfig {
   port?: number;
@@ -158,6 +159,7 @@ export async function startHttpServer(config: ServerConfig = {}): Promise<{ url:
   // ===== تسجيل المسارات =====
   await registerPairRoutes(server);
   await registerAuthRoutes(server);
+  await registerSettingsRoutes(server);
   await registerCrudRoutes(server);
   await registerSalesRoutes(server);
   await registerCashRoutes(server);

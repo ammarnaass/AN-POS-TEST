@@ -23,12 +23,19 @@ import {
   Check,
   Package,
   Layers,
+  ChevronLeft,
 } from 'lucide-react-native';
 import { db, ensureInit } from '@/lib/db';
 import { generateId } from '@shared/utils';
 import type { Promotion, Product } from '@shared/types';
+import { useI18n } from '@/store/i18nStore';
+import { useTheme } from '@/theme';
 
 export const PromotionsScreen = ({ navigation }: any) => {
+  const { t, isRTL, textAlign, currency, language } = useI18n();
+  const { isDark, colors } = useTheme();
+  const localeStr = language === 'ar' ? 'ar-DZ' : language === 'fr' ? 'fr-FR' : 'en-US';
+
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,12 +91,12 @@ export const PromotionsScreen = ({ navigation }: any) => {
 
   const handleSavePromo = async () => {
     if (!selectedProduct) {
-      Alert.alert('تنبيه', 'يرجى اختيار المنتج المطبق عليه العرض');
+      Alert.alert(t('common.warning'), t('promotions.includedProducts'));
       return;
     }
     const valNum = parseFloat(discountValue);
     if (!valNum || valNum <= 0) {
-      Alert.alert('تنبيه', 'يرجى إدخال قيمة تخفيض صالحة');
+      Alert.alert(t('common.warning'), t('pos.pleaseEnterValidPrice'));
       return;
     }
 
@@ -100,7 +107,7 @@ export const PromotionsScreen = ({ navigation }: any) => {
 
       await db.promotions.add({
         id: generateId(),
-        name: `عرض ${selectedProduct.name}`,
+        name: `${t('promotions.title')} ${selectedProduct.name}`,
         product_id: selectedProduct.id,
         productId: selectedProduct.id,
         discount_type: discountType,
@@ -123,7 +130,7 @@ export const PromotionsScreen = ({ navigation }: any) => {
       setSelectedProduct(null);
       await loadPromotionsData();
     } catch (err) {
-      Alert.alert('خطأ', `فشل حفظ العرض: ${err instanceof Error ? err.message : 'خطأ'}`);
+      Alert.alert(t('common.error'), `${err instanceof Error ? err.message : t('common.error')}`);
     }
     setSaving(false);
   };
@@ -138,22 +145,22 @@ export const PromotionsScreen = ({ navigation }: any) => {
       });
       await loadPromotionsData();
     } catch {
-      Alert.alert('خطأ', 'فشل تغيير حالة العرض');
+      Alert.alert(t('common.error'), t('common.error'));
     }
   };
 
   const handleDelete = (promo: Promotion) => {
-    Alert.alert('حذف العرض', 'هل أنت متأكد من حذف هذا العرض الترويجي؟', [
-      { text: 'إلغاء', style: 'cancel' },
+    Alert.alert(t('common.delete'), t('promotions.deletePromoConfirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'حذف',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
           try {
             await db.promotions.delete(promo.id);
             await loadPromotionsData();
           } catch {
-            Alert.alert('خطأ', 'فشل حذف العرض');
+            Alert.alert(t('common.error'), t('common.error'));
           }
         },
       },
@@ -168,30 +175,30 @@ export const PromotionsScreen = ({ navigation }: any) => {
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border.default, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
         <TouchableOpacity
-          style={styles.addBtn}
+          style={[styles.addBtn, { backgroundColor: colors.primary[600], flexDirection: isRTL ? 'row-reverse' : 'row' }]}
           onPress={() => {
             setSelectedProduct(null);
             setModalVisible(true);
           }}
         >
           <Plus size={18} color="#fff" />
-          <Text style={styles.addBtnText}>عرض جديد</Text>
+          <Text style={styles.addBtnText}>{t('promotions.addPromotion')}</Text>
         </TouchableOpacity>
-        <Text style={styles.screenTitle}>العروض والتخفيضات المجدولة</Text>
+        <Text style={[styles.screenTitle, { color: colors.text.primary }]}>{t('promotions.title')}</Text>
       </View>
 
       {/* Quick navigation to Packs (Bundles) */}
       <View style={{ paddingHorizontal: 12, marginVertical: 8 }}>
         <TouchableOpacity
-          style={styles.packsBanner}
+          style={[styles.packsBanner, { backgroundColor: isDark ? colors.surfaceElevated : '#eff6ff', borderColor: colors.primary[200], flexDirection: isRTL ? 'row-reverse' : 'row' }]}
           onPress={() => navigation.navigate('Packs')}
         >
-          <Layers size={18} color="#3b82f6" />
-          <Text style={styles.packsBannerText}>إدارة الحزم والباقات المجمعة (Packs)</Text>
+          <Layers size={18} color={colors.primary[600]} />
+          <Text style={[styles.packsBannerText, { color: colors.primary[600] }]}>{t('promotions.packsTitle')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -203,13 +210,13 @@ export const PromotionsScreen = ({ navigation }: any) => {
       >
         {loading ? (
           <View style={styles.center}>
-            <ActivityIndicator size="large" color="#3b82f6" />
+            <ActivityIndicator size="large" color={colors.primary[600]} />
           </View>
         ) : promotions.length === 0 ? (
           <View style={styles.emptyState}>
-            <Tag size={48} color="#cbd5e1" />
-            <Text style={styles.emptyTitle}>لا توجد عروض ترويجية</Text>
-            <Text style={styles.emptySub}>أنشئ عروض تخفيض بنسبة أو مبلغ ثابت لزيادة المبيعات</Text>
+            <Tag size={48} color={colors.text.tertiary} />
+            <Text style={[styles.emptyTitle, { color: colors.text.primary }]}>{t('promotions.noPromosFound')}</Text>
+            <Text style={[styles.emptySub, { color: colors.text.secondary }]}>{t('promotions.noPacksDesc')}</Text>
           </View>
         ) : (
           <View style={{ gap: 10, paddingHorizontal: 12 }}>
@@ -218,39 +225,39 @@ export const PromotionsScreen = ({ navigation }: any) => {
               const isActive = promo.active !== false && promo.status !== 'inactive';
 
               return (
-                <View key={promo.id} style={styles.promoCard}>
-                  <View style={styles.cardTopRow}>
-                    <View style={styles.actionsGroup}>
+                <View key={promo.id} style={[styles.promoCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}>
+                  <View style={[styles.cardTopRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                    <View style={[styles.actionsGroup, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                       <TouchableOpacity onPress={() => handleDelete(promo)} style={styles.deleteBtn}>
-                        <Trash2 size={16} color="#ef4444" />
+                        <Trash2 size={16} color={colors.danger.main} />
                       </TouchableOpacity>
                       <Switch
                         value={isActive}
                         onValueChange={() => handleToggleActive(promo)}
-                        trackColor={{ true: '#22c55e', false: '#cbd5e1' }}
+                        trackColor={{ true: colors.success.main, false: colors.border.default }}
                       />
                     </View>
 
-                    <View style={{ alignItems: 'flex-end', flex: 1, marginRight: 10 }}>
-                      <Text style={styles.promoName}>{promo.name || prod?.name || 'عرض ترويجي'}</Text>
-                      {prod ? <Text style={styles.prodSub}>{prod.name}</Text> : null}
+                    <View style={{ alignItems: isRTL ? 'flex-end' : 'flex-start', flex: 1, marginHorizontal: 10 }}>
+                      <Text style={[styles.promoName, { color: colors.text.primary }]}>{promo.name || prod?.name || t('promotions.title')}</Text>
+                      {prod ? <Text style={[styles.prodSub, { color: colors.text.secondary }]}>{prod.name}</Text> : null}
                     </View>
                   </View>
 
-                  <View style={styles.divider} />
+                  <View style={[styles.divider, { backgroundColor: colors.border.subtle }]} />
 
-                  <View style={styles.promoMetaRow}>
+                  <View style={[styles.promoMetaRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                     <View style={styles.discountBadge}>
                       <Text style={styles.discountBadgeText}>
-                        خصم: {promo.discountValue || (promo as any).discount_value}{' '}
+                        {t('pos.discount')}: {promo.discountValue || (promo as any).discount_value}{' '}
                         {(promo.discountType || (promo as any).discount_type) === 'percent'
                           ? '%'
-                          : 'دج'}
+                          : currency}
                       </Text>
                     </View>
 
-                    <Text style={styles.datesText}>
-                      من {promo.startDate || (promo as any).start_date} إلى{' '}
+                    <Text style={[styles.datesText, { color: colors.text.tertiary }]}>
+                      {promo.startDate || (promo as any).start_date} →{' '}
                       {promo.endDate || (promo as any).end_date}
                     </Text>
                   </View>
@@ -264,37 +271,37 @@ export const PromotionsScreen = ({ navigation }: any) => {
       {/* Add Promotion Modal */}
       <Modal visible={modalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border.subtle, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <X size={20} color="#64748b" />
+                <X size={20} color={colors.text.secondary} />
               </TouchableOpacity>
-              <Text style={styles.modalTitle}>إنشاء عرض ترويجي جديد</Text>
+              <Text style={[styles.modalTitle, { color: colors.text.primary }]}>{t('promotions.addPromotion')}</Text>
             </View>
 
             <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>المنتج المطبق عليه العرض *</Text>
+                <Text style={[styles.formLabel, { color: colors.text.secondary, textAlign }]}>{t('promotions.includedProducts')} *</Text>
                 <TouchableOpacity
-                  style={styles.selectBtn}
+                  style={[styles.selectBtn, { borderColor: colors.border.default, backgroundColor: isDark ? colors.surfaceElevated : '#f8fafc', flexDirection: isRTL ? 'row-reverse' : 'row' }]}
                   onPress={() => setProductPickerVisible(true)}
                 >
-                  <Text style={[styles.selectBtnText, !selectedProduct && { color: '#94a3b8' }]}>
-                    {selectedProduct ? selectedProduct.name : 'اختر المنتج من المخزون...'}
+                  <Text style={[styles.selectBtnText, { color: selectedProduct ? colors.text.primary : colors.text.tertiary }]}>
+                    {selectedProduct ? selectedProduct.name : t('inventory.selectCategory')}
                   </Text>
-                  <Package size={16} color="#3b82f6" />
+                  <Package size={16} color={colors.primary[600]} />
                 </TouchableOpacity>
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>نوع التخفيض</Text>
-                <View style={styles.typeSelector}>
+                <Text style={[styles.formLabel, { color: colors.text.secondary, textAlign }]}>{t('promotions.promoType')}</Text>
+                <View style={[styles.typeSelector, { backgroundColor: isDark ? colors.surfaceElevated : '#f1f5f9' }]}>
                   <TouchableOpacity
                     style={[styles.typeBtn, discountType === 'percent' && styles.typeBtnActive]}
                     onPress={() => setDiscountType('percent')}
                   >
                     <Text style={[styles.typeBtnText, discountType === 'percent' && { color: '#fff' }]}>
-                      نسبة مئوية (%)
+                      %
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -302,16 +309,16 @@ export const PromotionsScreen = ({ navigation }: any) => {
                     onPress={() => setDiscountType('amount')}
                   >
                     <Text style={[styles.typeBtnText, discountType === 'amount' && { color: '#fff' }]}>
-                      مبلغ ثابت (دج)
+                      {currency}
                     </Text>
                   </TouchableOpacity>
                 </View>
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>قيمة التخفيض *</Text>
+                <Text style={[styles.formLabel, { color: colors.text.secondary, textAlign }]}>{t('pos.discount')} *</Text>
                 <TextInput
-                  style={styles.formInputAmount}
+                  style={[styles.formInputAmount, { color: colors.text.primary, borderColor: colors.border.default, backgroundColor: isDark ? colors.surfaceElevated : '#f8fafc' }]}
                   value={discountValue}
                   onChangeText={setDiscountValue}
                   keyboardType="numeric"
@@ -319,37 +326,39 @@ export const PromotionsScreen = ({ navigation }: any) => {
                 />
               </View>
 
-              <View style={styles.rowInputs}>
+              <View style={[styles.rowInputs, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.formLabel}>تاريخ النهاية</Text>
+                  <Text style={[styles.formLabel, { color: colors.text.secondary, textAlign }]}>{t('promotions.endDate')}</Text>
                   <TextInput
-                    style={styles.formInput}
+                    style={[styles.formInput, { color: colors.text.primary, borderColor: colors.border.default, backgroundColor: isDark ? colors.surfaceElevated : '#f8fafc' }]}
                     value={endDate}
                     onChangeText={setEndDate}
                     placeholder="YYYY-MM-DD"
+                    placeholderTextColor={colors.text.tertiary}
                     textAlign="center"
                   />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.formLabel}>تاريخ البداية</Text>
+                  <Text style={[styles.formLabel, { color: colors.text.secondary, textAlign }]}>{t('promotions.startDate')}</Text>
                   <TextInput
-                    style={styles.formInput}
+                    style={[styles.formInput, { color: colors.text.primary, borderColor: colors.border.default, backgroundColor: isDark ? colors.surfaceElevated : '#f8fafc' }]}
                     value={startDate}
                     onChangeText={setStartDate}
                     placeholder="YYYY-MM-DD"
+                    placeholderTextColor={colors.text.tertiary}
                     textAlign="center"
                   />
                 </View>
               </View>
             </ScrollView>
 
-            <TouchableOpacity style={styles.modalConfirmBtn} onPress={handleSavePromo} disabled={saving}>
+            <TouchableOpacity style={[styles.modalConfirmBtn, { backgroundColor: colors.primary[600], flexDirection: isRTL ? 'row-reverse' : 'row' }]} onPress={handleSavePromo} disabled={saving}>
               {saving ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
                 <>
                   <Check size={18} color="#fff" />
-                  <Text style={styles.modalConfirmBtnText}>حفظ العرض</Text>
+                  <Text style={styles.modalConfirmBtnText}>{t('common.save')}</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -360,22 +369,22 @@ export const PromotionsScreen = ({ navigation }: any) => {
       {/* Product Picker Modal */}
       <Modal visible={productPickerVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border.subtle, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <TouchableOpacity onPress={() => setProductPickerVisible(false)}>
-                <X size={20} color="#64748b" />
+                <X size={20} color={colors.text.secondary} />
               </TouchableOpacity>
-              <Text style={styles.modalTitle}>اختر المنتج</Text>
+              <Text style={[styles.modalTitle, { color: colors.text.primary }]}>{t('inventory.selectCategory')}</Text>
             </View>
 
-            <View style={styles.searchBar}>
-              <Search size={16} color="#94a3b8" />
+            <View style={[styles.searchBar, { backgroundColor: isDark ? colors.surfaceElevated : '#f1f5f9', borderColor: colors.border.default, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <Search size={16} color={colors.text.tertiary} />
               <TextInput
-                style={styles.searchInput}
-                placeholder="ابحث بالاسم أو الباركود..."
+                style={[styles.searchInput, { color: colors.text.primary, textAlign }]}
+                placeholder={t('inventory.searchPlaceholder')}
+                placeholderTextColor={colors.text.tertiary}
                 value={productSearch}
                 onChangeText={setProductSearch}
-                textAlign="right"
               />
             </View>
 
@@ -383,14 +392,14 @@ export const PromotionsScreen = ({ navigation }: any) => {
               {filteredProducts.map((p) => (
                 <TouchableOpacity
                   key={p.id}
-                  style={styles.pickItem}
+                  style={[styles.pickItem, { borderBottomColor: colors.border.subtle, flexDirection: isRTL ? 'row-reverse' : 'row' }]}
                   onPress={() => {
                     setSelectedProduct(p);
                     setProductPickerVisible(false);
                   }}
                 >
-                  <Text style={styles.pickItemPrice}>{(p.retailPrice || 0).toLocaleString('ar-DZ')} دج</Text>
-                  <Text style={styles.pickItemName}>{p.name}</Text>
+                  <Text style={[styles.pickItemPrice, { color: colors.primary[600] }]}>{(p.retailPrice || 0).toLocaleString(localeStr)} {currency}</Text>
+                  <Text style={[styles.pickItemName, { color: colors.text.primary }]}>{p.name}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>

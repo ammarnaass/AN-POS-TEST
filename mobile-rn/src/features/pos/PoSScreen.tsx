@@ -45,6 +45,7 @@ import {
   FlaskConical,
   ArrowUpRight,
   ScanLine,
+  Sparkles,
 } from 'lucide-react-native';
 import { db, ensureInit } from '@/lib/db';
 import { generateId } from '@shared/utils';
@@ -65,6 +66,7 @@ import { radii, spacing, typography, shadows } from '@/theme/tokens';
 import { Card, Badge, Button, Input, EmptyState } from '@/components/ui';
 
 interface CartItem {
+  cartKey?: string;
   productId: string;
   name: string;
   qty: number;
@@ -79,7 +81,7 @@ interface CartItem {
 export const POSScreen = ({ route, navigation }: any) => {
   const { user } = useAuthStore();
   const { isDark, colors } = useTheme();
-  const { t, isRTL } = useI18n();
+  const { t, isRTL, textAlign, currency, language } = useI18n();
   const styles = useMemo(() => makeStyles(colors, isDark), [colors, isDark]);
 
   const [products, setProducts] = useState<Product[]>([]);
@@ -94,6 +96,17 @@ export const POSScreen = ({ route, navigation }: any) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+
+  // Price Selection Modal for Custom Prices & Wholesale
+  const [showPriceModal, setShowPriceModal] = useState(false);
+  const [priceModalProduct, setPriceModalProduct] = useState<Product | null>(null);
+  const [selectedPriceOption, setSelectedPriceOption] = useState<{
+    label: string;
+    price: number;
+    isCustom?: boolean;
+    barcode?: string;
+  } | null>(null);
+  const [priceModalQty, setPriceModalQty] = useState(1);
 
   // Customer Management
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -196,6 +209,16 @@ export const POSScreen = ({ route, navigation }: any) => {
         const taxRate = Number(p.taxRate ?? p.tax_rate ?? p.tax ?? 0);
         const name = p.name || p.productName || p.product_name || 'بدون اسم';
 
+        const rawCustomPrices = p.custom_prices ?? p.customPrices;
+        let customPrices: any[] = [];
+        if (rawCustomPrices) {
+          try {
+            customPrices = typeof rawCustomPrices === 'string' ? JSON.parse(rawCustomPrices) : (Array.isArray(rawCustomPrices) ? rawCustomPrices : []);
+          } catch {
+            customPrices = [];
+          }
+        }
+
         return {
           ...p,
           id: p.id || p._id || p.productId || p.product_id,
@@ -226,6 +249,7 @@ export const POSScreen = ({ route, navigation }: any) => {
           tax_rate: taxRate,
           image: p.image || p.imageUrl || p.image_url || null,
           quickSale: p.quickSale !== undefined ? Boolean(p.quickSale) : p.quick_sale !== undefined ? Boolean(p.quick_sale) : true,
+          customPrices,
         };
       });
       setProducts(mappedProducts);
@@ -275,43 +299,62 @@ export const POSScreen = ({ route, navigation }: any) => {
   };
 
   const addToCart = useCallback(
-    (product: Product, customQty = 1) => {
+    (
+      product: Product,
+      customQty = 1,
+      customPriceOption?: { label: string; price: number; isCustom?: boolean }
+    ) => {
       const promo = findPromotion(product.id);
       setCart((prev) => {
-        const existing = prev.find((c) => c.productId === product.id);
+        const itemKey = customPriceOption?.label
+          ? `${product.id}_${customPriceOption.label}`
+          : product.id;
+
+        const existing = prev.find((c) =>
+          (c as any).cartKey
+            ? (c as any).cartKey === itemKey
+            : c.productId === product.id && (!customPriceOption || c.promoName === customPriceOption.label)
+        );
         const newQty = existing ? existing.qty + customQty : customQty;
 
-        // Check Wholesale Tier Pricing
-        let basePrice = product.retailPrice;
-        let promoTag = '';
+        let basePrice = customPriceOption ? customPriceOption.price : product.retailPrice;
+        let promoTag = customPriceOption?.label || '';
 
-        if (
-          product.wholesalePrice &&
-          product.wholesalePrice > 0 &&
-          product.wholesaleMinQty &&
-          product.wholesaleMinQty > 0 &&
-          newQty >= product.wholesaleMinQty
-        ) {
-          basePrice = product.wholesalePrice;
-          promoTag = 'سعر الجملة';
-        } else if (promo) {
-          const discType = promo.discountType || promo.discount_type || promo.type;
-          const discVal = promo.discountValue || promo.discount_value || promo.value || 0;
-          if (discType === 'percent' || discType === 'percentage') {
-            basePrice = basePrice * (1 - discVal / 100);
-          } else {
-            basePrice = Math.max(0, basePrice - discVal);
+        if (!customPriceOption) {
+          if (
+            product.wholesalePrice &&
+            product.wholesalePrice > 0 &&
+            product.wholesaleMinQty &&
+            product.wholesaleMinQty > 0 &&
+            newQty >= product.wholesaleMinQty
+          ) {
+            basePrice = product.wholesalePrice;
+            promoTag = 'سعر الجملة';
+          } else if (promo) {
+            const discType = promo.discountType || promo.discount_type || promo.type;
+            const discVal = promo.discountValue || promo.discount_value || promo.value || 0;
+            if (discType === 'percent' || discType === 'percentage') {
+              basePrice = basePrice * (1 - discVal / 100);
+            } else {
+              basePrice = Math.max(0, basePrice - discVal);
+            }
+            promoTag = promo.name || 'عرض ترويجي';
           }
-          promoTag = promo.name || 'عرض ترويجي';
         }
 
         if (promo?.maxQuantity && newQty > promo.maxQuantity) return prev;
 
+        const itemName =
+          customPriceOption?.label && customPriceOption.label !== 'سعر البيع الافتراضي'
+            ? `${product.name} (${customPriceOption.label})`
+            : product.name;
+
         if (existing) {
           return prev.map((c) =>
-            c.productId === product.id
+            (c as any).cartKey === itemKey || (!c.promoName && c.productId === product.id && !customPriceOption)
               ? {
                   ...c,
+                  name: itemName,
                   qty: newQty,
                   unitPrice: basePrice,
                   lineTotal: basePrice * newQty,
@@ -323,18 +366,49 @@ export const POSScreen = ({ route, navigation }: any) => {
         return [
           ...prev,
           {
+            cartKey: itemKey,
             productId: product.id,
-            name: product.name,
+            name: itemName,
             qty: customQty,
             unitPrice: basePrice,
             lineTotal: basePrice * customQty,
             promoName: promoTag,
-          },
+            isCustom: customPriceOption?.isCustom,
+          } as any,
         ];
       });
     },
     [products, promotions]
   );
+
+  const handleProductPress = (product: Product) => {
+    const rawCP = (product as any).customPrices ?? (product as any).custom_prices;
+    let cPrices: any[] = [];
+    if (rawCP) {
+      try {
+        cPrices = typeof rawCP === 'string' ? JSON.parse(rawCP) : (Array.isArray(rawCP) ? rawCP : []);
+      } catch {
+        cPrices = [];
+      }
+    }
+    const hasCustomPrices = Array.isArray(cPrices) && cPrices.length > 0;
+    const hasWholesale = Boolean(product.wholesalePrice && product.wholesalePrice > 0);
+
+    if (hasCustomPrices || hasWholesale) {
+      const fullProd = { ...product, customPrices: cPrices };
+      setPriceModalProduct(fullProd as any);
+      setSelectedPriceOption({
+        label: 'سعر البيع الافتراضي',
+        price: product.retailPrice,
+        isCustom: false,
+        barcode: product.barcode,
+      });
+      setPriceModalQty(1);
+      setShowPriceModal(true);
+    } else {
+      addToCart(product, 1);
+    }
+  };
 
   const addPackToCart = (pack: any) => {
     const packId = pack.id;
@@ -377,11 +451,11 @@ export const POSScreen = ({ route, navigation }: any) => {
     const qty = parseFloat(customItemQty) || 1;
 
     if (!name) {
-      Alert.alert('تنبيه', 'يرجى إدخال اسم البند المخصص');
+      Alert.alert(t('common.warning'), t('pos.pleaseEnterCustomName'));
       return;
     }
     if (price <= 0) {
-      Alert.alert('تنبيه', 'يرجى إدخال سعر صحيح أكبر من الصفر');
+      Alert.alert(t('common.warning'), t('pos.pleaseEnterValidPrice'));
       return;
     }
 
@@ -395,7 +469,7 @@ export const POSScreen = ({ route, navigation }: any) => {
         unitPrice: price,
         lineTotal: price * qty,
         isCustom: true,
-        promoName: 'بند حر',
+        promoName: t('pos.customItemBadge'),
       },
     ]);
 
@@ -412,6 +486,31 @@ export const POSScreen = ({ route, navigation }: any) => {
 
     const normalized = code.trim().toLowerCase();
 
+    // 0️⃣ Check if barcode specifically matches any product's customPrice barcode!
+    for (const p of products) {
+      const rawCP = (p as any).customPrices ?? (p as any).custom_prices;
+      let cPrices: any[] = [];
+      if (rawCP) {
+        try {
+          cPrices = typeof rawCP === 'string' ? JSON.parse(rawCP) : (Array.isArray(rawCP) ? rawCP : []);
+        } catch {}
+      }
+      if (Array.isArray(cPrices)) {
+        const matchedPrice = cPrices.find(
+          (cp: any) => cp.barcode && String(cp.barcode).trim().toLowerCase() === normalized
+        );
+        if (matchedPrice) {
+          addToCart(p, 1, {
+            label: matchedPrice.name,
+            price: Number(matchedPrice.price) || p.retailPrice,
+            isCustom: true,
+          });
+          notify.success(`تمت إضافة (${p.name} - ${matchedPrice.name})`, t('pos.cart'));
+          return;
+        }
+      }
+    }
+
     // 1️⃣ Search in products.barcode (primary in-memory)
     let found = products.find(
       (p) => (p.barcode ?? '').toLowerCase() === normalized
@@ -425,10 +524,12 @@ export const POSScreen = ({ route, navigation }: any) => {
     }
 
     // 3️⃣ Search in product_barcodes table (secondary/variant/batch barcodes)
+    let matchedSecondaryRow: any = null;
     if (!found) {
       try {
         const rows = await db.productBarcodes.where('barcode').equals(code).toArray();
         if (rows && rows.length > 0) {
+          matchedSecondaryRow = rows[0];
           const matchedId = rows[0]?.product_id || rows[0]?.productId;
           found = products.find((p) => p.id === matchedId);
         }
@@ -440,23 +541,71 @@ export const POSScreen = ({ route, navigation }: any) => {
     // 4️⃣ Direct Database / Server Query if not loaded in memory (vital for connected mode)
     if (!found) {
       try {
+        const allDbProducts = await db.products.toArray().catch(() => []);
+        for (const p of allDbProducts) {
+          const rawCP = (p as any).custom_prices ?? (p as any).customPrices;
+          let cPrices: any[] = [];
+          if (rawCP) {
+            try {
+              cPrices = typeof rawCP === 'string' ? JSON.parse(rawCP) : (Array.isArray(rawCP) ? rawCP : []);
+            } catch {}
+          }
+          const matchedCP = cPrices.find(
+            (cp: any) => cp.barcode && String(cp.barcode).trim().toLowerCase() === normalized
+          );
+          if (matchedCP) {
+            const mappedP = {
+              ...p,
+              id: p.id || (p as any)._id,
+              name: p.name || (p as any).productName || t('inventory.productName'),
+              retailPrice: Number(p.retailPrice ?? (p as any).retail_price ?? 0),
+              wholesalePrice: Number(p.wholesalePrice ?? (p as any).wholesale_price ?? 0),
+              wholesaleMinQty: Number(p.wholesaleMinQty ?? (p as any).wholesale_min_qty ?? 0),
+              quantity: Number(p.quantity ?? (p as any).qty ?? 0),
+              unit: p.unit || t('inventory.unitPiece'),
+              barcode: p.barcode ? String(p.barcode) : '',
+              sku: p.sku ? String(p.sku) : '',
+              category: p.category || '',
+              status: p.status || 'active',
+              taxRate: Number(p.taxRate ?? (p as any).tax_rate ?? 0),
+              customPrices: cPrices,
+            };
+            setProducts((prev) => [...prev.filter((x) => x.id !== mappedP.id), mappedP]);
+            addToCart(mappedP, 1, {
+              label: matchedCP.name,
+              price: Number(matchedCP.price) || mappedP.retailPrice,
+              isCustom: true,
+            });
+            notify.success(`تمت إضافة (${mappedP.name} - ${matchedCP.name})`, t('pos.cart'));
+            return;
+          }
+        }
+
         const directList = await db.products.where('barcode').equals(code).toArray().catch(() => []);
         if (directList && directList.length > 0) {
           const p: any = directList[0];
+          const rawCP = p.custom_prices || p.customPrices;
+          let cPrices: any[] = [];
+          if (rawCP) {
+            try {
+              cPrices = typeof rawCP === 'string' ? JSON.parse(rawCP) : (Array.isArray(rawCP) ? rawCP : []);
+            } catch {}
+          }
           found = {
             ...p,
             id: p.id || p._id,
-            name: p.name || p.productName || 'منتج',
+            name: p.name || p.productName || t('inventory.productName'),
             retailPrice: p.retailPrice || p.price || 0,
             wholesalePrice: p.wholesalePrice || 0,
             wholesaleMinQty: p.wholesaleMinQty || p.wholesale_min_qty || 0,
             quantity: p.quantity || p.qty || 0,
-            unit: p.unit || 'قطعة',
+            unit: p.unit || t('inventory.unitPiece'),
             barcode: p.barcode || code,
             sku: p.sku || '',
             category: p.category || '',
             status: p.status || 'active',
             taxRate: Number(p.taxRate ?? p.tax_rate ?? 0),
+            customPrices: cPrices,
           };
           setProducts((prev) => [...prev, found!]);
         }
@@ -477,14 +626,55 @@ export const POSScreen = ({ route, navigation }: any) => {
     }
 
     if (found) {
-      addToCart(found);
-      notify.success(`تمت إضافة "${found.name}" إلى السلة ✓`, 'سلة المبيعات');
+      const rawCP = (found as any).customPrices ?? (found as any).custom_prices;
+      let cPrices: any[] = [];
+      if (rawCP) {
+        try {
+          cPrices = typeof rawCP === 'string' ? JSON.parse(rawCP) : (Array.isArray(rawCP) ? rawCP : []);
+        } catch {}
+      }
+      const fullFound = { ...found, customPrices: cPrices };
+
+      // If matched secondary row has a price label, try to apply it
+      if (matchedSecondaryRow && (matchedSecondaryRow.price_label || matchedSecondaryRow.priceLabel)) {
+        const pLabel = (matchedSecondaryRow.price_label || matchedSecondaryRow.priceLabel).trim();
+        const matchingCP = cPrices.find(
+          (cp: any) => cp.name.trim().toLowerCase() === pLabel.toLowerCase()
+        );
+        if (matchingCP) {
+          addToCart(fullFound, 1, {
+            label: matchingCP.name,
+            price: Number(matchingCP.price) || fullFound.retailPrice,
+            isCustom: true,
+          });
+          notify.success(`تمت إضافة (${fullFound.name} - ${matchingCP.name})`, t('pos.cart'));
+          return;
+        }
+      }
+
+      // If product has custom prices and no specific single price was matched, prompt with modal
+      const hasCustomPrices = Array.isArray(cPrices) && cPrices.length > 0;
+      const hasWholesale = Boolean(fullFound.wholesalePrice && fullFound.wholesalePrice > 0);
+      if (hasCustomPrices || hasWholesale) {
+        setPriceModalProduct(fullFound);
+        setSelectedPriceOption({
+          label: 'سعر البيع الافتراضي',
+          price: fullFound.retailPrice,
+          isCustom: false,
+          barcode: fullFound.barcode,
+        });
+        setPriceModalQty(1);
+        setShowPriceModal(true);
+      } else {
+        addToCart(fullFound);
+        notify.success(`${t('pos.itemAdded')} (${fullFound.name})`, t('pos.cart'));
+      }
     } else {
       if (mode === 'single') {
         Alert.alert(
-          '🔍 لم يتم العثور على المنتج',
-          `الباركود: ${code}\n\nتأكد من أن المنتج مسجل في مخزون برنامج AN POS على الحاسوب.`,
-          [{ text: 'حسناً' }]
+          t('pos.productNotFound'),
+          `${t('inventory.barcode')}: ${code}\n\n${t('pos.productNotFoundDesc')}`,
+          [{ text: t('common.close') }]
         );
       }
     }
@@ -512,7 +702,7 @@ export const POSScreen = ({ route, navigation }: any) => {
           ) {
             if (newQty >= prod.wholesaleMinQty) {
               unitPrice = prod.wholesalePrice;
-              promoName = 'سعر الجملة';
+              promoName = t('pos.wholesalePrice');
             } else {
               unitPrice = prod.retailPrice;
               promoName = '';
@@ -548,7 +738,7 @@ export const POSScreen = ({ route, navigation }: any) => {
           wholesalePrice: 0,
           wholesaleMinQty: 0,
           quantity: 999,
-          unit: 'باقة',
+          unit: t('promotions.packName'),
           barcode: pk.barcode || '',
           category: 'packs',
           status: 'active',
@@ -574,11 +764,16 @@ export const POSScreen = ({ route, navigation }: any) => {
         (p) => (p as any).quickSale === true || (p as any).quick_sale === 1 || (p as any).featured === 1 || (p as any).is_featured === 1
       );
     } else if (selectedCategory) {
+      const selectedCatObj = categories.find((c) => c.id === selectedCategory || c.name === selectedCategory);
+      const selectedCatName = selectedCatObj ? selectedCatObj.name.toLowerCase() : selectedCategory.toLowerCase();
       result = result.filter(
         (p) =>
           (p as any).category_id === selectedCategory ||
           (p as any).categoryId === selectedCategory ||
-          p.category === selectedCategory
+          p.category === selectedCategory ||
+          ((p as any).categoryId && (p as any).categoryId === selectedCatObj?.id) ||
+          ((p as any).category_id && (p as any).category_id === selectedCatObj?.id) ||
+          (Boolean(p.category) && p.category.toLowerCase() === selectedCatName)
       );
     }
     setFiltered(result);
@@ -610,18 +805,18 @@ export const POSScreen = ({ route, navigation }: any) => {
     const rounded = Math.round(total);
     if (rounded <= 0) return [];
     const items = [
-      { label: 'المبلغ بالضبط', val: rounded },
-      { label: '+500 دج', val: rounded + 500 },
-      { label: '+1000 دج', val: rounded + 1000 },
+      { label: t('pos.exactAmount'), val: rounded },
+      { label: `+500 ${currency}`, val: rounded + 500 },
+      { label: `+1000 ${currency}`, val: rounded + 1000 },
     ];
     const next1000 = Math.ceil(rounded / 1000) * 1000;
     if (next1000 > rounded && next1000 !== rounded + 500 && next1000 !== rounded + 1000) {
-      items.push({ label: `${next1000} دج`, val: next1000 });
+      items.push({ label: `${next1000} ${currency}`, val: next1000 });
     } else {
-      items.push({ label: '+2000 دج', val: rounded + 2000 });
+      items.push({ label: `+2000 ${currency}`, val: rounded + 2000 });
     }
     return items;
-  }, [total]);
+  }, [total, currency, t]);
 
   const handleSuspend = async () => {
     if (cart.length === 0) return;
@@ -636,7 +831,7 @@ export const POSScreen = ({ route, navigation }: any) => {
     setSelectedCustomer(null);
     setDiscountValue('0');
     setSearch('');
-    Alert.alert('تم بنجاح ✓', 'تم تعليق الطلب في قائمة الانتظار بنجاح');
+    Alert.alert('✓', t('pos.suspendOrder'));
   };
 
   const loadSuspended = async () => {
@@ -648,14 +843,13 @@ export const POSScreen = ({ route, navigation }: any) => {
   const resumeOrder = async (order: SuspendedOrder) => {
     setCart(parseSuspendedItems(order));
     if (order.customerId) {
-      const c = customers.find((x) => x.id === order.customerId);
-      if (c) setSelectedCustomer(c);
+      const cust = customers.find((c) => c.id === order.customerId);
+      if (cust) setSelectedCustomer(cust);
     }
-    try {
-      await db.suspendedOrders.delete(order.id);
-    } catch {
-      /* ignore */
-    }
+    if (order.discountType) setDiscountType(order.discountType as 'amount' | 'percent');
+    if (order.discountValue) setDiscountValue(order.discountValue.toString());
+    await db.suspendedOrders.delete(order.id);
+    setSuspendedOrders((prev) => prev.filter((o) => o.id !== order.id));
     setShowSuspendedModal(false);
   };
 
@@ -663,7 +857,7 @@ export const POSScreen = ({ route, navigation }: any) => {
     if (cart.length === 0) return;
     const currentMode = await getStoredMode();
     if (!hasOpenSession && currentMode === 'standalone') {
-      Alert.alert('تنبيه', 'يجب فتح الصندوق وبدء مناوبة أولاً قبل إجراء أي مبيعات');
+      Alert.alert(t('common.warning'), t('pos.shiftRequiredWarning'));
       return;
     }
     setPaidInput(total.toFixed(0));
@@ -674,7 +868,7 @@ export const POSScreen = ({ route, navigation }: any) => {
   const handleQuickCreateCustomer = async () => {
     const name = newCustomerName.trim();
     if (!name) {
-      Alert.alert('تنبيه', 'يرجى إدخال اسم الزبون');
+      Alert.alert(t('common.warning'), t('customers.customerNameRequired'));
       return;
     }
 
@@ -710,9 +904,9 @@ export const POSScreen = ({ route, navigation }: any) => {
       setNewCustomerName('');
       setNewCustomerPhone('');
       setNewCustomerCreditLimit('');
-      Alert.alert('✓ تم الحفظ', `تمت إضافة الزبون ${name} واختياره للفاتورة`);
+      Alert.alert('✓', `${t('customers.customerSaved')}: ${name}`);
     } catch (e) {
-      Alert.alert('خطأ', 'فشل حفظ الزبون الجديد');
+      Alert.alert(t('common.error'), t('customers.customerSaveFailed'));
     }
   };
 
@@ -738,7 +932,7 @@ export const POSScreen = ({ route, navigation }: any) => {
         } else {
           // Partial cash payment -> remainder is credit
           if (!selectedCustomer) {
-            Alert.alert('تنبيه', 'يرجى تحديد الزبون لتسجيل المبلغ المتبقي كدين (كريدي)');
+            Alert.alert(t('common.warning'), t('pos.customerRequiredForCredit'));
             setCheckoutLoading(false);
             return;
           }
@@ -751,7 +945,7 @@ export const POSScreen = ({ route, navigation }: any) => {
         debtToAdd = 0;
       } else if (paymentMethod === 'credit') {
         if (!selectedCustomer) {
-          Alert.alert('تنبيه', 'لا يمكن البيع بالكريدي (آجل) لزبون عام غير مسجل. يرجى اختيار زبون.');
+          Alert.alert(t('common.warning'), t('pos.cannotCreditGuest'));
           setCheckoutLoading(false);
           return;
         }
@@ -766,11 +960,11 @@ export const POSScreen = ({ route, navigation }: any) => {
         const currentBal = selectedCustomer.balance || 0;
         if (custLimit > 0 && currentBal + debtToAdd > custLimit) {
           Alert.alert(
-            '⚠️ تجاوز حد الائتمان',
-            `رصيد دين الزبون بعد هذه العملية (${(currentBal + debtToAdd).toLocaleString('ar-DZ')} دج) سيتجاوز الحد الائتماني المسموح به (${custLimit.toLocaleString('ar-DZ')} دج).\n\nهل ترغب في المتابعة رغم ذلك؟`,
+            t('pos.creditLimitExceededWarning'),
+            `${t('pos.creditLimitExceededMsg')} (${(currentBal + debtToAdd).toLocaleString(language === 'ar' ? 'ar-DZ' : 'fr-FR')} ${currency})`,
             [
-              { text: 'إلغاء', style: 'cancel', onPress: () => setCheckoutLoading(false) },
-              { text: 'متابعة وتأكيد', style: 'destructive', onPress: () => executeSaleTransaction(saleId, invoiceNumber, nowIso, finalMethod, effectivePaid, effectiveStatus, debtToAdd) },
+              { text: t('common.cancel'), style: 'cancel', onPress: () => setCheckoutLoading(false) },
+              { text: t('pos.proceedAnyway'), style: 'destructive', onPress: () => executeSaleTransaction(saleId, invoiceNumber, nowIso, finalMethod, effectivePaid, effectiveStatus, debtToAdd) },
             ]
           );
           return;
@@ -779,7 +973,7 @@ export const POSScreen = ({ route, navigation }: any) => {
 
       await executeSaleTransaction(saleId, invoiceNumber, nowIso, finalMethod, effectivePaid, effectiveStatus, debtToAdd);
     } catch (err) {
-      Alert.alert('خطأ', `فشل حفظ الفاتورة: ${err instanceof Error ? err.message : 'خطأ غير معروف'}`);
+      Alert.alert(t('common.error'), `${t('pos.savingFailed')}: ${err instanceof Error ? err.message : 'Error'}`);
       setCheckoutLoading(false);
     }
   };
@@ -826,8 +1020,8 @@ export const POSScreen = ({ route, navigation }: any) => {
         payment_method: finalMethod,
         customerId: selectedCustomer?.id || '',
         customer_id: selectedCustomer?.id || '',
-        customerName: selectedCustomer?.name || 'زبون عام',
-        customer_name: selectedCustomer?.name || 'زبون عام',
+        customerName: selectedCustomer?.name || t('pos.guestCustomer'),
+        customer_name: selectedCustomer?.name || t('pos.guestCustomer'),
         amountPaid: effectivePaid,
         amount_paid: effectivePaid,
         status: effectiveStatus,
@@ -1051,7 +1245,7 @@ export const POSScreen = ({ route, navigation }: any) => {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary[600]} />
-        <Text style={[styles.loadingText, { color: colors.text.secondary }]}>جاري تحميل قائمة المنتجات...</Text>
+        <Text style={[styles.loadingText, { color: colors.text.secondary }]}>{t('pos.loadingProducts')}</Text>
       </View>
     );
   }
@@ -1060,26 +1254,26 @@ export const POSScreen = ({ route, navigation }: any) => {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Session Alert Warning Banner */}
       {!hasOpenSession && (
-        <View style={[styles.sessionWarningBanner, { backgroundColor: colors.warning.light, borderBottomColor: colors.warning.border }]}>
+        <View style={[styles.sessionWarningBanner, { backgroundColor: colors.warning.light, borderBottomColor: colors.warning.border, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
           <AlertTriangle size={16} color={colors.warning.dark} />
           <Text style={[styles.sessionWarningText, { color: colors.warning.text }]}>
-            الصندوق مقفل — يرجى فتح مناوبة لحساب المبيعات النقدية بدقة
+            {t('pos.sessionClosedWarning')}
           </Text>
         </View>
       )}
 
       {/* Top License Trial Banner */}
-      <View style={[styles.licenseBanner, { backgroundColor: isDark ? 'rgba(30, 41, 59, 0.7)' : colors.primary[50], borderColor: isDark ? 'rgba(59, 130, 246, 0.3)' : colors.primary[200] }]}>
+      <View style={[styles.licenseBanner, { backgroundColor: isDark ? 'rgba(30, 41, 59, 0.7)' : colors.primary[50], borderColor: isDark ? 'rgba(59, 130, 246, 0.3)' : colors.primary[200], flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
         <TouchableOpacity style={styles.licenseUpgradeBtn} activeOpacity={0.8}>
           <ArrowUpRight size={14} color="#ffffff" />
-          <Text style={styles.licenseUpgradeBtnText}>ترقية</Text>
+          <Text style={styles.licenseUpgradeBtnText}>{t('pos.upgradeBtn')}</Text>
         </TouchableOpacity>
-        <View style={styles.licenseBannerContent}>
+        <View style={[styles.licenseBannerContent, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
           <Text style={[styles.licenseBannerTitle, { color: isDark ? '#ffffff' : colors.text.primary }]}>
-            نسخة مجانية – احصل على الكاملة
+            {t('pos.freeVersionBanner')}
           </Text>
           <Text style={[styles.licenseBannerSubtitle, { color: isDark ? colors.slate[400] : colors.text.secondary }]}>
-            0/50 فاتورة  •  0/10 زبون
+            0/50 • 0/10
           </Text>
         </View>
         <View style={[styles.licenseFlaskIcon, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : colors.primary[100] }]}>
@@ -1088,40 +1282,41 @@ export const POSScreen = ({ route, navigation }: any) => {
       </View>
 
       {/* Quick Action Pills: Customer & Open Shift */}
-      <View style={styles.topActionsRow}>
+      <View style={[styles.topActionsRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
         <TouchableOpacity
           style={[
             styles.topActionPill,
             selectedCustomer
               ? { backgroundColor: isDark ? '#1e3a8a' : colors.primary[100], borderColor: colors.primary[400] }
               : { backgroundColor: isDark ? '#1e293b' : colors.surface, borderColor: isDark ? '#334155' : colors.border.default },
+            { flexDirection: isRTL ? 'row-reverse' : 'row' },
           ]}
           onPress={() => setShowCustomerPicker(true)}
           activeOpacity={0.7}
         >
           <UserPlus size={15} color={isDark ? '#93c5fd' : colors.primary[600]} />
           <Text style={[styles.topActionPillText, { color: isDark ? '#93c5fd' : colors.primary[700] }]}>
-            {selectedCustomer?.name ? `عميل: ${selectedCustomer.name}` : '+ عميل'}
+            {selectedCustomer?.name ? `${t('pos.customer')}: ${selectedCustomer.name}` : `+ ${t('pos.customer')}`}
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.topActionPill, { backgroundColor: isDark ? '#1e293b' : colors.surface, borderColor: isDark ? '#334155' : colors.border.default }]}
+          style={[styles.topActionPill, { backgroundColor: isDark ? '#1e293b' : colors.surface, borderColor: isDark ? '#334155' : colors.border.default, flexDirection: isRTL ? 'row-reverse' : 'row' }]}
           onPress={() => navigation.navigate('Cash')}
           activeOpacity={0.7}
         >
           <Store size={15} color={isDark ? '#94a3b8' : colors.slate[600]} />
           <Text style={[styles.topActionPillText, { color: isDark ? '#cbd5e1' : colors.text.primary }]}>
-            {hasOpenSession ? 'مناوبة مفتوحة' : 'فتح مناوبة'}
+            {hasOpenSession ? t('pos.openShiftActive') : t('pos.openShiftBtn')}
           </Text>
         </TouchableOpacity>
       </View>
 
       {/* Top Search & Toolbar */}
       <View style={styles.searchBarWrapper}>
-        <View style={[styles.searchBarContainer, { backgroundColor: isDark ? '#111827' : colors.surface, borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : colors.border.default }]}>
+        <View style={[styles.searchBarContainer, { backgroundColor: isDark ? '#111827' : colors.surface, borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : colors.border.default, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
           {/* Left Icon Actions */}
-          <View style={styles.searchLeftIcons}>
+          <View style={[styles.searchLeftIcons, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
             {/* View Mode Toggle: Grid or List */}
             <TouchableOpacity
               style={[styles.searchIconBtn, { backgroundColor: isDark ? '#1f2937' : colors.slate[100] }]}
@@ -1156,12 +1351,11 @@ export const POSScreen = ({ route, navigation }: any) => {
 
           {/* Search Input */}
           <TextInput
-            style={[styles.searchTextInput, { color: colors.text.primary }]}
-            placeholder="بحث بالاسم أو الباركود..."
+            style={[styles.searchTextInput, { color: colors.text.primary, textAlign }]}
+            placeholder={t('pos.searchPlaceholder')}
             value={search}
             onChangeText={setSearch}
             placeholderTextColor={isDark ? '#64748b' : colors.slate[400]}
-            textAlign="right"
           />
 
           <Search size={18} color={isDark ? '#64748b' : colors.slate[400]} style={styles.searchRightIcon} />
@@ -1173,7 +1367,7 @@ export const POSScreen = ({ route, navigation }: any) => {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoryBar}
+          contentContainerStyle={[styles.categoryBar, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
         >
           {/* All Filter */}
           <TouchableOpacity
@@ -1192,7 +1386,7 @@ export const POSScreen = ({ route, navigation }: any) => {
                 selectedCategory === null ? { color: '#ffffff', fontWeight: '800' } : { color: colors.text.secondary },
               ]}
             >
-              الكل
+              {t('common.all')}
             </Text>
           </TouchableOpacity>
 
@@ -1214,7 +1408,7 @@ export const POSScreen = ({ route, navigation }: any) => {
                 selectedCategory === 'featured' ? { color: '#ffffff', fontWeight: '800' } : { color: colors.text.secondary },
               ]}
             >
-              المميزة
+              {t('dashboard.topProducts')}
             </Text>
           </TouchableOpacity>
 
@@ -1236,7 +1430,7 @@ export const POSScreen = ({ route, navigation }: any) => {
                   selectedCategory === 'packs' ? { color: '#ffffff', fontWeight: '800' } : { color: colors.purple[400] },
                 ]}
               >
-                📦 باقات ({packs.length})
+                📦 {t('promotions.packsTitle')} ({packs.length})
               </Text>
             </TouchableOpacity>
           )}
@@ -1279,8 +1473,8 @@ export const POSScreen = ({ route, navigation }: any) => {
         {filtered.length === 0 ? (
           <EmptyState
             icon={<Package size={28} color={colors.slate[400]} />}
-            title="لا توجد منتجات مطابقة"
-            description="جرب البحث بكلمة أخرى أو أضف منتجات جديدة من شاشة المخزون"
+            title={t('inventory.noProductsFound')}
+            description={t('inventory.noProductsFound')}
           />
         ) : viewMode === 'grid' ? (
           /* Grid View Mode */
@@ -1300,7 +1494,7 @@ export const POSScreen = ({ route, navigation }: any) => {
                     },
                     inCartItem && { borderWidth: 2 },
                   ]}
-                  onPress={() => addToCart(product)}
+                  onPress={() => handleProductPress(product)}
                 >
                   {inCartItem ? (
                     <View style={[styles.inCartBadge, { backgroundColor: colors.primary[600] }]}>
@@ -1325,14 +1519,14 @@ export const POSScreen = ({ route, navigation }: any) => {
 
                     <View style={[styles.gridStockBadge, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ecfdf5' }]}>
                       <Text style={[styles.gridStockText, { color: isDark ? '#34d399' : '#059669' }]}>
-                        • {product.quantity} {product.unit || 'قطعة'}
+                        • {product.quantity} {product.unit || t('inventory.unitPiece')}
                       </Text>
                     </View>
 
                     <View style={styles.gridPriceRow}>
-                      <Text style={[styles.gridCurrency, { color: colors.text.tertiary }]}>DA</Text>
+                      <Text style={[styles.gridCurrency, { color: colors.text.tertiary }]}>{currency}</Text>
                       <Text style={[styles.gridPrice, { color: isDark ? '#34d399' : colors.emerald[700] }]}>
-                        {product.retailPrice.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {product.retailPrice.toLocaleString(language === 'ar' ? 'ar-DZ' : 'fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
                       </Text>
                     </View>
                   </View>
@@ -1358,7 +1552,7 @@ export const POSScreen = ({ route, navigation }: any) => {
                     },
                     inCartItem && { borderWidth: 2 },
                   ]}
-                  onPress={() => addToCart(product)}
+                  onPress={() => handleProductPress(product)}
                 >
                   {inCartItem ? (
                     <View style={[styles.inCartBadge, { backgroundColor: colors.primary[600] }]}>
@@ -1369,9 +1563,9 @@ export const POSScreen = ({ route, navigation }: any) => {
                   {/* Left: Price & Currency */}
                   <View style={styles.listLeftColumn}>
                     <Text style={[styles.listPrice, { color: isDark ? '#34d399' : colors.emerald[700] }]}>
-                      {product.retailPrice.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {product.retailPrice.toLocaleString(language === 'ar' ? 'ar-DZ' : 'fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
                     </Text>
-                    <Text style={[styles.listCurrency, { color: colors.text.tertiary }]}>DA</Text>
+                    <Text style={[styles.listCurrency, { color: colors.text.tertiary }]}>{currency}</Text>
                   </View>
 
                   {/* Middle: Name, Stock & Barcode */}
@@ -1382,7 +1576,7 @@ export const POSScreen = ({ route, navigation }: any) => {
                     <View style={styles.listMetaRow}>
                       <View style={[styles.listStockBadge, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ecfdf5' }]}>
                         <Text style={[styles.listStockText, { color: isDark ? '#34d399' : '#059669' }]}>
-                          {product.quantity} {product.unit || 'قطعة'}
+                          {product.quantity} {product.unit || t('inventory.unitPiece')}
                         </Text>
                       </View>
                       {product.barcode ? (
@@ -1416,7 +1610,7 @@ export const POSScreen = ({ route, navigation }: any) => {
             showsVerticalScrollIndicator={false}
           >
             {cart.map((item) => (
-              <View key={item.productId} style={[styles.cartItemRow, { borderBottomColor: colors.border.subtle }]}>
+              <View key={item.productId} style={[styles.cartItemRow, { borderBottomColor: colors.border.subtle, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                 <TouchableOpacity
                   onPress={() => removeFromCart(item.productId)}
                   style={styles.cartDeleteBtn}
@@ -1425,10 +1619,10 @@ export const POSScreen = ({ route, navigation }: any) => {
                 </TouchableOpacity>
 
                 <Text style={[styles.cartItemLineTotal, { color: colors.text.primary }]}>
-                  {item.lineTotal.toLocaleString('ar-DZ')} دج
+                  {item.lineTotal.toLocaleString(language === 'ar' ? 'ar-DZ' : 'fr-FR')} {currency}
                 </Text>
 
-                <View style={[styles.cartQtyControls, { backgroundColor: isDark ? colors.surfaceElevated : colors.slate[100] }]}>
+                <View style={[styles.cartQtyControls, { backgroundColor: isDark ? colors.surfaceElevated : colors.slate[100], flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                   <TouchableOpacity
                     onPress={() => updateQty(item.productId, 1)}
                     style={styles.qtyStepBtn}
@@ -1446,18 +1640,18 @@ export const POSScreen = ({ route, navigation }: any) => {
                   </TouchableOpacity>
                 </View>
 
-                <View style={styles.cartItemInfo}>
+                <View style={[styles.cartItemInfo, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
                   <Text style={[styles.cartItemName, { color: colors.text.primary }]} numberOfLines={1}>
                     {item.name}
                   </Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }}>
                     {item.promoName ? (
                       <Badge variant="purple" size="xs">
                         {item.promoName}
                       </Badge>
                     ) : null}
                     <Text style={[styles.cartItemUnitPrice, { color: colors.text.tertiary }]}>
-                      {item.unitPrice.toLocaleString('ar-DZ')} دج
+                      {item.unitPrice.toLocaleString(language === 'ar' ? 'ar-DZ' : 'fr-FR')} {currency}
                     </Text>
                   </View>
                 </View>
@@ -1468,30 +1662,30 @@ export const POSScreen = ({ route, navigation }: any) => {
 
         {/* Totals Summary */}
         <View style={styles.cartFooter}>
-          <View style={styles.totalsSummaryRow}>
-            <View style={styles.totalBlock}>
-              <Text style={[styles.totalLabel, { color: colors.text.secondary }]}>المجموع المستحق</Text>
+          <View style={[styles.totalsSummaryRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+            <View style={[styles.totalBlock, { alignItems: isRTL ? 'flex-start' : 'flex-end' }]}>
+              <Text style={[styles.totalLabel, { color: colors.text.secondary }]}>{t('pos.totalDue')}</Text>
               <Text style={[styles.grandTotalValue, { color: colors.primary[600] }]}>
-                {total.toLocaleString('ar-DZ')} <Text style={styles.currency}>دج</Text>
+                {total.toLocaleString(language === 'ar' ? 'ar-DZ' : 'fr-FR')} <Text style={styles.currency}>{currency}</Text>
               </Text>
             </View>
 
             {discount > 0 ? (
-              <View style={styles.discountBlock}>
-                <Text style={[styles.discountLabel, { color: colors.warning.text }]}>الخصم المطبق</Text>
+              <View style={[styles.discountBlock, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+                <Text style={[styles.discountLabel, { color: colors.warning.text }]}>{t('pos.discount')}</Text>
                 <Text style={[styles.discountAmount, { color: colors.warning.text }]}>
-                  -{discount.toLocaleString('ar-DZ')} دج
+                  -{discount.toLocaleString(language === 'ar' ? 'ar-DZ' : 'fr-FR')} {currency}
                 </Text>
               </View>
             ) : null}
           </View>
 
           {/* Action Row */}
-          <View style={styles.cartActionsRow}>
+          <View style={[styles.cartActionsRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
             <TouchableOpacity
               style={[
                 styles.checkoutButton,
-                { backgroundColor: colors.primary[600] },
+                { backgroundColor: colors.primary[600], flexDirection: isRTL ? 'row-reverse' : 'row' },
                 cart.length === 0 && styles.checkoutButtonDisabled,
               ]}
               onPress={handleCheckoutTap}
@@ -1504,7 +1698,7 @@ export const POSScreen = ({ route, navigation }: any) => {
                 <>
                   <ShoppingCart size={18} color="#ffffff" />
                   <Text style={styles.checkoutBtnText}>
-                    إتمام البيع ({cart.reduce((s, i) => s + i.qty, 0)} قطع)
+                    {t('pos.checkout')} ({cart.reduce((s, i) => s + i.qty, 0)})
                   </Text>
                 </>
               )}
@@ -1535,23 +1729,22 @@ export const POSScreen = ({ route, navigation }: any) => {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalSheet, { backgroundColor: colors.surface }]}>
-            <View style={[styles.modalHeader, { borderBottomColor: colors.border.subtle }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border.subtle, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <TouchableOpacity onPress={() => setShowCustomerPicker(false)}>
                 <X size={20} color={colors.slate[500]} />
               </TouchableOpacity>
-              <Text style={[styles.modalTitle, { color: colors.text.primary }]}>تحديد الزبون</Text>
+              <Text style={[styles.modalTitle, { color: colors.text.primary }]}>{t('pos.selectCustomer')}</Text>
             </View>
 
-            <View style={styles.modalSearchRow}>
-              <View style={[styles.modalSearch, { backgroundColor: isDark ? colors.surfaceSubtle : colors.slate[100], flex: 1 }]}>
+            <View style={[styles.modalSearchRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <View style={[styles.modalSearch, { backgroundColor: isDark ? colors.surfaceSubtle : colors.slate[100], flex: 1, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                 <Search size={16} color={colors.slate[400]} />
                 <TextInput
-                  style={[styles.modalSearchInput, { color: colors.text.primary }]}
-                  placeholder="ابحث بالاسم أو الهاتف..."
+                  style={[styles.modalSearchInput, { color: colors.text.primary, textAlign }]}
+                  placeholder={t('customers.searchPlaceholder')}
                   value={customerSearch}
                   onChangeText={setCustomerSearch}
                   placeholderTextColor={colors.slate[400]}
-                  textAlign="right"
                 />
               </View>
               <TouchableOpacity
@@ -1566,7 +1759,7 @@ export const POSScreen = ({ route, navigation }: any) => {
               <TouchableOpacity
                 style={[
                   styles.customerOption,
-                  { borderBottomColor: colors.border.subtle },
+                  { borderBottomColor: colors.border.subtle, flexDirection: isRTL ? 'row-reverse' : 'row' },
                   !selectedCustomer && { backgroundColor: colors.primary[50] },
                 ]}
                 onPress={() => {
@@ -1577,9 +1770,9 @@ export const POSScreen = ({ route, navigation }: any) => {
                 {!selectedCustomer ? (
                   <Check size={16} color={colors.primary[600]} />
                 ) : null}
-                <View style={{ alignItems: 'flex-end', flex: 1 }}>
-                  <Text style={[styles.customerOptionName, { color: colors.text.primary }]}>عميل نقدي (عام)</Text>
-                  <Text style={[styles.customerOptionSub, { color: colors.text.tertiary }]}>بدون حساب آجل</Text>
+                <View style={{ alignItems: isRTL ? 'flex-start' : 'flex-end', flex: 1 }}>
+                  <Text style={[styles.customerOptionName, { color: colors.text.primary }]}>{t('pos.guestCustomer')}</Text>
+                  <Text style={[styles.customerOptionSub, { color: colors.text.tertiary }]}>{t('customers.settledBalance')}</Text>
                 </View>
               </TouchableOpacity>
 
@@ -1590,7 +1783,7 @@ export const POSScreen = ({ route, navigation }: any) => {
                     key={cust.id}
                     style={[
                       styles.customerOption,
-                      { borderBottomColor: colors.border.subtle },
+                      { borderBottomColor: colors.border.subtle, flexDirection: isRTL ? 'row-reverse' : 'row' },
                       isSelected && { backgroundColor: colors.primary[50] },
                     ]}
                     onPress={() => {
@@ -1601,10 +1794,10 @@ export const POSScreen = ({ route, navigation }: any) => {
                     {isSelected ? (
                       <Check size={16} color={colors.primary[600]} />
                     ) : null}
-                    <View style={{ alignItems: 'flex-end', flex: 1 }}>
+                    <View style={{ alignItems: isRTL ? 'flex-start' : 'flex-end', flex: 1 }}>
                       <Text style={[styles.customerOptionName, { color: colors.text.primary }]}>{cust.name}</Text>
                       <Text style={[styles.customerOptionSub, { color: colors.text.tertiary }]}>
-                        {cust.phone || 'بدون هاتف'} • رصيد دين: {cust.balance || 0} دج
+                        {cust.phone || '-'} • {t('customers.debt')}: {cust.balance || 0} {currency}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -1624,23 +1817,23 @@ export const POSScreen = ({ route, navigation }: any) => {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalSheet, { backgroundColor: colors.surface, maxHeight: 380 }]}>
-            <View style={[styles.modalHeader, { borderBottomColor: colors.border.subtle }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border.subtle, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <TouchableOpacity onPress={() => setShowNewCustomerModal(false)}>
                 <X size={20} color={colors.slate[500]} />
               </TouchableOpacity>
-              <Text style={[styles.modalTitle, { color: colors.text.primary }]}>إضافة زبون جديد</Text>
+              <Text style={[styles.modalTitle, { color: colors.text.primary }]}>{t('customers.addNewCustomer')}</Text>
             </View>
 
             <ScrollView style={{ padding: spacing.lg }}>
               <Input
-                label="اسم الزبون *"
+                label={t('customers.name')}
                 value={newCustomerName}
                 onChangeText={setNewCustomerName}
-                placeholder="أدخل اسم العميل أو المحل"
+                placeholder={t('customers.name')}
                 containerStyle={{ marginBottom: spacing.md }}
               />
               <Input
-                label="رقم الهاتف"
+                label={t('customers.phone')}
                 keyboardType="phone-pad"
                 value={newCustomerPhone}
                 onChangeText={setNewCustomerPhone}
@@ -1648,16 +1841,16 @@ export const POSScreen = ({ route, navigation }: any) => {
                 containerStyle={{ marginBottom: spacing.md }}
               />
               <Input
-                label="الحد الائتماني للديون (دج)"
+                label={t('customers.creditLimit')}
                 keyboardType="numeric"
                 value={newCustomerCreditLimit}
                 onChangeText={setNewCustomerCreditLimit}
-                placeholder="0 (غير محدد)"
+                placeholder="0"
                 containerStyle={{ marginBottom: spacing.md }}
               />
 
               <Button
-                title="حفظ واختيار الزبون"
+                title={t('common.save')}
                 onPress={handleQuickCreateCustomer}
                 variant="primary"
                 style={{ marginTop: spacing.xs }}
@@ -1676,23 +1869,23 @@ export const POSScreen = ({ route, navigation }: any) => {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalSheet, { backgroundColor: colors.surface, maxHeight: 360 }]}>
-            <View style={[styles.modalHeader, { borderBottomColor: colors.border.subtle }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border.subtle, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <TouchableOpacity onPress={() => setShowCustomItemModal(false)}>
                 <X size={20} color={colors.slate[500]} />
               </TouchableOpacity>
-              <Text style={[styles.modalTitle, { color: colors.text.primary }]}>إضافة بند مخصص (بيع حر)</Text>
+              <Text style={[styles.modalTitle, { color: colors.text.primary }]}>{t('pos.customItem')}</Text>
             </View>
 
             <View style={{ padding: spacing.lg }}>
               <Input
-                label="اسم البند / الخدمة *"
+                label={t('pos.customItem')}
                 value={customItemName}
                 onChangeText={setCustomItemName}
-                placeholder="مثال: خدمة صيانة، صنف غير مسجل..."
+                placeholder={t('pos.customItem')}
                 containerStyle={{ marginBottom: spacing.md }}
               />
               <Input
-                label="السعر الفردي (دج) *"
+                label={t('pos.price')}
                 keyboardType="numeric"
                 value={customItemPrice}
                 onChangeText={setCustomItemPrice}
@@ -1700,7 +1893,7 @@ export const POSScreen = ({ route, navigation }: any) => {
                 containerStyle={{ marginBottom: spacing.md }}
               />
               <Input
-                label="الكمية"
+                label={t('pos.quantity')}
                 keyboardType="numeric"
                 value={customItemQty}
                 onChangeText={setCustomItemQty}
@@ -1709,7 +1902,7 @@ export const POSScreen = ({ route, navigation }: any) => {
               />
 
               <Button
-                title="إضافة إلى السلة"
+                title={t('pos.checkout')}
                 onPress={handleAddCustomItem}
                 variant="primary"
               />
@@ -1727,14 +1920,14 @@ export const POSScreen = ({ route, navigation }: any) => {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalSheet, { backgroundColor: colors.surface, maxHeight: 320 }]}>
-            <View style={[styles.modalHeader, { borderBottomColor: colors.border.subtle }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border.subtle, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <TouchableOpacity onPress={() => setShowDiscountModal(false)}>
                 <X size={20} color={colors.slate[500]} />
               </TouchableOpacity>
-              <Text style={[styles.modalTitle, { color: colors.text.primary }]}>إضافة خصم على الفاتورة</Text>
+              <Text style={[styles.modalTitle, { color: colors.text.primary }]}>{t('pos.discount')}</Text>
             </View>
 
-            <View style={styles.discountToggleRow}>
+            <View style={[styles.discountToggleRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <TouchableOpacity
                 style={[
                   styles.discountToggleBtn,
@@ -1748,7 +1941,7 @@ export const POSScreen = ({ route, navigation }: any) => {
                     discountType === 'amount' && { color: '#ffffff' },
                   ]}
                 >
-                  مبلغ ثابت (دج)
+                  {t('pos.discountAmount')} ({currency})
                 </Text>
               </TouchableOpacity>
 
@@ -1765,14 +1958,14 @@ export const POSScreen = ({ route, navigation }: any) => {
                     discountType === 'percent' && { color: '#ffffff' },
                   ]}
                 >
-                  نسبة مئوية (%)
+                  {t('pos.discountPercent')}
                 </Text>
               </TouchableOpacity>
             </View>
 
             <View style={{ padding: spacing.lg }}>
               <Input
-                label="قيمة الخصم"
+                label={t('pos.discount')}
                 keyboardType="numeric"
                 value={discountValue}
                 onChangeText={setDiscountValue}
@@ -1780,7 +1973,7 @@ export const POSScreen = ({ route, navigation }: any) => {
               />
 
               <Button
-                title="تطبيق الخصم"
+                title={t('pos.applyDiscount')}
                 onPress={() => setShowDiscountModal(false)}
                 style={{ marginTop: spacing.md }}
               />
@@ -1798,22 +1991,22 @@ export const POSScreen = ({ route, navigation }: any) => {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalSheet, { backgroundColor: colors.surface, maxHeight: '88%' }]}>
-            <View style={[styles.modalHeader, { borderBottomColor: colors.border.subtle }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border.subtle, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <TouchableOpacity onPress={() => setShowCheckoutModal(false)}>
                 <X size={20} color={colors.slate[500]} />
               </TouchableOpacity>
-              <Text style={[styles.modalTitle, { color: colors.text.primary }]}>تأكيد وإصدار الفاتورة</Text>
+              <Text style={[styles.modalTitle, { color: colors.text.primary }]}>{t('pos.checkout')}</Text>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: spacing.lg }}>
               {/* Document Type Selector */}
-              <Text style={[styles.fieldLabel, { color: colors.text.secondary }]}>نوع الوثيقة التجارية</Text>
-              <View style={styles.docTypeRow}>
+              <Text style={[styles.fieldLabel, { color: colors.text.secondary, textAlign }]}>{t('pos.docType')}</Text>
+              <View style={[styles.docTypeRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                 {[
-                  { id: 'facture', label: 'فاتورة بيع' },
-                  { id: 'bl', label: 'سند تسليم (BL)' },
-                  { id: 'devis', label: 'عرض أسعار' },
-                  { id: 'proforma', label: 'فاتورة شكلية' },
+                  { id: 'facture', label: t('pos.invoice') },
+                  { id: 'bl', label: t('pos.deliveryNote') },
+                  { id: 'devis', label: t('pos.quote') },
+                  { id: 'proforma', label: t('pos.proforma') },
                 ].map((doc) => (
                   <TouchableOpacity
                     key={doc.id}
@@ -1839,18 +2032,18 @@ export const POSScreen = ({ route, navigation }: any) => {
 
               {/* Summary Card */}
               <View style={[styles.checkoutSummaryCard, { backgroundColor: isDark ? colors.surfaceElevated : colors.primary[50] }]}>
-                <Text style={[styles.checkoutTotalLabel, { color: colors.text.secondary }]}>المبلغ الإجمالي المستحق</Text>
+                <Text style={[styles.checkoutTotalLabel, { color: colors.text.secondary }]}>{t('pos.totalDue')}</Text>
                 <Text style={[styles.checkoutTotalAmount, { color: colors.primary[700] }]}>
-                  {total.toLocaleString('ar-DZ')} <Text style={styles.currency}>دج</Text>
+                  {total.toLocaleString(language === 'ar' ? 'ar-DZ' : 'fr-FR')} <Text style={styles.currency}>{currency}</Text>
                 </Text>
                 <Text style={[styles.checkoutCustomerName, { color: colors.text.secondary }]}>
-                  الزبون: {selectedCustomer?.name || 'زبون عام (نقدي)'}
+                  {t('pos.customer')}: {selectedCustomer?.name || t('pos.guestCustomer')}
                 </Text>
               </View>
 
               {/* Payment Method Selector */}
-              <Text style={[styles.fieldLabel, { color: colors.text.secondary, marginTop: spacing.md }]}>طريقة الدفع</Text>
-              <View style={styles.paymentMethodsContainer}>
+              <Text style={[styles.fieldLabel, { color: colors.text.secondary, marginTop: spacing.md, textAlign }]}>{t('pos.paymentMethod')}</Text>
+              <View style={[styles.paymentMethodsContainer, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                 <TouchableOpacity
                   style={[
                     styles.paymentMethodCard,
@@ -1859,7 +2052,7 @@ export const POSScreen = ({ route, navigation }: any) => {
                   onPress={() => setPaymentMethod('cash')}
                 >
                   <Banknote size={22} color={colors.emerald[700]} />
-                  <Text style={[styles.paymentMethodTitle, { color: colors.text.primary }]}>نقداً (كاش)</Text>
+                  <Text style={[styles.paymentMethodTitle, { color: colors.text.primary }]}>{t('pos.cash')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -1870,7 +2063,7 @@ export const POSScreen = ({ route, navigation }: any) => {
                   onPress={() => setPaymentMethod('card')}
                 >
                   <CreditCard size={22} color={colors.primary[600]} />
-                  <Text style={[styles.paymentMethodTitle, { color: colors.text.primary }]}>بطاقة (CIB)</Text>
+                  <Text style={[styles.paymentMethodTitle, { color: colors.text.primary }]}>{t('pos.card')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -1881,14 +2074,14 @@ export const POSScreen = ({ route, navigation }: any) => {
                   onPress={() => setPaymentMethod('credit')}
                 >
                   <FileText size={22} color={colors.warning.dark} />
-                  <Text style={[styles.paymentMethodTitle, { color: colors.text.primary }]}>آجل (كريدي)</Text>
+                  <Text style={[styles.paymentMethodTitle, { color: colors.text.primary }]}>{t('pos.credit')}</Text>
                 </TouchableOpacity>
               </View>
 
               {/* Paid Input & Change Calculation */}
               <View style={{ marginTop: spacing.md }}>
                 <Input
-                  label="المبلغ المدفوع من الزبون (دج)"
+                  label={t('pos.amountPaid')}
                   keyboardType="numeric"
                   value={paidInput}
                   onChangeText={setPaidInput}
@@ -1896,7 +2089,7 @@ export const POSScreen = ({ route, navigation }: any) => {
                 />
 
                 {/* Quick Cash Shortcuts */}
-                <View style={styles.cashShortcutsRow}>
+                <View style={[styles.cashShortcutsRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                   {cashShortcuts.map((s, idx) => (
                     <TouchableOpacity
                       key={idx}
@@ -1910,22 +2103,22 @@ export const POSScreen = ({ route, navigation }: any) => {
 
                 {/* Change or Debt Banner */}
                 {changeDue > 0 ? (
-                  <View style={[styles.changeBanner, { backgroundColor: colors.emerald[50], borderColor: colors.emerald[200] }]}>
+                  <View style={[styles.changeBanner, { backgroundColor: colors.emerald[50], borderColor: colors.emerald[200], flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                     <Coins size={18} color={colors.emerald[700]} />
-                    <View style={{ alignItems: 'flex-end', flex: 1 }}>
-                      <Text style={[styles.changeBannerLabel, { color: colors.emerald[700] }]}>الصرف المرجع للزبون:</Text>
+                    <View style={{ alignItems: isRTL ? 'flex-start' : 'flex-end', flex: 1 }}>
+                      <Text style={[styles.changeBannerLabel, { color: colors.emerald[700] }]}>{t('pos.change')}:</Text>
                       <Text style={[styles.changeBannerVal, { color: colors.emerald[700] }]}>
-                        {changeDue.toLocaleString('ar-DZ')} دج
+                        {changeDue.toLocaleString(language === 'ar' ? 'ar-DZ' : 'fr-FR')} {currency}
                       </Text>
                     </View>
                   </View>
                 ) : remainingDebt > 0 ? (
-                  <View style={[styles.changeBanner, { backgroundColor: colors.warning.light, borderColor: colors.warning.border }]}>
+                  <View style={[styles.changeBanner, { backgroundColor: colors.warning.light, borderColor: colors.warning.border, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                     <ShieldAlert size={18} color={colors.warning.dark} />
-                    <View style={{ alignItems: 'flex-end', flex: 1 }}>
-                      <Text style={[styles.changeBannerLabel, { color: colors.warning.text }]}>المتبقي كدين (كريدي):</Text>
+                    <View style={{ alignItems: isRTL ? 'flex-start' : 'flex-end', flex: 1 }}>
+                      <Text style={[styles.changeBannerLabel, { color: colors.warning.text }]}>{t('pos.remaining')}:</Text>
                       <Text style={[styles.changeBannerVal, { color: colors.warning.text }]}>
-                        {remainingDebt.toLocaleString('ar-DZ')} دج
+                        {remainingDebt.toLocaleString(language === 'ar' ? 'ar-DZ' : 'fr-FR')} {currency}
                       </Text>
                     </View>
                   </View>
@@ -1934,15 +2127,15 @@ export const POSScreen = ({ route, navigation }: any) => {
 
               {/* Note Input */}
               <Input
-                label="ملاحظات الفاتورة (اختياري)"
+                label={t('pos.notePlaceholder')}
                 value={checkoutNote}
                 onChangeText={setCheckoutNote}
-                placeholder="أية ملاحظات إضافية على الفاتورة..."
+                placeholder={t('pos.notePlaceholder')}
                 containerStyle={{ marginTop: spacing.md }}
               />
 
               <Button
-                title={checkoutLoading ? 'جاري الإصدار والطباعة...' : 'تأكيد وإصدار الفاتورة'}
+                title={checkoutLoading ? '...' : t('pos.checkout')}
                 onPress={handlePaymentConfirm}
                 disabled={checkoutLoading}
                 variant="primary"
@@ -1963,39 +2156,39 @@ export const POSScreen = ({ route, navigation }: any) => {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalSheet, { backgroundColor: colors.surface }]}>
-            <View style={[styles.modalHeader, { borderBottomColor: colors.border.subtle }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border.subtle, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <TouchableOpacity onPress={() => setShowSuspendedModal(false)}>
                 <X size={20} color={colors.slate[500]} />
               </TouchableOpacity>
-              <Text style={[styles.modalTitle, { color: colors.text.primary }]}>الطلبات المعلقة</Text>
+              <Text style={[styles.modalTitle, { color: colors.text.primary }]}>{t('pos.suspendedOrders')}</Text>
             </View>
 
             <ScrollView style={styles.modalList}>
               {suspendedOrders.length === 0 ? (
                 <EmptyState
                   icon={<Clock size={28} color={colors.slate[400]} />}
-                  title="لا توجد طلبات معلقة"
-                  description="يمكنك تعليق أي طلب والرجوع إليه لاحقاً"
+                  title={t('pos.noSuspendedOrders')}
+                  description={t('pos.noSuspendedOrders')}
                 />
               ) : (
                 suspendedOrders.map((o) => (
                   <TouchableOpacity
                     key={o.id}
-                    style={[styles.suspendedRow, { borderBottomColor: colors.border.subtle }]}
+                    style={[styles.suspendedRow, { borderBottomColor: colors.border.subtle, flexDirection: isRTL ? 'row-reverse' : 'row' }]}
                     onPress={() => resumeOrder(o)}
                   >
-                    <View style={{ alignItems: 'flex-start' }}>
+                    <View style={{ alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
                       <Badge variant="primary" size="sm">
-                        استرجاع
+                        {t('pos.restoreOrder')}
                       </Badge>
                     </View>
-                    <View style={{ alignItems: 'flex-end', flex: 1 }}>
+                    <View style={{ alignItems: isRTL ? 'flex-start' : 'flex-end', flex: 1 }}>
                       <Text style={[styles.suspendedTitle, { color: colors.text.primary }]}>
-                        سلة ({o.items?.length || 0} منتجات)
+                        {t('pos.cart')} ({o.items?.length || 0})
                       </Text>
                       <Text style={[styles.suspendedSub, { color: colors.text.tertiary }]}>
-                        {o.customerName || 'زبون عام'} •{' '}
-                        {new Date(o.suspendedAt).toLocaleTimeString('ar-DZ', {
+                        {o.customerName || t('pos.guestCustomer')} •{' '}
+                        {new Date(o.suspendedAt).toLocaleTimeString(language === 'ar' ? 'ar-DZ' : 'fr-FR', {
                           hour: '2-digit',
                           minute: '2-digit',
                         })}
@@ -2027,24 +2220,24 @@ export const POSScreen = ({ route, navigation }: any) => {
             </View>
 
             <Text style={[styles.successModalTitle, { color: colors.text.primary }]}>
-              تم إصدار الفاتورة بنجاح ✓
+              {t('pos.saleCompleted')} ✓
             </Text>
             <Text style={[styles.successModalInvoiceNum, { color: colors.primary[600] }]}>
               {completedInvoiceNum}
             </Text>
 
             {completedChangeDue > 0 && (
-              <View style={[styles.successChangeBox, { backgroundColor: colors.emerald[50], borderColor: colors.emerald[200] }]}>
+              <View style={[styles.successChangeBox, { backgroundColor: colors.emerald[50], borderColor: colors.emerald[200], flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                 <Coins size={18} color={colors.emerald[700]} />
                 <Text style={[styles.successChangeText, { color: colors.emerald[700] }]}>
-                  الصرف المرجع للزبون: {completedChangeDue.toLocaleString('ar-DZ')} دج
+                  {t('pos.change')}: {completedChangeDue.toLocaleString(language === 'ar' ? 'ar-DZ' : 'fr-FR')} {currency}
                 </Text>
               </View>
             )}
 
-            <View style={styles.successActionsRow}>
+            <View style={[styles.successActionsRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <Button
-                title="معاينة وطباعة الفاتورة"
+                title={t('sales.previewTemplate')}
                 icon={<Printer size={18} color="#fff" />}
                 onPress={() => {
                   setShowSuccessModal(false);
@@ -2054,7 +2247,7 @@ export const POSScreen = ({ route, navigation }: any) => {
                 style={{ flex: 1 }}
               />
               <Button
-                title="فاتورة جديدة"
+                title={t('pos.newSale')}
                 icon={<Plus size={18} color={colors.text.primary} />}
                 onPress={() => setShowSuccessModal(false)}
                 variant="secondary"
@@ -2063,6 +2256,266 @@ export const POSScreen = ({ route, navigation }: any) => {
             </View>
           </View>
         </View>
+      </Modal>
+
+      {/* Price Selection Modal for Custom Prices & Wholesale */}
+      <Modal
+        visible={showPriceModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowPriceModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowPriceModal(false)}
+        >
+          <View
+            style={styles.priceModalCard}
+            onStartShouldSetResponder={() => true}
+          >
+            {/* Modal Header */}
+            <View style={[styles.priceModalHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <View style={[styles.priceModalTitleBox, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+                <Text style={styles.priceModalTitle}>
+                  {priceModalProduct?.name || 'تحديد السعر والكمية'}
+                </Text>
+                <View style={[styles.priceModalMetaRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                  {priceModalProduct?.category ? (
+                    <View style={styles.priceModalBadge}>
+                      <Text style={styles.priceModalBadgeText}>{priceModalProduct.category}</Text>
+                    </View>
+                  ) : null}
+                  <Text style={styles.priceModalStockText}>
+                    المتوفر: {priceModalProduct?.quantity || 0} {priceModalProduct?.unit || 'قطعة'}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={styles.priceModalCloseBtn}
+                onPress={() => setShowPriceModal(false)}
+                activeOpacity={0.7}
+              >
+                <X size={20} color={colors.text.tertiary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: 280, marginVertical: spacing.sm }} showsVerticalScrollIndicator={false}>
+              <Text style={[styles.priceModalSectionTitle, { textAlign }]}>
+                اختر السعر المناسب للبيع:
+              </Text>
+
+              <View style={styles.priceOptionsList}>
+                {/* 1. Default Retail Price */}
+                <TouchableOpacity
+                  style={[
+                    styles.priceOptionCard,
+                    selectedPriceOption?.label === 'سعر البيع الافتراضي' && styles.priceOptionCardActive,
+                    { flexDirection: isRTL ? 'row-reverse' : 'row' },
+                  ]}
+                  onPress={() => {
+                    if (!priceModalProduct) return;
+                    setSelectedPriceOption({
+                      label: 'سعر البيع الافتراضي',
+                      price: priceModalProduct.retailPrice,
+                      isCustom: false,
+                    });
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <View style={[styles.priceOptionIconBox, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#eff6ff' }]}>
+                    <Tag size={18} color={isDark ? '#60a5fa' : '#2563eb'} />
+                  </View>
+                  <View style={[styles.priceOptionTextBox, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+                    <Text style={styles.priceOptionName}>سعر البيع الافتراضي (تجزئة)</Text>
+                    <Text style={styles.priceOptionUnit}>الوحدة: {priceModalProduct?.unit || 'قطعة'}</Text>
+                  </View>
+                  <View style={styles.priceOptionAmountBox}>
+                    <Text style={styles.priceOptionAmount}>
+                      {priceModalProduct?.retailPrice} {currency}
+                    </Text>
+                    {selectedPriceOption?.label === 'سعر البيع الافتراضي' ? (
+                      <CheckCircle2 size={18} color={colors.primary[500]} />
+                    ) : null}
+                  </View>
+                </TouchableOpacity>
+
+                {/* 2. Wholesale Price (if set) */}
+                {priceModalProduct?.wholesalePrice && priceModalProduct.wholesalePrice > 0 ? (
+                  <TouchableOpacity
+                    style={[
+                      styles.priceOptionCard,
+                      selectedPriceOption?.label === 'سعر الجملة' && styles.priceOptionCardActive,
+                      { flexDirection: isRTL ? 'row-reverse' : 'row' },
+                    ]}
+                    onPress={() => {
+                      setSelectedPriceOption({
+                        label: 'سعر الجملة',
+                        price: priceModalProduct.wholesalePrice!,
+                        isCustom: false,
+                      });
+                    }}
+                    activeOpacity={0.75}
+                  >
+                    <View style={[styles.priceOptionIconBox, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.2)' : '#ecfdf5' }]}>
+                      <Store size={18} color={isDark ? '#34d399' : '#059669'} />
+                    </View>
+                    <View style={[styles.priceOptionTextBox, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+                      <Text style={styles.priceOptionName}>سعر الجملة</Text>
+                      {priceModalProduct.wholesaleMinQty && priceModalProduct.wholesaleMinQty > 0 ? (
+                        <Text style={styles.priceOptionUnit}>أدنى كمية: {priceModalProduct.wholesaleMinQty}</Text>
+                      ) : null}
+                    </View>
+                    <View style={styles.priceOptionAmountBox}>
+                      <Text style={styles.priceOptionAmount}>
+                        {priceModalProduct.wholesalePrice} {currency}
+                      </Text>
+                      {selectedPriceOption?.label === 'سعر الجملة' ? (
+                        <CheckCircle2 size={18} color={colors.primary[500]} />
+                      ) : null}
+                    </View>
+                  </TouchableOpacity>
+                ) : null}
+
+                {/* 3. Custom Prices */}
+                {(() => {
+                  const raw = (priceModalProduct as any)?.customPrices ?? (priceModalProduct as any)?.custom_prices;
+                  let list: any[] = [];
+                  if (raw) {
+                    try {
+                      list = typeof raw === 'string' ? JSON.parse(raw) : (Array.isArray(raw) ? raw : []);
+                    } catch {
+                      list = [];
+                    }
+                  }
+                  return list.map((cp: any) => {
+                    const isSelected = selectedPriceOption?.label === cp.name;
+                    const priceNum = Number(cp.price) || 0;
+                    return (
+                      <TouchableOpacity
+                        key={cp.id || cp.name}
+                        style={[
+                          styles.priceOptionCard,
+                          isSelected && styles.priceOptionCardActive,
+                          { flexDirection: isRTL ? 'row-reverse' : 'row' },
+                        ]}
+                        onPress={() => {
+                          setSelectedPriceOption({
+                            label: cp.name,
+                            price: priceNum,
+                            isCustom: true,
+                            barcode: cp.barcode,
+                          });
+                        }}
+                        activeOpacity={0.75}
+                      >
+                        <View style={[styles.priceOptionIconBox, { backgroundColor: isDark ? 'rgba(168, 85, 247, 0.2)' : '#f5f3ff' }]}>
+                          <Sparkles size={18} color={isDark ? '#c084fc' : '#9333ea'} />
+                        </View>
+                        <View style={[styles.priceOptionTextBox, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+                          <Text style={styles.priceOptionName}>{cp.name}</Text>
+                          {cp.barcode ? (
+                            <Text style={styles.priceOptionUnit}>باركود: {cp.barcode}</Text>
+                          ) : null}
+                        </View>
+                        <View style={styles.priceOptionAmountBox}>
+                          <Text style={styles.priceOptionAmount}>
+                            {priceNum} {currency}
+                          </Text>
+                          {isSelected ? (
+                            <CheckCircle2 size={18} color={colors.primary[500]} />
+                          ) : null}
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  });
+                })()}
+              </View>
+            </ScrollView>
+
+            {/* Quantity Selector Box */}
+            <View style={styles.priceModalQtyBox}>
+              <View style={[styles.priceModalQtyRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <Text style={styles.priceModalQtyLabel}>الكمية:</Text>
+                <View style={[styles.qtyCounterGroup, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                  <TouchableOpacity
+                    style={styles.qtyCounterBtn}
+                    onPress={() => setPriceModalQty((q) => Math.max(1, q - 1))}
+                  >
+                    <Minus size={16} color={colors.text.primary} />
+                  </TouchableOpacity>
+                  <Text style={styles.qtyCounterVal}>{priceModalQty}</Text>
+                  <TouchableOpacity
+                    style={styles.qtyCounterBtn}
+                    onPress={() => setPriceModalQty((q) => q + 1)}
+                  >
+                    <Plus size={16} color={colors.text.primary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Quick Qty Chips */}
+              <View style={[styles.quickQtyChipsRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                {[1, 2, 5, 10].map((q) => (
+                  <TouchableOpacity
+                    key={q}
+                    style={[
+                      styles.quickQtyChip,
+                      priceModalQty === q && styles.quickQtyChipActive,
+                    ]}
+                    onPress={() => setPriceModalQty(q)}
+                  >
+                    <Text
+                      style={[
+                        styles.quickQtyChipText,
+                        priceModalQty === q && styles.quickQtyChipTextActive,
+                      ]}
+                    >
+                      {q}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Total and Action Button */}
+            <View style={[styles.priceModalFooter, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <View style={[styles.priceModalTotalBox, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+                <Text style={styles.priceModalTotalLabel}>الإجمالي:</Text>
+                <Text style={styles.priceModalTotalVal}>
+                  {((selectedPriceOption?.price || 0) * priceModalQty).toLocaleString()} {currency}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.priceModalAddBtn}
+                onPress={() => {
+                  if (!priceModalProduct || !selectedPriceOption) return;
+                  addToCart(
+                    priceModalProduct,
+                    priceModalQty,
+                    selectedPriceOption.label === 'سعر البيع الافتراضي'
+                      ? undefined
+                      : {
+                          label: selectedPriceOption.label,
+                          price: selectedPriceOption.price,
+                          isCustom: selectedPriceOption.isCustom,
+                        }
+                  );
+                  setShowPriceModal(false);
+                  notify.success(
+                    `تمت إضافة ${priceModalProduct.name} (${selectedPriceOption.label})`,
+                    t('pos.cart')
+                  );
+                }}
+                activeOpacity={0.85}
+              >
+                <ShoppingCart size={18} color="#ffffff" style={{ marginLeft: 6 }} />
+                <Text style={styles.priceModalAddBtnText}>إضافة إلى السلة</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
       </Modal>
 
       {/* Invoice Print Preview Modal */}
@@ -2815,6 +3268,236 @@ const makeStyles = (colors: any, isDark: boolean) =>
       gap: spacing.sm,
       width: '100%',
       marginTop: spacing.xs,
+    },
+
+    // Price Selection Modal Styles
+    priceModalCard: {
+      backgroundColor: isDark ? '#111827' : '#ffffff',
+      borderTopLeftRadius: radii.xxl,
+      borderTopRightRadius: radii.xxl,
+      padding: spacing.lg,
+      maxHeight: '85%',
+      borderTopWidth: 1,
+      borderTopColor: isDark ? 'rgba(255, 255, 255, 0.1)' : '#e2e8f0',
+      ...shadows.lg,
+    },
+    priceModalHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingBottom: spacing.sm + 2,
+      borderBottomWidth: 1,
+      borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#f1f5f9',
+    },
+    priceModalTitleBox: {
+      flex: 1,
+      gap: 2,
+    },
+    priceModalTitle: {
+      fontSize: 16,
+      fontWeight: '800',
+      fontFamily: 'Cairo',
+      color: colors.text.primary,
+    },
+    priceModalMetaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      marginTop: 2,
+    },
+    priceModalBadge: {
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 2,
+      borderRadius: radii.sm,
+      backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#eff6ff',
+    },
+    priceModalBadgeText: {
+      fontSize: 11,
+      fontFamily: 'Cairo',
+      fontWeight: '700',
+      color: isDark ? '#60a5fa' : '#2563eb',
+    },
+    priceModalStockText: {
+      fontSize: 11.5,
+      fontFamily: 'Cairo',
+      color: colors.text.secondary,
+    },
+    priceModalCloseBtn: {
+      width: 34,
+      height: 34,
+      borderRadius: radii.circle,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#f1f5f9',
+    },
+    priceModalSectionTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      fontFamily: 'Cairo',
+      color: colors.text.secondary,
+      marginVertical: spacing.xs,
+    },
+    priceOptionsList: {
+      gap: spacing.xs + 2,
+      marginVertical: spacing.xs,
+    },
+    priceOptionCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: spacing.md,
+      borderRadius: radii.xl,
+      borderWidth: 1.5,
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#e2e8f0',
+      backgroundColor: isDark ? '#0c1322' : '#f8fafc',
+      gap: spacing.sm,
+    },
+    priceOptionCardActive: {
+      borderColor: colors.primary[500],
+      backgroundColor: isDark ? 'rgba(59, 130, 246, 0.12)' : '#eff6ff',
+    },
+    priceOptionIconBox: {
+      width: 38,
+      height: 38,
+      borderRadius: radii.lg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    priceOptionTextBox: {
+      flex: 1,
+      gap: 1,
+    },
+    priceOptionName: {
+      fontSize: 13.5,
+      fontWeight: '800',
+      fontFamily: 'Cairo',
+      color: colors.text.primary,
+    },
+    priceOptionUnit: {
+      fontSize: 11,
+      fontFamily: 'Cairo',
+      color: colors.text.tertiary,
+    },
+    priceOptionAmountBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    priceOptionAmount: {
+      fontSize: 15,
+      fontWeight: '900',
+      fontFamily: 'Cairo',
+      color: isDark ? '#34d399' : '#059669',
+    },
+    priceModalQtyBox: {
+      paddingVertical: spacing.sm,
+      borderTopWidth: 1,
+      borderTopColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#f1f5f9',
+      gap: spacing.xs,
+    },
+    priceModalQtyRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    priceModalQtyLabel: {
+      fontSize: 13,
+      fontWeight: '700',
+      fontFamily: 'Cairo',
+      color: colors.text.primary,
+    },
+    qtyCounterGroup: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      backgroundColor: isDark ? '#0c1322' : '#f1f5f9',
+      borderRadius: radii.xl,
+      padding: 3,
+    },
+    qtyCounterBtn: {
+      width: 34,
+      height: 34,
+      borderRadius: radii.lg,
+      backgroundColor: isDark ? '#1e293b' : '#ffffff',
+      alignItems: 'center',
+      justifyContent: 'center',
+      ...shadows.xs,
+    },
+    qtyCounterVal: {
+      fontSize: 15,
+      fontWeight: '800',
+      fontFamily: 'Cairo',
+      color: colors.text.primary,
+      minWidth: 28,
+      textAlign: 'center',
+    },
+    quickQtyChipsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+      marginTop: spacing.xs,
+    },
+    quickQtyChip: {
+      flex: 1,
+      paddingVertical: 6,
+      borderRadius: radii.lg,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#e2e8f0',
+      backgroundColor: isDark ? '#0c1322' : '#f8fafc',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    quickQtyChipActive: {
+      borderColor: colors.primary[500],
+      backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#eff6ff',
+    },
+    quickQtyChipText: {
+      fontSize: 12,
+      fontWeight: '700',
+      fontFamily: 'Cairo',
+      color: colors.text.secondary,
+    },
+    quickQtyChipTextActive: {
+      color: isDark ? '#60a5fa' : '#2563eb',
+    },
+    priceModalFooter: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingTop: spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#f1f5f9',
+      gap: spacing.md,
+    },
+    priceModalTotalBox: {
+      flex: 1,
+    },
+    priceModalTotalLabel: {
+      fontSize: 11,
+      fontFamily: 'Cairo',
+      color: colors.text.tertiary,
+    },
+    priceModalTotalVal: {
+      fontSize: 16,
+      fontWeight: '900',
+      fontFamily: 'Cairo',
+      color: isDark ? '#34d399' : '#059669',
+    },
+    priceModalAddBtn: {
+      flex: 1.5,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.primary[600],
+      paddingVertical: spacing.sm + 4,
+      borderRadius: radii.xl,
+      ...shadows.sm,
+    },
+    priceModalAddBtnText: {
+      color: '#ffffff',
+      fontSize: 14,
+      fontWeight: '800',
+      fontFamily: 'Cairo',
     },
   });
 

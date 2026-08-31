@@ -36,9 +36,13 @@ import { Card, CardHeader, CardTitle, CardContent, Badge, Button } from '@/compo
 
 import { notify } from '@/lib/notify';
 
+import { useI18n } from '@/store/i18nStore';
+import { ArrowLeft } from 'lucide-react-native';
+
 export const InvoiceDetailScreen = ({ route, navigation }: any) => {
   const { saleId, sale: initialSale } = route.params || {};
   const { isDark, colors } = useTheme();
+  const { t, isRTL, textAlign, currency, language } = useI18n();
   const styles = useMemo(() => makeStyles(colors, isDark), [colors, isDark]);
 
   const [sale, setSale] = useState<Sale | null>(initialSale || null);
@@ -110,12 +114,13 @@ function parseSaleItems(raw: unknown): any[] {
   }));
 
   const items: any[] = rawItems.length > 0 ? rawItems : parsedDbItems;
+  const localeStr = language === 'ar' ? 'ar-DZ' : language === 'fr' ? 'fr-FR' : 'en-US';
 
   const invoicePrintData: PrintInvoiceData | null = sale
     ? {
         id: sale.id,
         number: sale.number,
-        date: new Date(sale.date || (sale as any).created_at || (sale as any).createdAt || Date.now()).toLocaleString('ar-DZ'),
+        date: new Date(sale.date || (sale as any).created_at || (sale as any).createdAt || Date.now()).toLocaleString(localeStr),
         items: (Array.isArray(items) ? items : []).map((i) => ({
           name: i?.name || '',
           qty: Number(i?.qty || i?.quantity || 1),
@@ -126,7 +131,7 @@ function parseSaleItems(raw: unknown): any[] {
         discount: Number(sale.discount || 0),
         tvaAmount: Number(sale.tvaAmount || (sale as any).tva_amount || 0),
         total: Number(sale.total || 0),
-        paymentMethod: sale.paymentMethod === 'credit' || (sale as any).payment_method === 'credit' ? 'آجل (كريدي)' : 'نقداً',
+        paymentMethod: sale.paymentMethod === 'credit' || (sale as any).payment_method === 'credit' ? t('pos.credit') : t('pos.cash'),
         customerName: sale.customerName || (sale as any).customer_name || '',
         soldBy: sale.soldBy || (sale as any).sold_by || '',
         docType: (sale.docType as any) || 'sale-invoice',
@@ -139,15 +144,15 @@ function parseSaleItems(raw: unknown): any[] {
     try {
       const success = await printInvoice(invoicePrintData);
       if (success) {
-        notify.success('تم إرسال الفاتورة إلى الطابعة بنجاح', '✓ تمت الطباعة');
+        notify.success(t('sales.reprintSuccess'), '✓');
       } else {
         notify.warning(
-          'تعذر الاتصال بالطابعة المباشرة. تأكد من تشغيل البلوتوث أو الطابعة.',
-          'تنبيه الطباعة'
+          t('sales.printerConnectionWarning'),
+          t('common.warning')
         );
       }
     } catch (err) {
-      notify.error(err, 'فشل تنفيذ عملية الطباعة');
+      notify.error(err, t('sales.printJobFailed'));
     }
     setPrinting(false);
   };
@@ -155,18 +160,17 @@ function parseSaleItems(raw: unknown): any[] {
   const handleShare = async () => {
     if (!sale) return;
     try {
-      let text = `🧾 *فاتورة مبيعات: ${sale.number}*\n`;
-      text += `📅 التاريخ: ${new Date(sale.date || '').toLocaleDateString('ar-DZ')}\n`;
-      if (sale.customerName) text += `👤 العميل: ${sale.customerName}\n`;
+      let text = `🧾 *${t('pos.invoice')}: ${sale.number}*\n`;
+      text += `📅 ${t('sales.invoiceDate')}: ${new Date(sale.date || '').toLocaleDateString(localeStr)}\n`;
+      if (sale.customerName) text += `👤 ${t('pos.customer')}: ${sale.customerName}\n`;
       text += `--------------------------\n`;
       items.forEach((item, idx) => {
-        text += `${idx + 1}. ${item.name} (${item.qty} × ${(item.unitPrice || 0).toLocaleString('ar-DZ')} دج) = ${((item.qty || 1) * (item.unitPrice || 0)).toLocaleString('ar-DZ')} دج\n`;
+        text += `${idx + 1}. ${item.name} (${item.qty} × ${(item.unitPrice || 0).toLocaleString(localeStr)} ${currency}) = ${((item.qty || 1) * (item.unitPrice || 0)).toLocaleString(localeStr)} ${currency}\n`;
       });
       text += `--------------------------\n`;
-      if (sale.discount > 0) text += `الخصم: ${(sale.discount || 0).toLocaleString('ar-DZ')} دج\n`;
-      text += `💰 *الإجمالي: ${(sale.total || 0).toLocaleString('ar-DZ')} دج*\n`;
-      text += `طريقة الدفع: ${sale.paymentMethod === 'credit' ? 'كريدي (آجل)' : 'نقدي'}\n`;
-      text += `شكراً لتعاملكم معنا! 🙏`;
+      if (sale.discount > 0) text += `${t('common.discount')}: ${(sale.discount || 0).toLocaleString(localeStr)} ${currency}\n`;
+      text += `💰 *${t('common.total')}: ${(sale.total || 0).toLocaleString(localeStr)} ${currency}*\n`;
+      text += `${t('pos.paymentMethod')}: ${sale.paymentMethod === 'credit' ? t('pos.credit') : t('pos.cash')}\n`;
 
       await Share.share({ message: text });
     } catch {
@@ -185,8 +189,8 @@ function parseSaleItems(raw: unknown): any[] {
   if (!sale) {
     return (
       <View style={styles.center}>
-        <Text style={styles.emptyText}>لم يتم العثور على الفاتورة</Text>
-        <Button title="العودة" variant="primary" onPress={() => navigation.goBack()} />
+        <Text style={styles.emptyText}>{t('sales.noInvoicesFound')}</Text>
+        <Button title={t('common.back')} variant="primary" onPress={() => navigation.goBack()} />
       </View>
     );
   }
@@ -196,15 +200,15 @@ function parseSaleItems(raw: unknown): any[] {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBackBtn} activeOpacity={0.7}>
-          <ArrowRight size={22} color={colors.text.primary} />
+          {isRTL ? <ArrowRight size={22} color={colors.text.primary} /> : <ArrowLeft size={22} color={colors.text.primary} />}
         </TouchableOpacity>
         <View style={styles.headerTitleCol}>
-          <Text style={styles.headerTitle}>تفاصيل الفاتورة</Text>
+          <Text style={styles.headerTitle}>{t('sales.invoiceDetails')}</Text>
           <Text style={styles.headerSubtitle}>{sale.number}</Text>
         </View>
-        <View style={styles.headerActions}>
+        <View style={[styles.headerActions, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
           <TouchableOpacity style={styles.actionIconBtn} onPress={handleShare} activeOpacity={0.7}>
             <Share2 size={18} color={colors.primary[600]} />
           </TouchableOpacity>
@@ -220,27 +224,27 @@ function parseSaleItems(raw: unknown): any[] {
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Quick Print & Reprint Toolbar */}
-        <View style={styles.printToolbar}>
+        <View style={[styles.printToolbar, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
           <TouchableOpacity
-            style={styles.toolBtnSecondary}
+            style={[styles.toolBtnSecondary, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
             onPress={() => setShowReprintModal(true)}
             activeOpacity={0.7}
           >
             <RotateCw size={15} color={colors.slate[700]} />
-            <Text style={styles.toolBtnTextSecondary}>إعادة طباعة</Text>
+            <Text style={styles.toolBtnTextSecondary}>{t('sales.reprint')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.toolBtnSecondary}
+            style={[styles.toolBtnSecondary, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
             onPress={() => setShowPreviewModal(true)}
             activeOpacity={0.7}
           >
             <Eye size={15} color={colors.primary[700]} />
-            <Text style={[styles.toolBtnTextSecondary, { color: colors.primary[700] }]}>معاينة القالب</Text>
+            <Text style={[styles.toolBtnTextSecondary, { color: colors.primary[700] }]}>{t('sales.previewTemplate')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.toolBtnPrimary}
+            style={[styles.toolBtnPrimary, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
             onPress={handleQuickPrint}
             disabled={printing}
             activeOpacity={0.7}
@@ -250,7 +254,7 @@ function parseSaleItems(raw: unknown): any[] {
             ) : (
               <>
                 <Printer size={16} color="#fff" />
-                <Text style={styles.toolBtnTextPrimary}>طباعة سريعة</Text>
+                <Text style={styles.toolBtnTextPrimary}>{t('sales.quickPrint')}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -258,7 +262,7 @@ function parseSaleItems(raw: unknown): any[] {
 
         {/* Status Card */}
         <Card variant={isReturn ? 'subtle' : 'default'} style={[styles.card, isReturn && styles.cardReturn]}>
-          <View style={styles.statusRow}>
+          <View style={[styles.statusRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
             <Badge
               variant={
                 isReturn
@@ -271,47 +275,47 @@ function parseSaleItems(raw: unknown): any[] {
               dot
             >
               {isReturn
-                ? 'مرتجع'
+                ? t('sales.returned')
                 : sale.paymentMethod === 'credit'
-                ? 'آجل (كريدي)'
-                : 'مدفوعة نقداً'}
+                ? t('pos.credit')
+                : t('sales.paidCash')}
             </Badge>
             <Text style={styles.docTypeBadge}>
               {sale.docType === 'devis'
-                ? 'عرض سعر'
+                ? t('pos.quote')
                 : sale.docType === 'bl'
-                ? 'وصل تسليم (BL)'
+                ? t('pos.deliveryNote')
                 : sale.docType === 'proforma'
-                ? 'فاتورة أولية'
-                : 'فاتورة رسمية'}
+                ? t('pos.proforma')
+                : t('pos.invoice')}
             </Text>
           </View>
 
           <View style={styles.divider} />
 
           <View style={styles.infoGrid}>
-            <View style={styles.infoRow}>
+            <View style={[styles.infoRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <Text style={styles.infoVal}>
-                {new Date(sale.date || sale.createdAt || '').toLocaleString('ar-DZ')}
+                {new Date(sale.date || sale.createdAt || '').toLocaleString(localeStr)}
               </Text>
-              <View style={styles.infoLabelGroup}>
-                <Text style={styles.infoLabel}>التاريخ والوقت</Text>
+              <View style={[styles.infoLabelGroup, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <Text style={styles.infoLabel}>{t('sales.invoiceDate')}</Text>
                 <Calendar size={14} color={colors.slate[400]} />
               </View>
             </View>
 
-            <View style={styles.infoRow}>
-              <Text style={styles.infoVal}>{sale.customerName || 'زبون عام (عادي)'}</Text>
-              <View style={styles.infoLabelGroup}>
-                <Text style={styles.infoLabel}>الزبون</Text>
+            <View style={[styles.infoRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <Text style={styles.infoVal}>{sale.customerName || t('pos.guestCustomer')}</Text>
+              <View style={[styles.infoLabelGroup, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <Text style={styles.infoLabel}>{t('pos.customer')}</Text>
                 <User size={14} color={colors.slate[400]} />
               </View>
             </View>
 
-            <View style={styles.infoRow}>
-              <Text style={styles.infoVal}>{sale.soldBy || 'المسؤول'}</Text>
-              <View style={styles.infoLabelGroup}>
-                <Text style={styles.infoLabel}>البائع</Text>
+            <View style={[styles.infoRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <Text style={styles.infoVal}>{sale.soldBy || t('pos.cashierDefault')}</Text>
+              <View style={[styles.infoLabelGroup, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <Text style={styles.infoLabel}>{t('sales.soldBy')}</Text>
                 <FileText size={14} color={colors.slate[400]} />
               </View>
             </View>
@@ -319,17 +323,17 @@ function parseSaleItems(raw: unknown): any[] {
         </Card>
 
         {/* Items List */}
-        <Text style={styles.sectionHeading}>الأصناف والمنتجات ({(Array.isArray(items) ? items : []).length})</Text>
+        <Text style={[styles.sectionHeading, { textAlign }]}>{t('sales.itemsAndProducts')} ({(Array.isArray(items) ? items : []).length})</Text>
         <Card style={styles.card}>
           {(Array.isArray(items) ? items : []).map((item, idx) => (
-            <View key={idx} style={[styles.itemRow, idx > 0 && styles.itemRowBorder]}>
+            <View key={idx} style={[styles.itemRow, idx > 0 && styles.itemRowBorder, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <Text style={styles.itemTotal}>
-                {((item.qty || 1) * (item.unitPrice || 0)).toLocaleString('ar-DZ')} دج
+                {((item.qty || 1) * (item.unitPrice || 0)).toLocaleString(localeStr)} {currency}
               </Text>
-              <View style={styles.itemInfo}>
+              <View style={[styles.itemInfo, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
                 <Text style={styles.itemName}>{item.name}</Text>
                 <Text style={styles.itemCalc}>
-                  {item.qty || 1} × {(item.unitPrice || 0).toLocaleString('ar-DZ')} دج
+                  {item.qty || 1} × {(item.unitPrice || 0).toLocaleString(localeStr)} {currency}
                 </Text>
               </View>
             </View>
@@ -337,42 +341,42 @@ function parseSaleItems(raw: unknown): any[] {
         </Card>
 
         {/* Financial Summary */}
-        <Text style={styles.sectionHeading}>الملخص المالي</Text>
+        <Text style={[styles.sectionHeading, { textAlign }]}>{t('sales.financialSummary')}</Text>
         <Card style={styles.card}>
-          <View style={styles.summaryRow}>
+          <View style={[styles.summaryRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
             <Text style={styles.summaryValue}>
-              {(sale.subtotal || sale.total).toLocaleString('ar-DZ')} دج
+              {(sale.subtotal || sale.total).toLocaleString(localeStr)} {currency}
             </Text>
-            <Text style={styles.summaryLabel}>المجموع الفرعي</Text>
+            <Text style={styles.summaryLabel}>{t('common.subtotal')}</Text>
           </View>
           {(sale.discount || 0) > 0 && (
-            <View style={styles.summaryRow}>
+            <View style={[styles.summaryRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <Text style={[styles.summaryValue, { color: colors.danger.main }]}>
-                - {(sale.discount || 0).toLocaleString('ar-DZ')} دج
+                - {(sale.discount || 0).toLocaleString(localeStr)} {currency}
               </Text>
-              <Text style={styles.summaryLabel}>الخصم</Text>
+              <Text style={styles.summaryLabel}>{t('common.discount')}</Text>
             </View>
           )}
           {(sale.tvaAmount || 0) > 0 && (
-            <View style={styles.summaryRow}>
+            <View style={[styles.summaryRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <Text style={styles.summaryValue}>
-                + {(sale.tvaAmount || 0).toLocaleString('ar-DZ')} دج
+                + {(sale.tvaAmount || 0).toLocaleString(localeStr)} {currency}
               </Text>
-              <Text style={styles.summaryLabel}>الضريبة (TVA)</Text>
+              <Text style={styles.summaryLabel}>{t('common.tax')}</Text>
             </View>
           )}
-          <View style={[styles.summaryRow, styles.summaryTotalRow]}>
+          <View style={[styles.summaryRow, styles.summaryTotalRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
             <Text style={styles.summaryTotalValue}>
-              {(sale.total || 0).toLocaleString('ar-DZ')} دج
+              {(sale.total || 0).toLocaleString(localeStr)} {currency}
             </Text>
-            <Text style={styles.summaryTotalLabel}>المجموع النهائي</Text>
+            <Text style={styles.summaryTotalLabel}>{t('common.total')}</Text>
           </View>
         </Card>
 
         {/* Return Button if not already return */}
         {!isReturn && (
           <Button
-            title="إرجاع منتجات من هذه الفاتورة"
+            title={t('sales.returnItemsFromInvoice')}
             variant="outline"
             size="lg"
             icon={<RotateCcw size={18} color={colors.danger.main} />}

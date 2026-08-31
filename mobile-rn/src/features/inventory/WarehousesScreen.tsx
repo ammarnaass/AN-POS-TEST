@@ -22,6 +22,7 @@ import {
   Check,
   X,
   ChevronLeft,
+  ChevronRight,
   Search,
 } from 'lucide-react-native';
 import { db, ensureInit } from '@/lib/db';
@@ -29,6 +30,7 @@ import { generateId } from '@shared/utils';
 import { useTheme } from '@/theme';
 import { radii, spacing, shadows } from '@/theme/tokens';
 import { Badge, EmptyState } from '@/components/ui';
+import { useI18n } from '@/store/i18nStore';
 
 interface Warehouse {
   id: string;
@@ -46,6 +48,7 @@ interface Warehouse {
 
 export const WarehousesScreen = ({ navigation }: any) => {
   const { isDark, colors } = useTheme();
+  const { t, isRTL, textAlign, currency, language } = useI18n();
   const styles = makeStyles(colors, isDark);
 
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -80,12 +83,11 @@ export const WarehousesScreen = ({ navigation }: any) => {
         db.products.toArray(),
       ]);
 
-      // If empty, auto-seed a default main warehouse
       if (!whList || whList.length === 0) {
         const defaultWh: Warehouse = {
           id: 'wh-main',
-          name: 'المستودع الرئيسي',
-          location: 'المقر المركزي',
+          name: t('inventory.warehouses'),
+          location: 'HQ',
           type: 'main',
           capacity: 5000,
           is_active: 1,
@@ -102,7 +104,7 @@ export const WarehousesScreen = ({ navigation }: any) => {
       console.warn('Load warehouses error:', e);
     }
     setLoading(false);
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     loadData();
@@ -128,7 +130,7 @@ export const WarehousesScreen = ({ navigation }: any) => {
 
   const handleSaveWarehouse = async () => {
     if (!formName.trim()) {
-      Alert.alert('تنبيه', 'يرجى كتابة اسم المستودع');
+      Alert.alert(t('common.warning'), t('inventory.warehouseName'));
       return;
     }
 
@@ -158,27 +160,27 @@ export const WarehousesScreen = ({ navigation }: any) => {
       setModalVisible(false);
       loadData();
     } catch (e) {
-      Alert.alert('خطأ', 'فشل حفظ بيانات المستودع');
+      Alert.alert(t('common.error'), t('common.error'));
     }
   };
 
   const handleDeleteWarehouse = (wh: Warehouse) => {
     if (warehouses.length <= 1) {
-      Alert.alert('تنبيه', 'لا يمكن حذف المستودع الوحيد في النظام');
+      Alert.alert(t('common.warning'), t('common.warning'));
       return;
     }
 
-    Alert.alert('تأكيد الحذف', `هل أنت متأكد من حذف مستودع "${wh.name}"؟`, [
-      { text: 'إلغاء', style: 'cancel' },
+    Alert.alert(t('common.delete'), `${t('common.delete')} "${wh.name}"?`, [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'حذف',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
           try {
             await db.warehouses.delete(wh.id);
             loadData();
           } catch {
-            Alert.alert('خطأ', 'فشل حذف المستودع');
+            Alert.alert(t('common.error'), t('common.error'));
           }
         },
       },
@@ -187,20 +189,20 @@ export const WarehousesScreen = ({ navigation }: any) => {
 
   const handleExecuteTransfer = async () => {
     if (!transferSource || !transferDest) {
-      Alert.alert('تنبيه', 'يرجى تحديد المستودع المصدر والمستودع المستقبل');
+      Alert.alert(t('common.warning'), t('inventory.selectWarehouse'));
       return;
     }
     if (transferSource === transferDest) {
-      Alert.alert('تنبيه', 'المستودع المصدر والمستقبل متطابقان');
+      Alert.alert(t('common.warning'), t('common.warning'));
       return;
     }
     if (!transferProductId) {
-      Alert.alert('تنبيه', 'يرجى اختيار المنتج المراد تحويله');
+      Alert.alert(t('common.warning'), t('inventory.selectCategory'));
       return;
     }
     const qty = parseFloat(transferQty);
     if (isNaN(qty) || qty <= 0) {
-      Alert.alert('تنبيه', 'يرجى كتابة كمية تحويل صحيحة');
+      Alert.alert(t('common.warning'), t('pos.quantity'));
       return;
     }
 
@@ -208,7 +210,7 @@ export const WarehousesScreen = ({ navigation }: any) => {
     if (!selectedProd) return;
 
     if ((selectedProd.quantity || 0) < qty) {
-      Alert.alert('تنبيه', `الكمية المتوفرة في المخزون (${selectedProd.quantity || 0}) أقل من الكمية المطلوبة`);
+      Alert.alert(t('common.warning'), `${t('inventory.stockQuantity')}: ${selectedProd.quantity || 0}`);
       return;
     }
 
@@ -221,7 +223,6 @@ export const WarehousesScreen = ({ navigation }: any) => {
       const srcWh = warehouses.find((w) => w.id === transferSource);
       const dstWh = warehouses.find((w) => w.id === transferDest);
 
-      // 1. Log Transfer in stock_movements_v2
       await db.stockMovementsV2.add({
         id: movementId,
         movement_number: movementNumber,
@@ -233,46 +234,41 @@ export const WarehousesScreen = ({ navigation }: any) => {
         quantity: qty,
         unit_price: selectedProd.costPrice || selectedProd.retailPrice || 0,
         total_amount: qty * (selectedProd.costPrice || selectedProd.retailPrice || 0),
-        reference: transferNote.trim() || `تحويل من ${srcWh?.name} إلى ${dstWh?.name}`,
+        reference: transferNote.trim() || `${srcWh?.name} ➔ ${dstWh?.name}`,
         is_reviewed: 1,
         created_at: nowIso,
         updated_at: nowIso,
       });
 
-      // 2. Log in standard stockMovements
       await db.stockMovements.add({
         id: generateId(),
         date: nowIso,
         type: 'transfer',
         product_id: transferProductId,
         qty: qty,
-        reason: `تحويل مخزني: ${srcWh?.name} ➔ ${dstWh?.name}`,
+        reason: `${srcWh?.name} ➔ ${dstWh?.name}`,
         reference_id: movementId,
         created_at: nowIso,
         updated_at: nowIso,
       });
 
-      Alert.alert('✓ تم التحويل بنجاح', `تم تسجيل عملية التحويل رقم ${movementNumber}`);
+      Alert.alert(t('common.success'), `${t('common.done')}: ${movementNumber}`);
       setTransferModalVisible(false);
       setTransferProductId('');
       setTransferQty('1');
       setTransferNote('');
       loadData();
     } catch (e) {
-      Alert.alert('خطأ', 'فشل تسجيل عملية التحويل');
+      Alert.alert(t('common.error'), t('common.error'));
     }
   };
 
   const getTypeName = (type: string) => {
     switch (type) {
       case 'main':
-        return 'رئيسي';
+        return t('common.all');
       case 'branch':
-        return 'فرعي';
-      case 'cold':
-        return 'تبريد';
-      case 'pos':
-        return 'نقطة بيع';
+        return t('inventory.warehouses');
       default:
         return type;
     }
@@ -286,20 +282,22 @@ export const WarehousesScreen = ({ navigation }: any) => {
     );
   }
 
+  const BackIcon = isRTL ? ChevronRight : ChevronLeft;
+
   return (
     <View style={styles.container}>
       {/* ── Top Header ── */}
-      <View style={styles.header}>
+      <View style={[styles.header, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation?.goBack()}>
-          <ChevronLeft size={22} color={colors.text.primary} />
+          <BackIcon size={22} color={colors.text.primary} />
         </TouchableOpacity>
-        <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerTitle}>إدارة المستودعات</Text>
-          <Text style={styles.headerSubTitle}>{warehouses.length} مستودعات مسجلة</Text>
+        <View style={[styles.headerTitleWrap, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+          <Text style={styles.headerTitle}>{t('inventory.warehouses')}</Text>
+          <Text style={styles.headerSubTitle}>{warehouses.length} {t('inventory.warehouses')}</Text>
         </View>
-        <View style={styles.headerActions}>
+        <View style={[styles.headerActions, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
           <TouchableOpacity
-            style={styles.transferHeaderBtn}
+            style={[styles.transferHeaderBtn, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
             onPress={() => {
               if (warehouses.length >= 2) {
                 setTransferSource(warehouses[0].id);
@@ -309,7 +307,7 @@ export const WarehousesScreen = ({ navigation }: any) => {
             }}
           >
             <ArrowLeftRight size={18} color="#fff" />
-            <Text style={styles.transferHeaderBtnText}>تحويل</Text>
+            <Text style={styles.transferHeaderBtnText}>{t('inventory.transferStock')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.addHeaderBtn} onPress={openAddWarehouse}>
             <Plus size={18} color="#fff" />
@@ -319,17 +317,17 @@ export const WarehousesScreen = ({ navigation }: any) => {
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         {/* ── Overview Card ── */}
-        <View style={styles.overviewCard}>
+        <View style={[styles.overviewCard, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
           <View style={styles.overviewItem}>
             <WarehouseIcon size={20} color={colors.primary[500]} />
             <Text style={styles.overviewNumber}>{warehouses.length}</Text>
-            <Text style={styles.overviewLabel}>المستودعات</Text>
+            <Text style={styles.overviewLabel}>{t('inventory.warehouses')}</Text>
           </View>
           <View style={styles.dividerVertical} />
           <View style={styles.overviewItem}>
             <Package size={20} color={colors.success.text} />
             <Text style={styles.overviewNumber}>{products.length}</Text>
-            <Text style={styles.overviewLabel}>الأصناف</Text>
+            <Text style={styles.overviewLabel}>{t('inventory.products')}</Text>
           </View>
           <View style={styles.dividerVertical} />
           <View style={styles.overviewItem}>
@@ -337,38 +335,38 @@ export const WarehousesScreen = ({ navigation }: any) => {
             <Text style={styles.overviewNumber}>
               {products.reduce((acc, p) => acc + (p.quantity || 0), 0)}
             </Text>
-            <Text style={styles.overviewLabel}>إجمالي القطع</Text>
+            <Text style={styles.overviewLabel}>{t('inventory.stockQuantity')}</Text>
           </View>
         </View>
 
         {/* ── Warehouses List ── */}
-        <Text style={styles.sectionTitle}>قائمة المستودعات ونقاط التخزين</Text>
+        <Text style={[styles.sectionTitle, { textAlign }]}>{t('inventory.warehouses')}</Text>
         {warehouses.length === 0 ? (
-          <EmptyState title="لا توجد مستودعات" description="أضف مستودعك الأول لبدء توزيع المخزون" />
+          <EmptyState title={t('common.noData')} description="" />
         ) : (
           warehouses.map((wh) => (
-            <View key={wh.id} style={styles.warehouseCard}>
+            <View key={wh.id} style={[styles.warehouseCard, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <View style={styles.whIconBox}>
                 <WarehouseIcon size={24} color={colors.primary[600]} />
               </View>
-              <View style={styles.whInfo}>
-                <View style={styles.whHeaderRow}>
+              <View style={[styles.whInfo, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+                <View style={[styles.whHeaderRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                   <Text style={styles.whName}>{wh.name}</Text>
                   <Badge variant={wh.type === 'main' ? 'primary' : 'neutral'} size="sm">
                     {getTypeName(wh.type)}
                   </Badge>
                 </View>
                 {wh.location ? (
-                  <View style={styles.locationRow}>
+                  <View style={[styles.locationRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                     <MapPin size={12} color={colors.text.tertiary} />
                     <Text style={styles.locationText}>{wh.location}</Text>
                   </View>
                 ) : null}
-                <Text style={styles.capacityText}>
-                  السعة التقديرية: {wh.capacity || 1000} وحدة
+                <Text style={[styles.capacityText, { textAlign }]}>
+                  {t('inventory.capacity')}: {wh.capacity || 1000}
                 </Text>
               </View>
-              <View style={styles.whActions}>
+              <View style={[styles.whActions, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                 <TouchableOpacity style={styles.actionIconBtn} onPress={() => openEditWarehouse(wh)}>
                   <Edit2 size={16} color={colors.primary[600]} />
                 </TouchableOpacity>
@@ -385,9 +383,9 @@ export const WarehousesScreen = ({ navigation }: any) => {
       <Modal visible={modalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
-            <View style={styles.modalHeader}>
+            <View style={[styles.modalHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <Text style={styles.modalTitle}>
-                {editingWarehouse ? 'تعديل بيانات المستودع' : 'إضافة مستودع جديد'}
+                {editingWarehouse ? t('inventory.editProduct') : t('inventory.addWarehouse')}
               </Text>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
                 <X size={20} color={colors.text.secondary} />
@@ -395,42 +393,27 @@ export const WarehousesScreen = ({ navigation }: any) => {
             </View>
 
             <ScrollView style={styles.modalBody}>
-              <Text style={styles.inputLabel}>اسم المستودع *</Text>
+              <Text style={[styles.inputLabel, { textAlign }]}>{t('inventory.warehouseName')} *</Text>
               <TextInput
-                style={styles.textInput}
+                style={[styles.textInput, { textAlign }]}
                 value={formName}
                 onChangeText={setFormName}
-                placeholder="مثال: مستودع المنطقة الصناعية"
+                placeholder={t('inventory.warehouseName')}
                 placeholderTextColor={colors.text.tertiary}
               />
 
-              <Text style={styles.inputLabel}>الموقع / العنوان</Text>
+              <Text style={[styles.inputLabel, { textAlign }]}>{t('inventory.warehouse')}</Text>
               <TextInput
-                style={styles.textInput}
+                style={[styles.textInput, { textAlign }]}
                 value={formLocation}
                 onChangeText={setFormLocation}
-                placeholder="مثال: شارع الاستقلال، المبنى 4"
+                placeholder={t('inventory.warehouse')}
                 placeholderTextColor={colors.text.tertiary}
               />
 
-              <Text style={styles.inputLabel}>نوع المستودع</Text>
-              <View style={styles.typeRow}>
-                {['main', 'branch', 'cold', 'pos'].map((t) => (
-                  <TouchableOpacity
-                    key={t}
-                    style={[styles.typePill, formType === t && styles.typePillActive]}
-                    onPress={() => setFormType(t)}
-                  >
-                    <Text style={[styles.typePillText, formType === t && styles.typePillTextActive]}>
-                      {getTypeName(t)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Text style={styles.inputLabel}>السعة التخزينية (عدد القطع)</Text>
+              <Text style={[styles.inputLabel, { textAlign }]}>{t('inventory.capacity')}</Text>
               <TextInput
-                style={styles.textInput}
+                style={[styles.textInput, { textAlign }]}
                 value={formCapacity}
                 onChangeText={setFormCapacity}
                 keyboardType="numeric"
@@ -440,9 +423,9 @@ export const WarehousesScreen = ({ navigation }: any) => {
             </ScrollView>
 
             <View style={styles.modalFooter}>
-              <TouchableOpacity style={styles.saveBtn} onPress={handleSaveWarehouse}>
+              <TouchableOpacity style={[styles.saveBtn, { flexDirection: isRTL ? 'row-reverse' : 'row' }]} onPress={handleSaveWarehouse}>
                 <Check size={18} color="#fff" />
-                <Text style={styles.saveBtnText}>حفظ المستودع</Text>
+                <Text style={styles.saveBtnText}>{t('common.save')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -453,8 +436,8 @@ export const WarehousesScreen = ({ navigation }: any) => {
       <Modal visible={transferModalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheetLarge}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>تحويل مخزني بين المستودعات</Text>
+            <View style={[styles.modalHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <Text style={styles.modalTitle}>{t('inventory.transferStock')}</Text>
               <TouchableOpacity onPress={() => setTransferModalVisible(false)}>
                 <X size={20} color={colors.text.secondary} />
               </TouchableOpacity>
@@ -462,8 +445,8 @@ export const WarehousesScreen = ({ navigation }: any) => {
 
             <ScrollView style={styles.modalBody}>
               {/* Source & Destination */}
-              <Text style={styles.inputLabel}>من مستودع (المصدر)</Text>
-              <View style={styles.whSelectRow}>
+              <Text style={[styles.inputLabel, { textAlign }]}>{t('inventory.warehouse')} ({t('sales.from')})</Text>
+              <View style={[styles.whSelectRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                 {warehouses.map((w) => (
                   <TouchableOpacity
                     key={w.id}
@@ -477,8 +460,8 @@ export const WarehousesScreen = ({ navigation }: any) => {
                 ))}
               </View>
 
-              <Text style={styles.inputLabel}>إلى مستودع (المستقبل)</Text>
-              <View style={styles.whSelectRow}>
+              <Text style={[styles.inputLabel, { textAlign }]}>{t('inventory.warehouse')} ({t('sales.to')})</Text>
+              <View style={[styles.whSelectRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                 {warehouses.map((w) => (
                   <TouchableOpacity
                     key={w.id}
@@ -493,14 +476,14 @@ export const WarehousesScreen = ({ navigation }: any) => {
               </View>
 
               {/* Product Selection */}
-              <Text style={styles.inputLabel}>اختر المنتج المراد تحويله</Text>
-              <View style={styles.searchBox}>
+              <Text style={[styles.inputLabel, { textAlign }]}>{t('inventory.selectCategory')}</Text>
+              <View style={[styles.searchBox, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                 <Search size={16} color={colors.text.tertiary} />
                 <TextInput
-                  style={styles.searchInput}
+                  style={[styles.searchInput, { textAlign }]}
                   value={productSearch}
                   onChangeText={setProductSearch}
-                  placeholder="ابحث عن الصنف..."
+                  placeholder={t('inventory.searchPlaceholder')}
                   placeholderTextColor={colors.text.tertiary}
                 />
               </View>
@@ -519,12 +502,13 @@ export const WarehousesScreen = ({ navigation }: any) => {
                       style={[
                         styles.productPickRow,
                         transferProductId === p.id && styles.productPickRowActive,
+                        { flexDirection: isRTL ? 'row-reverse' : 'row' },
                       ]}
                       onPress={() => setTransferProductId(p.id)}
                     >
-                      <View style={{ flex: 1 }}>
+                      <View style={{ flex: 1, alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
                         <Text style={styles.productPickName}>{p.name}</Text>
-                        <Text style={styles.productPickSub}>الرصيد: {p.quantity || 0} {p.unit || 'قطع'}</Text>
+                        <Text style={styles.productPickSub}>{t('inventory.stockQuantity')}: {p.quantity || 0}</Text>
                       </View>
                       {transferProductId === p.id && (
                         <Check size={18} color={colors.primary[600]} />
@@ -533,9 +517,9 @@ export const WarehousesScreen = ({ navigation }: any) => {
                   ))}
               </ScrollView>
 
-              <Text style={styles.inputLabel}>الكمية المراد تحويلها</Text>
+              <Text style={[styles.inputLabel, { textAlign }]}>{t('pos.quantity')}</Text>
               <TextInput
-                style={styles.textInput}
+                style={[styles.textInput, { textAlign }]}
                 value={transferQty}
                 onChangeText={setTransferQty}
                 keyboardType="numeric"
@@ -543,20 +527,20 @@ export const WarehousesScreen = ({ navigation }: any) => {
                 placeholderTextColor={colors.text.tertiary}
               />
 
-              <Text style={styles.inputLabel}>ملاحظات أو مرجع التحويل</Text>
+              <Text style={[styles.inputLabel, { textAlign }]}>{t('pos.notes')}</Text>
               <TextInput
-                style={styles.textInput}
+                style={[styles.textInput, { textAlign }]}
                 value={transferNote}
                 onChangeText={setTransferNote}
-                placeholder="مثال: تغذية فرع وسط المدينة"
+                placeholder={t('pos.notes')}
                 placeholderTextColor={colors.text.tertiary}
               />
             </ScrollView>
 
             <View style={styles.modalFooter}>
-              <TouchableOpacity style={styles.saveBtn} onPress={handleExecuteTransfer}>
+              <TouchableOpacity style={[styles.saveBtn, { flexDirection: isRTL ? 'row-reverse' : 'row' }]} onPress={handleExecuteTransfer}>
                 <ArrowLeftRight size={18} color="#fff" />
-                <Text style={styles.saveBtnText}>تنفيذ التحويل</Text>
+                <Text style={styles.saveBtnText}>{t('common.confirm')}</Text>
               </TouchableOpacity>
             </View>
           </View>

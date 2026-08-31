@@ -104,7 +104,25 @@ export const LoginScreen = ({ navigation }: any) => {
           return;
         }
         if (res.error) {
-          setSubmitError(res.error);
+          if (
+            res.error === 'serverOffline' ||
+            res.error.includes('Network') ||
+            res.error.includes('Failed to fetch') ||
+            res.error.includes('ECONNREFUSED') ||
+            res.error.includes('timeout')
+          ) {
+            setSubmitError(t('auth.serverOffline'));
+          } else if (
+            res.error === 'loginFailed' ||
+            res.error === 'فشل تسجيل الدخول' ||
+            res.error.toLowerCase().includes('invalid') ||
+            res.error.toLowerCase().includes('unauthorized') ||
+            res.error.toLowerCase().includes('credential')
+          ) {
+            setSubmitError(t('auth.loginFailed'));
+          } else {
+            setSubmitError(res.error);
+          }
           return;
         }
       }
@@ -237,17 +255,48 @@ export const LoginScreen = ({ navigation }: any) => {
             AN POS
           </Text>
           <Text style={[styles.appSubtitle, { color: colors.text.secondary }]}>
-            {view === 'login'
+            {mode === 'connected'
+              ? t('auth.connectedSubtitle')
+              : view === 'login'
               ? t('auth.loginSubtitle')
               : t('auth.register')}
           </Text>
-          {mode === 'connected' && activeServerUrl && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? 'rgba(30, 58, 138, 0.4)' : '#eff6ff', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20, marginTop: 8, borderWidth: 1, borderColor: '#3b82f6' }}>
-              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#22c55e', marginRight: isRTL ? 0 : 6, marginLeft: isRTL ? 6 : 0 }} />
-              <Text style={{ color: isDark ? '#93c5fd' : '#1d4ed8', fontSize: 11.5, fontFamily: 'Cairo', fontWeight: '600' }}>
-                {isRTL ? `متصل بالحاسوب (${activeServerUrl.replace('http://', '')})` : `Connected to PC (${activeServerUrl.replace('http://', '')})`}
+          {mode === 'connected' ? (
+            <TouchableOpacity
+              style={[
+                styles.connectedServerBadge,
+                {
+                  backgroundColor: isDark ? 'rgba(30, 58, 138, 0.35)' : '#eff6ff',
+                  borderColor: isDark ? '#3b82f6' : '#bfdbfe',
+                  flexDirection: isRTL ? 'row-reverse' : 'row',
+                },
+              ]}
+              onPress={() => navigation.navigate('Pair', { initialTab: 'discover' })}
+              activeOpacity={0.8}
+            >
+              <View style={styles.connectedGreenDot} />
+              <Text style={[styles.connectedServerText, { color: isDark ? '#93c5fd' : '#1d4ed8' }]}>
+                {t('auth.connectedToPC')} {activeServerUrl ? `(${activeServerUrl.replace(/^https?:\/\//, '')})` : ''} • {t('pair.changeDesktop')}
               </Text>
-            </View>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[
+                styles.pairPillBtn,
+                {
+                  backgroundColor: isDark ? 'rgba(59, 130, 246, 0.12)' : '#eff6ff',
+                  borderColor: isDark ? '#1e3a8a' : '#bfdbfe',
+                  flexDirection: isRTL ? 'row-reverse' : 'row',
+                },
+              ]}
+              onPress={() => navigation.navigate('Pair', { initialTab: 'discover' })}
+              activeOpacity={0.8}
+            >
+              <Store size={15} color={isDark ? '#60a5fa' : '#2563eb'} />
+              <Text style={[styles.pairPillBtnText, { color: isDark ? '#60a5fa' : '#2563eb' }]}>
+                {t('modeSelect.connectedBtn')} ({t('pair.discoverTab')})
+              </Text>
+            </TouchableOpacity>
           )}
         </View>
 
@@ -340,6 +389,18 @@ export const LoginScreen = ({ navigation }: any) => {
               )}
             </TouchableOpacity>
 
+            {/* Quick Auto-Discovery / Pair Link */}
+            <TouchableOpacity
+              style={[styles.quickPairActionBtn, { borderColor, flexDirection: isRTL ? 'row-reverse' : 'row' }]}
+              onPress={() => navigation.navigate('Pair', { initialTab: 'discover' })}
+              activeOpacity={0.75}
+            >
+              <Store size={16} color={isDark ? '#60a5fa' : '#2563eb'} />
+              <Text style={[styles.quickPairActionText, { color: isDark ? '#60a5fa' : '#2563eb' }]}>
+                {mode === 'connected' ? t('pair.changeDesktop') : t('pair.discoverTab')}
+              </Text>
+            </TouchableOpacity>
+
             {/* Navigation & Mode Link */}
             <TouchableOpacity
               style={styles.modeLinkBtn}
@@ -347,26 +408,28 @@ export const LoginScreen = ({ navigation }: any) => {
               activeOpacity={0.7}
             >
               <Text style={[styles.modeLinkText, { color: isDark ? '#60a5fa' : '#2563eb' }]}>
-                {t('modeSelect.switchLang')} • {t('modeSelect.standaloneTitle')}
+                {t('auth.switchMode')} • {mode === 'connected' ? t('modeSelect.connectedTitle') : t('modeSelect.standaloneTitle')}
               </Text>
             </TouchableOpacity>
 
-            {/* Switch to Register */}
-            <TouchableOpacity
-              style={styles.switchViewBtn}
-              onPress={() => {
-                setView('register');
-                setSubmitError(null);
-              }}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.switchViewText, { color: colors.text.secondary }]}>
-                {t('auth.noAccount')}{' '}
-                <Text style={{ color: isDark ? '#60a5fa' : '#2563eb', fontWeight: '700' }}>
-                  {t('auth.createAccount')}
+            {/* Switch to Register (Only in standalone mode) */}
+            {mode === 'standalone' && (
+              <TouchableOpacity
+                style={styles.switchViewBtn}
+                onPress={() => {
+                  setView('register');
+                  setSubmitError(null);
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.switchViewText, { color: colors.text.secondary }]}>
+                  {t('auth.noAccount')}{' '}
+                  <Text style={{ color: isDark ? '#60a5fa' : '#2563eb', fontWeight: '700' }}>
+                    {t('auth.createAccount')}
+                  </Text>
                 </Text>
-              </Text>
-            </TouchableOpacity>
+              </TouchableOpacity>
+            )}
           </View>
         ) : (
           /* Register Form */
@@ -557,6 +620,26 @@ const styles = StyleSheet.create({
     fontFamily: 'Cairo',
     textAlign: 'center',
   },
+  connectedServerBadge: {
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: radii.full,
+    marginTop: 6,
+    borderWidth: 1,
+    gap: 6,
+  },
+  connectedGreenDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#22c55e',
+  },
+  connectedServerText: {
+    fontSize: 11.5,
+    fontFamily: 'Cairo',
+    fontWeight: '700',
+  },
 
   // Form Section
   formSection: {
@@ -627,10 +710,39 @@ const styles = StyleSheet.create({
   },
 
   // Links
+  quickPairActionBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 12,
+    marginTop: 2,
+  },
+  quickPairActionText: {
+    fontSize: 13,
+    fontWeight: '700',
+    fontFamily: 'Cairo',
+  },
+  pairPillBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: radii.full,
+    marginTop: 6,
+    borderWidth: 1,
+  },
+  pairPillBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    fontFamily: 'Cairo',
+  },
   modeLinkBtn: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
+    paddingVertical: 6,
   },
   modeLinkText: {
     fontSize: 13,

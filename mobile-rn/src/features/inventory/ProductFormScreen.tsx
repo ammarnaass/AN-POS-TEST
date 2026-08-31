@@ -46,10 +46,17 @@ import CameraScanner from '@/features/barcode/CameraScanner';
 import { AnposCamera } from '@/modules/AnposCamera';
 import type { Product, Category, Supplier } from '@shared/types';
 import { useTheme } from '@/theme';
+import { useI18n } from '@/store/i18nStore';
 import { radii, spacing, typography, shadows } from '@/theme/tokens';
 import { notify } from '@/lib/notify';
 
 const UNITS = ['قطعة', 'علبة', 'كغ', 'غرام', 'لتر', 'متر', 'حزمة', 'كرتون', 'حبة', 'طرد'];
+
+interface SecondaryBarcodeItem {
+  id: string;
+  barcode: string;
+  priceLabel: string;
+}
 
 interface CustomPriceItem {
   id: string;
@@ -60,6 +67,8 @@ interface CustomPriceItem {
 
 export const ProductFormScreen = ({ navigation, route }: any) => {
   const { isDark, colors } = useTheme();
+  const { t, isRTL, textAlign, currency, language } = useI18n();
+  const localeStr = language === 'ar' ? 'ar-DZ' : language === 'fr' ? 'fr-FR' : 'en-US';
   const { id: productId } = route.params || {};
   const isEdit = Boolean(productId);
 
@@ -109,7 +118,7 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
   });
 
   // Advanced sub-lists
-  const [secondaryBarcodes, setSecondaryBarcodes] = useState<string[]>([]);
+  const [secondaryBarcodes, setSecondaryBarcodes] = useState<SecondaryBarcodeItem[]>([]);
   const [customPrices, setCustomPrices] = useState<CustomPriceItem[]>([]);
 
   // Validation & Error states
@@ -120,9 +129,10 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
 
-  // Modals
+  // Modals & Scanner
   const [showScanner, setShowScanner] = useState(false);
   const [scannerTarget, setScannerTarget] = useState<'main' | 'secondary' | 'customPrice'>('main');
+  const [activeBarcodeIndex, setActiveBarcodeIndex] = useState<number | null>(null);
   const [activePriceIndex, setActivePriceIndex] = useState<number | null>(null);
 
   const [unitModalVisible, setUnitModalVisible] = useState(false);
@@ -130,16 +140,6 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
   const [imagePickerVisible, setImagePickerVisible] = useState(false);
   const [urlModalVisible, setUrlModalVisible] = useState(false);
   const [customImageUrl, setCustomImageUrl] = useState('');
-
-  // Add Secondary Barcode Modal / Input
-  const [newBarcodeModal, setNewBarcodeModal] = useState(false);
-  const [tempBarcode, setTempBarcode] = useState('');
-
-  // Add Custom Price Modal / Input
-  const [newPriceModal, setNewPriceModal] = useState(false);
-  const [tempPriceName, setTempPriceName] = useState('');
-  const [tempPriceVal, setTempPriceVal] = useState('');
-  const [tempPriceBarcode, setTempPriceBarcode] = useState('');
 
   // Inline Category Creator
   const [newCatName, setNewCatName] = useState('');
@@ -163,11 +163,23 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
       if (isEdit && productId) {
         const prod = await db.products.get(productId);
         if (prod) {
+          let catName = prod.category || '';
+          let catId = prod.categoryId || (prod as any).category_id || '';
+
+          // Cross-reference with allCats to ensure both name and ID are populated
+          if (catId && (!catName || catName === 'عام')) {
+            const found = allCats.find((c: any) => c.id === catId);
+            if (found) catName = found.name;
+          } else if (catName && !catId) {
+            const found = allCats.find((c: any) => c.name.toLowerCase() === catName.toLowerCase());
+            if (found) catId = found.id;
+          }
+
           setForm({
             name: prod.name || '',
             barcode: prod.barcode || '',
-            category: prod.category || '',
-            categoryId: prod.categoryId || (prod as any).category_id || '',
+            category: catName,
+            categoryId: catId,
             retailPrice: prod.retailPrice ? String(prod.retailPrice) : (prod as any).retail_price ? String((prod as any).retail_price) : '',
             costPrice: String(prod.costPrice || (prod as any).purchase_price || (prod as any).cost_price || 0),
             quantity: String(prod.quantity || 0),
@@ -193,21 +205,37 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
             const allSec = await db.productBarcodes.toArray();
             const matching = allSec
               .filter((b: any) => b.productId === productId || b.product_id === productId)
-              .map((b: any) => b.barcode);
+              .map((b: any) => ({
+                id: b.id || generateId(),
+                barcode: b.barcode || '',
+                priceLabel: b.price_label || b.priceLabel || b.price_name || b.priceName || '',
+              }));
             setSecondaryBarcodes(matching);
           } catch {}
 
-          // Load custom prices if stored in JSON payload
+          // Load custom prices if stored in JSON payload or array
           try {
-            if ((prod as any).custom_prices) {
-              const parsed = typeof (prod as any).custom_prices === 'string'
-                ? JSON.parse((prod as any).custom_prices)
-                : (prod as any).custom_prices;
+            const rawCP = (prod as any).custom_prices ?? (prod as any).customPrices;
+            if (rawCP) {
+              const parsed = typeof rawCP === 'string'
+                ? JSON.parse(rawCP)
+                : rawCP;
               if (Array.isArray(parsed)) {
-                setCustomPrices(parsed);
+                setCustomPrices(
+                  parsed
+                    .filter((item: any) => item && typeof item === 'object')
+                    .map((item: any) => ({
+                      id: item.id || generateId(),
+                      name: item.name || item.label || '',
+                      price: item.price !== undefined && item.price !== null ? String(item.price) : '',
+                      barcode: item.barcode || '',
+                    }))
+                );
               }
             }
-          } catch {}
+          } catch (err) {
+            console.warn('[ProductForm] Custom prices load error:', err);
+          }
         }
       }
     } catch (err) {
@@ -234,12 +262,22 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
   };
 
   const handleFieldChange = (field: string, value: any) => {
-    const updatedForm = { ...form, [field]: value };
-    setForm(updatedForm);
+    setForm((prev) => {
+      const updatedForm = { ...prev, [field]: value };
+      if (touched[field as keyof typeof touched]) {
+        validateFields(updatedForm);
+      }
+      return updatedForm;
+    });
+  };
 
-    if (touched[field as keyof typeof touched]) {
-      validateFields(updatedForm);
-    }
+  const handleSelectCategory = (catName: string, catId?: string) => {
+    setForm((prev) => ({
+      ...prev,
+      category: catName,
+      categoryId: catId || '',
+    }));
+    setCategoryModalVisible(false);
   };
 
   const handleFieldBlur = (field: 'name' | 'retailPrice') => {
@@ -261,16 +299,18 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
 
     if (scannerTarget === 'main') {
       handleFieldChange('barcode', trimmed);
-    } else if (scannerTarget === 'secondary') {
+    } else if (scannerTarget === 'secondary' && activeBarcodeIndex !== null) {
       if (trimmed === form.barcode.trim()) {
         notify.warning('هذا الباركود مسجل كباركود أساسي للمنتج');
         return;
       }
-      if (secondaryBarcodes.includes(trimmed)) {
-        notify.warning('الباركود الإضافي مضاف مسبقاً');
-        return;
-      }
-      setSecondaryBarcodes((prev) => [...prev, trimmed]);
+      setSecondaryBarcodes((prev) => {
+        const next = [...prev];
+        if (next[activeBarcodeIndex]) {
+          next[activeBarcodeIndex] = { ...next[activeBarcodeIndex], barcode: trimmed };
+        }
+        return next;
+      });
     } else if (scannerTarget === 'customPrice' && activePriceIndex !== null) {
       setCustomPrices((prev) => {
         const next = [...prev];
@@ -326,76 +366,72 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
     handleFieldChange('image', '');
   };
 
-  // Secondary Barcode Helpers
-  const handleAddSecondaryBarcodeSubmit = () => {
-    const trimmed = tempBarcode.trim();
-    if (!trimmed) return;
-    if (trimmed === form.barcode.trim()) {
-      notify.warning('هذا الباركود مسجل كباركود أساسي للمنتج');
-      return;
-    }
-    if (secondaryBarcodes.includes(trimmed)) {
-      notify.warning('الباركود الإضافي مضاف مسبقاً');
-      return;
-    }
-    setSecondaryBarcodes((prev) => [...prev, trimmed]);
-    setTempBarcode('');
-    setNewBarcodeModal(false);
+  // Secondary Barcode Helpers (Inline)
+  const handleAddSecondaryBarcode = () => {
+    setSecondaryBarcodes((prev) => [
+      ...prev,
+      { id: generateId(), barcode: '', priceLabel: '' },
+    ]);
   };
 
-  const handleRemoveSecondaryBarcode = (bc: string) => {
-    setSecondaryBarcodes((prev) => prev.filter((item) => item !== bc));
+  const handleUpdateSecondaryBarcode = (index: number, field: 'barcode' | 'priceLabel', value: string) => {
+    setSecondaryBarcodes((prev) => {
+      const next = [...prev];
+      if (next[index]) {
+        next[index] = { ...next[index], [field]: value };
+      }
+      return next;
+    });
   };
 
-  // Custom Price Helpers
-  const handleAddCustomPriceSubmit = () => {
-    const name = tempPriceName.trim();
-    const price = tempPriceVal.trim();
-    if (!name) {
-      notify.warning('يرجى إدخال اسم السعر المخصص');
-      return;
-    }
-    if (!price || isNaN(parseFloat(price)) || parseFloat(price) <= 0) {
-      notify.warning('يرجى إدخال سعر صحيح أكبر من صفر');
-      return;
-    }
-
-    const newItem: CustomPriceItem = {
-      id: generateId(),
-      name,
-      price,
-      barcode: tempPriceBarcode.trim() || undefined,
-    };
-
-    setCustomPrices((prev) => [...prev, newItem]);
-    setTempPriceName('');
-    setTempPriceVal('');
-    setTempPriceBarcode('');
-    setNewPriceModal(false);
+  const handleRemoveSecondaryBarcode = (index: number) => {
+    setSecondaryBarcodes((prev) => prev.filter((_, idx) => idx !== index));
   };
 
-  const handleRemoveCustomPrice = (id: string) => {
-    setCustomPrices((prev) => prev.filter((p) => p.id !== id));
+  // Custom Price Helpers (Inline)
+  const handleAddCustomPrice = () => {
+    setCustomPrices((prev) => [
+      ...prev,
+      { id: generateId(), name: '', price: '', barcode: '' },
+    ]);
+  };
+
+  const handleUpdateCustomPrice = (index: number, field: 'name' | 'price' | 'barcode', value: string) => {
+    setCustomPrices((prev) => {
+      const next = [...prev];
+      if (next[index]) {
+        next[index] = { ...next[index], [field]: value };
+      }
+      return next;
+    });
+  };
+
+  const handleRemoveCustomPrice = (index: number) => {
+    setCustomPrices((prev) => prev.filter((_, idx) => idx !== index));
   };
 
   // Category Creation
   const handleCreateCategory = async () => {
-    if (!newCatName.trim()) return;
+    const trimmed = newCatName.trim();
+    if (!trimmed) return;
     try {
       const newId = generateId();
       const catObj = {
         id: newId,
-        name: newCatName.trim(),
+        name: trimmed,
         color: colors.primary[600] || '#3b82f6',
         icon: 'Tag',
       };
       await db.categories.add(catObj);
       setCategories((prev) => [...prev, catObj as any]);
-      handleFieldChange('category', newCatName.trim());
-      handleFieldChange('categoryId', newId);
+      setForm((prev) => ({
+        ...prev,
+        category: trimmed,
+        categoryId: newId,
+      }));
       setNewCatName('');
       setCategoryModalVisible(false);
-      notify.success(`تم إنشاء فئة "${newCatName.trim()}" بنجاح`);
+      notify.success(`تم إنشاء واختيار فئة "${trimmed}" بنجاح`);
     } catch (err) {
       notify.error(err, 'فشل إضافة الفئة الجديدة');
     }
@@ -477,7 +513,32 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
         image: form.image || '',
         image_url: form.image || '',
         imageUrl: form.image || '',
-        custom_prices: JSON.stringify(customPrices),
+        custom_prices: JSON.stringify(
+          customPrices
+            .filter((cp) => cp && cp.name && cp.name.trim().length > 0)
+            .map((cp) => {
+              const rawP = String(cp.price ?? '0').replace(',', '.').trim();
+              const numP = parseFloat(rawP);
+              return {
+                id: cp.id || generateId(),
+                name: cp.name.trim(),
+                price: isNaN(numP) ? 0 : numP,
+                barcode: cp.barcode?.trim() || undefined,
+              };
+            })
+        ),
+        customPrices: customPrices
+          .filter((cp) => cp && cp.name && cp.name.trim().length > 0)
+          .map((cp) => {
+            const rawP = String(cp.price ?? '0').replace(',', '.').trim();
+            const numP = parseFloat(rawP);
+            return {
+              id: cp.id || generateId(),
+              name: cp.name.trim(),
+              price: isNaN(numP) ? 0 : numP,
+              barcode: cp.barcode?.trim() || undefined,
+            };
+          }),
         tax_rate: Number((form as any).taxRate ?? (form as any).tax_rate ?? 0),
         taxRate: Number((form as any).taxRate ?? (form as any).tax_rate ?? 0),
         status: 'active',
@@ -510,20 +571,31 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
           (b: any) => b.productId === finalProductId || b.product_id === finalProductId
         );
 
+        const validBarcodes = secondaryBarcodes.filter((b) => b.barcode.trim());
+
         for (const ex of existingForThisProd) {
-          if (!secondaryBarcodes.includes(ex.barcode)) {
+          if (!validBarcodes.some((b) => b.barcode.trim() === ex.barcode)) {
             await db.productBarcodes.delete(ex.id).catch(() => {});
           }
         }
 
-        for (const bc of secondaryBarcodes) {
-          const alreadyInDb = existingForThisProd.some((ex: any) => ex.barcode === bc);
-          if (!alreadyInDb) {
+        for (const item of validBarcodes) {
+          const bc = item.barcode.trim();
+          const existing = existingForThisProd.find((ex: any) => ex.barcode === bc);
+          if (existing) {
+            await db.productBarcodes.update(existing.id, {
+              price_label: item.priceLabel?.trim() || '',
+              priceLabel: item.priceLabel?.trim() || '',
+              updated_at: nowIso,
+            }).catch(() => {});
+          } else {
             await db.productBarcodes.add({
-              id: generateId(),
+              id: item.id || generateId(),
               product_id: finalProductId,
               productId: finalProductId,
               barcode: bc,
+              price_label: item.priceLabel?.trim() || '',
+              priceLabel: item.priceLabel?.trim() || '',
               is_primary: 0,
               created_at: nowIso,
               updated_at: nowIso,
@@ -580,21 +652,21 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       {/* ── Top Header ── */}
-      <View style={styles.header}>
+      <View style={[styles.header, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backBtn}
           activeOpacity={0.7}
         >
-          <ArrowRight size={20} color={colors.text.primary} />
+          <ArrowRight size={20} color={colors.text.primary} style={{ transform: [{ rotate: isRTL ? '0deg' : '180deg' }] }} />
         </TouchableOpacity>
 
         <View style={styles.headerTitleBox}>
           <Text style={styles.headerTitle}>
-            {isEdit ? 'تعديل بيانات المنتج' : 'إضافة منتج جديد'}
+            {isEdit ? t('inventory.editProduct') : t('inventory.addProduct')}
           </Text>
           <Text style={styles.headerSubtitle}>
-            {form.name ? form.name : 'أدخل البيانات والمعايير بدقة'}
+            {form.name ? form.name : t('inventory.productDetails')}
           </Text>
         </View>
 
@@ -617,21 +689,6 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* ── Free Trial / Upgrade Banner (matching screenshots) ── */}
-        <View style={styles.bannerContainer}>
-          <View style={styles.bannerIconBox}>
-            <FlaskConical size={18} color="#60a5fa" />
-          </View>
-          <View style={styles.bannerTextBox}>
-            <Text style={styles.bannerTitle}>نسخة مجانية – احصل على الكاملة</Text>
-            <Text style={styles.bannerSub}>0/50 فاتورة • 0/10 زبون</Text>
-          </View>
-          <TouchableOpacity style={styles.bannerUpgradeBtn} activeOpacity={0.8}>
-            <ArrowUpRight size={13} color="#ffffff" style={{ marginRight: 2 }} />
-            <Text style={styles.bannerUpgradeBtnText}>ترقية</Text>
-          </TouchableOpacity>
-        </View>
-
         {/* ── Dashed Image Upload Card ── */}
         <TouchableOpacity
           onPress={() => setImagePickerVisible(true)}
@@ -641,9 +698,9 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
           {form.image ? (
             <View style={styles.imagePreviewWrapper}>
               <Image source={{ uri: form.image }} style={styles.imagePreview} />
-              <View style={styles.imageOverlayBadge}>
+              <View style={[styles.imageOverlayBadge, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                 <Camera size={14} color="#ffffff" />
-                <Text style={styles.imageOverlayText}>تغيير الصورة</Text>
+                <Text style={styles.imageOverlayText}>{t('common.edit')}</Text>
               </View>
             </View>
           ) : (
@@ -654,8 +711,8 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
                   <Plus size={10} color="#ffffff" />
                 </View>
               </View>
-              <Text style={styles.imageUploadTitle}>اضغط لإضافة صورة</Text>
-              <Text style={styles.imageUploadSub}>اختياري – تظهر في القوائم</Text>
+              <Text style={styles.imageUploadTitle}>{t('inventory.imageUploadPlaceholder')}</Text>
+              <Text style={styles.imageUploadSub}>{t('inventory.imageUploadHint')}</Text>
             </View>
           )}
         </TouchableOpacity>
@@ -665,7 +722,7 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
         ═══════════════════════════════════════════════════════ */}
         <View style={styles.accordionCard}>
           <TouchableOpacity
-            style={styles.accordionHeader}
+            style={[styles.accordionHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
             onPress={() => toggleSection('basic')}
             activeOpacity={0.7}
           >
@@ -677,9 +734,9 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
               )}
             </View>
 
-            <View style={styles.accordionTitleRow}>
+            <View style={[styles.accordionTitleRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <Text style={styles.accordionTitle}>
-                الأساسيات <Text style={{ color: colors.danger.main }}>*</Text>
+                {t('inventory.basicInfoSection')} <Text style={{ color: colors.danger.main }}>*</Text>
               </Text>
               <View style={styles.infoBadge}>
                 <Info size={16} color={isDark ? '#60a5fa' : '#2563eb'} />
@@ -691,30 +748,30 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
             <View style={styles.accordionBody}>
               {/* 1. Name Field */}
               <View style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>
-                  الاسم <Text style={{ color: colors.danger.main }}>*</Text>
+                <Text style={[styles.fieldLabel, { textAlign }]}>
+                  {t('inventory.productName')} <Text style={{ color: colors.danger.main }}>*</Text>
                 </Text>
                 <TextInput
                   style={[
                     styles.textInput,
+                    { textAlign },
                     touched.name && errors.name ? styles.inputErrorBorder : null,
                   ]}
                   value={form.name}
                   onChangeText={(val) => handleFieldChange('name', val)}
                   onBlur={() => handleFieldBlur('name')}
-                  placeholder="اسم المنتج"
+                  placeholder={t('inventory.productName')}
                   placeholderTextColor={colors.text.tertiary}
-                  textAlign="right"
                 />
                 {touched.name && errors.name ? (
-                  <Text style={styles.fieldErrorText}>{errors.name}</Text>
+                  <Text style={[styles.fieldErrorText, { textAlign }]}>{errors.name}</Text>
                 ) : null}
               </View>
 
               {/* 2. Barcode Field */}
               <View style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>الباركود</Text>
-                <View style={styles.barcodeInputRow}>
+                <Text style={[styles.fieldLabel, { textAlign }]}>{t('inventory.barcode')}</Text>
+                <View style={[styles.barcodeInputRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                   <TouchableOpacity
                     style={styles.scanBarcodeBtn}
                     onPress={() => {
@@ -735,19 +792,18 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
                     keyboardType="default"
                   />
                 </View>
-                <View style={styles.helperRow}>
+                <View style={[styles.helperRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                   <TouchableOpacity onPress={handleGenerateBarcode}>
-                    <Text style={styles.generateLinkText}>توليد باركود تلقائي</Text>
+                    <Text style={styles.generateLinkText}>{t('pos.scanBarcode')}</Text>
                   </TouchableOpacity>
-                  <Text style={styles.fieldHelperText}>اختياري – يُولّد تلقائياً لو تُرك فارغاً.</Text>
                 </View>
               </View>
 
               {/* 3. Category Field */}
               <View style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>الفئة</Text>
+                <Text style={[styles.fieldLabel, { textAlign }]}>{t('inventory.category')}</Text>
                 <TouchableOpacity
-                  style={[styles.textInput, styles.selectInputBtn]}
+                  style={[styles.textInput, styles.selectInputBtn, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
                   onPress={() => setCategoryModalVisible(true)}
                   activeOpacity={0.7}
                 >
@@ -755,27 +811,28 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
                   <Text
                     style={[
                       styles.selectInputText,
-                      { color: form.category ? colors.text.primary : colors.text.tertiary },
+                      { color: form.category ? colors.text.primary : colors.text.tertiary, textAlign },
                     ]}
                   >
-                    {form.category || 'مثلاً: مشروبات'}
+                    {form.category || t('inventory.selectCategory')}
                   </Text>
                 </TouchableOpacity>
               </View>
 
               {/* 4. Retail Price Field */}
               <View style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>
-                  سعر البيع <Text style={{ color: colors.danger.main }}>*</Text>
+                <Text style={[styles.fieldLabel, { textAlign }]}>
+                  {t('inventory.sellingPrice')} <Text style={{ color: colors.danger.main }}>*</Text>
                 </Text>
-                <View style={styles.currencyInputRow}>
+                <View style={[styles.currencyInputRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                   <View style={styles.currencyBadge}>
-                    <Text style={styles.currencyBadgeText}>دج</Text>
+                    <Text style={styles.currencyBadgeText}>{currency}</Text>
                   </View>
                   <TextInput
                     style={[
                       styles.textInput,
                       styles.currencyTextInput,
+                      { textAlign },
                       touched.retailPrice && errors.retailPrice ? styles.inputErrorBorder : null,
                     ]}
                     value={form.retailPrice}
@@ -784,43 +841,38 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
                     placeholder="0.00"
                     placeholderTextColor={colors.text.tertiary}
                     keyboardType="numeric"
-                    textAlign="right"
                   />
                 </View>
                 {touched.retailPrice && errors.retailPrice ? (
-                  <Text style={styles.fieldErrorText}>{errors.retailPrice}</Text>
+                  <Text style={[styles.fieldErrorText, { textAlign }]}>{errors.retailPrice}</Text>
                 ) : null}
               </View>
 
               {/* 5. Initial Quantity Field */}
               <View style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>الكمّية الابتدائية</Text>
+                <Text style={[styles.fieldLabel, { textAlign }]}>{t('inventory.stockQuantity')}</Text>
                 <TextInput
-                  style={styles.textInput}
+                  style={[styles.textInput, { textAlign }]}
                   value={form.quantity}
                   onChangeText={(val) => handleFieldChange('quantity', val)}
                   placeholder="0"
                   placeholderTextColor={colors.text.tertiary}
                   keyboardType="numeric"
-                  textAlign="right"
                 />
-                <Text style={styles.fieldHelperText}>
-                  مسموح للمنتجات التي ليست بعد في المخزن.
-                </Text>
               </View>
 
               {/* 6. Unit Field */}
               <View style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>
-                  الوحدة <Text style={{ color: colors.danger.main }}>*</Text>
+                <Text style={[styles.fieldLabel, { textAlign }]}>
+                  {t('inventory.unit')} <Text style={{ color: colors.danger.main }}>*</Text>
                 </Text>
                 <TouchableOpacity
-                  style={[styles.textInput, styles.selectInputBtn]}
+                  style={[styles.textInput, styles.selectInputBtn, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
                   onPress={() => setUnitModalVisible(true)}
                   activeOpacity={0.7}
                 >
                   <ChevronDown size={16} color={colors.text.secondary} />
-                  <Text style={[styles.selectInputText, { color: colors.text.primary, fontWeight: '700' }]}>
+                  <Text style={[styles.selectInputText, { color: colors.text.primary, fontWeight: '700', textAlign }]}>
                     {form.unit}
                   </Text>
                 </TouchableOpacity>
@@ -834,7 +886,7 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
         ═══════════════════════════════════════════════════════ */}
         <View style={styles.accordionCard}>
           <TouchableOpacity
-            style={styles.accordionHeader}
+            style={[styles.accordionHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
             onPress={() => toggleSection('details')}
             activeOpacity={0.7}
           >
@@ -846,8 +898,8 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
               )}
             </View>
 
-            <View style={styles.accordionTitleRow}>
-              <Text style={styles.accordionTitle}>تفاصيل إضافيّة</Text>
+            <View style={[styles.accordionTitleRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <Text style={styles.accordionTitle}>{t('inventory.detailsSection')}</Text>
               <View style={styles.infoBadge}>
                 <MoreHorizontal size={16} color={isDark ? '#60a5fa' : '#2563eb'} />
               </View>
@@ -858,107 +910,77 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
             <View style={styles.accordionBody}>
               {/* Description */}
               <View style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>الوصف</Text>
+                <Text style={[styles.fieldLabel, { textAlign }]}>{t('inventory.description')}</Text>
                 <TextInput
-                  style={[styles.textInput, styles.multilineInput]}
+                  style={[styles.textInput, styles.multilineInput, { textAlign }]}
                   value={form.description}
                   onChangeText={(val) => handleFieldChange('description', val)}
-                  placeholder="وصف قصير للمنتج"
+                  placeholder={t('inventory.description')}
                   placeholderTextColor={colors.text.tertiary}
                   multiline
                   numberOfLines={3}
-                  textAlign="right"
                 />
               </View>
 
               {/* Supplier */}
               <View style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>المورّد</Text>
+                <Text style={[styles.fieldLabel, { textAlign }]}>{t('inventory.supplier')}</Text>
                 <TextInput
-                  style={styles.textInput}
+                  style={[styles.textInput, { textAlign }]}
                   value={form.supplier}
                   onChangeText={(val) => handleFieldChange('supplier', val)}
-                  placeholder="اسم المورّد"
+                  placeholder={t('inventory.supplier')}
                   placeholderTextColor={colors.text.tertiary}
-                  textAlign="right"
                 />
               </View>
 
               {/* Low Stock Threshold */}
               <View style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>حدّ تنبيه المخزون</Text>
+                <Text style={[styles.fieldLabel, { textAlign }]}>{t('inventory.minStockAlert')}</Text>
                 <TextInput
-                  style={styles.textInput}
+                  style={[styles.textInput, { textAlign }]}
                   value={form.lowStockThreshold}
                   onChangeText={(val) => handleFieldChange('lowStockThreshold', val)}
                   placeholder="0"
                   placeholderTextColor={colors.text.tertiary}
                   keyboardType="numeric"
-                  textAlign="right"
                 />
-                <Text style={styles.fieldHelperText}>
-                  يُظهر تنبيهاً عند نزول المخزون لهذا الحد.
-                </Text>
               </View>
 
               {/* Two Column: Color & Size/Weight */}
-              <View style={styles.twoColumnRow}>
+              <View style={[styles.twoColumnRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                 <View style={[styles.fieldGroup, { flex: 1 }]}>
-                  <Text style={styles.fieldLabel}>اللون</Text>
+                  <Text style={[styles.fieldLabel, { textAlign }]}>{t('inventory.color')}</Text>
                   <TextInput
-                    style={styles.textInput}
+                    style={[styles.textInput, { textAlign }]}
                     value={form.color}
                     onChangeText={(val) => handleFieldChange('color', val)}
-                    placeholder="أحمر"
+                    placeholder={t('inventory.color')}
                     placeholderTextColor={colors.text.tertiary}
-                    textAlign="right"
                   />
                 </View>
 
                 <View style={[styles.fieldGroup, { flex: 1 }]}>
-                  <Text style={styles.fieldLabel}>الوزن / الحجم</Text>
+                  <Text style={[styles.fieldLabel, { textAlign }]}>{t('inventory.sizeOrWeight')}</Text>
                   <TextInput
-                    style={styles.textInput}
+                    style={[styles.textInput, { textAlign }]}
                     value={form.sizeOrWeight}
                     onChangeText={(val) => handleFieldChange('sizeOrWeight', val)}
-                    placeholder="500g / 1L"
+                    placeholder={t('inventory.sizeOrWeight')}
                     placeholderTextColor={colors.text.tertiary}
-                    textAlign="right"
                   />
                 </View>
-              </View>
-
-              {/* Expiry Date */}
-              <View style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>تاريخ الانتهاء (الدفعة)</Text>
-                <View style={styles.calendarInputRow}>
-                  <View style={styles.calendarIconBox}>
-                    <Calendar size={18} color={isDark ? '#94a3b8' : '#64748b'} />
-                  </View>
-                  <TextInput
-                    style={[styles.textInput, { flex: 1 }]}
-                    value={form.expiryDate}
-                    onChangeText={(val) => handleFieldChange('expiryDate', val)}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor={colors.text.tertiary}
-                    textAlign="right"
-                  />
-                </View>
-                <Text style={styles.fieldHelperText}>
-                  اختياري – للمنتجات قابلة للانتهاء.
-                </Text>
               </View>
 
               {/* Storage Location */}
               <View style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>موقع التّخزين</Text>
+                <Text style={[styles.fieldLabel, { textAlign }]}>{t('inventory.warehouse')}</Text>
                 <TextInput
-                  style={styles.textInput}
+                  style={[styles.textInput, { textAlign }]}
                   value={form.location}
                   onChangeText={(val) => handleFieldChange('location', val)}
-                  placeholder="رف A-3 / ممر 2"
+                  placeholder={t('inventory.warehouse')}
                   placeholderTextColor={colors.text.tertiary}
-                  textAlign="right"
                 />
               </View>
             </View>
@@ -970,7 +992,7 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
         ═══════════════════════════════════════════════════════ */}
         <View style={styles.accordionCard}>
           <TouchableOpacity
-            style={styles.accordionHeader}
+            style={[styles.accordionHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
             onPress={() => toggleSection('wholesale')}
             activeOpacity={0.7}
           >
@@ -982,8 +1004,8 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
               )}
             </View>
 
-            <View style={styles.accordionTitleRow}>
-              <Text style={styles.accordionTitle}>الجملة</Text>
+            <View style={[styles.accordionTitleRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <Text style={styles.accordionTitle}>{t('inventory.wholesaleSection')}</Text>
               <View style={styles.infoBadge}>
                 <Truck size={16} color={isDark ? '#60a5fa' : '#2563eb'} />
               </View>
@@ -994,53 +1016,36 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
             <View style={styles.accordionBody}>
               {/* Wholesale Price */}
               <View style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>سعر الجملة</Text>
-                <View style={styles.currencyInputRow}>
+                <Text style={[styles.fieldLabel, { textAlign }]}>{t('inventory.wholesalePrice')}</Text>
+                <View style={[styles.currencyInputRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                   <View style={styles.currencyBadge}>
-                    <Text style={styles.currencyBadgeText}>دج</Text>
+                    <Text style={styles.currencyBadgeText}>{currency}</Text>
                   </View>
                   <TextInput
-                    style={[styles.textInput, styles.currencyTextInput]}
+                    style={[styles.textInput, styles.currencyTextInput, { textAlign }]}
                     value={form.wholesalePrice}
                     onChangeText={(val) => handleFieldChange('wholesalePrice', val)}
                     placeholder="0.00"
                     placeholderTextColor={colors.text.tertiary}
                     keyboardType="numeric"
-                    textAlign="right"
                   />
                 </View>
               </View>
 
               {/* Two Column: Min Qty & Unit Name */}
-              <View style={styles.twoColumnRow}>
+              <View style={[styles.twoColumnRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                 <View style={[styles.fieldGroup, { flex: 1 }]}>
-                  <Text style={styles.fieldLabel}>تسمية الجملة</Text>
+                  <Text style={[styles.fieldLabel, { textAlign }]}>{t('inventory.wholesaleMinQty')}</Text>
                   <TextInput
-                    style={styles.textInput}
-                    value={form.wholesaleUnitName}
-                    onChangeText={(val) => handleFieldChange('wholesaleUnitName', val)}
-                    placeholder="كرتون"
-                    placeholderTextColor={colors.text.tertiary}
-                    textAlign="right"
-                  />
-                </View>
-
-                <View style={[styles.fieldGroup, { flex: 1 }]}>
-                  <Text style={styles.fieldLabel}>عدد الوحدات</Text>
-                  <TextInput
-                    style={styles.textInput}
+                    style={[styles.textInput, { textAlign }]}
                     value={form.wholesaleMinQty}
                     onChangeText={(val) => handleFieldChange('wholesaleMinQty', val)}
                     placeholder="0"
                     placeholderTextColor={colors.text.tertiary}
                     keyboardType="numeric"
-                    textAlign="right"
                   />
                 </View>
               </View>
-              <Text style={styles.fieldHelperText}>
-                يُنشّط سعر الجملة عند هذه الكمّية.
-              </Text>
             </View>
           )}
         </View>
@@ -1048,9 +1053,12 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
         {/* ═══════════════════════════════════════════════════════
             SECTION 4: مُتقدّم (Advanced Barcodes & Custom Prices)
         ═══════════════════════════════════════════════════════ */}
+        {/* ═══════════════════════════════════════════════════════
+            SECTION 4: مُتَقَدِّم (Advanced Barcodes & Custom Prices)
+        ═══════════════════════════════════════════════════════ */}
         <View style={styles.accordionCard}>
           <TouchableOpacity
-            style={styles.accordionHeader}
+            style={[styles.accordionHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
             onPress={() => toggleSection('advanced')}
             activeOpacity={0.7}
           >
@@ -1062,43 +1070,77 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
               )}
             </View>
 
-            <View style={styles.accordionTitleBox}>
-              <View style={styles.accordionTitleRow}>
-                <Text style={styles.accordionTitle}>مُتقدّم</Text>
+            <View style={[styles.accordionTitleBox, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+              <View style={[styles.accordionTitleRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <Text style={styles.accordionTitle}>مُتَقَدِّم</Text>
                 <View style={styles.infoBadge}>
                   <SlidersHorizontal size={16} color={isDark ? '#60a5fa' : '#2563eb'} />
                 </View>
               </View>
               <Text style={styles.accordionSubtitle}>
-                بار كودات وأسعار إضافيّة، خصائص أخرى.
+                باركودات وأسعار إضافية، خصائص أخرى.
               </Text>
             </View>
           </TouchableOpacity>
 
           {expandedSections.advanced && (
             <View style={styles.accordionBody}>
-              {/* Secondary Barcodes Subsection */}
+              {/* ── 1. Secondary Barcodes Subsection ── */}
               <View style={styles.subsectionBox}>
-                <Text style={styles.fieldHelperText}>
-                  بار كودات إضافيّة لنفس المنتج (مثلاً: كرتون مقابل علبة فردية).
+                <Text style={[styles.subsectionHintText, { textAlign }]}>
+                  باركودات إضافية لنفس المنتج (مثلاً: كرتون مقابل علبة فردية).
                 </Text>
 
-                {secondaryBarcodes.map((bc, idx) => (
-                  <View key={idx} style={styles.chipRowItem}>
-                    <TouchableOpacity
-                      onPress={() => handleRemoveSecondaryBarcode(bc)}
-                      style={styles.deleteChipBtn}
-                    >
-                      <Trash2 size={15} color={colors.danger.main} />
-                    </TouchableOpacity>
-                    <Text style={styles.chipText}>{bc}</Text>
-                    <Barcode size={16} color={colors.text.secondary} />
+                {secondaryBarcodes.map((item, idx) => (
+                  <View key={item.id || idx} style={styles.advancedItemCard}>
+                    {/* Top Row: Delete Btn + Scan & Barcode Input */}
+                    <View style={[styles.advancedCardRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                      <TouchableOpacity
+                        onPress={() => handleRemoveSecondaryBarcode(idx)}
+                        style={styles.deleteCardBtn}
+                        activeOpacity={0.7}
+                      >
+                        <Trash2 size={18} color={colors.danger.main} />
+                      </TouchableOpacity>
+
+                      <View style={[styles.inputWithIconWrapper, { flex: 1, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                        <TouchableOpacity
+                          style={styles.inlineScanBtn}
+                          onPress={() => {
+                            setActiveBarcodeIndex(idx);
+                            setScannerTarget('secondary');
+                            setShowScanner(true);
+                          }}
+                          activeOpacity={0.8}
+                        >
+                          <ScanLine size={18} color={isDark ? '#60a5fa' : '#2563eb'} />
+                        </TouchableOpacity>
+
+                        <TextInput
+                          style={[styles.advancedInput, { flex: 1, textAlign: 'left', fontFamily: 'Courier' }]}
+                          value={item.barcode}
+                          onChangeText={(val) => handleUpdateSecondaryBarcode(idx, 'barcode', val)}
+                          placeholder="الباركود"
+                          placeholderTextColor={colors.text.tertiary}
+                          keyboardType="default"
+                        />
+                      </View>
+                    </View>
+
+                    {/* Bottom Row: Price / Unit Label */}
+                    <TextInput
+                      style={[styles.advancedInput, { textAlign }]}
+                      value={item.priceLabel}
+                      onChangeText={(val) => handleUpdateSecondaryBarcode(idx, 'priceLabel', val)}
+                      placeholder="تسمية السعر (اختياري - تربطه بـ...)"
+                      placeholderTextColor={colors.text.tertiary}
+                    />
                   </View>
                 ))}
 
                 <TouchableOpacity
-                  style={styles.dashedActionBtn}
-                  onPress={() => setNewBarcodeModal(true)}
+                  style={[styles.dashedActionBtn, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
+                  onPress={handleAddSecondaryBarcode}
                   activeOpacity={0.7}
                 >
                   <Plus size={16} color={isDark ? '#60a5fa' : '#2563eb'} />
@@ -1106,69 +1148,82 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
                 </TouchableOpacity>
               </View>
 
-              {/* Custom Tiered Prices Subsection */}
-              <View style={styles.subsectionBox}>
-                <Text style={styles.fieldHelperText}>
-                  أسعار إضافيّة بأسماء مخصّصة (سعر طالب، سعر مُوظّف، إلخ). لكل سعر يمكن إضافة باركود يختاره تلقائياً عند المسح.
+              {/* ── 2. Custom Prices Subsection ── */}
+              <View style={[styles.subsectionBox, { marginTop: spacing.md }]}>
+                <Text style={[styles.subsectionHintText, { textAlign }]}>
+                  أسعار إضافية بأسماء مخصصة (سعر طالب، سعر مُوظف، إلخ). لكل سعر يُمكِن إضافة باركود يختاره تلقائياً عند المسح.
                 </Text>
 
                 {customPrices.map((cp, idx) => (
-                  <View key={cp.id} style={styles.chipRowItem}>
-                    <TouchableOpacity
-                      onPress={() => handleRemoveCustomPrice(cp.id)}
-                      style={styles.deleteChipBtn}
-                    >
-                      <Trash2 size={15} color={colors.danger.main} />
-                    </TouchableOpacity>
-                    <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                      <Text style={styles.chipText}>{cp.name} : {cp.price} دج</Text>
-                      {cp.barcode ? (
-                        <Text style={{ fontSize: 11, color: colors.text.tertiary, fontFamily: 'Cairo' }}>
-                          باركود: {cp.barcode}
-                        </Text>
-                      ) : null}
+                  <View key={cp.id || idx} style={styles.advancedItemCard}>
+                    {/* Row 1: Label / Name */}
+                    <TextInput
+                      style={[styles.advancedInput, { textAlign }]}
+                      value={cp.name}
+                      onChangeText={(val) => handleUpdateCustomPrice(idx, 'name', val)}
+                      placeholder="التسمية (مثلاً: سعر طالب)"
+                      placeholderTextColor={colors.text.tertiary}
+                    />
+
+                    {/* Row 2: Price + Delete Button */}
+                    <View style={[styles.advancedCardRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                      <TouchableOpacity
+                        onPress={() => handleRemoveCustomPrice(idx)}
+                        style={styles.deleteCardBtn}
+                        activeOpacity={0.7}
+                      >
+                        <Trash2 size={18} color={colors.danger.main} />
+                      </TouchableOpacity>
+
+                      <View style={[styles.currencyInputInline, { flex: 1, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                        <View style={styles.currencyBadgeInline}>
+                          <Text style={styles.currencyBadgeText}>{currency}</Text>
+                        </View>
+                        <TextInput
+                          style={[styles.advancedInput, { flex: 1, textAlign }]}
+                          value={cp.price}
+                          onChangeText={(val) => handleUpdateCustomPrice(idx, 'price', val)}
+                          placeholder="السعر"
+                          placeholderTextColor={colors.text.tertiary}
+                          keyboardType="numeric"
+                        />
+                      </View>
                     </View>
-                    <Tag size={16} color={colors.text.secondary} />
+
+                    {/* Row 3: Specific Barcode (Optional) + Scan Button */}
+                    <View style={[styles.inputWithIconWrapper, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                      <TouchableOpacity
+                        style={styles.inlineScanBtn}
+                        onPress={() => {
+                          setActivePriceIndex(idx);
+                          setScannerTarget('customPrice');
+                          setShowScanner(true);
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <ScanLine size={18} color={isDark ? '#60a5fa' : '#2563eb'} />
+                      </TouchableOpacity>
+
+                      <TextInput
+                        style={[styles.advancedInput, { flex: 1, textAlign: 'left', fontFamily: 'Courier' }]}
+                        value={cp.barcode || ''}
+                        onChangeText={(val) => handleUpdateCustomPrice(idx, 'barcode', val)}
+                        placeholder="باركود مخصوص (اختياري)"
+                        placeholderTextColor={colors.text.tertiary}
+                        keyboardType="default"
+                      />
+                    </View>
                   </View>
                 ))}
 
                 <TouchableOpacity
-                  style={styles.dashedActionBtn}
-                  onPress={() => setNewPriceModal(true)}
+                  style={[styles.dashedActionBtn, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
+                  onPress={handleAddCustomPrice}
                   activeOpacity={0.7}
                 >
                   <Plus size={16} color={isDark ? '#60a5fa' : '#2563eb'} />
                   <Text style={styles.dashedActionBtnText}>إضافة سعر</Text>
                 </TouchableOpacity>
-              </View>
-
-              {/* Switches */}
-              <View style={styles.switchRowContainer}>
-                <View style={styles.switchTextBox}>
-                  <Text style={styles.switchTitle}>منتج مُميّز</Text>
-                  <Text style={styles.switchSub}>يظهر في الواجهة الأمامية.</Text>
-                </View>
-                <Switch
-                  value={form.quickSale}
-                  onValueChange={(val) => handleFieldChange('quickSale', val)}
-                  trackColor={{ false: isDark ? '#334155' : '#cbd5e1', true: colors.primary[600] }}
-                  thumbColor="#ffffff"
-                />
-              </View>
-
-              <View style={styles.switchRowContainer}>
-                <View style={styles.switchTextBox}>
-                  <Text style={styles.switchTitle}>يملك مُتغيّرات</Text>
-                  <Text style={styles.switchSub}>
-                    فعّل بعد الحفظ، ثم أضف المُتغيّرات من شاشة التّفاصيل.
-                  </Text>
-                </View>
-                <Switch
-                  value={form.hasVariants}
-                  onValueChange={(val) => handleFieldChange('hasVariants', val)}
-                  trackColor={{ false: isDark ? '#334155' : '#cbd5e1', true: colors.primary[600] }}
-                  thumbColor="#ffffff"
-                />
               </View>
             </View>
           )}
@@ -1222,7 +1277,7 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
           onPress={() => setUnitModalVisible(false)}
         >
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>اختر الوحدة</Text>
+            <Text style={styles.modalTitle}>{t('inventory.unit')}</Text>
             <View style={styles.unitGrid}>
               {UNITS.map((u) => (
                 <TouchableOpacity
@@ -1264,53 +1319,109 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
           onPress={() => setCategoryModalVisible(false)}
         >
           <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
-            <Text style={styles.modalTitle}>تحديد الفئة</Text>
+            <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md }}>
+              <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 8 }}>
+                <Tag size={18} color={colors.primary[600]} />
+                <Text style={[styles.modalTitle, { marginBottom: 0, textAlign: isRTL ? 'right' : 'left' }]}>
+                  {t('inventory.selectCategory')}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setCategoryModalVisible(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <X size={20} color={colors.text.tertiary} />
+              </TouchableOpacity>
+            </View>
 
-            <ScrollView style={{ maxHeight: 220, marginVertical: spacing.sm }}>
+            <ScrollView style={{ maxHeight: 240, marginVertical: spacing.xs }}>
               <View style={styles.categoriesList}>
-                {categories.map((c) => (
-                  <TouchableOpacity
-                    key={c.id}
-                    style={[
-                      styles.categoryListItem,
-                      form.categoryId === c.id && styles.categoryListItemActive,
-                    ]}
-                    onPress={() => {
-                      handleFieldChange('category', c.name);
-                      handleFieldChange('categoryId', c.id);
-                      setCategoryModalVisible(false);
-                    }}
-                  >
-                    <Text
+                {/* General / Default Category Option */}
+                {(() => {
+                  const isGeneralSelected =
+                    !form.categoryId && (!form.category || form.category === 'عام' || form.category.toLowerCase() === 'general');
+                  return (
+                    <TouchableOpacity
                       style={[
-                        styles.categoryListText,
-                        form.categoryId === c.id && styles.categoryListTextActive,
+                        styles.categoryListItem,
+                        isGeneralSelected && styles.categoryListItemActive,
+                        { flexDirection: isRTL ? 'row-reverse' : 'row' },
                       ]}
+                      onPress={() => handleSelectCategory('عام', '')}
                     >
-                      {c.name}
-                    </Text>
-                    {form.categoryId === c.id ? (
-                      <Check size={16} color="#ffffff" />
-                    ) : null}
-                  </TouchableOpacity>
-                ))}
+                      <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 8 }}>
+                        <Tag size={15} color={isGeneralSelected ? '#ffffff' : colors.text.tertiary} />
+                        <Text
+                          style={[
+                            styles.categoryListText,
+                            isGeneralSelected && styles.categoryListTextActive,
+                          ]}
+                        >
+                          عام (افتراضي)
+                        </Text>
+                      </View>
+                      {isGeneralSelected ? <Check size={16} color="#ffffff" /> : null}
+                    </TouchableOpacity>
+                  );
+                })()}
+
+                {/* Database Categories */}
+                {categories.map((c) => {
+                  const isSelected =
+                    (form.categoryId && form.categoryId === c.id) ||
+                    (form.category && form.category.trim().toLowerCase() === c.name.trim().toLowerCase());
+                  return (
+                    <TouchableOpacity
+                      key={c.id}
+                      style={[
+                        styles.categoryListItem,
+                        isSelected && styles.categoryListItemActive,
+                        { flexDirection: isRTL ? 'row-reverse' : 'row' },
+                      ]}
+                      onPress={() => handleSelectCategory(c.name, c.id)}
+                    >
+                      <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 8 }}>
+                        <View
+                          style={{
+                            width: 10,
+                            height: 10,
+                            borderRadius: 5,
+                            backgroundColor: isSelected ? '#ffffff' : (c as any).color || colors.primary[500],
+                          }}
+                        />
+                        <Text
+                          style={[
+                            styles.categoryListText,
+                            isSelected && styles.categoryListTextActive,
+                          ]}
+                        >
+                          {c.name}
+                        </Text>
+                      </View>
+                      {isSelected ? (
+                        <Check size={16} color="#ffffff" />
+                      ) : null}
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </ScrollView>
 
-            <View style={styles.newCatInputRow}>
+            <View style={[styles.newCatInputRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <TouchableOpacity
                 style={styles.addCatBtn}
                 onPress={handleCreateCategory}
+                activeOpacity={0.8}
               >
                 <Plus size={16} color="#ffffff" />
               </TouchableOpacity>
               <TextInput
-                style={[styles.textInput, { flex: 1 }]}
+                style={[styles.textInput, { flex: 1, textAlign }]}
                 value={newCatName}
                 onChangeText={setNewCatName}
-                placeholder="إضافة فئة جديدة..."
+                placeholder={t('categories.addCategory')}
                 placeholderTextColor={colors.text.tertiary}
-                textAlign="right"
+                onSubmitEditing={handleCreateCategory}
               />
             </View>
           </View>
@@ -1325,53 +1436,119 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
         onRequestClose={() => setImagePickerVisible(false)}
       >
         <TouchableOpacity
-          style={styles.modalOverlay}
+          style={styles.actionSheetOverlay}
           activeOpacity={1}
           onPress={() => setImagePickerVisible(false)}
         >
-          <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
-            <Text style={styles.modalTitle}>صورة المنتج</Text>
-
-            <View style={styles.modalActionButtons}>
+          <View style={styles.actionSheetCard} onStartShouldSetResponder={() => true}>
+            {/* Header Handle & Title */}
+            <View style={styles.sheetHandle} />
+            <View style={[styles.sheetHeaderRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <View style={[styles.sheetTitleBox, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+                <Text style={styles.sheetTitle}>{t('inventory.productImage')}</Text>
+                <Text style={styles.sheetSubtitle}>{t('inventory.imageUploadHint')}</Text>
+              </View>
               <TouchableOpacity
-                style={styles.actionSheetBtn}
+                style={styles.sheetCloseBtn}
+                onPress={() => setImagePickerVisible(false)}
+                activeOpacity={0.7}
+              >
+                <X size={18} color={colors.text.tertiary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Options List */}
+            <View style={styles.sheetOptionsList}>
+              {/* Option 1: Capture Photo with Camera (FIRST OPTION) */}
+              <TouchableOpacity
+                style={[styles.sheetOptionItem, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
                 onPress={handleCapturePhoto}
+                activeOpacity={0.7}
               >
-                <Camera size={20} color={isDark ? '#60a5fa' : '#2563eb'} />
-                <Text style={styles.actionSheetBtnText}>التقاط صورة بالكاميرا</Text>
+                <View style={[styles.sheetOptionIconBox, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#eff6ff' }]}>
+                  <Camera size={22} color={isDark ? '#60a5fa' : '#2563eb'} />
+                </View>
+                <View style={[styles.sheetOptionTextBox, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+                  <Text style={styles.sheetOptionTitle}>{t('inventory.takePhoto')}</Text>
+                  <Text style={styles.sheetOptionDesc}>{t('inventory.takePhotoDesc')}</Text>
+                </View>
+                <ChevronDown
+                  size={18}
+                  color={colors.text.tertiary}
+                  style={{ transform: [{ rotate: isRTL ? '90deg' : '-90deg' }] }}
+                />
               </TouchableOpacity>
 
+              {/* Option 2: Pick from Gallery */}
               <TouchableOpacity
-                style={styles.actionSheetBtn}
+                style={[styles.sheetOptionItem, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
                 onPress={handlePickGallery}
+                activeOpacity={0.7}
               >
-                <ImageIcon size={20} color={isDark ? '#60a5fa' : '#2563eb'} />
-                <Text style={styles.actionSheetBtnText}>اختيار من معرض الصور</Text>
+                <View style={[styles.sheetOptionIconBox, { backgroundColor: isDark ? 'rgba(139, 92, 246, 0.2)' : '#f5f3ff' }]}>
+                  <ImageIcon size={22} color={isDark ? '#a78bfa' : '#7c3aed'} />
+                </View>
+                <View style={[styles.sheetOptionTextBox, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+                  <Text style={styles.sheetOptionTitle}>{t('inventory.chooseFromGallery')}</Text>
+                  <Text style={styles.sheetOptionDesc}>{t('inventory.chooseFromGalleryDesc')}</Text>
+                </View>
+                <ChevronDown
+                  size={18}
+                  color={colors.text.tertiary}
+                  style={{ transform: [{ rotate: isRTL ? '90deg' : '-90deg' }] }}
+                />
               </TouchableOpacity>
 
+              {/* Option 3: Direct URL */}
               <TouchableOpacity
-                style={styles.actionSheetBtn}
+                style={[styles.sheetOptionItem, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
                 onPress={() => {
                   setImagePickerVisible(false);
                   setUrlModalVisible(true);
                 }}
+                activeOpacity={0.7}
               >
-                <Globe size={20} color={isDark ? '#60a5fa' : '#2563eb'} />
-                <Text style={styles.actionSheetBtnText}>إدخال رابط صورة (URL)</Text>
+                <View style={[styles.sheetOptionIconBox, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.2)' : '#ecfdf5' }]}>
+                  <Globe size={22} color={isDark ? '#34d399' : '#059669'} />
+                </View>
+                <View style={[styles.sheetOptionTextBox, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+                  <Text style={styles.sheetOptionTitle}>{t('inventory.enterImageUrl')}</Text>
+                  <Text style={styles.sheetOptionDesc}>{t('inventory.enterImageUrlDesc')}</Text>
+                </View>
+                <ChevronDown
+                  size={18}
+                  color={colors.text.tertiary}
+                  style={{ transform: [{ rotate: isRTL ? '90deg' : '-90deg' }] }}
+                />
               </TouchableOpacity>
 
+              {/* Option 4: Remove image if exists */}
               {form.image ? (
                 <TouchableOpacity
-                  style={[styles.actionSheetBtn, { borderTopWidth: 1, borderTopColor: colors.border.subtle }]}
+                  style={[styles.sheetOptionItem, styles.sheetOptionDelete, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
                   onPress={handleRemoveImage}
+                  activeOpacity={0.7}
                 >
-                  <Trash2 size={20} color={colors.danger.main} />
-                  <Text style={[styles.actionSheetBtnText, { color: colors.danger.main }]}>
-                    حذف الصورة الحالية
-                  </Text>
+                  <View style={[styles.sheetOptionIconBox, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#fef2f2' }]}>
+                    <Trash2 size={22} color={colors.danger.main} />
+                  </View>
+                  <View style={[styles.sheetOptionTextBox, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+                    <Text style={[styles.sheetOptionTitle, { color: colors.danger.main }]}>
+                      {t('inventory.removeProductImage')}
+                    </Text>
+                  </View>
                 </TouchableOpacity>
               ) : null}
             </View>
+
+            {/* Cancel Button */}
+            <TouchableOpacity
+              style={styles.sheetCancelBtn}
+              onPress={() => setImagePickerVisible(false)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.sheetCancelBtnText}>{t('common.cancel')}</Text>
+            </TouchableOpacity>
           </View>
         </TouchableOpacity>
       </Modal>
@@ -1389,9 +1566,14 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
           onPress={() => setUrlModalVisible(false)}
         >
           <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
-            <Text style={styles.modalTitle}>رابط صورة المنتج</Text>
+            <View style={[styles.modalCardHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <Text style={styles.modalTitle}>{t('inventory.enterImageUrl')}</Text>
+              <TouchableOpacity onPress={() => setUrlModalVisible(false)} activeOpacity={0.7}>
+                <X size={20} color={colors.text.tertiary} />
+              </TouchableOpacity>
+            </View>
             <TextInput
-              style={[styles.textInput, { marginVertical: spacing.md }]}
+              style={[styles.textInput, { marginVertical: spacing.md, textAlign: 'left' }]}
               value={customImageUrl}
               onChangeText={setCustomImageUrl}
               placeholder="https://example.com/image.jpg"
@@ -1399,106 +1581,26 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
               autoCapitalize="none"
               keyboardType="url"
             />
-            <TouchableOpacity style={styles.saveSubModalBtn} onPress={handleApplyCustomUrl}>
-              <Text style={styles.saveSubModalBtnText}>تطبيق الرابط</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* 6. Add Secondary Barcode Modal */}
-      <Modal
-        visible={newBarcodeModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setNewBarcodeModal(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setNewBarcodeModal(false)}
-        >
-          <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
-            <Text style={styles.modalTitle}>إضافة باركود إضافي</Text>
-            <View style={[styles.barcodeInputRow, { marginVertical: spacing.md }]}>
+            <View style={[styles.modalActionsRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <TouchableOpacity
-                style={styles.scanBarcodeBtn}
-                onPress={() => {
-                  setNewBarcodeModal(false);
-                  setScannerTarget('secondary');
-                  setShowScanner(true);
-                }}
+                style={[styles.modalSecondaryBtn, { flex: 1 }]}
+                onPress={() => setUrlModalVisible(false)}
+                activeOpacity={0.7}
               >
-                <ScanLine size={18} color={isDark ? '#60a5fa' : '#2563eb'} />
+                <Text style={styles.modalSecondaryBtnText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
-              <TextInput
-                style={[styles.textInput, { flex: 1 }]}
-                value={tempBarcode}
-                onChangeText={setTempBarcode}
-                placeholder="أدخل الباركود..."
-                placeholderTextColor={colors.text.tertiary}
-                keyboardType="default"
-              />
+              <TouchableOpacity
+                style={[styles.saveSubModalBtn, { flex: 1 }]}
+                onPress={handleApplyCustomUrl}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.saveSubModalBtnText}>{t('common.save')}</Text>
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity style={styles.saveSubModalBtn} onPress={handleAddSecondaryBarcodeSubmit}>
-              <Text style={styles.saveSubModalBtnText}>إضافة</Text>
-            </TouchableOpacity>
           </View>
         </TouchableOpacity>
       </Modal>
 
-      {/* 7. Add Custom Price Modal */}
-      <Modal
-        visible={newPriceModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setNewPriceModal(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setNewPriceModal(false)}
-        >
-          <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
-            <Text style={styles.modalTitle}>إضافة سعر مخصص</Text>
-            <View style={{ gap: spacing.sm, marginVertical: spacing.md }}>
-              <TextInput
-                style={styles.textInput}
-                value={tempPriceName}
-                onChangeText={setTempPriceName}
-                placeholder="اسم السعر (مثلاً: سعر طالب / سعر جملة 2)"
-                placeholderTextColor={colors.text.tertiary}
-                textAlign="right"
-              />
-              <View style={styles.currencyInputRow}>
-                <View style={styles.currencyBadge}>
-                  <Text style={styles.currencyBadgeText}>دج</Text>
-                </View>
-                <TextInput
-                  style={[styles.textInput, styles.currencyTextInput]}
-                  value={tempPriceVal}
-                  onChangeText={setTempPriceVal}
-                  placeholder="0.00"
-                  placeholderTextColor={colors.text.tertiary}
-                  keyboardType="numeric"
-                  textAlign="right"
-                />
-              </View>
-              <TextInput
-                style={styles.textInput}
-                value={tempPriceBarcode}
-                onChangeText={setTempPriceBarcode}
-                placeholder="باركود مرتبط بالسعر (اختياري)"
-                placeholderTextColor={colors.text.tertiary}
-                textAlign="right"
-              />
-            </View>
-            <TouchableOpacity style={styles.saveSubModalBtn} onPress={handleAddCustomPriceSubmit}>
-              <Text style={styles.saveSubModalBtnText}>حفظ السعر</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
     </KeyboardAvoidingView>
   );
 };
@@ -1904,6 +2006,77 @@ const makeStyles = (colors: any, isDark: boolean) =>
       gap: spacing.sm,
       paddingVertical: spacing.xs,
     },
+    subsectionHintText: {
+      fontSize: 12,
+      fontFamily: 'Cairo',
+      color: colors.text.secondary,
+      lineHeight: 18,
+      marginBottom: spacing.xs,
+    },
+    advancedItemCard: {
+      backgroundColor: isDark ? '#0c1322' : '#f8fafc',
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#e2e8f0',
+      borderRadius: radii.xl,
+      padding: spacing.md,
+      gap: spacing.sm,
+      marginBottom: spacing.xs,
+    },
+    advancedCardRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+    },
+    deleteCardBtn: {
+      width: 46,
+      height: 46,
+      borderRadius: radii.lg,
+      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#fee2e2',
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(239, 68, 68, 0.25)' : '#fecaca',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    inputWithIconWrapper: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+    },
+    inlineScanBtn: {
+      width: 46,
+      height: 46,
+      borderRadius: radii.lg,
+      backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#eff6ff',
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(59, 130, 246, 0.3)' : '#bfdbfe',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    advancedInput: {
+      backgroundColor: isDark ? '#111827' : '#ffffff',
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : '#cbd5e1',
+      borderRadius: radii.lg,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm + 2,
+      fontSize: 13.5,
+      fontFamily: 'Cairo',
+      color: colors.text.primary,
+      minHeight: 46,
+    },
+    currencyInputInline: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+    },
+    currencyBadgeInline: {
+      height: 46,
+      paddingHorizontal: spacing.sm + 2,
+      borderRadius: radii.lg,
+      backgroundColor: isDark ? '#1e293b' : '#e2e8f0',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     dashedActionBtn: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -2097,25 +2270,144 @@ const makeStyles = (colors: any, isDark: boolean) =>
       justifyContent: 'center',
     },
 
-    // Image Action Sheet Buttons
-    modalActionButtons: {
-      gap: spacing.sm,
+    // Image Action Sheet Modal
+    actionSheetOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(10, 15, 29, 0.75)',
+      justifyContent: 'flex-end',
     },
-    actionSheetBtn: {
+    actionSheetCard: {
+      width: '100%',
+      backgroundColor: colors.surface,
+      borderTopLeftRadius: radii.xxl,
+      borderTopRightRadius: radii.xxl,
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.md,
+      paddingBottom: Platform.OS === 'android' ? 24 : 36,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+      ...shadows.lg,
+    },
+    sheetHandle: {
+      width: 36,
+      height: 4,
+      borderRadius: radii.full,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.2)' : '#cbd5e1',
+      alignSelf: 'center',
+      marginBottom: spacing.md,
+    },
+    sheetHeaderRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'flex-start',
+      justifyContent: 'space-between',
+      marginBottom: spacing.md,
+    },
+    sheetTitleBox: {
+      flex: 1,
+    },
+    sheetTitle: {
+      fontSize: 16,
+      fontWeight: '800',
+      fontFamily: 'Cairo',
+      color: colors.text.primary,
+    },
+    sheetSubtitle: {
+      fontSize: 12,
+      fontFamily: 'Cairo',
+      color: colors.text.tertiary,
+      marginTop: 2,
+    },
+    sheetCloseBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: radii.circle,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : '#f1f5f9',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    sheetOptionsList: {
+      gap: spacing.sm,
+      marginBottom: spacing.md,
+    },
+    sheetOptionItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
       gap: spacing.md,
       paddingVertical: spacing.md,
       paddingHorizontal: spacing.md,
-      borderRadius: radii.lg,
+      borderRadius: radii.xl,
       backgroundColor: isDark ? colors.surfaceElevated : colors.slate[50],
+      borderWidth: 1,
+      borderColor: isDark ? colors.border.subtle : colors.slate[200],
     },
-    actionSheetBtnText: {
+    sheetOptionDelete: {
+      borderColor: isDark ? 'rgba(239, 68, 68, 0.3)' : '#fecaca',
+      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.08)' : '#fef2f2',
+    },
+    sheetOptionIconBox: {
+      width: 44,
+      height: 44,
+      borderRadius: radii.lg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    sheetOptionTextBox: {
+      flex: 1,
+      gap: 2,
+    },
+    sheetOptionTitle: {
+      fontSize: 14,
+      fontWeight: '800',
+      fontFamily: 'Cairo',
+      color: colors.text.primary,
+    },
+    sheetOptionDesc: {
+      fontSize: 11.5,
+      fontFamily: 'Cairo',
+      color: colors.text.tertiary,
+    },
+    sheetCancelBtn: {
+      width: '100%',
+      paddingVertical: spacing.md,
+      borderRadius: radii.xl,
+      backgroundColor: isDark ? colors.surfaceElevated : colors.slate[100],
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: isDark ? colors.border.default : colors.slate[200],
+    },
+    sheetCancelBtnText: {
       fontSize: 14,
       fontWeight: '700',
       fontFamily: 'Cairo',
-      color: colors.text.primary,
+      color: colors.text.secondary,
+    },
+    modalCardHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: spacing.xs,
+    },
+    modalActionsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      marginTop: spacing.sm,
+    },
+    modalSecondaryBtn: {
+      paddingVertical: spacing.md,
+      borderRadius: radii.xl,
+      backgroundColor: isDark ? colors.surfaceElevated : colors.slate[100],
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: isDark ? colors.border.default : colors.slate[200],
+    },
+    modalSecondaryBtnText: {
+      fontSize: 14,
+      fontWeight: '700',
+      fontFamily: 'Cairo',
+      color: colors.text.secondary,
     },
     saveSubModalBtn: {
       backgroundColor: colors.primary[600],

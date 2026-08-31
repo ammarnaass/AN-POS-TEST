@@ -396,7 +396,7 @@ export async function registerSyncRoutes(server: FastifyInstance): Promise<void>
   server.get('/api/sync/users-readonly', async (_request, reply) => {
     try {
       const users = queryAll(
-        'SELECT id, username, name, email, phone, role, role_id, status, created_at, updated_at FROM users WHERE status != "deleted"'
+        'SELECT id, username, name, email, phone, role, role_id, status, created_at, updated_at FROM users WHERE status != \x27deleted\x27'
       );
       const roles = queryAll(
         'SELECT id, name, description, permissions, is_system, created_at FROM roles'

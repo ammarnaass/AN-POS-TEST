@@ -28,8 +28,14 @@ import {
 import { db, ensureInit } from '@/lib/db';
 import { generateId } from '@shared/utils';
 import type { Supplier } from '@shared/types';
+import { useI18n } from '@/store/i18nStore';
+import { useTheme } from '@/theme';
 
 export const SuppliersScreen = ({ navigation }: any) => {
+  const { t, isRTL, textAlign, currency, language } = useI18n();
+  const { isDark, colors } = useTheme();
+  const localeStr = language === 'ar' ? 'ar-DZ' : language === 'fr' ? 'fr-FR' : 'en-US';
+
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [filtered, setFiltered] = useState<Supplier[]>([]);
   const [search, setSearch] = useState('');
@@ -119,7 +125,7 @@ export const SuppliersScreen = ({ navigation }: any) => {
 
   const handleSave = async () => {
     if (!form.name.trim()) {
-      Alert.alert('تنبيه', 'يرجى إدخال اسم المورد');
+      Alert.alert(t('common.warning'), t('suppliers.supplierNameRequired'));
       return;
     }
 
@@ -156,23 +162,23 @@ export const SuppliersScreen = ({ navigation }: any) => {
       setModalVisible(false);
       await loadSuppliers();
     } catch (err) {
-      Alert.alert('خطأ', `فشل الحفظ: ${err instanceof Error ? err.message : 'خطأ'}`);
+      Alert.alert(t('common.error'), `${t('suppliers.supplierSaveFailed')}: ${err instanceof Error ? err.message : 'خطأ'}`);
     }
     setSaving(false);
   };
 
   const handleDelete = (supplier: Supplier) => {
-    Alert.alert('حذف المورد', `هل أنت متأكد من حذف المورد "${supplier.name}"؟`, [
-      { text: 'إلغاء', style: 'cancel' },
+    Alert.alert(t('suppliers.deleteSupplier'), `${t('suppliers.deleteConfirm')} "${supplier.name}"?`, [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'حذف',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
           try {
             await db.suppliers.delete(supplier.id);
             await loadSuppliers();
           } catch {
-            Alert.alert('خطأ', 'فشل حذف المورد');
+            Alert.alert(t('common.error'), t('suppliers.deleteFailed'));
           }
         },
       },
@@ -182,49 +188,48 @@ export const SuppliersScreen = ({ navigation }: any) => {
   const totalSupplierDebt = suppliers.reduce((sum, s) => sum + (s.balance || 0), 0);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <TouchableOpacity style={styles.addBtn} onPress={openAdd}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border.default }]}>
+        <View style={[styles.headerTop, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+          <TouchableOpacity style={[styles.addBtn, { flexDirection: isRTL ? 'row-reverse' : 'row' }]} onPress={openAdd}>
             <Plus size={18} color="#fff" />
-            <Text style={styles.addBtnText}>مورد جديد</Text>
+            <Text style={styles.addBtnText}>{t('suppliers.addNewSupplier')}</Text>
           </TouchableOpacity>
-          <Text style={styles.screenTitle}>الموردون والمشتريات</Text>
+          <Text style={[styles.screenTitle, { color: colors.text.primary }]}>{t('suppliers.title')}</Text>
         </View>
 
-        <View style={styles.searchBar}>
-          <Search size={18} color="#94a3b8" />
+        <View style={[styles.searchBar, { backgroundColor: isDark ? colors.surfaceSubtle : '#f1f5f9', flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+          <Search size={18} color={colors.text.tertiary} />
           <TextInput
-            style={styles.searchInput}
-            placeholder="بحث بالاسم أو رقم الهاتف..."
+            style={[styles.searchInput, { color: colors.text.primary, textAlign }]}
+            placeholder={t('suppliers.searchPlaceholder')}
             value={search}
             onChangeText={setSearch}
-            placeholderTextColor="#94a3b8"
-            textAlign="right"
+            placeholderTextColor={colors.text.tertiary}
           />
         </View>
       </View>
 
       {/* Supplier Debt KPI Banner */}
-      <View style={styles.kpiCard}>
+      <View style={[styles.kpiCard, { backgroundColor: colors.surface, borderColor: colors.border.default, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
         <View style={styles.kpiIconBox}>
           <Truck size={24} color="#f59e0b" />
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.kpiLabel}>إجمالي ديون الموردين (المستحقة علينا)</Text>
-          <Text style={styles.kpiVal}>{totalSupplierDebt.toLocaleString('ar-DZ')} دج</Text>
+        <View style={{ flex: 1, alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
+          <Text style={[styles.kpiLabel, { color: colors.text.secondary }]}>{t('suppliers.totalDebt')}</Text>
+          <Text style={[styles.kpiVal, { color: colors.warning.main }]}>{totalSupplierDebt.toLocaleString(localeStr)} {currency}</Text>
         </View>
       </View>
 
       {/* Quick Action Button for Purchase Invoice */}
       <View style={{ paddingHorizontal: 12, marginBottom: 8 }}>
         <TouchableOpacity
-          style={styles.newPurchaseBanner}
+          style={[styles.newPurchaseBanner, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
           onPress={() => navigation.navigate('PurchaseForm')}
         >
           <ShoppingCart size={18} color="#fff" />
-          <Text style={styles.newPurchaseBannerText}>تسجيل فاتورة شراء بضاعة جديدة</Text>
+          <Text style={styles.newPurchaseBannerText}>{t('suppliers.recordNewPurchase')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -232,44 +237,44 @@ export const SuppliersScreen = ({ navigation }: any) => {
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={{ paddingBottom: 30 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary[600]} />}
       >
         {loading ? (
           <View style={styles.center}>
-            <ActivityIndicator size="large" color="#3b82f6" />
+            <ActivityIndicator size="large" color={colors.primary[600]} />
           </View>
         ) : filtered.length === 0 ? (
           <View style={styles.emptyState}>
-            <Truck size={48} color="#cbd5e1" />
-            <Text style={styles.emptyTitle}>لا يوجد موردون مسجلون</Text>
-            <Text style={styles.emptySub}>أضف الموردين لتسجيل فواتير الشراء ومتابعة الديون</Text>
+            <Truck size={48} color={colors.text.tertiary} />
+            <Text style={[styles.emptyTitle, { color: colors.text.primary }]}>{t('suppliers.noSuppliers')}</Text>
+            <Text style={[styles.emptySub, { color: colors.text.secondary }]}>{t('suppliers.noSuppliersDesc')}</Text>
           </View>
         ) : (
           <View style={{ gap: 10, paddingHorizontal: 12 }}>
             {filtered.map((s) => (
               <TouchableOpacity
                 key={s.id}
-                style={styles.supplierCard}
+                style={[styles.supplierCard, { backgroundColor: colors.surface, borderColor: colors.border.default, flexDirection: isRTL ? 'row-reverse' : 'row' }]}
                 onPress={() => navigation.navigate('SupplierDetail', { supplierId: s.id, supplier: s })}
               >
-                <View style={styles.cardLeft}>
+                <View style={[styles.cardLeft, { alignItems: isRTL ? 'flex-start' : 'flex-end' }]}>
                   <Text style={[styles.debtText, s.balance > 0 ? styles.debtDue : styles.debtZero]}>
-                    {(s.balance || 0).toLocaleString('ar-DZ')} دج
+                    {(s.balance || 0).toLocaleString(localeStr)} {currency}
                   </Text>
-                  <Text style={styles.debtSubLabel}>المستحق له</Text>
+                  <Text style={[styles.debtSubLabel, { color: colors.text.tertiary }]}>{t('suppliers.dueBalance')}</Text>
                 </View>
 
-                <View style={styles.cardRight}>
-                  <Text style={styles.supplierName}>{s.name}</Text>
+                <View style={[styles.cardRight, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+                  <Text style={[styles.supplierName, { color: colors.text.primary, textAlign }]}>{s.name}</Text>
                   {s.phone ? (
-                    <View style={styles.phoneRow}>
-                      <Text style={styles.phoneText}>{s.phone}</Text>
-                      <Phone size={12} color="#94a3b8" />
+                    <View style={[styles.phoneRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                      <Text style={[styles.phoneText, { color: colors.text.secondary }]}>{s.phone}</Text>
+                      <Phone size={12} color={colors.text.tertiary} />
                     </View>
                   ) : null}
                 </View>
 
-                <ChevronLeft size={18} color="#cbd5e1" />
+                <ChevronLeft size={18} color={colors.text.tertiary} />
               </TouchableOpacity>
             ))}
           </View>
@@ -279,77 +284,77 @@ export const SuppliersScreen = ({ navigation }: any) => {
       {/* Add / Edit Supplier Modal */}
       <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border.subtle, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.modalCloseBtn}>
-                <X size={18} color="#64748b" />
+                <X size={18} color={colors.text.secondary} />
               </TouchableOpacity>
-              <Text style={styles.modalTitle}>
-                {editingSupplier ? 'تعديل بيانات المورد' : 'إضافة مورد جديد'}
+              <Text style={[styles.modalTitle, { color: colors.text.primary }]}>
+                {editingSupplier ? t('suppliers.editSupplier') : t('suppliers.addNewSupplier')}
               </Text>
             </View>
 
             <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>اسم المورد / الشركة *</Text>
+                <Text style={[styles.formLabel, { color: colors.text.secondary, textAlign }]}>{t('suppliers.name')} *</Text>
                 <TextInput
-                  style={styles.formInput}
-                  placeholder="مثال: شركة النور للتوزيع"
+                  style={[styles.formInput, { color: colors.text.primary, borderColor: colors.border.default, backgroundColor: isDark ? colors.surfaceSubtle : '#f8fafc', textAlign }]}
+                  placeholder={t('suppliers.name')}
+                  placeholderTextColor={colors.text.tertiary}
                   value={form.name}
                   onChangeText={(v) => setForm((f) => ({ ...f, name: v }))}
-                  textAlign="right"
                 />
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>رقم الهاتف</Text>
+                <Text style={[styles.formLabel, { color: colors.text.secondary, textAlign }]}>{t('suppliers.phone')}</Text>
                 <TextInput
-                  style={styles.formInput}
+                  style={[styles.formInput, { color: colors.text.primary, borderColor: colors.border.default, backgroundColor: isDark ? colors.surfaceSubtle : '#f8fafc', textAlign }]}
                   placeholder="06xxxxxxxx"
+                  placeholderTextColor={colors.text.tertiary}
                   value={form.phone}
                   onChangeText={(v) => setForm((f) => ({ ...f, phone: v }))}
                   keyboardType="phone-pad"
-                  textAlign="right"
                 />
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>العنوان / المدينة</Text>
+                <Text style={[styles.formLabel, { color: colors.text.secondary, textAlign }]}>{t('suppliers.address')}</Text>
                 <TextInput
-                  style={styles.formInput}
-                  placeholder="الجزائر العاصمة..."
+                  style={[styles.formInput, { color: colors.text.primary, borderColor: colors.border.default, backgroundColor: isDark ? colors.surfaceSubtle : '#f8fafc', textAlign }]}
+                  placeholder={t('suppliers.address')}
+                  placeholderTextColor={colors.text.tertiary}
                   value={form.address}
                   onChangeText={(v) => setForm((f) => ({ ...f, address: v }))}
-                  textAlign="right"
                 />
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>الرقم الضريبي / السجل التجاري</Text>
+                <Text style={[styles.formLabel, { color: colors.text.secondary, textAlign }]}>{t('suppliers.taxId')}</Text>
                 <TextInput
-                  style={styles.formInput}
+                  style={[styles.formInput, { color: colors.text.primary, borderColor: colors.border.default, backgroundColor: isDark ? colors.surfaceSubtle : '#f8fafc', textAlign }]}
                   placeholder="NIF / RC"
+                  placeholderTextColor={colors.text.tertiary}
                   value={form.taxId}
                   onChangeText={(v) => setForm((f) => ({ ...f, taxId: v }))}
-                  textAlign="right"
                 />
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>الرصيد الافتتاحي (دين سابق إن وجد بالدينار)</Text>
+                <Text style={[styles.formLabel, { color: colors.text.secondary, textAlign }]}>{`${t('suppliers.openingBalance')} (${currency})`}</Text>
                 <TextInput
-                  style={styles.formInput}
+                  style={[styles.formInput, { color: colors.text.primary, borderColor: colors.border.default, backgroundColor: isDark ? colors.surfaceSubtle : '#f8fafc', textAlign }]}
                   placeholder="0"
+                  placeholderTextColor={colors.text.tertiary}
                   value={form.balance}
                   onChangeText={(v) => setForm((f) => ({ ...f, balance: v }))}
                   keyboardType="numeric"
-                  textAlign="right"
                 />
               </View>
             </ScrollView>
 
             <TouchableOpacity
-              style={styles.modalSaveBtn}
+              style={[styles.modalSaveBtn, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
               onPress={handleSave}
               disabled={saving}
             >
@@ -358,7 +363,7 @@ export const SuppliersScreen = ({ navigation }: any) => {
               ) : (
                 <>
                   <Check size={18} color="#fff" />
-                  <Text style={styles.modalSaveBtnText}>حفظ المورد</Text>
+                  <Text style={styles.modalSaveBtnText}>{t('common.save')}</Text>
                 </>
               )}
             </TouchableOpacity>

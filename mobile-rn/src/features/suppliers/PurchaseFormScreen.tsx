@@ -21,11 +21,14 @@ import {
   Package,
   Calendar,
   X,
+  ChevronLeft,
 } from 'lucide-react-native';
 import { db, ensureInit } from '@/lib/db';
 import { generateId } from '@shared/utils';
 import type { Supplier, Product } from '@shared/types';
 import { useAuthStore } from '@/store/authStore';
+import { useI18n } from '@/store/i18nStore';
+import { useTheme } from '@/theme';
 
 interface PurchaseItemState {
   productId: string;
@@ -37,6 +40,10 @@ interface PurchaseItemState {
 
 export const PurchaseFormScreen = ({ navigation, route }: any) => {
   const { user } = useAuthStore();
+  const { t, isRTL, textAlign, currency, language } = useI18n();
+  const { isDark, colors } = useTheme();
+  const localeStr = language === 'ar' ? 'ar-DZ' : language === 'fr' ? 'fr-FR' : 'en-US';
+
   const preselectedSupplierId = route?.params?.supplierId;
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -138,11 +145,11 @@ export const PurchaseFormScreen = ({ navigation, route }: any) => {
 
   const handleSavePurchase = async () => {
     if (!selectedSupplier) {
-      Alert.alert('تنبيه', 'يرجى اختيار المورد أولاً');
+      Alert.alert(t('common.warning'), t('suppliers.selectSupplier'));
       return;
     }
     if (items.length === 0) {
-      Alert.alert('تنبيه', 'يرجى إضافة صنف واحد على الأقل لفاتورة الشراء');
+      Alert.alert(t('common.warning'), t('suppliers.noProductsAdded'));
       return;
     }
 
@@ -190,7 +197,7 @@ export const PurchaseFormScreen = ({ navigation, route }: any) => {
               type: 'purchase',
               product_id: item.productId,
               qty: item.qty,
-              reason: `فاتورة شراء ${invoiceNumber}`,
+              reason: `Purchase ${invoiceNumber}`,
               reference_id: purchaseId,
               created_by: user?.name || '',
               created_at: nowIso,
@@ -209,10 +216,10 @@ export const PurchaseFormScreen = ({ navigation, route }: any) => {
         });
       }
 
-      Alert.alert('✓ تم بنجاح', `تم تسجيل فاتورة الشراء وتحديث كميات المخزون ورصيد المورد.`);
+      Alert.alert('✓', t('pos.saleCompleted'));
       navigation.goBack();
     } catch (err) {
-      Alert.alert('خطأ', `فشل حفظ فاتورة الشراء: ${err instanceof Error ? err.message : 'خطأ'}`);
+      Alert.alert(t('common.error'), `${t('common.error')}: ${err instanceof Error ? err.message : 'خطأ'}`);
     }
     setSaving(false);
   };
@@ -226,20 +233,20 @@ export const PurchaseFormScreen = ({ navigation, route }: any) => {
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#3b82f6" />
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary[600]} />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBackBtn}>
-          <ArrowRight size={22} color="#0f172a" />
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border.default, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.headerBackBtn, { backgroundColor: isDark ? colors.surfaceSubtle : '#f1f5f9' }]}>
+          <ChevronLeft size={22} color={colors.text.primary} style={{ transform: [{ rotate: isRTL ? '180deg' : '0deg' }] }} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>فاتورة شراء بضاعة</Text>
+        <Text style={[styles.headerTitle, { color: colors.text.primary }]}>{t('suppliers.purchaseInvoice')}</Text>
         <TouchableOpacity
           style={[styles.headerSaveBtn, items.length === 0 && styles.headerSaveBtnDisabled]}
           onPress={handleSavePurchase}
@@ -248,80 +255,79 @@ export const PurchaseFormScreen = ({ navigation, route }: any) => {
           {saving ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
-            <Text style={styles.headerSaveBtnText}>حفظ</Text>
+            <Text style={styles.headerSaveBtnText}>{t('common.save')}</Text>
           )}
         </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: 40 }}>
         {/* Supplier Selector */}
-        <View style={styles.card}>
-          <Text style={styles.cardLabel}>المورد</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border.default }]}>
+          <Text style={[styles.cardLabel, { color: colors.text.secondary, textAlign }]}>{t('suppliers.title')}</Text>
           <TouchableOpacity
-            style={styles.pickerSelector}
+            style={[styles.pickerSelector, { backgroundColor: isDark ? colors.surfaceSubtle : '#f8fafc', borderColor: colors.border.default, flexDirection: isRTL ? 'row-reverse' : 'row' }]}
             onPress={() => setSupplierPickerVisible(true)}
           >
-            <Text style={[styles.pickerSelectorText, !selectedSupplier && { color: '#94a3b8' }]}>
-              {selectedSupplier ? selectedSupplier.name : 'اختر المورد...'}
+            <Text style={[styles.pickerSelectorText, { color: selectedSupplier ? colors.text.primary : colors.text.tertiary, textAlign }]}>
+              {selectedSupplier ? selectedSupplier.name : t('suppliers.selectSupplier')}
             </Text>
-            <User size={18} color="#3b82f6" />
+            <User size={18} color={colors.primary[600]} />
           </TouchableOpacity>
 
-          <View style={styles.rowInputs}>
+          <View style={[styles.rowInputs, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.cardLabel}>رقم الفاتورة / الوصل</Text>
+              <Text style={[styles.cardLabel, { color: colors.text.secondary, textAlign }]}>{t('sales.invoiceNumber')}</Text>
               <TextInput
-                style={styles.inputSmall}
+                style={[styles.inputSmall, { color: colors.text.primary, borderColor: colors.border.default, backgroundColor: isDark ? colors.surfaceSubtle : '#f8fafc', textAlign }]}
                 value={invoiceNumber}
                 onChangeText={setInvoiceNumber}
-                textAlign="right"
               />
             </View>
           </View>
         </View>
 
         {/* Products Section */}
-        <View style={styles.sectionHeaderRow}>
+        <View style={[styles.sectionHeaderRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
           <TouchableOpacity
-            style={styles.addProductBtn}
+            style={[styles.addProductBtn, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
             onPress={() => {
               setProductSearch('');
               setProductPickerVisible(true);
             }}
           >
             <Plus size={16} color="#fff" />
-            <Text style={styles.addProductBtnText}>إضافة منتج</Text>
+            <Text style={styles.addProductBtnText}>{t('suppliers.addProduct')}</Text>
           </TouchableOpacity>
-          <Text style={styles.sectionTitle}>أصناف الفاتورة ({items.length})</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text.primary }]}>{t('suppliers.invoiceItems')} ({items.length})</Text>
         </View>
 
         {items.length === 0 ? (
-          <View style={styles.emptyItemsBox}>
-            <Package size={40} color="#cbd5e1" />
-            <Text style={styles.emptyItemsText}>لم تتم إضافة أي منتج بعد</Text>
-            <Text style={styles.emptyItemsSub}>اضغط على "إضافة منتج" لاختيار البضاعة المستلمة</Text>
+          <View style={[styles.emptyItemsBox, { backgroundColor: colors.surface, borderColor: colors.border.default }]}>
+            <Package size={40} color={colors.text.tertiary} />
+            <Text style={[styles.emptyItemsText, { color: colors.text.primary }]}>{t('suppliers.noProductsAdded')}</Text>
+            <Text style={[styles.emptyItemsSub, { color: colors.text.secondary }]}>{t('suppliers.clickAddProduct')}</Text>
           </View>
         ) : (
           <View style={{ gap: 10 }}>
             {items.map((item, idx) => (
-              <View key={idx} style={styles.itemCard}>
-                <View style={styles.itemTopRow}>
+              <View key={idx} style={[styles.itemCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}>
+                <View style={[styles.itemTopRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                   <TouchableOpacity onPress={() => removeItem(idx)} style={styles.itemDeleteBtn}>
-                    <Trash2 size={16} color="#ef4444" />
+                    <Trash2 size={16} color={colors.danger.main} />
                   </TouchableOpacity>
-                  <Text style={styles.itemCardName}>{item.name}</Text>
+                  <Text style={[styles.itemCardName, { color: colors.text.primary, textAlign }]}>{item.name}</Text>
                 </View>
 
-                <View style={styles.itemInputsRow}>
+                <View style={[styles.itemInputsRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                   <View style={styles.itemInputCol}>
-                    <Text style={styles.itemInputLabel}>الإجمالي (دج)</Text>
-                    <Text style={styles.itemTotalDisplay}>{item.lineTotal.toLocaleString('ar-DZ')}</Text>
+                    <Text style={[styles.itemInputLabel, { color: colors.text.secondary }]}>{t('common.total')} ({currency})</Text>
+                    <Text style={[styles.itemTotalDisplay, { color: colors.text.primary }]}>{item.lineTotal.toLocaleString(localeStr)}</Text>
                   </View>
 
                   <View style={styles.itemInputCol}>
-                    <Text style={styles.itemInputLabel}>سعر الشراء للوحدة (دج)</Text>
+                    <Text style={[styles.itemInputLabel, { color: colors.text.secondary }]}>{t('suppliers.unitCostPrice')} ({currency})</Text>
                     <TextInput
-                      style={styles.itemInput}
+                      style={[styles.itemInput, { color: colors.text.primary, borderColor: colors.border.default, backgroundColor: isDark ? colors.surfaceSubtle : '#f8fafc' }]}
                       value={String(item.costPrice)}
                       onChangeText={(v) => updateItemCost(idx, parseFloat(v) || 0)}
                       keyboardType="numeric"
@@ -330,9 +336,9 @@ export const PurchaseFormScreen = ({ navigation, route }: any) => {
                   </View>
 
                   <View style={styles.itemInputCol}>
-                    <Text style={styles.itemInputLabel}>الكمية</Text>
+                    <Text style={[styles.itemInputLabel, { color: colors.text.secondary }]}>{t('pos.quantity')}</Text>
                     <TextInput
-                      style={styles.itemInput}
+                      style={[styles.itemInput, { color: colors.text.primary, borderColor: colors.border.default, backgroundColor: isDark ? colors.surfaceSubtle : '#f8fafc' }]}
                       value={String(item.qty)}
                       onChangeText={(v) => updateItemQty(idx, parseFloat(v) || 1)}
                       keyboardType="numeric"
@@ -346,43 +352,43 @@ export const PurchaseFormScreen = ({ navigation, route }: any) => {
         )}
 
         {/* Financial Summary */}
-        <View style={[styles.card, { marginTop: 16 }]}>
-          <Text style={styles.sectionTitle}>الملخص المالي والشروط</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border.default, marginTop: 16 }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text.primary, textAlign }]}>{t('suppliers.financialSummary')}</Text>
 
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryVal}>{subtotal.toLocaleString('ar-DZ')} دج</Text>
-            <Text style={styles.summaryLabel}>المجموع الكلي للفاتورة</Text>
+          <View style={[styles.summaryRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+            <Text style={[styles.summaryVal, { color: colors.text.primary }]}>{subtotal.toLocaleString(localeStr)} {currency}</Text>
+            <Text style={[styles.summaryLabel, { color: colors.text.secondary }]}>{t('pos.totalDue')}</Text>
           </View>
 
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: colors.border.default }]} />
 
-          <View style={styles.paymentInputRow}>
+          <View style={[styles.paymentInputRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
             <TextInput
-              style={styles.paidInput}
+              style={[styles.paidInput, { color: colors.text.primary, borderColor: colors.border.default, backgroundColor: isDark ? colors.surfaceSubtle : '#f8fafc', textAlign }]}
               value={amountPaid}
               onChangeText={setAmountPaid}
               keyboardType="numeric"
-              textAlign="right"
               placeholder="0"
+              placeholderTextColor={colors.text.tertiary}
             />
-            <Text style={styles.paymentInputLabel}>المبلغ المدفوع نقداً الآن:</Text>
+            <Text style={[styles.paymentInputLabel, { color: colors.text.secondary }]}>{t('pos.amountPaid')}:</Text>
           </View>
 
-          <View style={[styles.summaryRow, { marginTop: 8 }]}>
-            <Text style={[styles.summaryVal, { color: remainingDebt > 0 ? '#ef4444' : '#22c55e', fontWeight: 'bold' }]}>
-              {remainingDebt.toLocaleString('ar-DZ')} دج
+          <View style={[styles.summaryRow, { marginTop: 8, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+            <Text style={[styles.summaryVal, { color: remainingDebt > 0 ? colors.danger.main : colors.success.main, fontWeight: 'bold' }]}>
+              {remainingDebt.toLocaleString(localeStr)} {currency}
             </Text>
-            <Text style={styles.summaryLabel}>المتبقي كدين للمورد:</Text>
+            <Text style={[styles.summaryLabel, { color: colors.text.secondary }]}>{t('suppliers.remainingSupplierDebt')}:</Text>
           </View>
 
           <View style={{ marginTop: 12 }}>
-            <Text style={styles.cardLabel}>ملاحظات إضافية</Text>
+            <Text style={[styles.cardLabel, { color: colors.text.secondary, textAlign }]}>{t('pos.notePlaceholder')}</Text>
             <TextInput
-              style={styles.notesInput}
-              placeholder="رقم الشاحنة، السائق، شروط الدفع..."
+              style={[styles.notesInput, { color: colors.text.primary, borderColor: colors.border.default, backgroundColor: isDark ? colors.surfaceSubtle : '#f8fafc', textAlign }]}
+              placeholder={t('pos.notePlaceholder')}
+              placeholderTextColor={colors.text.tertiary}
               value={notes}
               onChangeText={setNotes}
-              textAlign="right"
               multiline
             />
           </View>
@@ -392,30 +398,30 @@ export const PurchaseFormScreen = ({ navigation, route }: any) => {
       {/* Supplier Picker Modal */}
       <Modal visible={supplierPickerVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border.subtle, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <TouchableOpacity onPress={() => setSupplierPickerVisible(false)}>
-                <X size={20} color="#64748b" />
+                <X size={20} color={colors.text.secondary} />
               </TouchableOpacity>
-              <Text style={styles.modalTitle}>اختر المورد</Text>
+              <Text style={[styles.modalTitle, { color: colors.text.primary }]}>{t('suppliers.selectSupplier')}</Text>
             </View>
 
             <ScrollView style={{ maxHeight: 350 }}>
               {suppliers.map((s) => (
                 <TouchableOpacity
                   key={s.id}
-                  style={styles.pickerItem}
+                  style={[styles.pickerItem, { borderBottomColor: colors.border.subtle, flexDirection: isRTL ? 'row-reverse' : 'row' }]}
                   onPress={() => {
                     setSelectedSupplier(s);
                     setSupplierPickerVisible(false);
                   }}
                 >
-                  <Text style={styles.pickerItemDebt}>
-                    {(s.balance || 0).toLocaleString('ar-DZ')} دج
+                  <Text style={[styles.pickerItemDebt, { color: colors.warning.main }]}>
+                    {(s.balance || 0).toLocaleString(localeStr)} {currency}
                   </Text>
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={styles.pickerItemName}>{s.name}</Text>
-                    {s.phone ? <Text style={styles.pickerItemSub}>{s.phone}</Text> : null}
+                  <View style={{ alignItems: isRTL ? 'flex-start' : 'flex-end' }}>
+                    <Text style={[styles.pickerItemName, { color: colors.text.primary }]}>{s.name}</Text>
+                    {s.phone ? <Text style={[styles.pickerItemSub, { color: colors.text.tertiary }]}>{s.phone}</Text> : null}
                   </View>
                 </TouchableOpacity>
               ))}
@@ -427,22 +433,22 @@ export const PurchaseFormScreen = ({ navigation, route }: any) => {
       {/* Product Picker Modal */}
       <Modal visible={productPickerVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border.subtle, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <TouchableOpacity onPress={() => setProductPickerVisible(false)}>
-                <X size={20} color="#64748b" />
+                <X size={20} color={colors.text.secondary} />
               </TouchableOpacity>
-              <Text style={styles.modalTitle}>إضافة منتج للفاتورة</Text>
+              <Text style={[styles.modalTitle, { color: colors.text.primary }]}>{t('suppliers.addProduct')}</Text>
             </View>
 
-            <View style={styles.searchBar}>
-              <Search size={16} color="#94a3b8" />
+            <View style={[styles.searchBar, { backgroundColor: isDark ? colors.surfaceSubtle : '#f1f5f9', flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <Search size={16} color={colors.text.tertiary} />
               <TextInput
-                style={styles.searchInput}
-                placeholder="ابحث بالاسم أو الباركود..."
+                style={[styles.searchInput, { color: colors.text.primary, textAlign }]}
+                placeholder={t('pos.searchPlaceholder')}
+                placeholderTextColor={colors.text.tertiary}
                 value={productSearch}
                 onChangeText={setProductSearch}
-                textAlign="right"
               />
             </View>
 

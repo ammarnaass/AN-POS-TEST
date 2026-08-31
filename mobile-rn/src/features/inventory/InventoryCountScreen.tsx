@@ -21,6 +21,7 @@ import {
   Calendar,
   Warehouse as WarehouseIcon,
   ChevronLeft,
+  ChevronRight,
   X,
   Check,
   RotateCcw,
@@ -32,6 +33,7 @@ import { useTheme } from '@/theme';
 import { radii, spacing, shadows } from '@/theme/tokens';
 import { Badge, EmptyState } from '@/components/ui';
 import CameraScanner from '@/features/barcode/CameraScanner';
+import { useI18n } from '@/store/i18nStore';
 
 interface InventoryCount {
   id: string;
@@ -62,6 +64,8 @@ interface CountLine {
 export const InventoryCountScreen = ({ navigation }: any) => {
   const { user } = useAuthStore();
   const { isDark, colors } = useTheme();
+  const { t, isRTL, textAlign, currency, language } = useI18n();
+  const localeStr = language === 'ar' ? 'ar-DZ' : language === 'fr' ? 'fr-FR' : 'en-US';
   const styles = makeStyles(colors, isDark);
 
   const [counts, setCounts] = useState<InventoryCount[]>([]);
@@ -140,7 +144,7 @@ export const InventoryCountScreen = ({ navigation }: any) => {
       openSessionDetails(newSession);
       loadData();
     } catch (e) {
-      Alert.alert('خطأ', 'فشل إنشاء جلسة جرد جديدة');
+      Alert.alert(t('common.error'), t('common.error'));
     }
   };
 
@@ -158,7 +162,7 @@ export const InventoryCountScreen = ({ navigation }: any) => {
           id: l.id,
           count_id: l.count_id,
           item_id: l.item_id,
-          product_name: prod?.name || l.name || 'صنف',
+          product_name: prod?.name || l.name || t('inventory.productName'),
           barcode: prod?.barcode || '',
           expected_qty: l.expected_qty || 0,
           actual_qty: l.actual_qty || 0,
@@ -257,27 +261,24 @@ export const InventoryCountScreen = ({ navigation }: any) => {
     if (!activeSession || activeSession.is_closed) return;
 
     Alert.alert(
-      'إغلاق الجرد واعتماد التسوية',
-      'سيتم تعديل أرصدة المنتجات في المخزن لتطابق الكميات الفعلية المحسوبة في هذه الجلسة وتسجيل حركات التسوية المخزنية. هل أنت متأكد؟',
+      t('inventory.inventoryCount'),
+      t('common.confirm'),
       [
-        { text: 'إلغاء', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'اعتماد وتطبيق',
+          text: t('common.confirm'),
           style: 'destructive',
           onPress: async () => {
             try {
               await ensureInit();
               const nowIso = new Date().toISOString();
 
-              // 1. Apply adjustments to products
               for (const line of sessionLines) {
-                // Update product quantity to actual counted
                 await db.products.update(line.item_id, {
                   quantity: line.actual_qty,
                   updated_at: nowIso,
                 });
 
-                // 2. Log stock movement v2
                 await db.stockMovementsV2.add({
                   id: generateId(),
                   movement_number: `ADJ-${Date.now().toString().slice(-6)}`,
@@ -288,7 +289,7 @@ export const InventoryCountScreen = ({ navigation }: any) => {
                   quantity: line.variance,
                   unit_price: line.cost_price,
                   total_amount: Math.abs(line.variance * line.cost_price),
-                  reference: `تسوية جرد ${activeSession.count_number}`,
+                  reference: `${t('inventory.inventoryCount')} ${activeSession.count_number}`,
                   is_reviewed: 1,
                   reviewed_by: user?.name || '',
                   created_at: nowIso,
@@ -296,7 +297,6 @@ export const InventoryCountScreen = ({ navigation }: any) => {
                 });
               }
 
-              // 3. Mark session as closed
               await db.inventoryCounts.update(activeSession.id, {
                 status: 'completed',
                 is_closed: 1,
@@ -305,11 +305,11 @@ export const InventoryCountScreen = ({ navigation }: any) => {
                 updated_at: nowIso,
               });
 
-              Alert.alert('✓ تم بنجاح', 'تم إغلاق جلسة الجرد وتحديث أرصدة المخزون بالكامل');
+              Alert.alert(t('common.success'), t('common.done'));
               setActiveSession(null);
               loadData();
             } catch (e) {
-              Alert.alert('خطأ', 'فشل اعتماد جلسة الجرد');
+              Alert.alert(t('common.error'), t('common.error'));
             }
           },
         },
@@ -327,7 +327,7 @@ export const InventoryCountScreen = ({ navigation }: any) => {
     if (found) {
       handleAddOrUpdateProduct(found, 1);
     } else {
-      Alert.alert('تنبيه', `المنتج ذو الباركود ${code} غير مسجل`);
+      Alert.alert(t('common.warning'), `${t('inventory.barcode')}: ${code}`);
     }
   };
 
@@ -348,55 +348,57 @@ export const InventoryCountScreen = ({ navigation }: any) => {
     );
   }
 
+  const BackIcon = isRTL ? ChevronRight : ChevronLeft;
+
   // ── ACTIVE SESSION VIEW ──
   if (activeSession) {
     return (
       <View style={styles.container}>
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
           <TouchableOpacity style={styles.backBtn} onPress={() => setActiveSession(null)}>
-            <ChevronLeft size={22} color={colors.text.primary} />
+            <BackIcon size={22} color={colors.text.primary} />
           </TouchableOpacity>
-          <View style={styles.headerTitleWrap}>
-            <Text style={styles.headerTitle}>جلسة {activeSession.count_number}</Text>
+          <View style={[styles.headerTitleWrap, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+            <Text style={styles.headerTitle}>{activeSession.count_number}</Text>
             <Text style={styles.headerSubTitle}>
-              {activeSession.is_closed ? 'مكتملة ومغلقة' : 'جلسة جرد جارية'}
+              {activeSession.is_closed ? t('common.completed') : t('inventory.inventoryCount')}
             </Text>
           </View>
           {!activeSession.is_closed && (
-            <View style={styles.headerActions}>
+            <View style={[styles.headerActions, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <TouchableOpacity
-                style={styles.scanBtn}
+                style={[styles.scanBtn, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
                 onPress={() => setShowScanner(true)}
               >
                 <Barcode size={18} color="#fff" />
-                <Text style={styles.scanBtnText}>مسح</Text>
+                <Text style={styles.scanBtnText}>{t('inventory.barcode')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.closeCountBtn}
+                style={[styles.closeCountBtn, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
                 onPress={handleCloseAndApplyCount}
               >
                 <CheckCircle2 size={18} color="#fff" />
-                <Text style={styles.closeCountBtnText}>اعتماد</Text>
+                <Text style={styles.closeCountBtnText}>{t('common.confirm')}</Text>
               </TouchableOpacity>
             </View>
           )}
         </View>
 
         {/* Stats Strip */}
-        <View style={styles.varianceSummaryBar}>
+        <View style={[styles.varianceSummaryBar, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
           <View style={styles.summaryCol}>
-            <Text style={styles.summaryLabel}>المتوقع</Text>
+            <Text style={styles.summaryLabel}>{t('inventory.expectedQty')}</Text>
             <Text style={styles.summaryVal}>{totalExpected}</Text>
           </View>
           <View style={styles.dividerVertical} />
           <View style={styles.summaryCol}>
-            <Text style={styles.summaryLabel}>الفعلي المحسوب</Text>
+            <Text style={styles.summaryLabel}>{t('inventory.actualQty')}</Text>
             <Text style={styles.summaryVal}>{totalActual}</Text>
           </View>
           <View style={styles.dividerVertical} />
           <View style={styles.summaryCol}>
-            <Text style={styles.summaryLabel}>الفارق (الكمية)</Text>
+            <Text style={styles.summaryLabel}>{t('inventory.variance')}</Text>
             <Text
               style={[
                 styles.summaryVal,
@@ -411,13 +413,13 @@ export const InventoryCountScreen = ({ navigation }: any) => {
         {/* Search / Add Products */}
         {!activeSession.is_closed && (
           <View style={styles.searchSection}>
-            <View style={styles.searchBar}>
+            <View style={[styles.searchBar, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <Search size={16} color={colors.text.tertiary} />
               <TextInput
-                style={styles.searchInput}
+                style={[styles.searchInput, { textAlign }]}
                 value={productSearch}
                 onChangeText={setProductSearch}
-                placeholder="ابحث لإضافة صنف للجرد..."
+                placeholder={t('inventory.searchPlaceholder')}
                 placeholderTextColor={colors.text.tertiary}
               />
             </View>
@@ -434,7 +436,7 @@ export const InventoryCountScreen = ({ navigation }: any) => {
                   .map((p) => (
                     <TouchableOpacity
                       key={p.id}
-                      style={styles.dropdownItem}
+                      style={[styles.dropdownItem, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}
                       onPress={() => {
                         handleAddOrUpdateProduct(p, 1);
                         setProductSearch('');
@@ -442,7 +444,7 @@ export const InventoryCountScreen = ({ navigation }: any) => {
                     >
                       <Text style={styles.dropdownItemText}>{p.name}</Text>
                       <Text style={styles.dropdownItemSub}>
-                        الرصيد الدفتري: {p.quantity || 0}
+                        {t('inventory.stockQuantity')}: {p.quantity || 0}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -453,43 +455,43 @@ export const InventoryCountScreen = ({ navigation }: any) => {
 
         {/* Lines List */}
         <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-          <Text style={styles.sectionTitle}>الأصناف المفحوصة ({sessionLines.length})</Text>
+          <Text style={[styles.sectionTitle, { textAlign }]}>{t('inventory.products')} ({sessionLines.length})</Text>
           {sessionLines.length === 0 ? (
             <EmptyState
-              title="لم يتم فحص أي صنف بعد"
-              description="امسح الباركود بالكاميرا أو ابحث عن الصنف لبدء عد الكميات الفعلية"
+              title={t('common.noData')}
+              description=""
             />
           ) : (
             sessionLines.map((line) => {
               const isMatch = line.variance === 0;
               const isSurplus = line.variance > 0;
               return (
-                <View key={line.id} style={styles.lineCard}>
-                  <View style={styles.lineMain}>
+                <View key={line.id} style={[styles.lineCard, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                  <View style={[styles.lineMain, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
                     <Text style={styles.lineName}>{line.product_name}</Text>
                     {line.barcode ? (
-                      <Text style={styles.lineBarcode}>الباركود: {line.barcode}</Text>
+                      <Text style={styles.lineBarcode}>{t('inventory.barcode')}: {line.barcode}</Text>
                     ) : null}
-                    <View style={styles.lineQtyRow}>
+                    <View style={[styles.lineQtyRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                       <Text style={styles.lineQtyText}>
-                        الدفتري: <Text style={{ fontWeight: '800' }}>{line.expected_qty}</Text>
+                        {t('inventory.expectedQty')}: <Text style={{ fontWeight: '800' }}>{line.expected_qty}</Text>
                       </Text>
                       <Text style={styles.lineQtyText}>
-                        الفعلي: <Text style={{ fontWeight: '800' }}>{line.actual_qty}</Text>
+                        {t('inventory.actualQty')}: <Text style={{ fontWeight: '800' }}>{line.actual_qty}</Text>
                       </Text>
                     </View>
                   </View>
 
-                  <View style={styles.lineRight}>
+                  <View style={[styles.lineRight, { alignItems: isRTL ? 'flex-start' : 'flex-end' }]}>
                     <Badge
                       variant={isMatch ? 'success' : isSurplus ? 'warning' : 'danger'}
                       size="sm"
                     >
-                      {isMatch ? 'متطابق ✓' : isSurplus ? `+${line.variance} زيادة` : `${line.variance} عجز`}
+                      {isMatch ? t('common.done') : isSurplus ? `+${line.variance}` : `${line.variance}`}
                     </Badge>
 
                     {!activeSession.is_closed ? (
-                      <View style={styles.qtyEditControls}>
+                      <View style={[styles.qtyEditControls, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                         <TouchableOpacity
                           style={styles.qtyStepBtn}
                           onPress={() => handleAddOrUpdateProduct({ id: line.item_id }, -1)}
@@ -531,25 +533,25 @@ export const InventoryCountScreen = ({ navigation }: any) => {
   return (
     <View style={styles.container}>
       {/* Top Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation?.goBack()}>
-          <ChevronLeft size={22} color={colors.text.primary} />
+          <BackIcon size={22} color={colors.text.primary} />
         </TouchableOpacity>
-        <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerTitle}>الجرد الفعلي للمخازن</Text>
-          <Text style={styles.headerSubTitle}>جلسات التدقيق ورصد الفروقات</Text>
+        <View style={[styles.headerTitleWrap, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+          <Text style={styles.headerTitle}>{t('inventory.inventoryCount')}</Text>
+          <Text style={styles.headerSubTitle}>{counts.length} {t('inventory.inventoryCount')}</Text>
         </View>
-        <TouchableOpacity style={styles.addCountBtn} onPress={() => setNewCountModal(true)}>
+        <TouchableOpacity style={[styles.addCountBtn, { flexDirection: isRTL ? 'row-reverse' : 'row' }]} onPress={() => setNewCountModal(true)}>
           <Plus size={18} color="#fff" />
-          <Text style={styles.addCountBtnText}>بدء جرد</Text>
+          <Text style={styles.addCountBtnText}>{t('inventory.newInventoryCount')}</Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         {counts.length === 0 ? (
           <EmptyState
-            title="لا توجد جلسات جرد سابقة"
-            description="ابدأ جلسة جرد جديدة لتدقيق كميات المخزون ورصد أي فاقد أو عجز بدقة"
+            title={t('common.noData')}
+            description=""
           />
         ) : (
           counts.map((c) => {
@@ -558,7 +560,7 @@ export const InventoryCountScreen = ({ navigation }: any) => {
             return (
               <TouchableOpacity
                 key={c.id}
-                style={styles.countCard}
+                style={[styles.countCard, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
                 activeOpacity={0.7}
                 onPress={() => openSessionDetails(c)}
               >
@@ -569,26 +571,26 @@ export const InventoryCountScreen = ({ navigation }: any) => {
                   />
                 </View>
 
-                <View style={styles.countCardInfo}>
-                  <View style={styles.countCardTop}>
+                <View style={[styles.countCardInfo, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+                  <View style={[styles.countCardTop, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                     <Text style={styles.countCardNumber}>{c.count_number}</Text>
                     <Badge variant={isClosed ? 'success' : 'primary'} size="sm">
-                      {isClosed ? 'مكتمل ومعتمد' : 'جاري التدقيق'}
+                      {isClosed ? t('common.completed') : t('inventory.inventoryCount')}
                     </Badge>
                   </View>
 
-                  <View style={styles.countCardSubRow}>
+                  <View style={[styles.countCardSubRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                     <WarehouseIcon size={12} color={colors.text.tertiary} />
-                    <Text style={styles.countCardSubText}>{wh?.name || 'المستودع الرئيسي'}</Text>
-                    <Calendar size={12} color={colors.text.tertiary} style={{ marginLeft: 8 }} />
+                    <Text style={styles.countCardSubText}>{wh?.name || t('inventory.warehouses')}</Text>
+                    <Calendar size={12} color={colors.text.tertiary} style={{ marginHorizontal: 4 }} />
                     <Text style={styles.countCardSubText}>
-                      {new Date(c.date || c.created_at).toLocaleDateString('ar')}
+                      {new Date(c.date || c.created_at).toLocaleDateString(localeStr)}
                     </Text>
                   </View>
                   {c.notes ? <Text style={styles.countCardNote}>{c.notes}</Text> : null}
                 </View>
 
-                <ChevronLeft size={18} color={colors.text.tertiary} />
+                <ChevronLeft size={18} color={colors.text.tertiary} style={{ transform: [{ rotate: isRTL ? '180deg' : '0deg' }] }} />
               </TouchableOpacity>
             );
           })
@@ -599,16 +601,16 @@ export const InventoryCountScreen = ({ navigation }: any) => {
       <Modal visible={newCountModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>بدء جلسة جرد جديدة</Text>
+            <View style={[styles.modalHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <Text style={styles.modalTitle}>{t('inventory.newInventoryCount')}</Text>
               <TouchableOpacity onPress={() => setNewCountModal(false)}>
                 <X size={20} color={colors.text.secondary} />
               </TouchableOpacity>
             </View>
 
             <View style={styles.modalBody}>
-              <Text style={styles.inputLabel}>المستودع المراد جرده</Text>
-              <View style={styles.whSelectRow}>
+              <Text style={[styles.inputLabel, { textAlign }]}>{t('inventory.warehouse')}</Text>
+              <View style={[styles.whSelectRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                 {warehouses.map((w) => (
                   <TouchableOpacity
                     key={w.id}
@@ -630,18 +632,18 @@ export const InventoryCountScreen = ({ navigation }: any) => {
                 ))}
               </View>
 
-              <Text style={styles.inputLabel}>ملاحظات أو سبب الجرد</Text>
+              <Text style={[styles.inputLabel, { textAlign }]}>{t('pos.notes')}</Text>
               <TextInput
-                style={styles.textInput}
+                style={[styles.textInput, { textAlign }]}
                 value={countNotes}
                 onChangeText={setCountNotes}
-                placeholder="مثال: الجرد الشهري لشهر أوت"
+                placeholder={t('pos.notes')}
                 placeholderTextColor={colors.text.tertiary}
               />
 
-              <TouchableOpacity style={styles.confirmStartBtn} onPress={startNewSession}>
+              <TouchableOpacity style={[styles.confirmStartBtn, { flexDirection: isRTL ? 'row-reverse' : 'row' }]} onPress={startNewSession}>
                 <Check size={18} color="#fff" />
-                <Text style={styles.confirmStartBtnText}>فتح شاشة الجرد والعد</Text>
+                <Text style={styles.confirmStartBtnText}>{t('common.confirm')}</Text>
               </TouchableOpacity>
             </View>
           </View>

@@ -113,11 +113,7 @@ export const Badge: React.FC<BadgeProps> = ({
           textStyle,
         ]}
       >
-        {typeof children === 'string' || typeof children === 'number'
-          ? children
-          : typeof children === 'object' && children !== null && !React.isValidElement(children)
-          ? (children as any).name || (children as any).title || (children as any).id || ''
-          : children}
+        {children}
       </Text>
     </View>
   );

@@ -273,7 +273,33 @@ class AnposCameraModule(reactContext: ReactApplicationContext) :
         if (requestCode == IMAGE_PICK_CODE) {
             if (resultCode == Activity.RESULT_OK && data?.data != null) {
                 val uri: Uri = data.data!!
-                imagePickerPromise?.resolve(uri.toString())
+                try {
+                    val inputStream = reactApplicationContext.contentResolver.openInputStream(uri)
+                    val originalBitmap = android.graphics.BitmapFactory.decodeStream(inputStream)
+                    inputStream?.close()
+
+                    if (originalBitmap != null) {
+                        val maxDim = 800
+                        val width = originalBitmap.width
+                        val height = originalBitmap.height
+                        val scaledBitmap = if (width > maxDim || height > maxDim) {
+                            val ratio = Math.min(maxDim.toFloat() / width, maxDim.toFloat() / height)
+                            Bitmap.createScaledBitmap(originalBitmap, (width * ratio).toInt(), (height * ratio).toInt(), true)
+                        } else {
+                            originalBitmap
+                        }
+
+                        val outputStream = ByteArrayOutputStream()
+                        scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 85, outputStream)
+                        val byteArray = outputStream.toByteArray()
+                        val base64 = Base64.encodeToString(byteArray, Base64.NO_WRAP)
+                        imagePickerPromise?.resolve("data:image/jpeg;base64,$base64")
+                    } else {
+                        imagePickerPromise?.resolve(uri.toString())
+                    }
+                } catch (e: Exception) {
+                    imagePickerPromise?.resolve(uri.toString())
+                }
             } else {
                 imagePickerPromise?.resolve(null)
             }

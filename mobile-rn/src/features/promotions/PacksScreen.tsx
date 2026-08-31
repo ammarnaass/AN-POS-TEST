@@ -267,32 +267,33 @@ export const PacksScreen = ({ navigation }: any) => {
 
             <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>اسم الباقة *</Text>
+                <Text style={[styles.formLabel, { color: colors.text.secondary, textAlign }]}>{t('promotions.packName')} *</Text>
                 <TextInput
-                  style={styles.formInput}
-                  placeholder="مثال: باقة النظافة المنزلية"
+                  style={[styles.formInput, { color: colors.text.primary, borderColor: colors.border.default, backgroundColor: isDark ? colors.surfaceElevated : '#f8fafc', textAlign }]}
+                  placeholder={t('promotions.packName')}
+                  placeholderTextColor={colors.text.tertiary}
                   value={packName}
                   onChangeText={setPackName}
-                  textAlign="right"
                 />
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>باركود الباقة</Text>
+                <Text style={[styles.formLabel, { color: colors.text.secondary, textAlign }]}>{t('inventory.barcode')}</Text>
                 <TextInput
-                  style={styles.formInput}
+                  style={[styles.formInput, { color: colors.text.primary, borderColor: colors.border.default, backgroundColor: isDark ? colors.surfaceElevated : '#f8fafc', textAlign }]}
                   placeholder="PACK-123456"
+                  placeholderTextColor={colors.text.tertiary}
                   value={packBarcode}
                   onChangeText={setPackBarcode}
-                  textAlign="right"
                 />
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>سعر بيع الباقة الإجمالي (دج) *</Text>
+                <Text style={[styles.formLabel, { color: colors.text.secondary, textAlign }]}>{t('promotions.packPrice')} ({currency}) *</Text>
                 <TextInput
-                  style={styles.formInputAmount}
+                  style={[styles.formInputAmount, { color: colors.text.primary, borderColor: colors.border.default, backgroundColor: isDark ? colors.surfaceElevated : '#f8fafc' }]}
                   placeholder="0.00"
+                  placeholderTextColor={colors.text.tertiary}
                   value={packPrice}
                   onChangeText={setPackPrice}
                   keyboardType="numeric"
@@ -300,36 +301,36 @@ export const PacksScreen = ({ navigation }: any) => {
                 />
               </View>
 
-              <View style={styles.sectionHeaderRow}>
+              <View style={[styles.sectionHeaderRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                 <TouchableOpacity
-                  style={styles.addItemBtn}
+                  style={[styles.addItemBtn, { backgroundColor: colors.primary[600], flexDirection: isRTL ? 'row-reverse' : 'row' }]}
                   onPress={() => setProductPickerVisible(true)}
                 >
                   <Plus size={14} color="#fff" />
-                  <Text style={styles.addItemBtnText}>إضافة صنف</Text>
+                  <Text style={styles.addItemBtnText}>{t('promotions.addPack')}</Text>
                 </TouchableOpacity>
-                <Text style={styles.formLabel}>المنتجات المكونة للباقة ({selectedItems.length})</Text>
+                <Text style={[styles.formLabel, { color: colors.text.secondary, textAlign }]}>{t('promotions.packItems')} ({selectedItems.length})</Text>
               </View>
 
               {selectedItems.map((item, idx) => (
-                <View key={idx} style={styles.selectedItemRow}>
+                <View key={idx} style={[styles.selectedItemRow, { backgroundColor: isDark ? colors.surfaceElevated : '#f8fafc', borderColor: colors.border.subtle, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                   <TouchableOpacity onPress={() => removeItem(idx)}>
-                    <Trash2 size={16} color="#ef4444" />
+                    <Trash2 size={16} color={colors.danger.main} />
                   </TouchableOpacity>
-                  <Text style={styles.selectedItemText}>
-                    {item.name} (عدد {item.qty})
+                  <Text style={[styles.selectedItemText, { color: colors.text.primary, textAlign }]}>
+                    {item.name} ({t('inventory.stockQuantity')}: {item.qty})
                   </Text>
                 </View>
               ))}
             </ScrollView>
 
-            <TouchableOpacity style={styles.modalConfirmBtn} onPress={handleSavePack} disabled={saving}>
+            <TouchableOpacity style={[styles.modalConfirmBtn, { backgroundColor: colors.primary[600], flexDirection: isRTL ? 'row-reverse' : 'row' }]} onPress={handleSavePack} disabled={saving}>
               {saving ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
                 <>
                   <Check size={18} color="#fff" />
-                  <Text style={styles.modalConfirmBtnText}>حفظ الباقة</Text>
+                  <Text style={styles.modalConfirmBtnText}>{t('common.save')}</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -340,22 +341,22 @@ export const PacksScreen = ({ navigation }: any) => {
       {/* Product Picker Modal */}
       <Modal visible={productPickerVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border.default, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <TouchableOpacity onPress={() => setProductPickerVisible(false)}>
-                <X size={20} color="#64748b" />
+                <X size={20} color={colors.text.secondary} />
               </TouchableOpacity>
-              <Text style={styles.modalTitle}>اختر المنتج لإضافته للباقة</Text>
+              <Text style={[styles.modalTitle, { color: colors.text.primary }]}>{t('inventory.selectCategory')}</Text>
             </View>
 
-            <View style={styles.searchBar}>
-              <Search size={16} color="#94a3b8" />
+            <View style={[styles.searchBar, { backgroundColor: isDark ? colors.surfaceElevated : '#f1f5f9', borderColor: colors.border.default, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <Search size={16} color={colors.text.tertiary} />
               <TextInput
-                style={styles.searchInput}
-                placeholder="ابحث بالاسم أو الباركود..."
+                style={[styles.searchInput, { color: colors.text.primary, textAlign }]}
+                placeholder={t('inventory.searchPlaceholder')}
+                placeholderTextColor={colors.text.tertiary}
                 value={productSearch}
                 onChangeText={setProductSearch}
-                textAlign="right"
               />
             </View>
 
@@ -363,11 +364,11 @@ export const PacksScreen = ({ navigation }: any) => {
               {filteredProducts.map((p) => (
                 <TouchableOpacity
                   key={p.id}
-                  style={styles.pickItem}
+                  style={[styles.pickItem, { borderBottomColor: colors.border.subtle, flexDirection: isRTL ? 'row-reverse' : 'row' }]}
                   onPress={() => addItemToPack(p)}
                 >
-                  <Text style={styles.pickItemPrice}>{(p.retailPrice || 0).toLocaleString('ar-DZ')} دج</Text>
-                  <Text style={styles.pickItemName}>{p.name}</Text>
+                  <Text style={[styles.pickItemPrice, { color: colors.primary[600] }]}>{(p.retailPrice || 0).toLocaleString()} {currency}</Text>
+                  <Text style={[styles.pickItemName, { color: colors.text.primary }]}>{p.name}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>

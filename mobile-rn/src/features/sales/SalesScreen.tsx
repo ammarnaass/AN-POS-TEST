@@ -44,7 +44,7 @@ type StatusFilter = 'all' | 'cash' | 'credit' | 'return';
 
 export const SalesScreen = ({ navigation }: any) => {
   const { isDark, colors } = useTheme();
-  const { t, isRTL } = useI18n();
+  const { t, isRTL, textAlign, currency, language } = useI18n();
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -130,9 +130,9 @@ export const SalesScreen = ({ navigation }: any) => {
         totalReturns += tot;
       } else {
         totalRevenue += tot;
-        if (payment === 'cash') totalCash += tot;
-        if (payment === 'credit') totalCredit += tot;
       }
+      if (payment === 'cash') totalCash += tot;
+      if (payment === 'credit') totalCredit += tot;
     });
 
     return { totalRevenue, totalCash, totalCredit, totalReturns };
@@ -148,25 +148,19 @@ export const SalesScreen = ({ navigation }: any) => {
         try {
           const parsed = JSON.parse(sale.items);
           if (Array.isArray(parsed)) rawItems = parsed;
-          else if (parsed && typeof parsed === 'object') rawItems = Object.values(parsed);
         } catch {
           rawItems = [];
         }
-      } else if (sale.items && typeof sale.items === 'object') {
-        rawItems = Object.values(sale.items);
       }
 
-      if (!rawItems || rawItems.length === 0) {
-        const allSaleItems = await db.saleItems.toArray();
-        const matching = allSaleItems.filter(
-          (si: any) => si.saleId === sale.id || si.sale_id === sale.id
-        );
-        if (matching.length > 0) {
-          rawItems = matching.map((si: any) => ({
-            name: si.name,
-            qty: si.qty || si.quantity || 1,
-            unitPrice: si.unitPrice || si.unit_price || 0,
-            lineTotal: si.lineTotal || si.line_total || (si.qty || 1) * (si.unitPrice || si.unit_price || 0),
+      if (rawItems.length === 0) {
+        const localItems = await db.saleItems.where('saleId').equals(sale.id).toArray().catch(() => []);
+        if (localItems && localItems.length > 0) {
+          rawItems = localItems.map((li: any) => ({
+            name: li.productName || li.name || 'منتج',
+            qty: Number(li.quantity || li.qty || 1),
+            unitPrice: Number(li.unitPrice || li.price || 0),
+            lineTotal: Number(li.total || li.lineTotal || 0),
           }));
         }
       }
@@ -186,39 +180,39 @@ export const SalesScreen = ({ navigation }: any) => {
         tvaAmount: Number(sale.tvaAmount || sale.tva_amount || 0),
         total: Number(sale.total || 0),
         paymentMethod: sale.paymentMethod || sale.payment_method || 'cash',
-        customerName: sale.customerName || sale.customer_name || 'زبون عام',
-        soldBy: sale.soldBy || sale.sold_by || 'الكاشير',
+        customerName: sale.customerName || sale.customer_name || t('pos.guestCustomer'),
+        soldBy: sale.soldBy || sale.sold_by || t('pos.cashierDefault'),
         docType: (sale.docType as any) || 'sale-invoice',
         copies: 1,
-        lang: 'ar',
+        lang: language as any,
       });
 
       if (ok) {
-        notify.success(`تمت طباعة الفاتورة ${sale.number || ''} بنجاح`, '✓ تمت الطباعة');
+        notify.success(`${t('sales.reprintSuccess')} (${sale.number || ''})`, '✓');
       } else {
-        notify.warning('تعذر الاتصال بالطابعة. يرجى التأكد من تشغيل البلوتوث أو الطابعة.', 'تنبيه');
+        notify.warning(t('sales.printerConnectionWarning'), t('common.warning'));
       }
     } catch (err) {
-      notify.error(err, 'فشل تنفيذ أمر الطباعة');
+      notify.error(err, t('sales.printJobFailed'));
     }
     setQuickPrintingId(null);
   };
 
   const dynamicStyles = makeStyles(colors, isDark);
+  const localeStr = language === 'ar' ? 'ar-DZ' : language === 'fr' ? 'fr-FR' : 'en-US';
 
   return (
     <View style={[dynamicStyles.container, { backgroundColor: colors.background }]}>
       {/* Search Header */}
       <View style={dynamicStyles.header}>
-        <View style={dynamicStyles.searchBox}>
+        <View style={[dynamicStyles.searchBox, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
           <Search size={18} color={colors.text.tertiary} />
           <TextInput
-            style={dynamicStyles.searchInput}
-            placeholder="بحث برقم الفاتورة أو اسم الزبون..."
+            style={[dynamicStyles.searchInput, { textAlign }]}
+            placeholder={t('sales.searchPlaceholder')}
             value={search}
             onChangeText={setSearch}
             placeholderTextColor={colors.text.tertiary}
-            textAlign="right"
           />
         </View>
       </View>
@@ -228,13 +222,13 @@ export const SalesScreen = ({ navigation }: any) => {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={dynamicStyles.chipsScroll}
+          contentContainerStyle={[dynamicStyles.chipsScroll, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
         >
           {[
-            { id: 'today', label: 'اليوم' },
-            { id: 'week', label: 'هذا الأسبوع' },
-            { id: 'month', label: 'هذا الشهر' },
-            { id: 'all', label: 'كافة الفترات' },
+            { id: 'today', label: t('common.today') },
+            { id: 'week', label: t('common.thisWeek') },
+            { id: 'month', label: t('common.thisMonth') },
+            { id: 'all', label: t('sales.periodsAll') },
           ].map((item) => {
             const isActive = period === item.id;
             return (
@@ -262,12 +256,12 @@ export const SalesScreen = ({ navigation }: any) => {
       </View>
 
       {/* Status Filter Bar */}
-      <View style={dynamicStyles.statusFilterBar}>
+      <View style={[dynamicStyles.statusFilterBar, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
         {[
-          { id: 'all', label: 'الكل' },
-          { id: 'cash', label: 'نقدي' },
-          { id: 'credit', label: 'آجل (كريدي)' },
-          { id: 'return', label: 'مرتجع' },
+          { id: 'all', label: t('common.all') },
+          { id: 'cash', label: t('pos.cash') },
+          { id: 'credit', label: t('pos.credit') },
+          { id: 'return', label: t('sales.returned') },
         ].map((tab) => {
           const isActive = statusFilter === tab.id;
           return (
@@ -294,25 +288,25 @@ export const SalesScreen = ({ navigation }: any) => {
       </View>
 
       {/* Summary KPI Banner */}
-      <View style={dynamicStyles.kpiContainer}>
+      <View style={[dynamicStyles.kpiContainer, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
         <View style={dynamicStyles.kpiBox}>
-          <Text style={dynamicStyles.kpiBoxLabel}>إجمالي المبيعات</Text>
+          <Text style={dynamicStyles.kpiBoxLabel}>{t('sales.totalSales')}</Text>
           <Text style={dynamicStyles.kpiBoxVal}>
-            {stats.totalRevenue.toLocaleString('ar-DZ')} دج
+            {stats.totalRevenue.toLocaleString(localeStr)} {currency}
           </Text>
         </View>
         <View style={dynamicStyles.kpiDivider} />
         <View style={dynamicStyles.kpiBox}>
-          <Text style={dynamicStyles.kpiBoxLabel}>النقدي</Text>
+          <Text style={dynamicStyles.kpiBoxLabel}>{t('sales.cashSales')}</Text>
           <Text style={[dynamicStyles.kpiBoxVal, { color: colors.success.text || colors.emerald[600] }]}>
-            {stats.totalCash.toLocaleString('ar-DZ')} دج
+            {stats.totalCash.toLocaleString(localeStr)} {currency}
           </Text>
         </View>
         <View style={dynamicStyles.kpiDivider} />
         <View style={dynamicStyles.kpiBox}>
-          <Text style={dynamicStyles.kpiBoxLabel}>الكريدي</Text>
+          <Text style={dynamicStyles.kpiBoxLabel}>{t('sales.creditSales')}</Text>
           <Text style={[dynamicStyles.kpiBoxVal, { color: colors.warning.main }]}>
-            {stats.totalCredit.toLocaleString('ar-DZ')} دج
+            {stats.totalCredit.toLocaleString(localeStr)} {currency}
           </Text>
         </View>
       </View>
@@ -337,8 +331,8 @@ export const SalesScreen = ({ navigation }: any) => {
         ) : filteredSales.length === 0 ? (
           <EmptyState
             icon={<Receipt size={36} color={colors.text.tertiary} />}
-            title="لا توجد فواتير أو مبيعات"
-            description="قم بإجراء عمليات بيع من شاشة نقطة البيع (POS) لتظهر هنا"
+            title={t('sales.noInvoicesFound')}
+            description={t('sales.noInvoicesDesc')}
           />
         ) : (
           <View style={{ gap: spacing.sm }}>
@@ -368,8 +362,8 @@ export const SalesScreen = ({ navigation }: any) => {
                   activeOpacity={0.7}
                 >
                   {/* Top Row: Total & Badge & Number */}
-                  <View style={dynamicStyles.saleCardTopRow}>
-                    <View style={{ alignItems: 'flex-start' }}>
+                  <View style={[dynamicStyles.saleCardTopRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                    <View style={{ alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
                       <Text
                         style={[
                           dynamicStyles.saleTotalText,
@@ -381,7 +375,7 @@ export const SalesScreen = ({ navigation }: any) => {
                         ]}
                       >
                         {isReturn ? '-' : ''}
-                        {Number(sale.total || 0).toLocaleString('ar-DZ')} دج
+                        {Number(sale.total || 0).toLocaleString(localeStr)} {currency}
                       </Text>
                       <Badge
                         variant={
@@ -396,35 +390,35 @@ export const SalesScreen = ({ navigation }: any) => {
                         size="sm"
                       >
                         {isReturn
-                          ? 'مرتجع'
+                          ? t('sales.returned')
                           : payment === 'cash'
-                          ? 'نقدي'
+                          ? t('pos.cash')
                           : payment === 'card'
-                          ? 'بطاقة CIB'
-                          : 'آجل (كريدي)'}
+                          ? t('pos.card')
+                          : t('pos.credit')}
                       </Badge>
                     </View>
 
-                    <View style={{ alignItems: 'flex-end' }}>
-                      <View style={dynamicStyles.saleNumberRow}>
+                    <View style={{ alignItems: isRTL ? 'flex-start' : 'flex-end' }}>
+                      <View style={[dynamicStyles.saleNumberRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                         <Receipt size={15} color={colors.primary[600]} />
                         <Text style={dynamicStyles.saleNumberText}>
-                          {sale.number || 'فاتورة بدون رقم'}
+                          {sale.number || t('sales.unspecifiedInvoice')}
                         </Text>
                       </View>
-                      <View style={dynamicStyles.saleMetaRow}>
+                      <View style={[dynamicStyles.saleMetaRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                         <Text style={dynamicStyles.metaText}>
-                          {sale.customerName || (sale as any).customer_name || 'زبون عام'}
+                          {sale.customerName || (sale as any).customer_name || t('pos.guestCustomer')}
                         </Text>
                         <Text style={dynamicStyles.metaDot}>•</Text>
                         <Text style={dynamicStyles.metaText}>
-                          {new Date(sale.date || (sale as any).created_at || (sale as any).createdAt || 0).toLocaleTimeString('ar-DZ', {
+                          {new Date(sale.date || (sale as any).created_at || (sale as any).createdAt || 0).toLocaleTimeString(localeStr, {
                             hour: '2-digit',
                             minute: '2-digit',
                           })}
                         </Text>
                         <Text style={dynamicStyles.metaDot}>•</Text>
-                        <Text style={dynamicStyles.metaText}>{itemsCount} عناصر</Text>
+                        <Text style={dynamicStyles.metaText}>{itemsCount} {t('sales.saleCardItems')}</Text>
                       </View>
                     </View>
                   </View>
@@ -433,9 +427,9 @@ export const SalesScreen = ({ navigation }: any) => {
                   <View style={dynamicStyles.saleCardDivider} />
 
                   {/* Bottom Row: Quick Action Buttons */}
-                  <View style={dynamicStyles.saleCardActions}>
+                  <View style={[dynamicStyles.saleCardActions, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                     <TouchableOpacity
-                      style={dynamicStyles.actionBtn}
+                      style={[dynamicStyles.actionBtn, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
                       onPress={(e) => {
                         e.stopPropagation();
                         setPreviewSaleId(sale.id);
@@ -443,11 +437,11 @@ export const SalesScreen = ({ navigation }: any) => {
                       activeOpacity={0.7}
                     >
                       <Eye size={14} color={colors.primary[600]} />
-                      <Text style={dynamicStyles.actionBtnText}>معاينة</Text>
+                      <Text style={dynamicStyles.actionBtnText}>{t('common.preview')}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                      style={[dynamicStyles.actionBtn, dynamicStyles.actionBtnPrint]}
+                      style={[dynamicStyles.actionBtn, dynamicStyles.actionBtnPrint, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
                       onPress={(e) => {
                         e.stopPropagation();
                         handleQuickPrint(sale);
@@ -460,17 +454,17 @@ export const SalesScreen = ({ navigation }: any) => {
                       ) : (
                         <>
                           <Printer size={14} color={colors.primary[600]} />
-                          <Text style={dynamicStyles.actionBtnText}>طباعة سريعة</Text>
+                          <Text style={dynamicStyles.actionBtnText}>{t('sales.quickPrint')}</Text>
                         </>
                       )}
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                      style={dynamicStyles.actionBtnDetails}
+                      style={[dynamicStyles.actionBtnDetails, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
                       onPress={() => navigation.navigate('InvoiceDetail', { saleId: sale.id, sale })}
                       activeOpacity={0.7}
                     >
-                      <Text style={dynamicStyles.actionBtnDetailsText}>التفاصيل</Text>
+                      <Text style={dynamicStyles.actionBtnDetailsText}>{t('common.details')}</Text>
                       <ArrowUpRight size={13} color={colors.text.tertiary} />
                     </TouchableOpacity>
                   </View>

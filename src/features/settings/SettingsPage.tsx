@@ -84,21 +84,37 @@ export default function SettingsPage() {
   const { data: rawSettings } = useQuery({
     queryKey: ['settings'],
     queryFn: () => db.settings.get('default'),
+    refetchInterval: 2500,
   });
 
   type SyncMode = 'single' | 'lan' | 'cloud' | 'hybrid';
   const settings = {
-    shopName: '', phone: '', tvaRate: 0, baseCurrency: 'DZD',
-    invoicePrefix: 'INV-', invoiceStartNumber: 1, printWidthMm: 80,
-    receiptFooter: '', syncMode: 'single' as SyncMode,
-    zakatEnabled: false, nisabThreshold: 0,
-    invoiceTemplate: 'basic' as 'basic' | 'detailed',
-    shopLogo: '',
-    language: 'ar',
-    shopDescription: '', shopAddress: '', shopPhone2: '', shopEmail: '',
-    commercialRegister: '', taxNumber: '', taxArticle: '',
-    quickSale: true, accountingOnly: false, allowNegativeStock: false,
-    confirmNoStock: true, averagePricing: false,
+    shopName: (rawSettings as any)?.shopName || (rawSettings as any)?.shop_name || '',
+    phone: (rawSettings as any)?.phone || (rawSettings as any)?.shop_phone || '',
+    tvaRate: (rawSettings as any)?.tvaRate ?? (rawSettings as any)?.tva_rate ?? 0,
+    baseCurrency: (rawSettings as any)?.baseCurrency || (rawSettings as any)?.base_currency || 'دج',
+    invoicePrefix: (rawSettings as any)?.invoicePrefix || (rawSettings as any)?.invoice_prefix || 'INV-',
+    invoiceStartNumber: (rawSettings as any)?.invoiceStartNumber ?? (rawSettings as any)?.invoice_start_number ?? 1,
+    printWidthMm: (rawSettings as any)?.printWidthMm ?? (rawSettings as any)?.print_width_mm ?? 80,
+    receiptFooter: (rawSettings as any)?.receiptFooter || (rawSettings as any)?.receipt_footer || '',
+    syncMode: ((rawSettings as any)?.syncMode || (rawSettings as any)?.sync_mode || 'single') as SyncMode,
+    zakatEnabled: Boolean((rawSettings as any)?.zakatEnabled ?? (rawSettings as any)?.zakat_enabled),
+    nisabThreshold: (rawSettings as any)?.nisabThreshold ?? (rawSettings as any)?.nisab_threshold ?? 0,
+    invoiceTemplate: ((rawSettings as any)?.invoiceTemplate || (rawSettings as any)?.invoice_template || 'basic') as 'basic' | 'detailed',
+    shopLogo: (rawSettings as any)?.shopLogo || (rawSettings as any)?.shop_logo || (rawSettings as any)?.logo || '',
+    language: (rawSettings as any)?.language || 'ar',
+    shopDescription: (rawSettings as any)?.shopDescription || (rawSettings as any)?.shop_description || '',
+    shopAddress: (rawSettings as any)?.shopAddress || (rawSettings as any)?.shop_address || (rawSettings as any)?.address || '',
+    shopPhone2: (rawSettings as any)?.shopPhone2 || (rawSettings as any)?.shop_phone2 || (rawSettings as any)?.phone2 || '',
+    shopEmail: (rawSettings as any)?.shopEmail || (rawSettings as any)?.shop_email || (rawSettings as any)?.email || '',
+    commercialRegister: (rawSettings as any)?.commercialRegister || (rawSettings as any)?.commercial_register || (rawSettings as any)?.company_rc || (rawSettings as any)?.companyRC || '',
+    taxNumber: (rawSettings as any)?.taxNumber || (rawSettings as any)?.tax_number || (rawSettings as any)?.company_nif || (rawSettings as any)?.companyNif || '',
+    taxArticle: (rawSettings as any)?.taxArticle || (rawSettings as any)?.tax_article || (rawSettings as any)?.company_art || (rawSettings as any)?.companyArt || '',
+    quickSale: Boolean((rawSettings as any)?.quickSale ?? (rawSettings as any)?.quick_sale ?? true),
+    accountingOnly: Boolean((rawSettings as any)?.accountingOnly ?? (rawSettings as any)?.accounting_only),
+    allowNegativeStock: Boolean((rawSettings as any)?.allowNegativeStock ?? (rawSettings as any)?.allow_negative_stock),
+    confirmNoStock: Boolean((rawSettings as any)?.confirmNoStock ?? (rawSettings as any)?.confirm_no_stock ?? true),
+    averagePricing: Boolean((rawSettings as any)?.averagePricing ?? (rawSettings as any)?.average_pricing),
     ...rawSettings,
     currencies: Array.isArray((rawSettings as unknown as Record<string, unknown> | undefined)?.currencies) ? (rawSettings as unknown as Record<string, Currency[]>).currencies : ([] as Currency[]),
     expenseCategories: Array.isArray((rawSettings as unknown as Record<string, unknown> | undefined)?.expenseCategories) ? (rawSettings as unknown as Record<string, string[]>).expenseCategories : ['ايجار', 'كهرباء', 'ماء', 'رواتب', 'نقل', 'صيانة'],
@@ -109,8 +125,8 @@ export default function SettingsPage() {
   const { data: roles = [] } = useQuery({ queryKey: ['roles'], queryFn: () => roleRepo.all() });
 
   // SYS-NET-001: Network settings + connected devices queries
-  const { data: rawNetSettings } = useQuery({ queryKey: ['network_settings'], queryFn: () => db.network_settings.get('default') });
-  const { data: devices = [] } = useQuery({ queryKey: ['connected_devices'], queryFn: () => db.connected_devices.toArray() });
+  const { data: rawNetSettings } = useQuery({ queryKey: ['network_settings'], queryFn: () => db.network_settings.get('default'), refetchInterval: 3000 });
+  const { data: devices = [] } = useQuery({ queryKey: ['connected_devices'], queryFn: () => db.connected_devices.toArray(), refetchInterval: 3000 });
   // الأجهزة المتصلة حالياً عبر الخادم (هواتف + أجهزة شبكة أخرى)
   const { data: rawConnectedDevices, refetch: refetchConnected } = useQuery({
     queryKey: ['server:connected-devices'],
@@ -317,7 +333,40 @@ export default function SettingsPage() {
     addNotification({ title: 'تم التفعيل', message: 'تم تفعيل النسخة الكاملة مدى الحياة', type: 'success' });
   };
 
-  const handleSaveSettings = (updates: Record<string, unknown>) => settingsMutation.mutate(updates);
+  const handleSaveSettings = (updates: Record<string, unknown>) => {
+    const mirrored: Record<string, unknown> = { ...updates };
+    if (updates.shopName !== undefined) mirrored.shop_name = updates.shopName;
+    if (updates.shop_name !== undefined) mirrored.shopName = updates.shop_name;
+    if (updates.shopAddress !== undefined) {
+      mirrored.address = updates.shopAddress;
+      mirrored.shop_address = updates.shopAddress;
+    }
+    if (updates.shopLogo !== undefined) {
+      mirrored.logo = updates.shopLogo;
+      mirrored.shop_logo = updates.shopLogo;
+    }
+    if (updates.shopEmail !== undefined) {
+      mirrored.email = updates.shopEmail;
+      mirrored.shop_email = updates.shopEmail;
+    }
+    if (updates.shopPhone2 !== undefined) {
+      mirrored.phone2 = updates.shopPhone2;
+      mirrored.shop_phone2 = updates.shopPhone2;
+    }
+    if (updates.commercialRegister !== undefined) {
+      mirrored.commercial_register = updates.commercialRegister;
+      mirrored.company_rc = updates.commercialRegister;
+    }
+    if (updates.taxNumber !== undefined) {
+      mirrored.tax_number = updates.taxNumber;
+      mirrored.company_nif = updates.taxNumber;
+    }
+    if (updates.taxArticle !== undefined) {
+      mirrored.tax_article = updates.taxArticle;
+      mirrored.company_art = updates.taxArticle;
+    }
+    settingsMutation.mutate(mirrored);
+  };
 
   // SYS-NET-001: دوال اختبار الاتصال (BR-NET-004: تسجيل كل محاولة في user_activities)
   const logNetActivity = async (action: string, details: string, extra: { ipAddress?: string; deviceInfo?: string } = {}) => {

@@ -55,7 +55,12 @@ async function waitForAPI(timeoutMs = 10000): Promise<any> {
 function toSnake(obj: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(obj)) {
-    const snakeKey = k.replace(/([A-Z])/g, '_$1').toLowerCase();
+    let snakeKey: string;
+    if (k === 'companyRC') snakeKey = 'company_rc';
+    else if (k === 'companyNif' || k === 'companyNIF') snakeKey = 'company_nif';
+    else if (k === 'companyArt' || k === 'companyART') snakeKey = 'company_art';
+    else if (k === 'companyAI') snakeKey = 'company_ai';
+    else snakeKey = k.replace(/([A-Z])/g, '_$1').toLowerCase();
     result[snakeKey] = v;
   }
   return result;
@@ -67,7 +72,12 @@ function toSnake(obj: Record<string, unknown>): Record<string, unknown> {
 function toCamel(obj: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(obj)) {
-    const camelKey = k.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+    let camelKey: string;
+    if (k === 'company_rc') camelKey = 'companyRC';
+    else if (k === 'company_nif') camelKey = 'companyNif';
+    else if (k === 'company_art') camelKey = 'companyArt';
+    else if (k === 'company_ai') camelKey = 'companyAI';
+    else camelKey = k.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
     result[camelKey] = v;
   }
   return result;

@@ -29,18 +29,19 @@ import { generateId } from '@shared/utils';
 import type { Expense } from '@shared/types';
 import { useAuthStore } from '@/store/authStore';
 import { useTheme } from '@/theme';
+import { useI18n } from '@/store/i18nStore';
 import { radii, spacing, typography, shadows } from '@/theme/tokens';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Button, Input, EmptyState } from '@/components/ui';
 
-const CATEGORIES = [
-  'إيجار',
-  'رواتب',
-  'نقل',
-  'فواتير',
-  'صيانة',
-  'تسويق',
-  'تغليف',
-  'أخرى',
+const CATEGORY_KEYS = [
+  { key: 'rent', labelKey: 'expenses.catRent' as const },
+  { key: 'salaries', labelKey: 'expenses.catSalaries' as const },
+  { key: 'transport', labelKey: 'expenses.catTransport' as const },
+  { key: 'bills', labelKey: 'expenses.catBills' as const },
+  { key: 'maintenance', labelKey: 'expenses.catMaintenance' as const },
+  { key: 'marketing', labelKey: 'expenses.catMarketing' as const },
+  { key: 'packaging', labelKey: 'expenses.catPackaging' as const },
+  { key: 'other', labelKey: 'expenses.catOther' as const },
 ];
 
 const getCategoryConfig = (
@@ -50,18 +51,25 @@ const getCategoryConfig = (
 ): { bg: string; text: string; variant: 'primary' | 'emerald' | 'purple' | 'warning' | 'danger' | 'indigo' | 'neutral' } => {
   switch (cat) {
     case 'إيجار':
+    case 'rent':
       return { bg: isDark ? 'rgba(59, 130, 246, 0.15)' : colors.primary[50], text: colors.primary[600], variant: 'primary' };
     case 'رواتب':
+    case 'salaries':
       return { bg: isDark ? 'rgba(16, 185, 129, 0.15)' : colors.emerald[50], text: isDark ? '#34d399' : colors.emerald[700], variant: 'emerald' };
     case 'نقل':
+    case 'transport':
       return { bg: isDark ? 'rgba(168, 85, 247, 0.15)' : colors.purple[50], text: isDark ? '#c084fc' : colors.purple[700], variant: 'purple' };
     case 'فواتير':
+    case 'bills':
       return { bg: colors.warning.light, text: colors.warning.text, variant: 'warning' };
     case 'صيانة':
+    case 'maintenance':
       return { bg: colors.danger.light, text: colors.danger.text, variant: 'danger' };
     case 'تسويق':
+    case 'marketing':
       return { bg: isDark ? 'rgba(99, 102, 241, 0.15)' : colors.indigo[50], text: isDark ? '#818cf8' : colors.indigo[700], variant: 'indigo' };
     case 'تغليف':
+    case 'packaging':
       return { bg: isDark ? 'rgba(59, 130, 246, 0.15)' : colors.primary[50], text: colors.primary[600], variant: 'primary' };
     default:
       return { bg: isDark ? colors.surfaceElevated : colors.slate[100], text: colors.text.secondary, variant: 'neutral' };
@@ -71,6 +79,8 @@ const getCategoryConfig = (
 export const ExpensesScreen = ({ navigation }: any) => {
   const { user } = useAuthStore();
   const { isDark, colors } = useTheme();
+  const { t, isRTL, textAlign, currency, language } = useI18n();
+  const localeStr = language === 'ar' ? 'ar-DZ' : language === 'fr' ? 'fr-FR' : 'en-US';
   const styles = useMemo(() => makeStyles(colors, isDark), [colors, isDark]);
 
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -84,7 +94,7 @@ export const ExpensesScreen = ({ navigation }: any) => {
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [form, setForm] = useState({
     label: '',
-    category: 'أخرى',
+    category: 'other',
     amount: '',
     notes: '',
   });
@@ -117,6 +127,12 @@ export const ExpensesScreen = ({ navigation }: any) => {
     setRefreshing(false);
   };
 
+  const getCategoryLabel = (cat: string) => {
+    const found = CATEGORY_KEYS.find((c) => c.key === cat || c.labelKey === cat);
+    if (found) return t(found.labelKey);
+    return cat;
+  };
+
   const filteredExpenses = useMemo(() => {
     return expenses.filter((e) => {
       const matchCat =
@@ -133,7 +149,7 @@ export const ExpensesScreen = ({ navigation }: any) => {
 
   const openAdd = () => {
     setEditingExpense(null);
-    setForm({ label: '', category: 'أخرى', amount: '', notes: '' });
+    setForm({ label: '', category: 'other', amount: '', notes: '' });
     setModalVisible(true);
   };
 
@@ -141,7 +157,7 @@ export const ExpensesScreen = ({ navigation }: any) => {
     setEditingExpense(expense);
     setForm({
       label: expense.label || (expense as any).description || '',
-      category: expense.category || 'أخرى',
+      category: expense.category || 'other',
       amount: String(expense.amount || ''),
       notes: expense.note || (expense as any).notes || '',
     });
@@ -151,11 +167,11 @@ export const ExpensesScreen = ({ navigation }: any) => {
   const handleSave = async () => {
     const amountNum = parseFloat(form.amount);
     if (!form.label.trim()) {
-      Alert.alert('تنبيه', 'يرجى كتابة وصف أو بيان المصروف');
+      Alert.alert(t('common.warning'), t('expenses.expenseName'));
       return;
     }
     if (!amountNum || amountNum <= 0) {
-      Alert.alert('تنبيه', 'يرجى إدخال مبلغ المصروف');
+      Alert.alert(t('common.warning'), t('expenses.amount'));
       return;
     }
 
@@ -183,7 +199,7 @@ export const ExpensesScreen = ({ navigation }: any) => {
           amount: amountNum,
           payment_method: 'cash',
           notes: form.notes.trim(),
-          created_by: user?.name || 'مستخدم',
+          created_by: user?.name || t('pos.cashierDefault'),
           created_at: nowIso,
           updated_at: nowIso,
         });
@@ -192,75 +208,86 @@ export const ExpensesScreen = ({ navigation }: any) => {
       setModalVisible(false);
       await loadExpenses();
     } catch (err) {
-      Alert.alert('خطأ', `فشل حفظ المصروف: ${err instanceof Error ? err.message : 'خطأ'}`);
+      Alert.alert(t('common.error'), `${t('common.error')}: ${err instanceof Error ? err.message : ''}`);
     }
     setSaving(false);
   };
 
   const handleDelete = (expense: Expense) => {
-    Alert.alert('حذف المصروف', `هل تريد حذف مصروف "${expense.label || (expense as any).description}"؟`, [
-      { text: 'إلغاء', style: 'cancel' },
-      {
-        text: 'حذف',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await db.expenses.delete(expense.id);
-            await loadExpenses();
-          } catch {
-            Alert.alert('خطأ', 'فشل حذف المصروف');
-          }
+    Alert.alert(
+      t('common.delete'),
+      `${t('expenses.deleteExpenseConfirm')} "${expense.label || (expense as any).description}"?`,
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('common.delete'),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await db.expenses.delete(expense.id);
+              await loadExpenses();
+            } catch {
+              Alert.alert(t('common.error'), t('common.error'));
+            }
+          },
         },
-      },
-    ]);
+      ]
+    );
   };
 
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <View style={styles.headerTop}>
+        <View style={[styles.headerTop, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
           <Button
-            title="مصروف جديد"
+            title={t('expenses.addExpense')}
             variant="destructive"
             size="sm"
             icon={<Plus size={16} color="#fff" />}
             onPress={openAdd}
           />
-          <Text style={styles.screenTitle}>إدارة المصاريف</Text>
+          <Text style={styles.screenTitle}>{t('expenses.title')}</Text>
         </View>
 
-        <View style={styles.searchBar}>
+        <View style={[styles.searchBar, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
           <Search size={18} color={colors.slate[400]} />
           <TextInput
-            style={styles.searchInput}
-            placeholder="بحث بالوصف أو الفئة..."
+            style={[styles.searchInput, { textAlign }]}
+            placeholder={t('common.search')}
             value={search}
             onChangeText={setSearch}
             placeholderTextColor={colors.slate[400]}
-            textAlign="right"
           />
         </View>
       </View>
 
       {/* Category Filter Chips */}
       <View style={styles.chipsRow}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsScroll}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={[styles.chipsScroll, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
+        >
           <TouchableOpacity
             style={[styles.chip, selectedCategory === 'all' && styles.chipActive]}
             onPress={() => setSelectedCategory('all')}
             activeOpacity={0.7}
           >
-            <Text style={[styles.chipText, selectedCategory === 'all' && styles.chipTextActive]}>الكل</Text>
+            <Text style={[styles.chipText, selectedCategory === 'all' && styles.chipTextActive]}>
+              {t('common.all')}
+            </Text>
           </TouchableOpacity>
-          {CATEGORIES.map((cat) => (
+          {CATEGORY_KEYS.map((cat) => (
             <TouchableOpacity
-              key={cat}
-              style={[styles.chip, selectedCategory === cat && styles.chipActive]}
-              onPress={() => setSelectedCategory(cat)}
+              key={cat.key}
+              style={[styles.chip, selectedCategory === cat.key && styles.chipActive]}
+              onPress={() => setSelectedCategory(cat.key)}
               activeOpacity={0.7}
             >
-              <Text style={[styles.chipText, selectedCategory === cat && styles.chipTextActive]}>{cat}</Text>
+              <Text style={[styles.chipText, selectedCategory === cat.key && styles.chipTextActive]}>
+                {t(cat.labelKey)}
+              </Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -271,9 +298,9 @@ export const ExpensesScreen = ({ navigation }: any) => {
         <View style={styles.kpiIconBox}>
           <TrendingDown size={22} color={colors.danger.main} />
         </View>
-        <View style={{ flex: 1, alignItems: 'flex-end' }}>
-          <Text style={styles.kpiLabel}>إجمالي المصاريف المسجلة</Text>
-          <Text style={styles.kpiVal}>{totalExpenses.toLocaleString('ar-DZ')} دج</Text>
+        <View style={{ flex: 1, alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
+          <Text style={styles.kpiLabel}>{t('expenses.totalExpenses')}</Text>
+          <Text style={styles.kpiVal}>{totalExpenses.toLocaleString(localeStr)} {currency}</Text>
         </View>
       </Card>
 
@@ -291,9 +318,9 @@ export const ExpensesScreen = ({ navigation }: any) => {
         ) : filteredExpenses.length === 0 ? (
           <EmptyState
             icon={<DollarSign size={32} color={colors.danger.main} />}
-            title="لا توجد مصاريف مسجلة"
-            description="سجل المصاريف اليومية لمتابعة التكاليف والربح الصافي"
-            actionTitle="تسجيل أول مصروف"
+            title={t('expenses.noExpensesFound')}
+            description={t('expenses.noExpensesDesc')}
+            actionTitle={t('expenses.addExpense')}
             onAction={openAdd}
           />
         ) : (
@@ -302,12 +329,12 @@ export const ExpensesScreen = ({ navigation }: any) => {
               const catConfig = getCategoryConfig(expense.category, colors, isDark);
 
               return (
-                <Card key={expense.id} style={styles.expenseCard}>
+                <Card key={expense.id} style={[styles.expenseCard, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                   <View style={styles.cardLeft}>
                     <Text style={styles.expenseAmount}>
-                      {(expense.amount || 0).toLocaleString('ar-DZ')} دج
+                      {(expense.amount || 0).toLocaleString(localeStr)} {currency}
                     </Text>
-                    <View style={styles.cardActions}>
+                    <View style={[styles.cardActions, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                       <TouchableOpacity onPress={() => openEdit(expense)} style={styles.actionBtn} activeOpacity={0.7}>
                         <Edit2 size={13} color={colors.text.secondary} />
                       </TouchableOpacity>
@@ -317,18 +344,18 @@ export const ExpensesScreen = ({ navigation }: any) => {
                     </View>
                   </View>
 
-                  <View style={styles.cardRight}>
-                    <View style={styles.labelRow}>
+                  <View style={[styles.cardRight, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+                    <View style={[styles.labelRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                       <Text style={styles.expenseLabel}>
                         {expense.label || (expense as any).description}
                       </Text>
                       <Badge variant={catConfig.variant} size="xs">
-                        {expense.category}
+                        {getCategoryLabel(expense.category)}
                       </Badge>
                     </View>
 
                     <Text style={styles.expenseDate}>
-                      {new Date(expense.date || (expense as any).createdAt || '').toLocaleDateString('ar-DZ')}
+                      {new Date(expense.date || (expense as any).createdAt || '').toLocaleDateString(localeStr)}
                       {expense.note ? ` • ${expense.note}` : ''}
                     </Text>
                   </View>
@@ -343,59 +370,58 @@ export const ExpensesScreen = ({ navigation }: any) => {
       <Modal visible={modalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
+            <View style={[styles.modalHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeModalBtn}>
                 <X size={20} color={colors.text.secondary} />
               </TouchableOpacity>
               <Text style={styles.modalTitle}>
-                {editingExpense ? 'تعديل المصروف' : 'تسجيل مصروف جديد'}
+                {editingExpense ? t('expenses.editExpense') : t('expenses.addExpense')}
               </Text>
             </View>
 
             <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>المبلغ (دج)</Text>
+                <Text style={[styles.formLabel, { textAlign }]}>{t('expenses.amount')} ({currency})</Text>
                 <TextInput
-                  style={styles.formInputAmount}
+                  style={[styles.formInputAmount, { textAlign: 'center' }]}
                   placeholder="0.00"
                   placeholderTextColor={colors.text.tertiary}
                   value={form.amount}
-                  onChangeText={(t) => setForm({ ...form, amount: t })}
+                  onChangeText={(textVal) => setForm({ ...form, amount: textVal })}
                   keyboardType="decimal-pad"
-                  textAlign="center"
                 />
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>بيان المصروف</Text>
+                <Text style={[styles.formLabel, { textAlign }]}>{t('expenses.expenseName')}</Text>
                 <Input
-                  placeholder="مثال: فاتورة الكهرباء، بنزين التوصيل..."
+                  placeholder={t('expenses.expenseName')}
                   value={form.label}
-                  onChangeText={(t) => setForm({ ...form, label: t })}
-                  textAlign="right"
+                  onChangeText={(textVal) => setForm({ ...form, label: textVal })}
+                  textAlign={textAlign}
                 />
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>التصنيف</Text>
-                <View style={styles.categoryGrid}>
-                  {CATEGORIES.map((cat) => (
+                <Text style={[styles.formLabel, { textAlign }]}>{t('expenses.category')}</Text>
+                <View style={[styles.categoryGrid, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                  {CATEGORY_KEYS.map((cat) => (
                     <TouchableOpacity
-                      key={cat}
+                      key={cat.key}
                       style={[
                         styles.catSelectBtn,
-                        form.category === cat && styles.catSelectBtnActive,
+                        form.category === cat.key && styles.catSelectBtnActive,
                       ]}
-                      onPress={() => setForm({ ...form, category: cat })}
+                      onPress={() => setForm({ ...form, category: cat.key })}
                       activeOpacity={0.7}
                     >
                       <Text
                         style={[
                           styles.catSelectBtnText,
-                          form.category === cat && styles.catSelectBtnTextActive,
+                          form.category === cat.key && styles.catSelectBtnTextActive,
                         ]}
                       >
-                        {cat}
+                        {t(cat.labelKey)}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -403,18 +429,18 @@ export const ExpensesScreen = ({ navigation }: any) => {
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>ملاحظات إضافية (اختياري)</Text>
+                <Text style={[styles.formLabel, { textAlign }]}>{t('common.notes')}</Text>
                 <Input
-                  placeholder="أي تفاصيل أخرى..."
+                  placeholder={t('common.optional')}
                   value={form.notes}
-                  onChangeText={(t) => setForm({ ...form, notes: t })}
-                  textAlign="right"
+                  onChangeText={(textVal) => setForm({ ...form, notes: textVal })}
+                  textAlign={textAlign}
                 />
               </View>
             </ScrollView>
 
             <Button
-              title={saving ? 'جاري الحفظ...' : editingExpense ? 'تحديث المصروف' : 'حفظ المصروف'}
+              title={saving ? t('common.loading') : editingExpense ? t('expenses.editExpense') : t('common.save')}
               onPress={handleSave}
               loading={saving}
               fullWidth

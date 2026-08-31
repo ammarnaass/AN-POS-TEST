@@ -30,10 +30,15 @@ import { db, ensureInit } from '@/lib/db';
 import { generateId } from '@shared/utils';
 import type { Supplier, Purchase, Payment } from '@shared/types';
 import { useAuthStore } from '@/store/authStore';
+import { useI18n } from '@/store/i18nStore';
+import { useTheme } from '@/theme';
 
 export const SupplierDetailScreen = ({ route, navigation }: any) => {
   const { supplierId, supplier: initialSupplier } = route.params || {};
   const { user } = useAuthStore();
+  const { t, isRTL, textAlign, currency, language } = useI18n();
+  const { isDark, colors } = useTheme();
+  const localeStr = language === 'ar' ? 'ar-DZ' : language === 'fr' ? 'fr-FR' : 'en-US';
 
   const [supplier, setSupplier] = useState<Supplier | null>(initialSupplier || null);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
@@ -92,7 +97,7 @@ export const SupplierDetailScreen = ({ route, navigation }: any) => {
   const handleRecordPayment = async () => {
     const amountNum = parseFloat(paymentAmount);
     if (!amountNum || amountNum <= 0) {
-      Alert.alert('تنبيه', 'يرجى إدخال مبلغ تسديد صالح');
+      Alert.alert(t('common.warning'), t('pos.pleaseEnterValidPrice'));
       return;
     }
 
@@ -110,7 +115,7 @@ export const SupplierDetailScreen = ({ route, navigation }: any) => {
         party_name: supplier?.name || '',
         amount: amountNum,
         payment_method: 'cash',
-        notes: paymentNotes.trim() || 'تسديد دفعة للمورد',
+        notes: paymentNotes.trim() || t('suppliers.recordPayment'),
         created_at: nowIso,
         updated_at: nowIso,
       });
@@ -123,94 +128,95 @@ export const SupplierDetailScreen = ({ route, navigation }: any) => {
         updated_at: nowIso,
       });
 
-      Alert.alert('✓ تم التسجيل', `تم تسجيل تسديد دفعة بمبلغ ${amountNum.toLocaleString('ar-DZ')} دج.`);
+      Alert.alert('✓', `${t('suppliers.paymentRecorded')}: ${amountNum.toLocaleString(localeStr)} ${currency}`);
       setPaymentModalVisible(false);
       setPaymentAmount('');
       setPaymentNotes('');
       await loadSupplierData();
     } catch (err) {
-      Alert.alert('خطأ', `فشل تسجيل التسديد: ${err instanceof Error ? err.message : 'خطأ'}`);
+      Alert.alert(t('common.error'), `${t('common.error')}: ${err instanceof Error ? err.message : 'خطأ'}`);
     }
     setSavingPayment(false);
   };
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#3b82f6" />
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary[600]} />
       </View>
     );
   }
 
   if (!supplier) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.emptyText}>لم يتم العثور على المورد</Text>
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <Text style={[styles.emptyText, { color: colors.text.secondary }]}>{t('suppliers.supplierNotFound')}</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBackBtn}>
-          <ArrowRight size={22} color="#0f172a" />
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border.default, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.headerBackBtn, { backgroundColor: isDark ? colors.surfaceSubtle : '#f1f5f9' }]}>
+          <ChevronLeft size={22} color={colors.text.primary} style={{ transform: [{ rotate: isRTL ? '180deg' : '0deg' }] }} />
         </TouchableOpacity>
         <View style={styles.headerTitleCol}>
-          <Text style={styles.headerTitle}>{supplier.name}</Text>
-          {supplier.phone ? <Text style={styles.headerSubtitle}>{supplier.phone}</Text> : null}
+          <Text style={[styles.headerTitle, { color: colors.text.primary }]}>{supplier.name}</Text>
+          {supplier.phone ? <Text style={[styles.headerSubtitle, { color: colors.text.secondary }]}>{supplier.phone}</Text> : null}
         </View>
         <View style={{ width: 40 }} />
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: 30 }}>
         {/* Balance Card */}
-        <View style={styles.balanceCard}>
-          <View style={styles.balanceHeader}>
-            <Text style={styles.balanceLabel}>إجمالي الرصيد المستحق له</Text>
+        <View style={[styles.balanceCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}>
+          <View style={[styles.balanceHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+            <Text style={[styles.balanceLabel, { color: colors.text.secondary }]}>{t('suppliers.dueBalance')}</Text>
             <Truck size={20} color="#f59e0b" />
           </View>
           <Text
             style={[
               styles.balanceVal,
               supplier.balance > 0 ? styles.balanceValDue : styles.balanceValZero,
+              { textAlign },
             ]}
           >
-            {(supplier.balance || 0).toLocaleString('ar-DZ')} دج
+            {(supplier.balance || 0).toLocaleString(localeStr)} {currency}
           </Text>
 
           {/* Quick Action Buttons */}
-          <View style={styles.actionsRow}>
+          <View style={[styles.actionsRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
             <TouchableOpacity
-              style={styles.payBtn}
+              style={[styles.payBtn, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
               onPress={() => {
                 setPaymentAmount(String(supplier.balance || ''));
                 setPaymentModalVisible(true);
               }}
             >
               <DollarSign size={16} color="#fff" />
-              <Text style={styles.payBtnText}>تسجيل تسديد دفعة</Text>
+              <Text style={styles.payBtnText}>{t('suppliers.recordPayment')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.purchaseBtn}
+              style={[styles.purchaseBtn, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
               onPress={() => navigation.navigate('PurchaseForm', { supplierId: supplier.id })}
             >
-              <ShoppingCart size={16} color="#3b82f6" />
-              <Text style={styles.purchaseBtnText}>فاتورة شراء جديدة</Text>
+              <ShoppingCart size={16} color={colors.primary[600]} />
+              <Text style={[styles.purchaseBtnText, { color: colors.primary[600] }]}>{t('suppliers.newPurchaseInvoice')}</Text>
             </TouchableOpacity>
           </View>
         </View>
 
         {/* Tab Switcher */}
-        <View style={styles.tabsRow}>
+        <View style={[styles.tabsRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
           <TouchableOpacity
             style={[styles.tab, activeTab === 'purchases' && styles.tabActive]}
             onPress={() => setActiveTab('purchases')}
           >
             <Text style={[styles.tabText, activeTab === 'purchases' && styles.tabTextActive]}>
-              فواتير الشراء ({purchases.length})
+              {t('suppliers.purchaseInvoices')} ({purchases.length})
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -218,7 +224,7 @@ export const SupplierDetailScreen = ({ route, navigation }: any) => {
             onPress={() => setActiveTab('payments')}
           >
             <Text style={[styles.tabText, activeTab === 'payments' && styles.tabTextActive]}>
-              سندات التسديد ({payments.length})
+              {t('suppliers.paymentReceipts')} ({payments.length})
             </Text>
           </TouchableOpacity>
         </View>
@@ -227,8 +233,8 @@ export const SupplierDetailScreen = ({ route, navigation }: any) => {
         {activeTab === 'purchases' ? (
           purchases.length === 0 ? (
             <View style={styles.emptyList}>
-              <Receipt size={36} color="#cbd5e1" />
-              <Text style={styles.emptyListText}>لا توجد فواتير شراء مسجلة لهذا المورد</Text>
+              <Receipt size={36} color={colors.text.tertiary} />
+              <Text style={[styles.emptyListText, { color: colors.text.secondary }]}>{t('suppliers.noPurchases')}</Text>
             </View>
           ) : (
             <View style={{ gap: 8 }}>
@@ -249,18 +255,18 @@ export const SupplierDetailScreen = ({ route, navigation }: any) => {
                 })();
 
                 return (
-                  <View key={p.id} style={styles.listCard}>
-                    <View style={{ alignItems: 'flex-start' }}>
-                      <Text style={styles.listCardTotal}>{(p.total || 0).toLocaleString('ar-DZ')} دج</Text>
-                      <Text style={styles.listCardSub}>
-                        المدفوع: {(p.amountPaid || p.amount_paid || 0).toLocaleString('ar-DZ')} دج
+                  <View key={p.id} style={[styles.listCard, { backgroundColor: colors.surface, borderColor: colors.border.default, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                    <View style={{ alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
+                      <Text style={[styles.listCardTotal, { color: colors.text.primary }]}>{(p.total || 0).toLocaleString(localeStr)} {currency}</Text>
+                      <Text style={[styles.listCardSub, { color: colors.text.secondary }]}>
+                        {t('sales.paid')}: {(p.amountPaid || p.amount_paid || 0).toLocaleString(localeStr)} {currency}
                       </Text>
                     </View>
 
-                    <View style={{ alignItems: 'flex-end', flex: 1, marginRight: 10 }}>
-                      <Text style={styles.listCardNumber}>{p.number}</Text>
-                      <Text style={styles.listCardDate}>
-                        {new Date(p.date || p.createdAt || '').toLocaleDateString('ar-DZ')} • {itemsCount} صنف
+                    <View style={{ alignItems: isRTL ? 'flex-start' : 'flex-end', flex: 1, marginHorizontal: 10 }}>
+                      <Text style={[styles.listCardNumber, { color: colors.text.primary }]}>{p.number}</Text>
+                      <Text style={[styles.listCardDate, { color: colors.text.tertiary }]}>
+                        {new Date(p.date || p.createdAt || '').toLocaleDateString(localeStr)} • {itemsCount} {t('inventory.products')}
                       </Text>
                     </View>
                   </View>
@@ -270,21 +276,21 @@ export const SupplierDetailScreen = ({ route, navigation }: any) => {
           )
         ) : payments.length === 0 ? (
           <View style={styles.emptyList}>
-            <DollarSign size={36} color="#cbd5e1" />
-            <Text style={styles.emptyListText}>لا توجد سندات تسديد مسجلة</Text>
+            <DollarSign size={36} color={colors.text.tertiary} />
+            <Text style={[styles.emptyListText, { color: colors.text.secondary }]}>{t('suppliers.noPayments')}</Text>
           </View>
         ) : (
           <View style={{ gap: 8 }}>
             {payments.map((pm: any) => (
-              <View key={pm.id} style={styles.listCard}>
+              <View key={pm.id} style={[styles.listCard, { backgroundColor: colors.surface, borderColor: colors.border.default, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                 <Text style={[styles.listCardTotal, { color: '#22c55e' }]}>
-                  {(pm.amount || 0).toLocaleString('ar-DZ')} دج
+                  {(pm.amount || 0).toLocaleString(localeStr)} {currency}
                 </Text>
 
-                <View style={{ alignItems: 'flex-end', flex: 1, marginRight: 10 }}>
-                  <Text style={styles.listCardNumber}>{pm.note || pm.notes || 'وصل تسديد دفعة'}</Text>
-                  <Text style={styles.listCardDate}>
-                    {new Date(pm.date || pm.createdAt || '').toLocaleDateString('ar-DZ')}
+                <View style={{ alignItems: isRTL ? 'flex-start' : 'flex-end', flex: 1, marginHorizontal: 10 }}>
+                  <Text style={[styles.listCardNumber, { color: colors.text.primary }]}>{pm.note || pm.notes || t('suppliers.recordPayment')}</Text>
+                  <Text style={[styles.listCardDate, { color: colors.text.tertiary }]}>
+                    {new Date(pm.date || pm.createdAt || '').toLocaleDateString(localeStr)}
                   </Text>
                 </View>
               </View>
@@ -296,40 +302,41 @@ export const SupplierDetailScreen = ({ route, navigation }: any) => {
       {/* Record Payment Modal */}
       <Modal visible={paymentModalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border.subtle, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <TouchableOpacity onPress={() => setPaymentModalVisible(false)}>
-                <X size={20} color="#64748b" />
+                <X size={20} color={colors.text.secondary} />
               </TouchableOpacity>
-              <Text style={styles.modalTitle}>تسجيل تسديد دفعة للمورد</Text>
+              <Text style={[styles.modalTitle, { color: colors.text.primary }]}>{t('suppliers.recordPaymentModalTitle')}</Text>
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>المبلغ المراد تسديده (دج) *</Text>
+              <Text style={[styles.formLabel, { color: colors.text.secondary, textAlign }]}>{t('suppliers.paymentAmount')} ({currency}) *</Text>
               <TextInput
-                style={styles.formInputAmount}
+                style={[styles.formInputAmount, { color: colors.text.primary, borderColor: colors.border.default, backgroundColor: isDark ? colors.surfaceSubtle : '#f8fafc' }]}
                 value={paymentAmount}
                 onChangeText={setPaymentAmount}
                 keyboardType="numeric"
                 placeholder="0.00"
+                placeholderTextColor={colors.text.tertiary}
                 textAlign="center"
                 autoFocus
               />
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>ملاحظات أو رقم الشيك / الحوالة</Text>
+              <Text style={[styles.formLabel, { color: colors.text.secondary, textAlign }]}>{t('suppliers.paymentNotes')}</Text>
               <TextInput
-                style={styles.formInput}
+                style={[styles.formInput, { color: colors.text.primary, borderColor: colors.border.default, backgroundColor: isDark ? colors.surfaceSubtle : '#f8fafc', textAlign }]}
                 value={paymentNotes}
                 onChangeText={setPaymentNotes}
-                placeholder="نقداً / شيك رقم..."
-                textAlign="right"
+                placeholder={t('suppliers.paymentNotes')}
+                placeholderTextColor={colors.text.tertiary}
               />
             </View>
 
             <TouchableOpacity
-              style={styles.modalConfirmBtn}
+              style={[styles.modalConfirmBtn, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
               onPress={handleRecordPayment}
               disabled={savingPayment}
             >
@@ -338,7 +345,7 @@ export const SupplierDetailScreen = ({ route, navigation }: any) => {
               ) : (
                 <>
                   <Check size={18} color="#fff" />
-                  <Text style={styles.modalConfirmBtnText}>تأكيد دفع المبلغ</Text>
+                  <Text style={styles.modalConfirmBtnText}>{t('suppliers.confirmPayment')}</Text>
                 </>
               )}
             </TouchableOpacity>

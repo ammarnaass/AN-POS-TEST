@@ -18,6 +18,7 @@ import {
   Sliders,
   Search,
   ChevronLeft,
+  ChevronRight,
   Calendar,
   Layers,
   Package,
@@ -26,6 +27,7 @@ import { db, ensureInit } from '@/lib/db';
 import { useTheme } from '@/theme';
 import { radii, spacing, shadows } from '@/theme/tokens';
 import { Badge, EmptyState } from '@/components/ui';
+import { useI18n } from '@/store/i18nStore';
 
 interface MovementRecord {
   id: string;
@@ -47,6 +49,8 @@ interface MovementRecord {
 
 export const StockMovementsScreen = ({ navigation }: any) => {
   const { isDark, colors } = useTheme();
+  const { t, isRTL, textAlign, language } = useI18n();
+  const localeStr = language === 'ar' ? 'ar-DZ' : language === 'fr' ? 'fr-FR' : 'en-US';
   const styles = makeStyles(colors, isDark);
 
   const [movements, setMovements] = useState<MovementRecord[]>([]);
@@ -72,7 +76,6 @@ export const StockMovementsScreen = ({ navigation }: any) => {
       setProducts(prods);
       setWarehouses(whList || []);
 
-      // Combine both v1 and v2 movements
       const combined: MovementRecord[] = [];
 
       (v2List || []).forEach((m: any) => {
@@ -85,7 +88,7 @@ export const StockMovementsScreen = ({ navigation }: any) => {
           warehouse_id: m.warehouse_id,
           destination_warehouse_id: m.destination_warehouse_id,
           item_id: m.item_id || m.product_id,
-          product_name: prod?.name || 'صنف غير محدد',
+          product_name: prod?.name || t('inventory.productName'),
           qty: m.quantity || m.qty || 0,
           unit_price: m.unit_price || prod?.costPrice || 0,
           total_amount: m.total_amount || 0,
@@ -95,7 +98,6 @@ export const StockMovementsScreen = ({ navigation }: any) => {
       });
 
       (v1List || []).forEach((m: any) => {
-        // Skip if already in v2 list
         if (combined.some((c) => c.id === m.id || c.reference === m.reference_id)) return;
         const prod = prods.find((p: any) => p.id === m.product_id);
         combined.push({
@@ -103,7 +105,7 @@ export const StockMovementsScreen = ({ navigation }: any) => {
           date: m.date || m.created_at,
           type: m.type || 'out',
           product_id: m.product_id,
-          product_name: prod?.name || 'صنف غير محدد',
+          product_name: prod?.name || t('inventory.productName'),
           qty: m.qty || m.quantity || 0,
           reason: m.reason || '',
           reference: m.reference_id || '',
@@ -120,7 +122,7 @@ export const StockMovementsScreen = ({ navigation }: any) => {
       console.warn('Load stock movements error:', e);
     }
     setLoading(false);
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     loadData();
@@ -155,23 +157,22 @@ export const StockMovementsScreen = ({ navigation }: any) => {
     switch (type) {
       case 'purchase':
       case 'in':
-        return { label: 'توريد (إدخال)', variant: 'success' as const, icon: ArrowDownLeft };
+        return { label: t('sales.sales'), variant: 'success' as const, icon: ArrowDownLeft };
       case 'sale':
       case 'out':
-        return { label: 'مبيعات (إخراج)', variant: 'primary' as const, icon: ArrowUpRight };
+        return { label: t('sales.sales'), variant: 'primary' as const, icon: ArrowUpRight };
       case 'transfer':
-        return { label: 'تحويل مستودع', variant: 'neutral' as const, icon: ArrowLeftRight };
+        return { label: t('inventory.transferStock'), variant: 'neutral' as const, icon: ArrowLeftRight };
       case 'return':
-        return { label: 'مرتجع بيع', variant: 'warning' as const, icon: RotateCcw };
+        return { label: t('sales.returnInvoice'), variant: 'warning' as const, icon: RotateCcw };
       case 'count':
       case 'adjust':
-        return { label: 'تسوية جرد', variant: 'neutral' as const, icon: Sliders };
+        return { label: t('inventory.inventoryCount'), variant: 'neutral' as const, icon: Sliders };
       default:
         return { label: type, variant: 'neutral' as const, icon: History };
     }
   };
 
-  // Metrics
   const totalIn = movements
     .filter((m) => m.type === 'purchase' || m.type === 'in' || m.type === 'return')
     .reduce((acc, m) => acc + Math.abs(m.qty), 0);
@@ -188,78 +189,76 @@ export const StockMovementsScreen = ({ navigation }: any) => {
     );
   }
 
+  const BackIcon = isRTL ? ChevronRight : ChevronLeft;
+
   return (
     <View style={styles.container}>
-      {/* Top Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation?.goBack()}>
-          <ChevronLeft size={22} color={colors.text.primary} />
+          <BackIcon size={22} color={colors.text.primary} />
         </TouchableOpacity>
-        <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerTitle}>سجل حركات المخزون</Text>
-          <Text style={styles.headerSubTitle}>تتبع كافة عمليات الإدخال والإخراج والتحويل</Text>
+        <View style={[styles.headerTitleWrap, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+          <Text style={styles.headerTitle}>{t('inventory.stockMovements')}</Text>
+          <Text style={styles.headerSubTitle}>{movements.length} {t('inventory.stockMovements')}</Text>
         </View>
       </View>
 
-      {/* Metrics Bar */}
-      <View style={styles.metricsBar}>
+      <View style={[styles.metricsBar, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
         <View style={styles.metricItem}>
-          <Text style={styles.metricLabel}>إجمالي الوارد (+)</Text>
-          <Text style={[styles.metricVal, { color: colors.success.text }]}>+{totalIn} قطعة</Text>
+          <Text style={styles.metricLabel}>{t('sales.from')} (+)</Text>
+          <Text style={[styles.metricVal, { color: colors.success.text }]}>+{totalIn}</Text>
         </View>
         <View style={styles.dividerVertical} />
         <View style={styles.metricItem}>
-          <Text style={styles.metricLabel}>إجمالي الصادر (-)</Text>
-          <Text style={[styles.metricVal, { color: colors.danger.text }]}>-{totalOut} قطعة</Text>
+          <Text style={styles.metricLabel}>{t('sales.to')} (-)</Text>
+          <Text style={[styles.metricVal, { color: colors.danger.text }]}>-{totalOut}</Text>
         </View>
         <View style={styles.dividerVertical} />
         <View style={styles.metricItem}>
-          <Text style={styles.metricLabel}>إجمالي السجلات</Text>
+          <Text style={styles.metricLabel}>{t('common.all')}</Text>
           <Text style={styles.metricVal}>{movements.length}</Text>
         </View>
       </View>
 
-      {/* Search & Filters */}
       <View style={styles.filterSection}>
-        <View style={styles.searchBar}>
+        <View style={[styles.searchBar, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
           <Search size={16} color={colors.text.tertiary} />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { textAlign }]}
             value={search}
             onChangeText={setSearch}
-            placeholder="ابحث بالصنف أو رقم الحركة أو المرجع..."
+            placeholder={t('inventory.searchPlaceholder')}
             placeholderTextColor={colors.text.tertiary}
           />
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.typesScroll}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.typesScroll, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
           {[
-            { key: 'all', label: 'الكل' },
-            { key: 'in', label: 'توريد (+)' },
-            { key: 'out', label: 'مبيعات (-)' },
-            { key: 'transfer', label: 'تحويلات' },
-            { key: 'return', label: 'مرتجعات' },
-            { key: 'count', label: 'تسويات جرد' },
-          ].map((t) => (
+            { key: 'all', label: t('common.all') },
+            { key: 'in', label: '(+) IN' },
+            { key: 'out', label: '(-) OUT' },
+            { key: 'transfer', label: t('inventory.transferStock') },
+            { key: 'return', label: t('sales.returnInvoice') },
+            { key: 'count', label: t('inventory.inventoryCount') },
+          ].map((tItem) => (
             <TouchableOpacity
-              key={t.key}
-              style={[styles.typeChip, selectedType === t.key && styles.typeChipActive]}
-              onPress={() => setSelectedType(t.key)}
+              key={tItem.key}
+              style={[styles.typeChip, selectedType === tItem.key && styles.typeChipActive]}
+              onPress={() => setSelectedType(tItem.key)}
             >
               <Text
                 style={[
                   styles.typeChipText,
-                  selectedType === t.key && styles.typeChipTextActive,
+                  selectedType === tItem.key && styles.typeChipTextActive,
                 ]}
               >
-                {t.label}
+                {tItem.label}
               </Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
       </View>
 
-      {/* Movements List */}
       <ScrollView
         style={styles.content}
         contentContainerStyle={styles.contentContainer}
@@ -267,21 +266,20 @@ export const StockMovementsScreen = ({ navigation }: any) => {
       >
         {filtered.length === 0 ? (
           <EmptyState
-            title="لا توجد حركات مخزنية"
-            description="لم يتم العثور على أي حركة تطابق معايير البحث الحالية"
+            title={t('common.noData')}
+            description=""
           />
         ) : (
           filtered.map((item) => {
             const badge = getTypeBadge(item.type);
-            const Icon = badge.icon;
             const isPositive =
               item.type === 'purchase' || item.type === 'in' || item.type === 'return' || item.qty > 0;
             const isNegative = item.type === 'sale' || item.type === 'out';
 
             return (
               <View key={item.id} style={styles.movementCard}>
-                <View style={styles.cardHeaderRow}>
-                  <View style={styles.typeBadgeRow}>
+                <View style={[styles.cardHeaderRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                  <View style={[styles.typeBadgeRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                     <Badge variant={badge.variant} size="sm">
                       {badge.label}
                     </Badge>
@@ -306,27 +304,24 @@ export const StockMovementsScreen = ({ navigation }: any) => {
                   </Text>
                 </View>
 
-                <Text style={styles.productName}>{item.product_name}</Text>
+                <Text style={[styles.productName, { textAlign }]}>{item.product_name}</Text>
 
                 {item.reason || item.reference ? (
-                  <Text style={styles.reasonText}>
-                    المرجع: {item.reason || item.reference}
+                  <Text style={[styles.reasonText, { textAlign }]}>
+                    {item.reason || item.reference}
                   </Text>
                 ) : null}
 
-                <View style={styles.cardFooterRow}>
-                  <View style={styles.dateRow}>
+                <View style={[styles.cardFooterRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                  <View style={[styles.dateRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                     <Calendar size={12} color={colors.text.tertiary} />
                     <Text style={styles.dateText}>
-                      {new Date(item.date).toLocaleString('ar', {
-                        dateStyle: 'short',
-                        timeStyle: 'short',
-                      })}
+                      {new Date(item.date).toLocaleDateString(localeStr)}
                     </Text>
                   </View>
 
                   {item.created_by ? (
-                    <Text style={styles.userText}>المسؤول: {item.created_by}</Text>
+                    <Text style={styles.userText}>{item.created_by}</Text>
                   ) : null}
                 </View>
               </View>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   Alert,
+  Image,
 } from 'react-native';
 import {
   ShoppingCart,
@@ -17,6 +18,7 @@ import {
   Calculator,
   Receipt,
   ChevronLeft,
+  ChevronRight,
   Truck,
   ArrowDownLeft,
   ArrowUpRight,
@@ -28,22 +30,41 @@ import {
   Users,
   Sparkles,
   ArrowLeft,
+  ArrowRight,
   FlaskConical,
   BarChart3,
   Barcode,
   Printer,
+  Plus,
+  RefreshCw,
+  Warehouse,
+  ClipboardCheck,
+  History,
+  Tag,
+  Layers,
+  CheckCircle2,
+  Lock,
+  Unlock,
+  Sliders,
 } from 'lucide-react-native';
 import { db, ensureInit } from '@/lib/db';
 import CameraScanner from '@/features/barcode/CameraScanner';
 import type { Product, Sale, Customer, Supplier, CashSession } from '@shared/types';
+import { useAuthStore } from '@/store/authStore';
 import { useTheme } from '@/theme';
 import { useI18n } from '@/store/i18nStore';
 import { radii, spacing, typography, shadows } from '@/theme/tokens';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Button, Skeleton } from '@/components/ui';
+import { getStoreSettings, type StoreSettings } from '@/lib/settingService';
 
 export const DashboardScreen = ({ navigation }: any) => {
+  const { user } = useAuthStore();
   const { isDark, colors } = useTheme();
-  const { t, isRTL } = useI18n();
+  const { t, isRTL, textAlign, currency, language } = useI18n();
+  const localeStr = language === 'ar' ? 'ar-DZ' : language === 'fr' ? 'fr-FR' : 'en-US';
+  const ChevronIcon = isRTL ? ChevronLeft : ChevronRight;
+  const UpgradeArrow = isRTL ? ArrowLeft : ArrowRight;
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
@@ -54,6 +75,7 @@ export const DashboardScreen = ({ navigation }: any) => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [currentSession, setCurrentSession] = useState<CashSession | null>(null);
+  const [storeSettings, setStoreSettings] = useState<StoreSettings | null>(null);
 
   useEffect(() => {
     loadDashboardData();
@@ -63,12 +85,13 @@ export const DashboardScreen = ({ navigation }: any) => {
     setLoading(true);
     try {
       await ensureInit();
-      const [allProducts, allSales, allCustomers, allSuppliers, allSessions] = await Promise.all([
-        db.products.toArray(),
-        db.sales.toArray(),
-        db.customers.toArray(),
-        db.suppliers.toArray(),
-        db.cashSessions.toArray(),
+      const [allProducts, allSales, allCustomers, allSuppliers, allSessions, st] = await Promise.all([
+        db.products.toArray().catch(() => []),
+        db.sales.toArray().catch(() => []),
+        db.customers.toArray().catch(() => []),
+        db.suppliers.toArray().catch(() => []),
+        db.cashSessions.toArray().catch(() => []),
+        getStoreSettings().catch(() => null),
       ]);
 
       const todayStr = new Date().toISOString().slice(0, 10);
@@ -84,6 +107,7 @@ export const DashboardScreen = ({ navigation }: any) => {
       setCustomers(allCustomers);
       setSuppliers(allSuppliers);
       setCurrentSession(openSession);
+      setStoreSettings(st);
     } catch (err) {
       console.warn('Dashboard load error:', err);
     }
@@ -91,8 +115,9 @@ export const DashboardScreen = ({ navigation }: any) => {
   }
 
   const onRefresh = async () => {
-    setRefreshing(false);
+    setRefreshing(true);
     await loadDashboardData();
+    setRefreshing(false);
   };
 
   const handleQuickScan = async (code: string, mode?: 'single' | 'multi') => {
@@ -101,39 +126,96 @@ export const DashboardScreen = ({ navigation }: any) => {
     }
     try {
       await ensureInit();
-      const product = await db.products
-        .filter((p: any) => p.barcode === code || p.sku === code)
-        .first();
+      const allProds = await db.products.toArray();
+      const normalized = code.trim().toLowerCase();
 
-      if (product) {
+      let matchedProduct: any = null;
+      let matchedCustomPrice: any = null;
+
+      // 1. Check custom prices barcode across products
+      for (const p of allProds) {
+        const rawCP = (p as any).custom_prices ?? (p as any).customPrices;
+        let cPrices: any[] = [];
+        if (rawCP) {
+          try {
+            cPrices = typeof rawCP === 'string' ? JSON.parse(rawCP) : (Array.isArray(rawCP) ? rawCP : []);
+          } catch {}
+        }
+        const foundCP = cPrices.find(
+          (cp: any) => cp.barcode && cp.barcode.trim().toLowerCase() === normalized
+        );
+        if (foundCP) {
+          matchedProduct = p;
+          matchedCustomPrice = foundCP;
+          break;
+        }
+      }
+
+      // 2. Check primary barcode & sku
+      if (!matchedProduct) {
+        matchedProduct = allProds.find(
+          (p: any) =>
+            (p.barcode && String(p.barcode).trim().toLowerCase() === normalized) ||
+            (p.sku && String(p.sku).trim().toLowerCase() === normalized)
+        );
+      }
+
+      // 3. Check product_barcodes table (secondary barcodes)
+      if (!matchedProduct) {
+        const rows = await db.productBarcodes.where('barcode').equals(code).toArray().catch(() => []);
+        if (rows && rows.length > 0) {
+          const matchedId = rows[0]?.product_id || rows[0]?.productId;
+          matchedProduct = allProds.find((p: any) => p.id === matchedId);
+          if (matchedProduct && (rows[0].price_label || rows[0].priceLabel)) {
+            const pLabel = (rows[0].price_label || rows[0].priceLabel).trim();
+            const rawCP = (matchedProduct as any).custom_prices ?? (matchedProduct as any).customPrices;
+            let cPrices: any[] = [];
+            if (rawCP) {
+              try {
+                cPrices = typeof rawCP === 'string' ? JSON.parse(rawCP) : (Array.isArray(rawCP) ? rawCP : []);
+              } catch {}
+            }
+            matchedCustomPrice = cPrices.find(
+              (cp: any) => cp.name && cp.name.trim().toLowerCase() === pLabel.toLowerCase()
+            );
+          }
+        }
+      }
+
+      if (matchedProduct) {
+        const dispPrice = matchedCustomPrice
+          ? Number(matchedCustomPrice.price)
+          : (matchedProduct.retailPrice || (matchedProduct as any).retail_price || 0);
+        const titleSuffix = matchedCustomPrice ? ` (${matchedCustomPrice.name})` : '';
+
         if (mode === 'single') {
           Alert.alert(
-            `✓ ${product.name}`,
-            `الباركود: ${code}\nالسعر: ${product.retailPrice || (product as any).retail_price || 0} دج\nالكمية المتوفرة: ${product.quantity || 0}`,
+            `✓ ${matchedProduct.name}${titleSuffix}`,
+            `${t('inventory.barcode')}: ${code}\n${t('pos.price')}: ${dispPrice.toLocaleString(localeStr)} ${currency}\n${t('inventory.inStock')}: ${matchedProduct.quantity || 0}`,
             [
               {
-                text: 'إضافة للسلة والبيع',
+                text: t('pos.addToCart'),
                 onPress: () => navigation.navigate('POS', { barcode: code }),
               },
               {
-                text: 'تعديل المنتج',
-                onPress: () => navigation.navigate('ProductForm', { id: product.id }),
+                text: t('inventory.editProduct'),
+                onPress: () => navigation.navigate('ProductForm', { id: matchedProduct.id }),
               },
-              { text: 'إغلاق', style: 'cancel' },
+              { text: t('common.close'), style: 'cancel' },
             ]
           );
         }
       } else {
         if (mode === 'single') {
           Alert.alert(
-            'منتج غير مسجل',
-            `الباركود ${code} غير موجود في المخزون. هل ترغب في إضافته كمنتج جديد؟`,
+            t('inventory.noProductsFound'),
+            `${code} - ${t('inventory.addProduct')}?`,
             [
               {
-                text: 'إضافة منتج جديد',
+                text: t('inventory.addProduct'),
                 onPress: () => navigation.navigate('ProductForm', { barcode: code }),
               },
-              { text: 'إلغاء', style: 'cancel' },
+              { text: t('common.cancel'), style: 'cancel' },
             ]
           );
         }
@@ -150,19 +232,36 @@ export const DashboardScreen = ({ navigation }: any) => {
     try {
       await ensureInit();
       const allProds = await db.products.toArray();
-      const foundCount = codes.filter((c) =>
-        allProds.some((p: any) => p.barcode === c || p.sku === c)
-      ).length;
+      const allSec = await db.productBarcodes.toArray().catch(() => []);
+
+      const foundCount = codes.filter((c) => {
+        const norm = c.trim().toLowerCase();
+        // check primary or sku
+        if (allProds.some((p: any) => (p.barcode && String(p.barcode).toLowerCase() === norm) || (p.sku && String(p.sku).toLowerCase() === norm))) return true;
+        // check secondary
+        if (allSec.some((b: any) => b.barcode && String(b.barcode).toLowerCase() === norm)) return true;
+        // check custom price barcodes
+        return allProds.some((p: any) => {
+          const rawCP = (p as any).custom_prices ?? (p as any).customPrices;
+          if (!rawCP) return false;
+          try {
+            const list = typeof rawCP === 'string' ? JSON.parse(rawCP) : (Array.isArray(rawCP) ? rawCP : []);
+            return list.some((cp: any) => cp.barcode && String(cp.barcode).toLowerCase() === norm);
+          } catch {
+            return false;
+          }
+        });
+      }).length;
 
       Alert.alert(
-        '✓ اكتمل المسح المتعدد',
-        `تم مسح ${codes.length} باركود بنجاح (${foundCount} صنف مسجل في المخزون).`,
+        `✓ ${t('common.completed')}`,
+        `${codes.length} (${foundCount})`,
         [
           {
-            text: 'فتح نقطة البيع (POS)',
+            text: t('pos.posTitle'),
             onPress: () => navigation.navigate('POS', { initialCodes: codes }),
           },
-          { text: 'إغلاق', style: 'cancel' },
+          { text: t('common.close'), style: 'cancel' },
         ]
       );
     } catch (e) {
@@ -170,42 +269,58 @@ export const DashboardScreen = ({ navigation }: any) => {
     }
   };
 
-  const todayRevenue = (todaySales || []).reduce((sum, s: any) => {
-    if (!s) return sum;
-    const total = Number(s.total || s.total_amount || 0);
-    if (s.type === 'return') return sum - total;
-    return sum + total;
-  }, 0);
+  const todayRevenue = useMemo(() => {
+    return (todaySales || []).reduce((sum, s: any) => {
+      if (!s) return sum;
+      const total = Number(s.total || s.total_amount || 0);
+      if (s.type === 'return') return sum - total;
+      return sum + total;
+    }, 0);
+  }, [todaySales]);
 
-  const todayItemsSold = (todaySales || []).reduce((sum, s: any) => {
-    if (!s) return sum;
-    let items: any[] = [];
-    if (Array.isArray(s.items)) {
-      items = s.items;
-    } else if (typeof s.items === 'string') {
-      try {
-        const parsed = JSON.parse(s.items);
-        if (Array.isArray(parsed)) {
-          items = parsed;
-        } else if (parsed && typeof parsed === 'object') {
-          items = Object.values(parsed);
+  const todayItemsSold = useMemo(() => {
+    return (todaySales || []).reduce((sum, s: any) => {
+      if (!s) return sum;
+      let items: any[] = [];
+      if (Array.isArray(s.items)) {
+        items = s.items;
+      } else if (typeof s.items === 'string') {
+        try {
+          const parsed = JSON.parse(s.items);
+          if (Array.isArray(parsed)) {
+            items = parsed;
+          } else if (parsed && typeof parsed === 'object') {
+            items = Object.values(parsed);
+          }
+        } catch {
+          items = [];
         }
-      } catch {
-        items = [];
+      } else if (s.items && typeof s.items === 'object') {
+        items = Object.values(s.items);
       }
-    } else if (s.items && typeof s.items === 'object') {
-      items = Object.values(s.items);
-    }
-    return sum + (Array.isArray(items) ? items.reduce((si, i: any) => si + (Number(i?.qty) || Number(i?.quantity) || 1), 0) : 0);
-  }, 0);
+      return sum + (Array.isArray(items) ? items.reduce((si, i: any) => si + (Number(i?.qty) || Number(i?.quantity) || 1), 0) : 0);
+    }, 0);
+  }, [todaySales]);
 
-  const lowStockCount = products.filter(
-    (p) => (p.quantity || 0) <= (p.lowStockThreshold || (p as any).low_stock_threshold || 5)
-  ).length;
+  const lowStockCount = useMemo(() => {
+    return products.filter(
+      (p) => (p.quantity || 0) <= (p.lowStockThreshold || (p as any).low_stock_threshold || 5)
+    ).length;
+  }, [products]);
 
-  const totalCustomerDebt = customers.reduce((sum, c) => sum + Math.max(0, c.balance || 0), 0);
-  const totalSupplierDebt = suppliers.reduce((sum, s) => sum + Math.max(0, s.balance || 0), 0);
+  const totalCustomerDebt = useMemo(() => {
+    return customers.reduce((sum, c) => sum + Math.max(0, c.balance || 0), 0);
+  }, [customers]);
+
+  const totalSupplierDebt = useMemo(() => {
+    return suppliers.reduce((sum, s) => sum + Math.max(0, s.balance || 0), 0);
+  }, [suppliers]);
+
   const netFinancialPosition = totalCustomerDebt - totalSupplierDebt;
+
+  // Dynamic greeting based on current hour
+  const currentHour = new Date().getHours();
+  const greetingText = currentHour < 12 ? t('dashboard.greetingMorning') : t('dashboard.greetingEvening');
 
   if (loading && !refreshing) {
     return (
@@ -213,16 +328,13 @@ export const DashboardScreen = ({ navigation }: any) => {
         style={[styles.container, { backgroundColor: colors.background }]}
         contentContainerStyle={styles.content}
       >
-        <Skeleton height={68} borderRadius={radii.xxl} />
-        <View style={styles.hubGrid}>
-          <Skeleton height={120} borderRadius={radii.xl} style={{ flex: 1 }} />
-          <Skeleton height={120} borderRadius={radii.xl} style={{ flex: 1 }} />
+        <Skeleton height={80} borderRadius={radii.xxl} />
+        <Skeleton height={70} borderRadius={radii.xl} />
+        <View style={[styles.hubGrid, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+          <Skeleton height={110} borderRadius={radii.xl} style={{ flex: 1 }} />
+          <Skeleton height={110} borderRadius={radii.xl} style={{ flex: 1 }} />
         </View>
-        <View style={styles.hubGrid}>
-          <Skeleton height={120} borderRadius={radii.xl} style={{ flex: 1 }} />
-          <Skeleton height={120} borderRadius={radii.xl} style={{ flex: 1 }} />
-        </View>
-        <Skeleton height={110} borderRadius={radii.lg} />
+        <Skeleton height={140} borderRadius={radii.xxl} />
       </ScrollView>
     );
   }
@@ -234,551 +346,521 @@ export const DashboardScreen = ({ navigation }: any) => {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       showsVerticalScrollIndicator={false}
     >
-      {/* ── Top Quota / Upgrade Banner ── */}
+      {/* ── 1. Store Header & Greeting Hero Bento ── */}
       <View
         style={[
-          styles.planBanner,
+          styles.headerHeroCard,
           {
             backgroundColor: colors.surface,
             borderColor: colors.border.default,
+            flexDirection: isRTL ? 'row-reverse' : 'row',
           },
         ]}
       >
-        <TouchableOpacity
-          style={[styles.upgradeBtn, { backgroundColor: colors.primary[600] }]}
-          activeOpacity={0.8}
-          onPress={() => {
-            Alert.alert(
-              'الترقية إلى النسخة الكاملة',
-              'احصل على وصول غير محدود للفواتير، الزبائن، تقارير الأرباح المتقدمة، والمزامنة السحابية غير المحدودة.',
-              [{ text: 'حسناً' }]
-            );
-          }}
-        >
-          <ArrowLeft size={13} color="#fff" />
-          <Text style={styles.upgradeBtnText}>ترقية</Text>
-        </TouchableOpacity>
+        <View style={[styles.headerStoreIdentity, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+          {/* Store Logo Avatar */}
+          <TouchableOpacity
+            style={[
+              styles.headerLogoAvatar,
+              {
+                backgroundColor: isDark ? colors.surfaceElevated : colors.primary[50],
+                borderColor: storeSettings?.logo ? colors.primary[400] : colors.border.default,
+              },
+            ]}
+            onPress={() => navigation.navigate('More')}
+            activeOpacity={0.75}
+          >
+            {storeSettings?.logo ? (
+              <Image source={{ uri: storeSettings.logo }} style={styles.headerLogoImg} resizeMode="cover" />
+            ) : (
+              <Store size={22} color={colors.primary[600]} />
+            )}
+          </TouchableOpacity>
 
-        <View style={styles.planInfo}>
-          <View style={styles.planTitleRow}>
-            <Text style={[styles.planTitle, { color: colors.text.primary }]}>
-              نسخة مجانية – احصل على الكاملة
+          <View style={[styles.headerGreetingCol, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+            <Text style={[styles.headerGreetingText, { color: colors.text.tertiary }]}>
+              {greetingText}
             </Text>
-            <View style={[styles.planIconBox, { backgroundColor: colors.primary[50] }]}>
-              <FlaskConical size={14} color={colors.primary[600]} />
-            </View>
+            <Text style={[styles.headerStoreName, { color: colors.text.primary }]}>
+              {storeSettings?.shop_name || storeSettings?.store_name || user?.name || 'AN POS'}
+            </Text>
           </View>
-          <Text style={[styles.planUsage, { color: colors.text.tertiary }]}>
-            {allSalesCount}/50 فاتورة  •  {customers.length}/10 زبون
-          </Text>
         </View>
-      </View>
 
-      {/* ── Main Hub Sections (الأقسام) ── */}
-      <View style={styles.hubSection}>
-        <Text style={[styles.hubHeading, { color: colors.text.primary }]}>الأقسام</Text>
-
-        <View style={styles.hubGrid}>
-          {/* 1. بيع سريع (Quick Sale / Scanner) */}
+        {/* Header Action Buttons (Quick Scan & Reload) */}
+        <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 8 }}>
           <TouchableOpacity
-            style={[
-              styles.hubCard,
-              { backgroundColor: colors.surface, borderColor: colors.border.default },
-            ]}
-            activeOpacity={0.75}
+            style={[styles.headerIconBtn, { backgroundColor: isDark ? colors.surfaceElevated : colors.primary[50] }]}
             onPress={() => setShowScanner(true)}
+            activeOpacity={0.75}
           >
-            <View
-              style={[
-                styles.hubIconBox,
-                { backgroundColor: isDark ? '#064e3b' : colors.emerald[50] },
-              ]}
-            >
-              <ScanBarcode size={22} color={isDark ? '#34d399' : colors.emerald[700]} />
-            </View>
-            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>بيع سريع</Text>
-            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>افتح الماسح فوراً</Text>
+            <ScanBarcode size={19} color={colors.primary[600]} />
           </TouchableOpacity>
 
-          {/* 2. المبيعات (Sales) */}
           <TouchableOpacity
-            style={[
-              styles.hubCard,
-              { backgroundColor: colors.surface, borderColor: colors.border.default },
-            ]}
+            style={[styles.headerIconBtn, { backgroundColor: isDark ? colors.surfaceElevated : colors.slate[100] }]}
+            onPress={onRefresh}
             activeOpacity={0.75}
-            onPress={() => navigation.navigate('Sales')}
           >
-            <View
-              style={[
-                styles.hubIconBox,
-                { backgroundColor: isDark ? '#1e3a8a' : colors.primary[50] },
-              ]}
-            >
-              <Receipt size={22} color={isDark ? '#60a5fa' : colors.primary[700]} />
-            </View>
-            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>المبيعات</Text>
-            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>سجل الفواتير</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.hubGrid}>
-          {/* 3. المشتريات (Purchases) */}
-          <TouchableOpacity
-            style={[
-              styles.hubCard,
-              { backgroundColor: colors.surface, borderColor: colors.border.default },
-            ]}
-            activeOpacity={0.75}
-            onPress={() => navigation.navigate('PurchaseForm')}
-          >
-            <View
-              style={[
-                styles.hubIconBox,
-                { backgroundColor: isDark ? '#134e4a' : colors.indigo[50] },
-              ]}
-            >
-              <ShoppingCart size={22} color={isDark ? '#2dd4bf' : colors.indigo[700]} />
-            </View>
-            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>المشتريات</Text>
-            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>فواتير شراء</Text>
-          </TouchableOpacity>
-
-          {/* 4. الفاتورة المبدئية (Proforma / Quotes) */}
-          <TouchableOpacity
-            style={[
-              styles.hubCard,
-              { backgroundColor: colors.surface, borderColor: colors.border.default },
-            ]}
-            activeOpacity={0.75}
-            onPress={() => navigation.navigate('Sales')}
-          >
-            <View
-              style={[
-                styles.hubIconBox,
-                { backgroundColor: isDark ? '#0c4a6e' : colors.primary[50] },
-              ]}
-            >
-              <FileText size={22} color={isDark ? '#38bdf8' : colors.primary[600]} />
-            </View>
-            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>الفاتورة المبدئية</Text>
-            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>عروض الأسعار والمسودات</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.hubGrid}>
-          {/* 5. مصاريف التشغيل (Operating Expenses) */}
-          <TouchableOpacity
-            style={[
-              styles.hubCard,
-              { backgroundColor: colors.surface, borderColor: colors.border.default },
-            ]}
-            activeOpacity={0.75}
-            onPress={() => navigation.navigate('Expenses')}
-          >
-            <View
-              style={[
-                styles.hubIconBox,
-                { backgroundColor: isDark ? '#78350f' : colors.warning.light },
-              ]}
-            >
-              <Receipt size={22} color={isDark ? '#fbbf24' : colors.warning.dark} />
-            </View>
-            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>مصاريف التشغيل</Text>
-            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>إيجار، رواتب، فواتير</Text>
-          </TouchableOpacity>
-
-          {/* 6. البيع (POS / Point of Sale) */}
-          <TouchableOpacity
-            style={[
-              styles.hubCard,
-              { backgroundColor: colors.surface, borderColor: colors.border.default },
-            ]}
-            activeOpacity={0.75}
-            onPress={() => navigation.navigate('POS')}
-          >
-            <View
-              style={[
-                styles.hubIconBox,
-                { backgroundColor: isDark ? '#312e81' : colors.purple[50] },
-              ]}
-            >
-              <Store size={22} color={isDark ? '#818cf8' : colors.purple[700]} />
-            </View>
-            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>البيع</Text>
-            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>افتح نقطة البيع</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.hubGrid}>
-          {/* 7. الموردين (Suppliers) */}
-          <TouchableOpacity
-            style={[
-              styles.hubCard,
-              { backgroundColor: colors.surface, borderColor: colors.border.default },
-            ]}
-            activeOpacity={0.75}
-            onPress={() => navigation.navigate('Suppliers')}
-          >
-            <View
-              style={[
-                styles.hubIconBox,
-                { backgroundColor: isDark ? '#7c2d12' : colors.warning.light },
-              ]}
-            >
-              <Truck size={22} color={isDark ? '#fb923c' : colors.warning.dark} />
-            </View>
-            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>الموردين</Text>
-            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>إدارة الشركاء</Text>
-          </TouchableOpacity>
-
-          {/* 8. العملاء (Customers) */}
-          <TouchableOpacity
-            style={[
-              styles.hubCard,
-              { backgroundColor: colors.surface, borderColor: colors.border.default },
-            ]}
-            activeOpacity={0.75}
-            onPress={() => navigation.navigate('Customers')}
-          >
-            <View
-              style={[
-                styles.hubIconBox,
-                { backgroundColor: isDark ? '#1e3a8a' : colors.primary[50] },
-              ]}
-            >
-              <Users size={22} color={isDark ? '#60a5fa' : colors.primary[600]} />
-            </View>
-            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>العملاء</Text>
-            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>قاعدة الزبائن</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Row 5: مركز الأرباح & حاسبة الزكاة */}
-        <View style={styles.hubGrid}>
-          {/* 9. مركز الأرباح وهوامش الربح (Profit Center) */}
-          <TouchableOpacity
-            style={[
-              styles.hubCard,
-              { backgroundColor: colors.surface, borderColor: colors.border.default },
-            ]}
-            activeOpacity={0.75}
-            onPress={() => navigation.navigate('ProfitCenter')}
-          >
-            <View
-              style={[
-                styles.hubIconBox,
-                { backgroundColor: isDark ? '#064e3b' : colors.emerald[50] },
-              ]}
-            >
-              <BarChart3 size={22} color={isDark ? '#34d399' : colors.emerald[700]} />
-            </View>
-            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>مركز الأرباح</Text>
-            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>هوامش وتكلفة وأرباح</Text>
-          </TouchableOpacity>
-
-          {/* 10. حاسبة الزكاة الشرعية (Zakat Calculator) */}
-          <TouchableOpacity
-            style={[
-              styles.hubCard,
-              { backgroundColor: colors.surface, borderColor: colors.border.default },
-            ]}
-            activeOpacity={0.75}
-            onPress={() => navigation.navigate('ZakatCalculator')}
-          >
-            <View
-              style={[
-                styles.hubIconBox,
-                { backgroundColor: isDark ? '#451a03' : colors.amber[50] },
-              ]}
-            >
-              <Calculator size={22} color={isDark ? '#fbbf24' : colors.amber[700]} />
-            </View>
-            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>حاسبة الزكاة</Text>
-            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>عروض التجارة والسيولة</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Row 6: طباعة الباركود & قوالب الطباعة */}
-        <View style={styles.hubGrid}>
-          {/* 11. طباعة ملصقات الباركود والأسعار (Barcode Labels) */}
-          <TouchableOpacity
-            style={[
-              styles.hubCard,
-              { backgroundColor: colors.surface, borderColor: colors.border.default },
-            ]}
-            activeOpacity={0.75}
-            onPress={() => navigation.navigate('BarcodeLabels')}
-          >
-            <View
-              style={[
-                styles.hubIconBox,
-                { backgroundColor: isDark ? '#2e1065' : colors.purple[50] },
-              ]}
-            >
-              <Barcode size={22} color={isDark ? '#c084fc' : colors.purple[700]} />
-            </View>
-            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>طباعة الباركود</Text>
-            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>ملصقات الأسعار والـ QR</Text>
-          </TouchableOpacity>
-
-          {/* 12. قوالب الطباعة وتخصيص الفواتير (Print Templates) */}
-          <TouchableOpacity
-            style={[
-              styles.hubCard,
-              { backgroundColor: colors.surface, borderColor: colors.border.default },
-            ]}
-            activeOpacity={0.75}
-            onPress={() => navigation.navigate('PrintTemplates')}
-          >
-            <View
-              style={[
-                styles.hubIconBox,
-                { backgroundColor: isDark ? '#083344' : colors.cyan[50] },
-              ]}
-            >
-              <Printer size={22} color={isDark ? '#22d3ee' : colors.cyan[700]} />
-            </View>
-            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>قوالب الطباعة</Text>
-            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>تخصيص نماذج الفواتير</Text>
+            <RefreshCw size={17} color={colors.text.secondary} />
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* ── Shift / Cash Register Status ── */}
+      {/* ── 2. Active Cash Shift Live Status Banner ── */}
       <TouchableOpacity
         activeOpacity={0.85}
         style={[
-          styles.shiftCard,
-          { backgroundColor: colors.surface, borderColor: colors.border.default },
-          currentSession
-            ? { borderColor: colors.success.main }
-            : { borderColor: colors.danger.main },
+          styles.shiftHeroBanner,
+          {
+            backgroundColor: currentSession
+              ? (isDark ? 'rgba(16, 185, 129, 0.08)' : '#f0fdf4')
+              : (isDark ? colors.surfaceElevated : colors.surface),
+            borderColor: currentSession
+              ? (isDark ? colors.emerald[800] : colors.emerald[300])
+              : (isDark ? colors.border.default : colors.slate[200]),
+            flexDirection: isRTL ? 'row-reverse' : 'row',
+          },
         ]}
         onPress={() => navigation.navigate('Cash')}
       >
-        <View style={styles.shiftLeft}>
-          <Badge
-            variant={currentSession ? 'success' : 'danger'}
-            size="sm"
-            style={styles.shiftBadge}
-          >
-            {currentSession ? 'مناوبة نشطة' : 'الصندوق مقفل'}
-          </Badge>
-          <ChevronLeft
-            size={16}
-            color={currentSession ? colors.success.text : colors.danger.text}
-          />
-        </View>
-
-        <View style={styles.shiftRight}>
+        <View style={[styles.shiftHeroRight, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
           <View
             style={[
-              styles.shiftIconBox,
+              styles.shiftHeroIconBox,
               {
-                backgroundColor: currentSession ? colors.success.light : colors.danger.light,
-                borderColor: currentSession ? colors.success.border : colors.danger.border,
+                backgroundColor: currentSession
+                  ? (isDark ? 'rgba(16, 185, 129, 0.2)' : colors.emerald[100])
+                  : (isDark ? 'rgba(239, 68, 68, 0.15)' : colors.danger.light),
+                borderColor: currentSession
+                  ? (isDark ? 'rgba(16, 185, 129, 0.3)' : colors.emerald[200])
+                  : colors.danger.border,
               },
             ]}
           >
-            <Wallet
-              size={18}
-              color={currentSession ? colors.success.main : colors.danger.main}
-            />
+            {currentSession ? (
+              <Wallet size={20} color={colors.emerald[700]} />
+            ) : (
+              <Lock size={19} color={colors.danger.main} />
+            )}
           </View>
-          <View style={styles.shiftTextCol}>
-            <Text style={[styles.shiftTitle, { color: colors.text.primary }]}>
+
+          <View style={[styles.shiftHeroInfo, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+            <Text style={[styles.shiftHeroTitle, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
               {currentSession
-                ? `مناوبة مفتوحة #${currentSession.sessionNumber || (currentSession as any).number || 1}`
-                : 'فتح الصندوق وبدء الوردية'}
+                ? `${t('cash.currentShift')} #${currentSession.sessionNumber || (currentSession as any).number || 1}`
+                : t('dashboard.closedShift')}
             </Text>
-            <Text style={[styles.shiftSub, { color: colors.text.secondary }]}>
+            <Text
+              style={[styles.shiftHeroSub, { color: colors.text.secondary, textAlign: isRTL ? 'right' : 'left' }]}
+            >
               {currentSession
-                ? `المسؤول: ${currentSession.openedBy || (currentSession as any).opened_by || 'الكاشير'}`
-                : 'اضغط هنا لفتح مناوبة جديدة وتحديد الرصيد الافتتاحي'}
+                ? `${t('pos.cashierDefault')}: ${currentSession.openedBy || (currentSession as any).opened_by || '—'}`
+                : t('dashboard.openShiftSub')}
             </Text>
           </View>
         </View>
+
+        <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }}>
+          <Badge
+            variant={currentSession ? 'emerald' : 'danger'}
+            size="xs"
+            dot={Boolean(currentSession)}
+          >
+            {currentSession ? t('pos.openShiftActive') : t('dashboard.openShiftCta')}
+          </Badge>
+          <ChevronIcon size={16} color={colors.text.tertiary} />
+        </View>
       </TouchableOpacity>
 
-      {/* ── KPI Cards Grid ── */}
-      <View style={styles.grid2}>
-        <Card style={styles.kpiCard}>
-          <View style={styles.kpiHeader}>
-            <View style={[styles.kpiIconBox, { backgroundColor: colors.primary[50] }]}>
-              <ShoppingCart size={18} color={colors.primary[600]} />
+      {/* ── 3. Today's Financial Summary Hero Bento ── */}
+      <Card variant="elevated" style={styles.todayFinancialHeroCard}>
+        <View style={[styles.todayFinancialHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+          <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }}>
+            <View style={[styles.todayIconPill, { backgroundColor: colors.emerald[50] }]}>
+              <TrendingUp size={16} color={colors.emerald[700]} />
             </View>
-            <Badge variant="primary" size="sm">
-              {todaySales.length} مبيعات
-            </Badge>
-          </View>
-          <Text style={[styles.kpiLabel, { color: colors.text.secondary }]}>مبيعات اليوم</Text>
-          <Text style={[styles.kpiValue, { color: colors.primary[600] }]}>
-            {todayRevenue.toLocaleString('ar-DZ')} <Text style={styles.currency}>دج</Text>
-          </Text>
-          <Text style={[styles.kpiHelper, { color: colors.text.tertiary }]}>إجمالي التحصيل اليومي</Text>
-        </Card>
-
-        <Card style={styles.kpiCard}>
-          <View style={styles.kpiHeader}>
-            <View style={[styles.kpiIconBox, { backgroundColor: colors.success.light }]}>
-              <Package size={18} color={colors.success.main} />
-            </View>
-            <Badge variant="success" size="sm">
-              {products.length} صنف
-            </Badge>
-          </View>
-          <Text style={[styles.kpiLabel, { color: colors.text.secondary }]}>قطع مباعة اليوم</Text>
-          <Text style={[styles.kpiValue, { color: colors.success.text }]}>
-            {todayItemsSold} <Text style={styles.currency}>قطعة</Text>
-          </Text>
-          <Text style={[styles.kpiHelper, { color: colors.text.tertiary }]}>حجم المنتجات الخارجة</Text>
-        </Card>
-      </View>
-
-      {/* ── Financial Liquidity & Credit Balance Card ── */}
-      <Card variant="elevated">
-        <CardHeader>
-          <Badge variant={netFinancialPosition >= 0 ? 'success' : 'warning'} size="sm">
-            {netFinancialPosition >= 0 ? 'فائض مالي' : 'مستحقات مستحقة'}
-          </Badge>
-          <CardTitle>المركز المالي الصافي والكريدي</CardTitle>
-        </CardHeader>
-
-        <CardContent>
-          <View style={styles.financialMetricsRow}>
-            <View style={styles.financialMetric}>
-              <View style={styles.metricLabelRow}>
-                <ArrowDownLeft size={14} color={colors.success.main} />
-                <Text style={[styles.metricLabel, { color: colors.text.secondary }]}>ديون الزبائن (لنا)</Text>
-              </View>
-              <Text style={[styles.metricValue, { color: colors.success.text }]}>
-                {totalCustomerDebt.toLocaleString('ar-DZ')} دج
-              </Text>
-              <Text style={[styles.metricSub, { color: colors.text.tertiary }]}>
-                {customers.filter((c) => (c.balance || 0) > 0).length} زبائن عليهم ديون
-              </Text>
-            </View>
-
-            <View style={[styles.metricDivider, { backgroundColor: colors.border.default }]} />
-
-            <View style={styles.financialMetric}>
-              <View style={styles.metricLabelRow}>
-                <ArrowUpRight size={14} color={colors.danger.main} />
-                <Text style={[styles.metricLabel, { color: colors.text.secondary }]}>ديون الموردين (علينا)</Text>
-              </View>
-              <Text style={[styles.metricValue, { color: colors.danger.text }]}>
-                {totalSupplierDebt.toLocaleString('ar-DZ')} دج
-              </Text>
-              <Text style={[styles.metricSub, { color: colors.text.tertiary }]}>
-                {suppliers.filter((s) => (s.balance || 0) > 0).length} موردين قيد السداد
-              </Text>
-            </View>
-          </View>
-
-          <View style={[styles.netSummaryBox, { borderTopColor: colors.border.default }]}>
-            <Text
-              style={[
-                styles.netValue,
-                netFinancialPosition >= 0
-                  ? { color: colors.success.text }
-                  : { color: colors.danger.text },
-              ]}
-            >
-              {Math.abs(netFinancialPosition).toLocaleString('ar-DZ')} دج
+            <Text style={[styles.todayHeroLabel, { color: colors.text.secondary }]}>
+              {t('dashboard.todaySales')}
             </Text>
-            <Text style={[styles.netLabel, { color: colors.text.primary }]}>الصافي التجاري التراكمي:</Text>
           </View>
-        </CardContent>
+
+          <Badge variant="emerald" size="sm">
+            {todaySales.length} {t('sales.sales')}
+          </Badge>
+        </View>
+
+        <View style={[styles.todayRevenueRow, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+          <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'baseline', gap: 6 }}>
+            <Text style={[styles.todayRevenueValue, { color: colors.text.primary }]}>
+              {todayRevenue.toLocaleString(localeStr)}
+            </Text>
+            <Text style={[styles.todayRevenueCurrency, { color: colors.primary[600] }]}>
+              {currency}
+            </Text>
+          </View>
+        </View>
+
+        {/* 2-Mini Metric Grid inside Hero */}
+        <View style={[styles.todayMiniMetricsGrid, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+          <View style={[styles.todayMiniMetricItem, { backgroundColor: isDark ? colors.surfaceSubtle : colors.slate[50] }]}>
+            <Text style={[styles.todayMiniMetricLabel, { color: colors.text.tertiary }]}>
+              {t('dashboard.itemsSoldToday')}
+            </Text>
+            <Text style={[styles.todayMiniMetricVal, { color: colors.emerald[600] }]}>
+              {todayItemsSold} <Text style={{ fontSize: 11, fontWeight: '600' }}>{t('sales.itemsCount')}</Text>
+            </Text>
+          </View>
+
+          <View style={[styles.todayMiniMetricItem, { backgroundColor: isDark ? colors.surfaceSubtle : colors.slate[50] }]}>
+            <Text style={[styles.todayMiniMetricLabel, { color: colors.text.tertiary }]}>
+              {t('inventory.products')}
+            </Text>
+            <Text style={[styles.todayMiniMetricVal, { color: colors.primary[600] }]}>
+              {products.length} <Text style={{ fontSize: 11, fontWeight: '600' }}>{t('common.total')}</Text>
+            </Text>
+          </View>
+        </View>
       </Card>
 
-      {/* ── Quick Tools Grid ── */}
-      <View style={styles.grid3}>
+      {/* ── 4. Low Stock Alert Banner (If items need reordering) ── */}
+      {lowStockCount > 0 && (
         <TouchableOpacity
+          activeOpacity={0.85}
           style={[
-            styles.toolButton,
-            { backgroundColor: colors.surface, borderColor: colors.border.default },
-          ]}
-          onPress={() => navigation.navigate('ProfitCenter')}
-          activeOpacity={0.75}
-        >
-          <View style={[styles.toolIcon, { backgroundColor: colors.emerald[50] }]}>
-            <TrendingUp size={16} color={colors.emerald[700]} />
-          </View>
-          <Text style={[styles.toolText, { color: colors.text.primary }]}>الأرباح</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.toolButton,
-            { backgroundColor: colors.surface, borderColor: colors.border.default },
-          ]}
-          onPress={() => navigation.navigate('ZakatCalculator')}
-          activeOpacity={0.75}
-        >
-          <View style={[styles.toolIcon, { backgroundColor: colors.purple[50] }]}>
-            <Calculator size={16} color={colors.purple[700]} />
-          </View>
-          <Text style={[styles.toolText, { color: colors.text.primary }]}>الزكاة</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.toolButton,
-            { backgroundColor: colors.surface, borderColor: colors.border.default },
-          ]}
-          onPress={() => navigation.navigate('Customers')}
-          activeOpacity={0.75}
-        >
-          <View style={[styles.toolIcon, { backgroundColor: colors.primary[50] }]}>
-            <Users size={16} color={colors.primary[700]} />
-          </View>
-          <Text style={[styles.toolText, { color: colors.text.primary }]}>الزبائن</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* ── Low Stock Alert ── */}
-      {lowStockCount > 0 ? (
-        <TouchableOpacity
-          activeOpacity={0.8}
-          style={[
-            styles.alertCard,
+            styles.lowStockBanner,
             {
-              backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : colors.danger.light,
-              borderColor: colors.danger.border,
+              backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#fef2f2',
+              borderColor: isDark ? 'rgba(239, 68, 68, 0.3)' : '#fecaca',
+              flexDirection: isRTL ? 'row-reverse' : 'row',
             },
           ]}
           onPress={() => navigation.navigate('Inventory')}
         >
-          <ChevronLeft size={18} color={colors.danger.main} />
-          <View style={styles.alertTextContent}>
-            <Text style={[styles.alertHeading, { color: colors.danger.main }]}>تنبيه نواقص المخزون!</Text>
-            <Text style={[styles.alertDescription, { color: colors.text.secondary }]}>
-              يوجد {lowStockCount} منتج وصل لحد الطلب الأدنى أو قارب على النفاد
-            </Text>
-          </View>
-          <View
-            style={[
-              styles.alertIconWrapper,
-              { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.25)' : colors.danger.light },
-            ]}
-          >
+          <View style={[styles.lowStockIconBox, { backgroundColor: colors.danger.light }]}>
             <AlertCircle size={20} color={colors.danger.main} />
           </View>
-        </TouchableOpacity>
-      ) : null}
 
-      {/* ── Recent Sales Activity ── */}
+          <View style={[styles.lowStockTextBox, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+            <Text style={[styles.lowStockHeading, { color: colors.danger.main }]}>
+              {t('dashboard.lowStockAlert')}
+            </Text>
+            <Text style={[styles.lowStockDesc, { color: colors.text.secondary, textAlign: isRTL ? 'right' : 'left' }]}>
+              {lowStockCount} {t('dashboard.lowStockAlertDesc')}
+            </Text>
+          </View>
+
+          <Badge variant="danger" size="xs">
+            {lowStockCount}
+          </Badge>
+        </TouchableOpacity>
+      )}
+
+      {/* ── 5. Financial Liquidity & Commercial Balance Bento ── */}
+      <Card variant="elevated" style={styles.financeCard}>
+        <View style={[styles.financeHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+          <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }}>
+            <Coins size={16} color={colors.primary[600]} />
+            <Text style={[styles.financeTitle, { color: colors.text.primary }]}>
+              {t('dashboard.netFinancialPosition')}
+            </Text>
+          </View>
+          <Badge variant={netFinancialPosition >= 0 ? 'emerald' : 'danger'} size="xs">
+            {netFinancialPosition >= 0 ? '+ متوازن' : '- التزام'}
+          </Badge>
+        </View>
+
+        <View style={[styles.financialMetricsRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+          {/* Customer Debts (أنا أطلب) */}
+          <TouchableOpacity
+            style={styles.financialMetricBox}
+            onPress={() => navigation.navigate('Customers')}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.metricLabelRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <ArrowDownLeft size={14} color={colors.emerald[600]} />
+              <Text style={[styles.metricLabel, { color: colors.text.secondary }]}>
+                {t('dashboard.customerDebts')}
+              </Text>
+            </View>
+            <Text style={[styles.metricValue, { color: colors.emerald[600] }]}>
+              +{totalCustomerDebt.toLocaleString(localeStr)}
+            </Text>
+            <Text style={[styles.metricSub, { color: colors.text.tertiary }]}>
+              {customers.filter((c) => (c.balance || 0) > 0).length} {t('customers.title')}
+            </Text>
+          </TouchableOpacity>
+
+          <View style={[styles.metricDivider, { backgroundColor: colors.border.default }]} />
+
+          {/* Supplier Debts (الموردين يطلبونا) */}
+          <TouchableOpacity
+            style={styles.financialMetricBox}
+            onPress={() => navigation.navigate('Suppliers')}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.metricLabelRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <ArrowUpRight size={14} color={colors.danger.main} />
+              <Text style={[styles.metricLabel, { color: colors.text.secondary }]}>
+                {t('dashboard.supplierDebts')}
+              </Text>
+            </View>
+            <Text style={[styles.metricValue, { color: colors.danger.main }]}>
+              -{totalSupplierDebt.toLocaleString(localeStr)}
+            </Text>
+            <Text style={[styles.metricSub, { color: colors.text.tertiary }]}>
+              {suppliers.filter((s) => (s.balance || 0) > 0).length} {t('suppliers.title')}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={[styles.netSummaryBox, { borderTopColor: colors.border.subtle, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+          <Text style={[styles.netLabel, { color: colors.text.secondary }]}>
+            {t('dashboard.netCumulative')}
+          </Text>
+          <Text
+            style={[
+              styles.netValue,
+              netFinancialPosition >= 0 ? { color: colors.emerald[600] } : { color: colors.danger.main },
+            ]}
+          >
+            {netFinancialPosition >= 0 ? '+' : ''}
+            {netFinancialPosition.toLocaleString(localeStr)} {currency}
+          </Text>
+        </View>
+      </Card>
+
+      {/* ── 6. Categorized Operational Hub Sections ── */}
+      <View style={styles.hubContainer}>
+        {/* Hub Category 1: العمليات الأساسية والبيع */}
+        <Text style={[styles.hubSectionTitle, { color: colors.text.primary, textAlign }]}>
+          {t('dashboard.quickAccess')}
+        </Text>
+
+        <View style={[styles.hubGrid, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+          {/* POS */}
+          <TouchableOpacity
+            style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+            onPress={() => navigation.navigate('POS')}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.hubIconBox, { backgroundColor: isDark ? 'rgba(99, 102, 241, 0.2)' : colors.indigo[50] }]}>
+              <Store size={22} color={colors.primary[600]} />
+            </View>
+            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('pos.posTitle')}</Text>
+            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('dashboard.posSub')}</Text>
+          </TouchableOpacity>
+
+          {/* Quick Scan */}
+          <TouchableOpacity
+            style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+            onPress={() => setShowScanner(true)}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.hubIconBox, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.2)' : colors.emerald[50] }]}>
+              <ScanBarcode size={22} color={colors.emerald[700]} />
+            </View>
+            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('dashboard.quickSale')}</Text>
+            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('dashboard.quickSaleSub')}</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={[styles.hubGrid, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+          {/* Sales History */}
+          <TouchableOpacity
+            style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+            onPress={() => navigation.navigate('Sales')}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.hubIconBox, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : colors.primary[50] }]}>
+              <Receipt size={22} color={colors.primary[600]} />
+            </View>
+            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('sales.sales')}</Text>
+            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('dashboard.salesSub')}</Text>
+          </TouchableOpacity>
+
+          {/* Purchases */}
+          <TouchableOpacity
+            style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+            onPress={() => navigation.navigate('PurchaseForm')}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.hubIconBox, { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.2)' : colors.amber[50] }]}>
+              <ShoppingCart size={22} color={colors.amber[700]} />
+            </View>
+            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('suppliers.purchases')}</Text>
+            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('dashboard.purchasesSub')}</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Hub Category 2: المخزون والمستودعات */}
+        <Text style={[styles.hubSectionTitle, { color: colors.text.primary, textAlign, marginTop: spacing.md }]}>
+          {t('dashboard.inventoryHub')}
+        </Text>
+
+        <View style={[styles.hubGrid, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+          {/* Add Product */}
+          <TouchableOpacity
+            style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+            onPress={() => navigation.navigate('ProductForm')}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.hubIconBox, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.2)' : colors.emerald[50] }]}>
+              <Plus size={22} color={colors.emerald[700]} />
+            </View>
+            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('inventory.addProduct')}</Text>
+            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('inventory.products')}</Text>
+          </TouchableOpacity>
+
+          {/* Inventory Count */}
+          <TouchableOpacity
+            style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+            onPress={() => navigation.navigate('InventoryCount')}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.hubIconBox, { backgroundColor: isDark ? 'rgba(168, 85, 247, 0.2)' : colors.purple[50] }]}>
+              <ClipboardCheck size={22} color={colors.purple[700]} />
+            </View>
+            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('nav.inventoryCount')}</Text>
+            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('inventoryCount.title')}</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={[styles.hubGrid, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+          {/* Stock Movements */}
+          <TouchableOpacity
+            style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+            onPress={() => navigation.navigate('StockMovements')}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.hubIconBox, { backgroundColor: isDark ? 'rgba(14, 165, 233, 0.2)' : colors.cyan[50] }]}>
+              <History size={22} color={colors.cyan[700]} />
+            </View>
+            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('nav.stockMovements')}</Text>
+            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('stockMovements.title')}</Text>
+          </TouchableOpacity>
+
+          {/* Warehouses */}
+          <TouchableOpacity
+            style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+            onPress={() => navigation.navigate('Warehouses')}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.hubIconBox, { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.2)' : colors.amber[50] }]}>
+              <Warehouse size={22} color={colors.amber[700]} />
+            </View>
+            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('nav.warehouses')}</Text>
+            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('warehouses.title')}</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Hub Category 3: المالية والشركاء والأدوات الذكية */}
+        <Text style={[styles.hubSectionTitle, { color: colors.text.primary, textAlign, marginTop: spacing.md }]}>
+          {t('dashboard.financeHub')}
+        </Text>
+
+        <View style={[styles.hubGrid, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+          {/* Customers */}
+          <TouchableOpacity
+            style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+            onPress={() => navigation.navigate('Customers')}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.hubIconBox, { backgroundColor: colors.primary[50] }]}>
+              <Users size={22} color={colors.primary[600]} />
+            </View>
+            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('customers.title')}</Text>
+            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('dashboard.customersSub')}</Text>
+          </TouchableOpacity>
+
+          {/* Suppliers */}
+          <TouchableOpacity
+            style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+            onPress={() => navigation.navigate('Suppliers')}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.hubIconBox, { backgroundColor: colors.warning.light }]}>
+              <Truck size={22} color={colors.warning.dark} />
+            </View>
+            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('suppliers.title')}</Text>
+            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('dashboard.suppliersSub')}</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={[styles.hubGrid, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+          {/* Operating Expenses */}
+          <TouchableOpacity
+            style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+            onPress={() => navigation.navigate('Expenses')}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.hubIconBox, { backgroundColor: colors.danger.light }]}>
+              <Receipt size={22} color={colors.danger.main} />
+            </View>
+            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('dashboard.operatingExpenses')}</Text>
+            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('dashboard.operatingExpensesSub')}</Text>
+          </TouchableOpacity>
+
+          {/* Profit Center */}
+          <TouchableOpacity
+            style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+            onPress={() => navigation.navigate('ProfitCenter')}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.hubIconBox, { backgroundColor: colors.emerald[50] }]}>
+              <BarChart3 size={22} color={colors.emerald[700]} />
+            </View>
+            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('profitCenter.title')}</Text>
+            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('dashboard.profitCenterSub')}</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={[styles.hubGrid, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+          {/* Zakat Calculator */}
+          <TouchableOpacity
+            style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+            onPress={() => navigation.navigate('ZakatCalculator')}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.hubIconBox, { backgroundColor: colors.amber[50] }]}>
+              <Calculator size={22} color={colors.amber[700]} />
+            </View>
+            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('zakatCalculator.title')}</Text>
+            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('dashboard.zakatSub')}</Text>
+          </TouchableOpacity>
+
+          {/* Barcode Labels */}
+          <TouchableOpacity
+            style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+            onPress={() => navigation.navigate('BarcodeLabels')}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.hubIconBox, { backgroundColor: colors.purple[50] }]}>
+              <Barcode size={22} color={colors.purple[700]} />
+            </View>
+            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('barcodeLabels.title')}</Text>
+            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('dashboard.barcodeLabelsSub')}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* ── 7. Today's Recent Sales Activity Feed ── */}
       <View style={styles.sectionContainer}>
-        <View style={styles.sectionHeaderRow}>
+        <View style={[styles.sectionHeaderRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+          <Text style={[styles.sectionHeading, { color: colors.text.primary }]}>
+            {t('dashboard.recentTodaySales')}
+          </Text>
+
           <TouchableOpacity
             onPress={() => navigation.navigate('Sales')}
-            style={styles.seeAllBtn}
+            style={[styles.seeAllBtn, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
+            activeOpacity={0.7}
           >
-            <Text style={[styles.seeAllText, { color: colors.primary[600] }]}>عرض السجل الكامل</Text>
-            <ChevronLeft size={14} color={colors.primary[600]} />
+            <Text style={[styles.seeAllText, { color: colors.primary[600] }]}>
+              {t('dashboard.viewAll')}
+            </Text>
+            <ChevronIcon size={14} color={colors.primary[600]} />
           </TouchableOpacity>
-          <Text style={[styles.sectionHeading, { color: colors.text.primary }]}>آخر مبيعات اليوم</Text>
         </View>
 
         {todaySales.length === 0 ? (
@@ -788,12 +870,12 @@ export const DashboardScreen = ({ navigation }: any) => {
               { backgroundColor: colors.surface, borderColor: colors.border.default },
             ]}
           >
-            <Receipt size={32} color={colors.slate[400]} />
+            <Receipt size={36} color={colors.text.tertiary} />
             <Text style={[styles.emptySalesTitle, { color: colors.text.secondary }]}>
-              لم تسجل أي مبيعات اليوم حتى الآن
+              {t('dashboard.noTodaySales')}
             </Text>
             <Text style={[styles.emptySalesSub, { color: colors.text.tertiary }]}>
-              ابدأ بالبيع عبر شاشة الكاشير (POS)
+              {t('dashboard.noTodaySalesSub')}
             </Text>
           </Card>
         ) : (
@@ -802,7 +884,7 @@ export const DashboardScreen = ({ navigation }: any) => {
               const isReturn = sale.type === 'return';
               const formattedTime = new Date(
                 sale.date || sale.createdAt || ''
-              ).toLocaleTimeString('ar-DZ', {
+              ).toLocaleTimeString(localeStr, {
                 hour: '2-digit',
                 minute: '2-digit',
               });
@@ -810,28 +892,29 @@ export const DashboardScreen = ({ navigation }: any) => {
               return (
                 <TouchableOpacity
                   key={sale.id}
-                  activeOpacity={0.7}
+                  activeOpacity={0.75}
                   style={[
                     styles.saleItemRow,
                     {
                       backgroundColor: colors.surface,
                       borderColor: colors.border.default,
+                      flexDirection: isRTL ? 'row-reverse' : 'row',
                     },
                   ]}
                   onPress={() =>
                     navigation.navigate('InvoiceDetail', { saleId: sale.id, sale })
                   }
                 >
-                  <View style={styles.saleLeftCol}>
+                  <View style={[styles.saleLeftCol, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
                     <Text
                       style={[
                         styles.saleTotal,
                         isReturn
-                          ? { color: colors.danger.text }
+                          ? { color: colors.danger.main }
                           : { color: colors.text.primary },
                       ]}
                     >
-                      {(sale.total || 0).toLocaleString('ar-DZ')} دج
+                      {(sale.total || 0).toLocaleString(localeStr)} {currency}
                     </Text>
                     <Badge
                       variant={
@@ -839,37 +922,37 @@ export const DashboardScreen = ({ navigation }: any) => {
                           ? 'danger'
                           : (sale.paymentMethod as string) === 'credit'
                           ? 'warning'
-                          : 'neutral'
+                          : 'emerald'
                       }
-                      size="sm"
+                      size="xs"
                     >
                       {isReturn
-                        ? 'مرتجع'
+                        ? t('returns.title')
                         : (sale.paymentMethod as string) === 'credit'
-                        ? 'كريدي'
+                        ? t('pos.credit')
                         : (sale.paymentMethod as string) === 'card'
-                        ? 'بطاقة'
-                        : 'نقداً'}
+                        ? t('pos.card')
+                        : t('pos.cash')}
                     </Badge>
                   </View>
 
-                  <View style={styles.saleRightCol}>
+                  <View style={[styles.saleRightCol, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
                     <Text style={[styles.saleNumber, { color: colors.text.primary }]}>
-                      فاتورة #{sale.number || '0000'}
+                      {t('sales.invoiceNumber')} #{sale.number || '0000'}
                     </Text>
-                    <View style={styles.saleMetaRow}>
-                      <Clock size={12} color={colors.slate[400]} />
+                    <View style={[styles.saleMetaRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                      <Clock size={11} color={colors.text.tertiary} />
                       <Text style={[styles.saleMetaText, { color: colors.text.tertiary }]}>
                         {formattedTime}
                       </Text>
                       <Text style={[styles.saleMetaDot, { color: colors.text.tertiary }]}>•</Text>
                       <Text style={[styles.saleCustomerName, { color: colors.text.secondary }]}>
-                        {sale.customerName || 'زبون عام'}
+                        {sale.customerName || t('pos.guestCustomer')}
                       </Text>
                     </View>
                   </View>
 
-                  <ChevronLeft size={16} color={colors.slate[400]} style={styles.chevron} />
+                  <ChevronIcon size={16} color={colors.text.tertiary} style={styles.chevron} />
                 </TouchableOpacity>
               );
             })}
@@ -896,72 +979,264 @@ const styles = StyleSheet.create({
   content: {
     padding: spacing.md,
     gap: spacing.md,
-    paddingBottom: spacing.xxxl,
+    paddingBottom: spacing.xxxl + spacing.xl,
   },
 
-  // ── Plan / Upgrade Banner ──
-  planBanner: {
-    flexDirection: 'row',
+  // 1. Header Hero Card
+  headerHeroCard: {
     alignItems: 'center',
     justifyContent: 'space-between',
     borderRadius: radii.xxl,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
+    paddingVertical: spacing.sm + 4,
     borderWidth: 1,
     ...shadows.xs,
   },
-  upgradeBtn: {
-    flexDirection: 'row',
+  headerStoreIdentity: {
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: radii.full,
+    gap: spacing.sm + 2,
+    flex: 1,
   },
-  upgradeBtnText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#ffffff',
+  headerLogoAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: radii.xl,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  headerLogoImg: {
+    width: '100%',
+    height: '100%',
+  },
+  headerGreetingCol: {
+    gap: 1,
+  },
+  headerGreetingText: {
+    fontSize: 11.5,
+    fontWeight: '700',
     fontFamily: 'Cairo',
   },
-  planInfo: {
-    alignItems: 'flex-end',
-    gap: 2,
+  headerStoreName: {
+    fontSize: 15.5,
+    fontWeight: '900',
+    fontFamily: 'Cairo',
+    letterSpacing: -0.2,
   },
-  planTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  planIconBox: {
-    width: 24,
-    height: 24,
-    borderRadius: radii.full,
+  headerIconBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: radii.lg,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  planTitle: {
-    fontSize: 12.5,
+
+  // 2. Active Shift Live Status Banner
+  shiftHeroBanner: {
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 4,
+    borderRadius: radii.xl,
+    borderWidth: 1.5,
+    gap: spacing.sm,
+    ...shadows.xs,
+  },
+  shiftHeroRight: {
+    alignItems: 'center',
+    gap: spacing.sm + 2,
+    flex: 1,
+  },
+  shiftHeroIconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: radii.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  shiftHeroInfo: {
+    flex: 1,
+    gap: 2,
+    justifyContent: 'center',
+  },
+  shiftHeroTitle: {
+    fontSize: 13.5,
     fontWeight: '800',
     fontFamily: 'Cairo',
+    letterSpacing: -0.2,
   },
-  planUsage: {
-    fontSize: 11,
+  shiftHeroSub: {
+    fontSize: 11.5,
     fontFamily: 'Cairo',
   },
 
-  // ── Hub Sections (الأقسام) ──
-  hubSection: {
+  // 3. Today's Financial Summary Hero Card
+  todayFinancialHeroCard: {
+    padding: spacing.lg,
+    borderRadius: radii.xxl,
+    gap: spacing.md,
+  },
+  todayFinancialHeader: {
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  todayIconPill: {
+    width: 28,
+    height: 28,
+    borderRadius: radii.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  todayHeroLabel: {
+    fontSize: 13,
+    fontWeight: '800',
+    fontFamily: 'Cairo',
+  },
+  todayRevenueRow: {
+    paddingVertical: spacing.xs,
+  },
+  todayRevenueValue: {
+    fontSize: 34,
+    fontWeight: '900',
+    fontFamily: 'Cairo',
+    letterSpacing: -0.8,
+  },
+  todayRevenueCurrency: {
+    fontSize: 16,
+    fontWeight: '800',
+    fontFamily: 'Cairo',
+  },
+  todayMiniMetricsGrid: {
+    gap: spacing.sm,
+  },
+  todayMiniMetricItem: {
+    flex: 1,
+    padding: spacing.md,
+    borderRadius: radii.xl,
+    alignItems: 'center',
+    gap: 2,
+  },
+  todayMiniMetricLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    fontFamily: 'Cairo',
+  },
+  todayMiniMetricVal: {
+    fontSize: 15,
+    fontWeight: '900',
+    fontFamily: 'Cairo',
+  },
+
+  // 4. Low Stock Alert Banner
+  lowStockBanner: {
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.md,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    gap: spacing.sm,
+  },
+  lowStockIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: radii.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lowStockTextBox: {
+    flex: 1,
+    gap: 1,
+  },
+  lowStockHeading: {
+    fontSize: 13,
+    fontWeight: '800',
+    fontFamily: 'Cairo',
+  },
+  lowStockDesc: {
+    fontSize: 11.5,
+    fontFamily: 'Cairo',
+  },
+
+  // 5. Financial Liquidity & Commercial Balance
+  financeCard: {
+    padding: spacing.md,
+    borderRadius: radii.xxl,
+    gap: spacing.sm,
+  },
+  financeHeader: {
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: spacing.xs,
+  },
+  financeTitle: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    fontFamily: 'Cairo',
+  },
+  financialMetricsRow: {
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.xs,
+  },
+  financialMetricBox: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 2,
+  },
+  metricLabelRow: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  metricLabel: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    fontFamily: 'Cairo',
+  },
+  metricValue: {
+    fontSize: 15,
+    fontWeight: '900',
+    fontFamily: 'Cairo',
+    marginVertical: 1,
+  },
+  metricSub: {
+    fontSize: 10.5,
+    fontFamily: 'Cairo',
+  },
+  metricDivider: {
+    width: 1,
+    height: 40,
+  },
+  netSummaryBox: {
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    paddingTop: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  netLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    fontFamily: 'Cairo',
+  },
+  netValue: {
+    fontSize: 14.5,
+    fontWeight: '900',
+    fontFamily: 'Cairo',
+  },
+
+  // 6. Hub Categories & Cards
+  hubContainer: {
     gap: spacing.xs + 2,
     marginTop: spacing.xs,
   },
-  hubHeading: {
-    fontSize: 18,
-    fontWeight: '900',
+  hubSectionTitle: {
+    fontSize: 13,
+    fontWeight: '800',
     fontFamily: 'Cairo',
-    textAlign: 'right',
-    marginBottom: spacing.xs,
     paddingHorizontal: 4,
+    marginBottom: spacing.xs,
   },
   hubGrid: {
     flexDirection: 'row',
@@ -976,7 +1251,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    minHeight: 116,
+    minHeight: 110,
     ...shadows.xs,
   },
   hubIconBox: {
@@ -988,7 +1263,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs + 2,
   },
   hubCardTitle: {
-    fontSize: 15,
+    fontSize: 14.5,
     fontWeight: '800',
     fontFamily: 'Cairo',
     textAlign: 'center',
@@ -1000,232 +1275,24 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // ── Shift Card ──
-  shiftCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: spacing.md,
-    borderRadius: radii.xl,
-    borderWidth: 1,
-    ...shadows.xs,
-  },
-  shiftLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  shiftBadge: {
-    paddingHorizontal: spacing.sm,
-  },
-  shiftRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  shiftIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: radii.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-  },
-  shiftTextCol: {
-    alignItems: 'flex-end',
-  },
-  shiftTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    fontFamily: 'Cairo',
-    textAlign: 'right',
-  },
-  shiftSub: {
-    fontSize: 11,
-    fontFamily: 'Cairo',
-    textAlign: 'right',
-  },
-
-  // ── Grids ──
-  grid2: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  grid3: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-
-  // ── KPI Cards ──
-  kpiCard: {
-    flex: 1,
-    padding: spacing.md,
-    alignItems: 'flex-end',
-  },
-  kpiHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '100%',
-    marginBottom: spacing.xs,
-  },
-  kpiIconBox: {
-    width: 32,
-    height: 32,
-    borderRadius: radii.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  kpiLabel: {
-    fontSize: 12,
-    fontFamily: 'Cairo',
-    marginTop: spacing.xs,
-  },
-  kpiValue: {
-    fontSize: 18,
-    fontWeight: '800',
-    fontFamily: 'Cairo',
-    marginVertical: 1,
-  },
-  currency: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  kpiHelper: {
-    fontSize: 10,
-    fontFamily: 'Cairo',
-  },
-
-  // ── Financial Metrics ──
-  financialMetricsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.xs,
-  },
-  financialMetric: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  metricLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  metricLabel: {
-    fontSize: 12,
-    fontFamily: 'Cairo',
-  },
-  metricValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    fontFamily: 'Cairo',
-    marginTop: 2,
-  },
-  metricSub: {
-    fontSize: 10,
-    fontFamily: 'Cairo',
-    marginTop: 2,
-  },
-  metricDivider: {
-    width: 1,
-    height: 48,
-  },
-  netSummaryBox: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderTopWidth: 1,
-    marginTop: spacing.md,
-    paddingTop: spacing.sm,
-  },
-  netLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    fontFamily: 'Cairo',
-  },
-  netValue: {
-    fontSize: 16,
-    fontWeight: '800',
-    fontFamily: 'Cairo',
-  },
-
-  // ── Quick Tools ──
-  toolButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xs,
-    borderRadius: radii.xl,
-    paddingVertical: spacing.md,
-    borderWidth: 1,
-    ...shadows.xs,
-  },
-  toolIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: radii.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  toolText: {
-    fontSize: 12,
-    fontWeight: '700',
-    fontFamily: 'Cairo',
-  },
-
-  // ── Alert Card ──
-  alertCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderRadius: radii.xl,
-    padding: spacing.md,
-    borderWidth: 1,
-  },
-  alertTextContent: {
-    flex: 1,
-    alignItems: 'flex-end',
-    marginRight: spacing.sm,
-  },
-  alertHeading: {
-    fontSize: 13,
-    fontWeight: '700',
-    fontFamily: 'Cairo',
-  },
-  alertDescription: {
-    fontSize: 11,
-    fontFamily: 'Cairo',
-    marginTop: 2,
-    textAlign: 'right',
-  },
-  alertIconWrapper: {
-    width: 32,
-    height: 32,
-    borderRadius: radii.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  // ── Recent Sales ──
+  // 7. Recent Sales Feed
   sectionContainer: {
     gap: spacing.sm,
+    marginTop: spacing.xs,
   },
   sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: spacing.xs,
   },
   sectionHeading: {
-    fontSize: 14,
+    fontSize: 14.5,
     fontWeight: '800',
     fontFamily: 'Cairo',
   },
   seeAllBtn: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
+    gap: 3,
   },
   seeAllText: {
     fontSize: 12,
@@ -1237,37 +1304,38 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: spacing.xxl,
     gap: spacing.xs,
+    borderRadius: radii.xl,
     borderWidth: 1,
   },
   emptySalesTitle: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 13.5,
+    fontWeight: '800',
     fontFamily: 'Cairo',
     marginTop: spacing.xs,
   },
   emptySalesSub: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontFamily: 'Cairo',
   },
   salesList: {
-    gap: spacing.xs,
+    gap: spacing.xs + 2,
   },
   saleItemRow: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderRadius: radii.lg,
+    borderRadius: radii.xl,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
+    paddingVertical: spacing.sm + 4,
     borderWidth: 1,
+    ...shadows.xs,
   },
   saleLeftCol: {
     alignItems: 'flex-start',
     gap: 3,
   },
   saleTotal: {
-    fontSize: 14,
-    fontWeight: '800',
+    fontSize: 14.5,
+    fontWeight: '900',
     fontFamily: 'Cairo',
   },
   saleRightCol: {
@@ -1277,11 +1345,10 @@ const styles = StyleSheet.create({
   },
   saleNumber: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
     fontFamily: 'Cairo',
   },
   saleMetaRow: {
-    flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     marginTop: 2,
@@ -1294,7 +1361,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
   saleCustomerName: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontFamily: 'Cairo',
   },
   chevron: {

@@ -256,9 +256,9 @@ export const CategoriesScreen = ({ navigation }: any) => {
                     </Text>
                   ) : null}
 
-                  <View style={styles.catFooter}>
-                    <View style={styles.countBadge}>
-                      <Text style={styles.countText}>{count} {t('common.products')}</Text>
+                  <View style={[styles.catFooter, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                    <View style={[styles.countBadge, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                      <Text style={styles.countText}>{count} {t('inventory.products')}</Text>
                       <Package size={12} color="#64748b" />
                     </View>
                   </View>
@@ -272,42 +272,42 @@ export const CategoriesScreen = ({ navigation }: any) => {
       {/* Add / Edit Category Modal */}
       <Modal visible={modalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border.subtle, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <X size={20} color="#64748b" />
+                <X size={20} color={colors.text.secondary} />
               </TouchableOpacity>
-              <Text style={styles.modalTitle}>
-                {editingCategory ? 'تعديل الفئة' : 'إضافة فئة جديدة'}
+              <Text style={[styles.modalTitle, { color: colors.text.primary }]}>
+                {editingCategory ? t('categories.editCategory') : t('categories.addCategory')}
               </Text>
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>اسم الفئة / القسم *</Text>
+              <Text style={[styles.formLabel, { color: colors.text.secondary, textAlign }]}>{t('categories.categoryName')} *</Text>
               <TextInput
-                style={styles.formInput}
-                placeholder="مثال: مواد غذائية، ألبان، مشروبات..."
+                style={[styles.formInput, { color: colors.text.primary, borderColor: colors.border.default, backgroundColor: isDark ? colors.surfaceElevated : '#f8fafc', textAlign }]}
+                placeholder={t('categories.categoryName')}
+                placeholderTextColor={colors.text.tertiary}
                 value={name}
                 onChangeText={setName}
-                textAlign="right"
                 autoFocus
               />
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>الوصف</Text>
+              <Text style={[styles.formLabel, { color: colors.text.secondary, textAlign }]}>{t('inventory.description')}</Text>
               <TextInput
-                style={styles.formInput}
-                placeholder="وصف اختياري..."
+                style={[styles.formInput, { color: colors.text.primary, borderColor: colors.border.default, backgroundColor: isDark ? colors.surfaceElevated : '#f8fafc', textAlign }]}
+                placeholder={t('inventory.description')}
+                placeholderTextColor={colors.text.tertiary}
                 value={description}
                 onChangeText={setDescription}
-                textAlign="right"
               />
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>اللون المميز</Text>
-              <View style={styles.colorPalette}>
+              <Text style={[styles.formLabel, { color: colors.text.secondary, textAlign }]}>{t('categories.color')}</Text>
+              <View style={[styles.colorPalette, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                 {COLORS.map((col) => (
                   <TouchableOpacity
                     key={col}
@@ -318,19 +318,23 @@ export const CategoriesScreen = ({ navigation }: any) => {
                     ]}
                     onPress={() => setSelectedColor(col)}
                   >
-                    {selectedColor === col && <Check size={14} color="#fff" />}
+                    {selectedColor === col ? <Check size={14} color="#fff" /> : null}
                   </TouchableOpacity>
                 ))}
               </View>
             </View>
 
-            <TouchableOpacity style={styles.modalConfirmBtn} onPress={handleSave} disabled={saving}>
+            <TouchableOpacity
+              style={[styles.modalSaveBtn, { backgroundColor: colors.primary[600], flexDirection: isRTL ? 'row-reverse' : 'row' }]}
+              onPress={handleSave}
+              disabled={saving}
+            >
               {saving ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
                 <>
                   <Check size={18} color="#fff" />
-                  <Text style={styles.modalConfirmBtnText}>حفظ الفئة</Text>
+                  <Text style={styles.modalSaveBtnText}>{t('common.save')}</Text>
                 </>
               )}
             </TouchableOpacity>

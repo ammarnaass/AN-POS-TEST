@@ -42,20 +42,10 @@ class AnposNetworkModule(reactContext: ReactApplicationContext) : ReactContextBa
     @ReactMethod
     fun getLocalIP(promise: Promise) {
         try {
-            val interfaces = NetworkInterface.getNetworkInterfaces()
-            for (intf in Collections.list(interfaces)) {
-                val addresses = intf.inetAddresses
-                while (addresses.hasMoreElements()) {
-                    val addr = addresses.nextElement()
-                    if (!addr.isLoopbackAddress && addr is java.net.Inet4Address && addr.isSiteLocalAddress) {
-                        promise.resolve(addr.hostAddress)
-                        return
-                    }
-                }
-            }
-            promise.resolve("192.168.1.1")
+            val ip = getLocalIPSync()
+            promise.resolve(ip)
         } catch (e: Exception) {
-            promise.reject("ERR_LOCAL_IP", e)
+            promise.resolve("192.168.1.1")
         }
     }
 
@@ -65,14 +55,24 @@ class AnposNetworkModule(reactContext: ReactApplicationContext) : ReactContextBa
             val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager?
             val dhcpInfo = wifiManager?.dhcpInfo
             val ip = dhcpInfo?.gateway ?: 0
-            val gateway = String.format(
-                "%d.%d.%d.%d",
-                (ip and 0xFF),
-                (ip shr 8 and 0xFF),
-                (ip shr 16 and 0xFF),
-                (ip shr 24 and 0xFF)
-            )
-            promise.resolve(gateway)
+            if (ip != 0) {
+                val gateway = String.format(
+                    "%d.%d.%d.%d",
+                    (ip and 0xFF),
+                    (ip shr 8 and 0xFF),
+                    (ip shr 16 and 0xFF),
+                    (ip shr 24 and 0xFF)
+                )
+                promise.resolve(gateway)
+                return
+            }
+            val localIp = getLocalIPSync()
+            val parts = localIp.split(".")
+            if (parts.size == 4) {
+                promise.resolve("${parts[0]}.${parts[1]}.${parts[2]}.1")
+                return
+            }
+            promise.resolve("")
         } catch (e: Exception) {
             promise.resolve("")
         }
@@ -81,20 +81,13 @@ class AnposNetworkModule(reactContext: ReactApplicationContext) : ReactContextBa
     @ReactMethod
     fun getSubnet(promise: Promise) {
         try {
-            val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager?
-            val ip = wifiManager?.connectionInfo?.ipAddress ?: 0
-            val subnet = (ip and 0x00FFFFFF).let {
-                String.format(
-                    "%d.%d.%d",
-                    (it and 0xFF),
-                    (it shr 8 and 0xFF),
-                    (it shr 16 and 0xFF)
-                )
-            }
             val localIp = getLocalIPSync()
-            if (localIp.startsWith("192.168.0")) promise.resolve("192.168.0")
-            else if (localIp.startsWith("10.0")) promise.resolve("10.0")
-            else promise.resolve(subnet)
+            val parts = localIp.split(".")
+            if (parts.size == 4 && localIp != "127.0.0.1" && !localIp.startsWith("0.0.0")) {
+                promise.resolve("${parts[0]}.${parts[1]}.${parts[2]}")
+                return
+            }
+            promise.resolve("192.168.1")
         } catch (e: Exception) {
             promise.resolve("192.168.1")
         }
@@ -104,11 +97,15 @@ class AnposNetworkModule(reactContext: ReactApplicationContext) : ReactContextBa
         try {
             val interfaces = NetworkInterface.getNetworkInterfaces()
             for (intf in Collections.list(interfaces)) {
+                if (intf.isLoopback || !intf.isUp) continue
                 val addresses = intf.inetAddresses
                 while (addresses.hasMoreElements()) {
                     val addr = addresses.nextElement()
-                    if (!addr.isLoopbackAddress && addr is java.net.Inet4Address && addr.isSiteLocalAddress) {
-                        return addr.hostAddress
+                    if (!addr.isLoopbackAddress && addr is java.net.Inet4Address) {
+                        val host = addr.hostAddress
+                        if (host != null && !host.startsWith("127.") && !host.startsWith("0.")) {
+                            return host
+                        }
                     }
                 }
             }

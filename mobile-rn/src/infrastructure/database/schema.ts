@@ -128,6 +128,7 @@ export const CREATE_TABLES_SQL: string[] = [
     expiry_date TEXT,
     batch_number TEXT,
     quick_sale INTEGER NOT NULL DEFAULT 1,
+    custom_prices TEXT DEFAULT '[]',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   )`,
@@ -137,6 +138,7 @@ export const CREATE_TABLES_SQL: string[] = [
     id TEXT PRIMARY KEY NOT NULL,
     product_id TEXT NOT NULL,
     barcode TEXT NOT NULL,
+    price_label TEXT DEFAULT '',
     is_primary INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,

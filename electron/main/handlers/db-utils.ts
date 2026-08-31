@@ -122,3 +122,23 @@ export function tableHasColumn(tableName: string, columnName: string): boolean {
   return getTableColumns(tableName).has(columnName);
 }
 
+
+/**
+ * إشعار واجهة React (Renderer) فوراً بأي تعديل أو كتابة تمت على جدول في SQLite
+ */
+export function notifyTableChange(tableName: string, action: string = "update", id?: string): void {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const electron = require("electron");
+    const BrowserWindow = electron?.BrowserWindow;
+    if (!BrowserWindow || typeof BrowserWindow.getAllWindows !== "function") return;
+    const windows = BrowserWindow.getAllWindows();
+    for (const win of windows) {
+      if (!win.isDestroyed() && win.webContents) {
+        win.webContents.send("db:table-updated", { table: tableName, action, id });
+      }
+    }
+  } catch {
+    // non-blocking
+  }
+}

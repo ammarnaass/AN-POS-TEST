@@ -31,7 +31,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return { success: false, error: result.error.detail };
       }
       if (!result.user) {
-        return { success: false, error: 'فشل تسجيل الدخول' };
+        return { success: false, error: 'loginFailed' };
       }
 
       await AnposSecureStore.set(USER_ID_KEY, result.user.id);
@@ -42,7 +42,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       return { success: true };
     } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : 'خطأ غير متوقع' };
+      return { success: false, error: err instanceof Error ? err.message : 'serverOffline' };
     } finally {
       set({ loading: false });
     }

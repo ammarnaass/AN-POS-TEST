@@ -14,7 +14,8 @@ import {
   DollarSign,
   PieChart,
   Calendar,
-  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
   Receipt,
   Package,
   Layers,
@@ -23,13 +24,15 @@ import { db, ensureInit } from '@/lib/db';
 import type { Sale, Product, Expense } from '@shared/types';
 import { useTheme } from '@/theme';
 import { useI18n } from '@/store/i18nStore';
-import { ArrowLeft } from 'lucide-react-native';
 
 type Period = 'today' | 'week' | 'month' | 'year' | 'all';
 
 export const ProfitCenterScreen = ({ navigation }: any) => {
   const { isDark, colors } = useTheme();
-  const { t, isRTL, currency } = useI18n();
+  const { t, isRTL, textAlign, currency, language } = useI18n();
+  const localeStr = language === 'ar' ? 'ar-DZ' : language === 'fr' ? 'fr-FR' : 'en-US';
+  const styles = useMemo(() => makeStyles(colors, isDark), [colors, isDark]);
+
   const [sales, setSales] = useState<Sale[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -140,22 +143,26 @@ export const ProfitCenterScreen = ({ navigation }: any) => {
     };
   }, [sales, expenses, productCostMap, period]);
 
-  const BackIcon = isRTL ? ArrowRight : ArrowLeft;
+  const BackIcon = isRTL ? ChevronRight : ChevronLeft;
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={styles.container}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border.default }]}>
+      <View style={[styles.header, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBackBtn}>
           <BackIcon size={22} color={colors.text.primary} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text.primary }]}>{t('profitCenter.title')}</Text>
+        <Text style={styles.headerTitle}>{t('profitCenter.title')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
       {/* Period Chips */}
-      <View style={[styles.chipsRow, { backgroundColor: colors.surface }]}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsScroll}>
+      <View style={styles.chipsRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={[styles.chipsScroll, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
+        >
           <TouchableOpacity
             style={[styles.chip, period === 'today' && styles.chipActive]}
             onPress={() => setPeriod('today')}
@@ -201,15 +208,15 @@ export const ProfitCenterScreen = ({ navigation }: any) => {
         ) : (
           <View style={{ gap: 12 }}>
             {/* Main Net Profit Card */}
-            <View style={[styles.mainProfitCard, { backgroundColor: isDark ? colors.surfaceElevated : colors.primary[50] }]}>
-              <Text style={[styles.mainProfitLabel, { color: colors.text.secondary }]}>{t('profitCenter.netProfit')}</Text>
+            <View style={styles.mainProfitCard}>
+              <Text style={styles.mainProfitLabel}>{t('profitCenter.netProfit')}</Text>
               <Text
                 style={[
                   styles.mainProfitVal,
                   stats.netProfit >= 0 ? styles.valPositive : styles.valNegative,
                 ]}
               >
-                {stats.netProfit.toLocaleString()} {currency}
+                {stats.netProfit.toLocaleString(localeStr)} {currency}
               </Text>
               <View style={styles.marginBadge}>
                 <Text style={styles.marginBadgeText}>
@@ -219,59 +226,59 @@ export const ProfitCenterScreen = ({ navigation }: any) => {
             </View>
 
             {/* Income Statement Breakdown Card */}
-            <View style={[styles.breakdownCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}>
-              <Text style={[styles.cardSectionTitle, { color: colors.text.primary }]}>{t('profitCenter.revenueBreakdown')}</Text>
+            <View style={styles.breakdownCard}>
+              <Text style={[styles.cardSectionTitle, { textAlign }]}>{t('profitCenter.revenueBreakdown')}</Text>
 
-              <View style={styles.breakdownRow}>
-                <Text style={styles.breakdownVal}>+{stats.grossRevenue.toLocaleString()} {currency}</Text>
-                <Text style={[styles.breakdownLabel, { color: colors.text.secondary }]}>{t('profitCenter.grossSales')}</Text>
+              <View style={[styles.breakdownRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <Text style={styles.breakdownLabel}>{t('profitCenter.grossSales')}</Text>
+                <Text style={styles.breakdownVal}>+{stats.grossRevenue.toLocaleString(localeStr)} {currency}</Text>
               </View>
 
-              <View style={styles.breakdownRow}>
-                <Text style={[styles.breakdownVal, { color: '#ef4444' }]}>
-                  -{stats.returnsTotal.toLocaleString()} {currency}
+              <View style={[styles.breakdownRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <Text style={styles.breakdownLabel}>{t('returns.title')}</Text>
+                <Text style={[styles.breakdownVal, { color: colors.danger.main }]}>
+                  -{stats.returnsTotal.toLocaleString(localeStr)} {currency}
                 </Text>
-                <Text style={[styles.breakdownLabel, { color: colors.text.secondary }]}>{t('returns.title')}</Text>
               </View>
 
-              <View style={[styles.breakdownRow, styles.subtotalRow]}>
-                <Text style={[styles.breakdownVal, { fontWeight: 'bold', color: colors.text.primary }]}>
-                  {stats.netRevenue.toLocaleString()} {currency}
+              <View style={[styles.breakdownRow, styles.subtotalRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <Text style={[styles.breakdownLabel, { fontWeight: 'bold' }]}>{t('profitCenter.grossSales')}</Text>
+                <Text style={[styles.breakdownVal, { fontWeight: 'bold' }]}>
+                  {stats.netRevenue.toLocaleString(localeStr)} {currency}
                 </Text>
-                <Text style={[styles.breakdownLabel, { fontWeight: 'bold', color: colors.text.primary }]}>{t('profitCenter.grossSales')}</Text>
               </View>
 
-              <View style={styles.breakdownRow}>
-                <Text style={[styles.breakdownVal, { color: '#f59e0b' }]}>
-                  -{stats.cogs.toLocaleString()} {currency}
+              <View style={[styles.breakdownRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <Text style={styles.breakdownLabel}>{t('profitCenter.costOfGoods')}</Text>
+                <Text style={[styles.breakdownVal, { color: colors.warning.text }]}>
+                  -{stats.cogs.toLocaleString(localeStr)} {currency}
                 </Text>
-                <Text style={[styles.breakdownLabel, { color: colors.text.secondary }]}>{t('profitCenter.costOfGoods')}</Text>
               </View>
 
-              <View style={[styles.breakdownRow, styles.subtotalRow]}>
-                <Text style={[styles.breakdownVal, { color: '#10b981', fontWeight: 'bold' }]}>
-                  {stats.grossProfit.toLocaleString()} {currency}
+              <View style={[styles.breakdownRow, styles.subtotalRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <Text style={[styles.breakdownLabel, { fontWeight: 'bold' }]}>{t('profitCenter.grossProfit')}</Text>
+                <Text style={[styles.breakdownVal, { color: colors.emerald[600], fontWeight: 'bold' }]}>
+                  {stats.grossProfit.toLocaleString(localeStr)} {currency}
                 </Text>
-                <Text style={[styles.breakdownLabel, { fontWeight: 'bold', color: colors.text.primary }]}>{t('profitCenter.grossProfit')}</Text>
               </View>
 
-              <View style={styles.breakdownRow}>
-                <Text style={[styles.breakdownVal, { color: '#ef4444' }]}>
-                  -{stats.totalExpenses.toLocaleString()} {currency}
+              <View style={[styles.breakdownRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <Text style={styles.breakdownLabel}>{t('profitCenter.expenses')}</Text>
+                <Text style={[styles.breakdownVal, { color: colors.danger.main }]}>
+                  -{stats.totalExpenses.toLocaleString(localeStr)} {currency}
                 </Text>
-                <Text style={[styles.breakdownLabel, { color: colors.text.secondary }]}>{t('profitCenter.expenses')}</Text>
               </View>
 
-              <View style={[styles.breakdownRow, styles.totalRow]}>
+              <View style={[styles.breakdownRow, styles.totalRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <Text style={styles.totalProfitLabel}>{t('profitCenter.netProfit')}</Text>
                 <Text
                   style={[
                     styles.totalProfitVal,
                     stats.netProfit >= 0 ? styles.valPositive : styles.valNegative,
                   ]}
                 >
-                  {stats.netProfit.toLocaleString()} {currency}
+                  {stats.netProfit.toLocaleString(localeStr)} {currency}
                 </Text>
-                <Text style={[styles.totalProfitLabel, { color: colors.text.primary }]}>{t('profitCenter.netProfit')}</Text>
               </View>
             </View>
           </View>
@@ -281,69 +288,101 @@ export const ProfitCenterScreen = ({ navigation }: any) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
+const makeStyles = (colors: any, isDark: boolean) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
 
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-  },
-  headerBackBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: '#f1f5f9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: { fontSize: 17, fontWeight: 'bold', color: '#0f172a', fontFamily: 'Cairo' },
+    header: {
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.surface,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border.default,
+    },
+    headerBackBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 10,
+      backgroundColor: isDark ? colors.surfaceElevated : colors.slate[100],
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerTitle: { fontSize: 17, fontWeight: 'bold', color: colors.text.primary, fontFamily: 'Cairo' },
 
-  chipsRow: { backgroundColor: '#fff', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-  chipsScroll: { paddingHorizontal: 16, gap: 8 },
-  chip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: '#f1f5f9' },
-  chipActive: { backgroundColor: '#3b82f6' },
-  chipText: { fontSize: 12, color: '#64748b', fontWeight: '600', fontFamily: 'Cairo' },
-  chipTextActive: { color: '#fff' },
+    chipsRow: {
+      backgroundColor: colors.surface,
+      paddingVertical: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border.subtle,
+    },
+    chipsScroll: { paddingHorizontal: 16, gap: 8 },
+    chip: {
+      paddingHorizontal: 14,
+      paddingVertical: 6,
+      borderRadius: 20,
+      backgroundColor: isDark ? colors.surfaceElevated : colors.slate[100],
+    },
+    chipActive: { backgroundColor: colors.primary[600] },
+    chipText: { fontSize: 12, color: colors.text.secondary, fontWeight: '600', fontFamily: 'Cairo' },
+    chipTextActive: { color: '#fff' },
 
-  scroll: { flex: 1, padding: 14 },
-  mainProfitCard: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 20,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  mainProfitLabel: { fontSize: 13, color: '#64748b', fontFamily: 'Cairo' },
-  mainProfitVal: { fontSize: 30, fontWeight: '900', fontFamily: 'Cairo', marginVertical: 8 },
-  valPositive: { color: '#10b981' },
-  valNegative: { color: '#ef4444' },
-  marginBadge: { backgroundColor: '#eff6ff', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
-  marginBadgeText: { fontSize: 12, fontWeight: 'bold', color: '#3b82f6', fontFamily: 'Cairo' },
+    scroll: { flex: 1, padding: 14 },
+    mainProfitCard: {
+      backgroundColor: isDark ? colors.surfaceElevated : colors.primary[50],
+      borderRadius: 20,
+      padding: 20,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border.default,
+    },
+    mainProfitLabel: { fontSize: 13, color: colors.text.secondary, fontFamily: 'Cairo' },
+    mainProfitVal: { fontSize: 30, fontWeight: '900', fontFamily: 'Cairo', marginVertical: 8 },
+    valPositive: { color: colors.emerald[600] },
+    valNegative: { color: colors.danger.main },
+    marginBadge: {
+      backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#eff6ff',
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 10,
+    },
+    marginBadgeText: { fontSize: 12, fontWeight: 'bold', color: colors.primary[600], fontFamily: 'Cairo' },
 
-  breakdownCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    gap: 8,
-  },
-  cardSectionTitle: { fontSize: 14, fontWeight: 'bold', color: '#0f172a', fontFamily: 'Cairo', textAlign: 'right', marginBottom: 6 },
-  breakdownRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
-  breakdownLabel: { fontSize: 13, color: '#64748b', fontFamily: 'Cairo' },
-  breakdownVal: { fontSize: 14, fontWeight: '600', color: '#0f172a', fontFamily: 'Cairo' },
-  subtotalRow: { borderTopWidth: 1, borderTopColor: '#f1f5f9', borderBottomWidth: 1, borderBottomColor: '#f1f5f9', marginVertical: 4 },
-  totalRow: { borderTopWidth: 2, borderTopColor: '#0f172a', marginTop: 8, paddingTop: 10 },
-  totalProfitLabel: { fontSize: 15, fontWeight: 'bold', color: '#0f172a', fontFamily: 'Cairo' },
-  totalProfitVal: { fontSize: 18, fontWeight: '800', fontFamily: 'Cairo' },
-});
+    breakdownCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+      gap: 8,
+    },
+    cardSectionTitle: {
+      fontSize: 14,
+      fontWeight: 'bold',
+      color: colors.text.primary,
+      fontFamily: 'Cairo',
+      marginBottom: 6,
+    },
+    breakdownRow: { justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
+    breakdownLabel: { fontSize: 13, color: colors.text.secondary, fontFamily: 'Cairo' },
+    breakdownVal: { fontSize: 14, fontWeight: '600', color: colors.text.primary, fontFamily: 'Cairo' },
+    subtotalRow: {
+      borderTopWidth: 1,
+      borderTopColor: colors.border.subtle,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border.subtle,
+      marginVertical: 4,
+    },
+    totalRow: {
+      borderTopWidth: 2,
+      borderTopColor: colors.text.primary,
+      marginTop: 8,
+      paddingTop: 10,
+    },
+    totalProfitLabel: { fontSize: 15, fontWeight: 'bold', color: colors.text.primary, fontFamily: 'Cairo' },
+    totalProfitVal: { fontSize: 18, fontWeight: '800', fontFamily: 'Cairo' },
+  });
 
 export default ProfitCenterScreen;

@@ -71,6 +71,10 @@ function normalizeEntity<T = any>(table: string, raw: any): T {
       status,
       quickSale,
       quick_sale: quickSale ? 1 : 0,
+      custom_prices: raw.custom_prices ?? raw.customPrices ?? '[]',
+      customPrices: typeof (raw.custom_prices ?? raw.customPrices) === 'string'
+        ? (() => { try { return JSON.parse(raw.custom_prices ?? raw.customPrices); } catch { return []; } })()
+        : (Array.isArray(raw.custom_prices ?? raw.customPrices) ? (raw.custom_prices ?? raw.customPrices) : []),
     } as unknown as T;
   }
 
@@ -149,6 +153,13 @@ function sanitizePayload(table: string, data: any, isPartial = false): any {
         sanitized.tax = Number(data.taxRate ?? data.tax_rate ?? data.tax);
       }
       if (data.expiryDate !== undefined || data.expiry_date !== undefined) sanitized.expiry_date = data.expiryDate || data.expiry_date;
+      if (data.custom_prices !== undefined || data.customPrices !== undefined) {
+        const cp = data.custom_prices ?? data.customPrices;
+        sanitized.custom_prices = typeof cp === 'string' ? cp : JSON.stringify(cp || []);
+        sanitized.customPrices = typeof cp === 'string'
+          ? (() => { try { return JSON.parse(cp); } catch { return []; } })()
+          : (Array.isArray(cp) ? cp : []);
+      }
       if (data.updated_at !== undefined || data.updatedAt !== undefined) sanitized.updated_at = data.updated_at || data.updatedAt || new Date().toISOString();
       return sanitized;
     }
@@ -176,6 +187,12 @@ function sanitizePayload(table: string, data: any, isPartial = false): any {
       status: data.status || 'active',
       tax: Number(data.taxRate ?? data.tax_rate ?? data.tax ?? 0),
       expiry_date: data.expiryDate || data.expiry_date || '',
+      custom_prices: typeof (data.custom_prices ?? data.customPrices) === 'string'
+        ? (data.custom_prices ?? data.customPrices)
+        : JSON.stringify(data.custom_prices ?? data.customPrices ?? []),
+      customPrices: typeof (data.custom_prices ?? data.customPrices) === 'string'
+        ? (() => { try { return JSON.parse(data.custom_prices ?? data.customPrices); } catch { return []; } })()
+        : (Array.isArray(data.custom_prices ?? data.customPrices) ? (data.custom_prices ?? data.customPrices) : []),
       created_at: data.created_at || data.createdAt || new Date().toISOString(),
       updated_at: data.updated_at || data.updatedAt || new Date().toISOString(),
     };

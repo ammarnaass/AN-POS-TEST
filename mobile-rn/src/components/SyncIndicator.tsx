@@ -3,10 +3,12 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSyncEngine } from '@/lib/syncEngine';
 import { WifiOff, RefreshCw, AlertCircle, Smartphone } from 'lucide-react-native';
 import { useTheme } from '@/theme';
+import { useI18n } from '@/store/i18nStore';
 import { radii, spacing, typography } from '@/theme/tokens';
 
 export default function SyncIndicator() {
   const { isDark, colors } = useTheme();
+  const { t } = useI18n();
   const {
     isOnline,
     isConnected,
@@ -57,7 +59,7 @@ export default function SyncIndicator() {
       {!isOnline ? (
         <>
           <WifiOff size={13} color={textColor} />
-          <Text style={[styles.text, { color: textColor }]}>غير متصل</Text>
+          <Text style={[styles.text, { color: textColor }]}>{t('common.offline')}</Text>
           {pendingCount > 0 && (
             <View style={[styles.badge, { backgroundColor: textColor + '20' }]}>
               <Text style={[styles.badgeText, { color: textColor }]}>{pendingCount}</Text>
@@ -67,27 +69,27 @@ export default function SyncIndicator() {
       ) : !isConnected ? (
         <>
           <Smartphone size={13} color={textColor} />
-          <Text style={[styles.text, { color: textColor }]}>وضع مستقل</Text>
+          <Text style={[styles.text, { color: textColor }]}>{t('settings.standalone')}</Text>
         </>
       ) : isSyncing ? (
         <>
           <RefreshCw size={13} color={textColor} />
-          <Text style={[styles.text, { color: textColor }]}>جاري المزامنة...</Text>
+          <Text style={[styles.text, { color: textColor }]}>{t('common.syncing')}</Text>
         </>
       ) : failedCount > 0 ? (
         <>
           <AlertCircle size={13} color={textColor} />
-          <Text style={[styles.text, { color: textColor }]}>{failedCount} فاشلة</Text>
+          <Text style={[styles.text, { color: textColor }]}>{failedCount} {t('settings.syncFailed')}</Text>
           <TouchableOpacity onPress={retryFailed} activeOpacity={0.7}>
-            <Text style={[styles.link, { color: textColor }]}>إعادة</Text>
+            <Text style={[styles.link, { color: textColor }]}>{t('common.retry')}</Text>
           </TouchableOpacity>
         </>
       ) : pendingCount > 0 ? (
         <>
           <RefreshCw size={13} color={textColor} />
-          <Text style={[styles.text, { color: textColor }]}>{pendingCount} بالانتظار</Text>
+          <Text style={[styles.text, { color: textColor }]}>{pendingCount} {t('settings.syncPending')}</Text>
           <TouchableOpacity onPress={processQueue} activeOpacity={0.7}>
-            <Text style={[styles.link, { color: textColor }]}>مزامنة</Text>
+            <Text style={[styles.link, { color: textColor }]}>{t('common.sync')}</Text>
           </TouchableOpacity>
         </>
       ) : null}

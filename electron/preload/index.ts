@@ -18,6 +18,13 @@ const electronAPI = {
       ipcRenderer.invoke('db:update', table, id, data),
     remove: (table: string, id: string) =>
       ipcRenderer.invoke('db:remove', table, id),
+    onTableUpdated: (callback: (data: { table: string; action?: string; id?: string }) => void) => {
+      const listener = (_event: any, data: any) => callback(data);
+      ipcRenderer.on('db:table-updated', listener);
+      return () => {
+        ipcRenderer.removeListener('db:table-updated', listener);
+      };
+    },
   },
 
   // ===== المصادقة (بدون JWT) =====

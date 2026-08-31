@@ -10,6 +10,8 @@ import {
   ActivityIndicator,
   Switch,
   RefreshControl,
+  Image,
+  Modal,
 } from 'react-native';
 import {
   Store,
@@ -38,19 +40,26 @@ import {
   HardDrive,
   Copy,
   Hash,
+  Camera,
+  Image as ImageIcon,
+  Trash2,
+  Globe,
+  Radio,
+  AlertCircle,
 } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { useI18n } from '@/store/i18nStore';
 import { radii, spacing, shadows } from '@/theme/tokens';
 import { Card, Badge, Button } from '@/components/ui';
 import { session } from '@/lib/apiClient';
-import { getStoredMode } from '@/infrastructure/database/UnifiedDB';
+import { db as unifiedDB, getStoredMode } from '@/infrastructure/database/UnifiedDB';
 import {
   getStoreSettings,
   fetchStoreSettingsFromDesktop,
   saveStoreSettings,
   type StoreSettings,
 } from '@/lib/settingService';
+import { AnposCamera } from '@/modules/AnposCamera';
 
 type SettingsTab = 'identity' | 'fiscal' | 'invoicing' | 'system' | 'diagnostics';
 
@@ -71,6 +80,11 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
 
   const [settings, setSettings] = useState<StoreSettings | null>(null);
   const [form, setForm] = useState<Record<string, any>>({});
+
+  // Store Logo Modal state
+  const [logoPickerVisible, setLogoPickerVisible] = useState(false);
+  const [logoUrlModalVisible, setLogoUrlModalVisible] = useState(false);
+  const [customLogoUrl, setCustomLogoUrl] = useState('');
 
   const loadData = useCallback(async (forceRemote = false) => {
     try {
@@ -130,11 +144,16 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
         tva_rate: parseFloat(String(form.tva_rate || '0')),
         print_width_mm: parseInt(String(form.print_width_mm || '80'), 10),
         invoice_start_number: parseInt(String(form.invoice_start_number || '1'), 10),
+        logo: form.logo || form.shop_logo || '',
+        shop_logo: form.logo || form.shop_logo || '',
       };
 
       const result = await saveStoreSettings(patch);
       if (result.success) {
-        setSettings(form as StoreSettings);
+        const finalS = result.settings || (patch as StoreSettings);
+        setSettings(finalS);
+        setForm({ ...finalS });
+        setLastSyncTimestamp(new Date().toLocaleTimeString(language === 'ar' ? 'ar-DZ' : language === 'fr' ? 'fr-FR' : 'en-US'));
         setEditMode(false);
         Alert.alert(
           t('common.success'),
@@ -154,6 +173,78 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
 
   const updateField = (key: string, value: any) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  // Logo handlers
+  const handleCaptureLogo = async () => {
+    setLogoPickerVisible(false);
+    try {
+      const granted = await AnposCamera.requestPermission();
+      if (!granted) {
+        Alert.alert(t('common.warning'), 'يرجى منح صلاحية الكاميرا لالتقاط صورة الشعار');
+        return;
+      }
+      const photoUri = await AnposCamera.capturePhoto();
+      if (photoUri) {
+        updateField('logo', photoUri);
+        updateField('shop_logo', photoUri);
+        const res = await saveStoreSettings({ ...form, logo: photoUri, shop_logo: photoUri });
+        if (res.success && res.settings) {
+          setSettings(res.settings);
+          setForm({ ...res.settings });
+        }
+        Alert.alert(t('common.success'), t('storeSettings.logoUpdatedSuccess'));
+      }
+    } catch (e) {
+      console.warn('Capture logo failed:', e);
+    }
+  };
+
+  const handlePickLogoGallery = async () => {
+    setLogoPickerVisible(false);
+    try {
+      const imageUri = await AnposCamera.pickImage();
+      if (imageUri) {
+        updateField('logo', imageUri);
+        updateField('shop_logo', imageUri);
+        const res = await saveStoreSettings({ ...form, logo: imageUri, shop_logo: imageUri });
+        if (res.success && res.settings) {
+          setSettings(res.settings);
+          setForm({ ...res.settings });
+        }
+        Alert.alert(t('common.success'), t('storeSettings.logoUpdatedSuccess'));
+      }
+    } catch (e) {
+      console.warn('Pick logo gallery failed:', e);
+    }
+  };
+
+  const handleApplyLogoUrl = async () => {
+    const trimmed = customLogoUrl.trim();
+    if (trimmed) {
+      updateField('logo', trimmed);
+      updateField('shop_logo', trimmed);
+      const res = await saveStoreSettings({ ...form, logo: trimmed, shop_logo: trimmed });
+      if (res.success && res.settings) {
+        setSettings(res.settings);
+        setForm({ ...res.settings });
+      }
+      setCustomLogoUrl('');
+      setLogoUrlModalVisible(false);
+      Alert.alert(t('common.success'), t('storeSettings.logoUpdatedSuccess'));
+    }
+  };
+
+  const handleRemoveLogo = async () => {
+    setLogoPickerVisible(false);
+    updateField('logo', '');
+    updateField('shop_logo', '');
+    const res = await saveStoreSettings({ ...form, logo: '', shop_logo: '' });
+    if (res.success && res.settings) {
+      setSettings(res.settings);
+      setForm({ ...res.settings });
+    }
+    Alert.alert(t('common.success'), t('storeSettings.logoRemovedSuccess'));
   };
 
   if (loading) {
@@ -284,7 +375,7 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
             },
           ]}
         >
-          <View style={styles.heroTopRow}>
+          <View style={[styles.heroTopRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
             <View style={[styles.heroTitleGroup, { alignItems }]}>
               <Text style={[styles.heroStoreName, { color: colors.text.primary, textAlign }]}>
                 {form.shop_name || form.store_name || t('storeSettings.shopName')}
@@ -293,20 +384,35 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
                 {form.address || form.store_address || t('storeSettings.address')}
               </Text>
             </View>
-            <View
-              style={[
-                styles.heroAvatar,
-                {
-                  backgroundColor: appMode === 'connected' ? colors.emerald[50] : colors.primary[50],
-                  borderColor: appMode === 'connected' ? colors.emerald[200] : colors.primary[200],
-                },
-              ]}
+
+            {/* Interactive Logo Avatar */}
+            <TouchableOpacity
+              style={styles.heroLogoTouchable}
+              onPress={() => setLogoPickerVisible(true)}
+              activeOpacity={0.8}
             >
-              <Store
-                size={24}
-                color={appMode === 'connected' ? colors.emerald[600] : colors.primary[600]}
-              />
-            </View>
+              <View
+                style={[
+                  styles.heroAvatar,
+                  {
+                    backgroundColor: appMode === 'connected' ? colors.emerald[50] : colors.primary[50],
+                    borderColor: (form.logo || form.shop_logo) ? colors.primary[400] : (appMode === 'connected' ? colors.emerald[200] : colors.primary[200]),
+                  },
+                ]}
+              >
+                {(form.logo || form.shop_logo) ? (
+                  <Image source={{ uri: form.logo || form.shop_logo }} style={styles.heroLogoImg} resizeMode="cover" />
+                ) : (
+                  <Store
+                    size={24}
+                    color={appMode === 'connected' ? colors.emerald[600] : colors.primary[600]}
+                  />
+                )}
+              </View>
+              <View style={[styles.heroCameraBadge, { backgroundColor: colors.primary[600] }]}>
+                <Camera size={10} color="#ffffff" />
+              </View>
+            </TouchableOpacity>
           </View>
 
           <View style={[styles.heroDivider, { backgroundColor: colors.border.subtle }]} />
@@ -408,7 +514,7 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
         {/* ── Tab 1: Store Identity & Contact ──────────────────── */}
         {activeTab === 'identity' && (
           <Card style={styles.tabCard}>
-            <View style={styles.tabHeaderRow}>
+            <View style={[styles.tabHeaderRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <View style={[styles.tabHeaderIcon, { backgroundColor: colors.primary[50] }]}>
                 <Building2 size={18} color={colors.primary[600]} />
               </View>
@@ -419,6 +525,57 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
                 <Text style={[styles.tabSubtitle, { color: colors.text.tertiary, textAlign }]}>
                   {t('storeSettings.subtitle')}
                 </Text>
+              </View>
+            </View>
+
+            {/* Store Logo Management Box */}
+            <View style={[styles.logoSectionCard, { backgroundColor: isDark ? colors.surfaceElevated : colors.slate[50], borderColor: colors.border.subtle, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <TouchableOpacity
+                style={styles.logoBoxTouchable}
+                onPress={() => setLogoPickerVisible(true)}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.logoBox, { borderColor: (form.logo || form.shop_logo) ? colors.primary[400] : colors.border.default }]}>
+                  {(form.logo || form.shop_logo) ? (
+                    <Image source={{ uri: form.logo || form.shop_logo }} style={styles.logoPreviewImg} resizeMode="cover" />
+                  ) : (
+                    <Store size={26} color={colors.primary[600]} />
+                  )}
+                </View>
+                <View style={[styles.logoActionBadge, { backgroundColor: colors.primary[600] }]}>
+                  <Camera size={11} color="#ffffff" />
+                </View>
+              </TouchableOpacity>
+
+              <View style={[styles.logoInfoBox, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+                <Text style={[styles.logoTitle, { color: colors.text.primary }]}>
+                  {t('storeSettings.storeLogo')}
+                </Text>
+                <Text style={[styles.logoDesc, { color: colors.text.tertiary, textAlign: isRTL ? 'right' : 'left' }]}>
+                  {(form.logo || form.shop_logo) ? t('storeSettings.changeStoreLogo') : t('storeSettings.chooseLogoGalleryDesc')}
+                </Text>
+                <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 8, marginTop: 4 }}>
+                  <TouchableOpacity
+                    style={[styles.smallLogoBtn, { backgroundColor: colors.primary[600] }]}
+                    onPress={() => setLogoPickerVisible(true)}
+                  >
+                    <Camera size={12} color="#fff" />
+                    <Text style={styles.smallLogoBtnText}>
+                      {(form.logo || form.shop_logo) ? t('common.edit') : t('common.add')}
+                    </Text>
+                  </TouchableOpacity>
+                  {(form.logo || form.shop_logo) ? (
+                    <TouchableOpacity
+                      style={[styles.smallLogoBtn, { backgroundColor: colors.danger.light }]}
+                      onPress={handleRemoveLogo}
+                    >
+                      <Trash2 size={12} color={colors.danger.main} />
+                      <Text style={[styles.smallLogoBtnText, { color: colors.danger.main }]}>
+                        {t('common.delete')}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
               </View>
             </View>
 
@@ -503,7 +660,7 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
               icon={<MapPin size={16} color={colors.text.tertiary} />}
               colors={colors}
               textAlign={textAlign}
-              placeholder="Alger, Algérie"
+              placeholder="123 Didouche Mourad Street"
             />
 
             <FormField
@@ -511,27 +668,27 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
               value={form.city}
               onChangeText={(v: string) => updateField('city', v)}
               editMode={editMode}
-              icon={<MapPin size={16} color={colors.text.tertiary} />}
+              icon={<Building2 size={16} color={colors.text.tertiary} />}
               colors={colors}
               textAlign={textAlign}
-              placeholder="Alger"
+              placeholder="Algiers"
             />
           </Card>
         )}
 
-        {/* ── Tab 2: Fiscal & Legal ────────────────────────────── */}
+        {/* ── Tab 2: Legal & Fiscal Data ───────────────────────── */}
         {activeTab === 'fiscal' && (
           <Card style={styles.tabCard}>
-            <View style={styles.tabHeaderRow}>
-              <View style={[styles.tabHeaderIcon, { backgroundColor: colors.purple[50] }]}>
-                <FileText size={18} color={colors.purple[600]} />
+            <View style={[styles.tabHeaderRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <View style={[styles.tabHeaderIcon, { backgroundColor: colors.warning.light }]}>
+                <FileText size={18} color={colors.warning.dark} />
               </View>
               <View style={{ flex: 1, alignItems }}>
                 <Text style={[styles.tabTitle, { color: colors.text.primary, textAlign }]}>
                   {t('storeSettings.fiscalTab')}
                 </Text>
                 <Text style={[styles.tabSubtitle, { color: colors.text.tertiary, textAlign }]}>
-                  {t('storeSettings.subtitle')}
+                  {t('storeSettings.fiscalTab')}
                 </Text>
               </View>
             </View>
@@ -544,10 +701,9 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
                 updateField('company_rc', v);
               }}
               editMode={editMode}
-              icon={<Hash size={16} color={colors.text.tertiary} />}
               colors={colors}
               textAlign={textAlign}
-              placeholder="16/00-1234567B20"
+              placeholder="16/00-1234567B19"
             />
 
             <FormField
@@ -558,10 +714,9 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
                 updateField('company_nif', v);
               }}
               editMode={editMode}
-              icon={<Hash size={16} color={colors.text.tertiary} />}
               colors={colors}
               textAlign={textAlign}
-              placeholder="002016123456789"
+              placeholder="001916012345678"
             />
 
             <FormField
@@ -572,10 +727,9 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
                 updateField('tax_article', v);
               }}
               editMode={editMode}
-              icon={<Hash size={16} color={colors.text.tertiary} />}
               colors={colors}
               textAlign={textAlign}
-              placeholder="16123456789"
+              placeholder="16012345678"
             />
 
             <FormField
@@ -586,134 +740,45 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
                 updateField('nis', v);
               }}
               editMode={editMode}
-              icon={<Hash size={16} color={colors.text.tertiary} />}
               colors={colors}
               textAlign={textAlign}
-              placeholder="001612345678901"
+              placeholder="001916010000000"
             />
 
             <FormField
               label={t('storeSettings.tvaRate')}
-              value={String(form.tva_rate ?? 0)}
+              value={String(form.tva_rate || '0')}
               onChangeText={(v: string) => updateField('tva_rate', v)}
               editMode={editMode}
               keyboardType="numeric"
               icon={<Percent size={16} color={colors.text.tertiary} />}
               colors={colors}
               textAlign={textAlign}
-              placeholder="0 / 19 / 9"
+              placeholder="0.19"
             />
           </Card>
         )}
 
-        {/* ── Tab 3: Invoicing & Printing ──────────────────────── */}
+        {/* ── Tab 3: Invoicing & Receipt ────────────────────────── */}
         {activeTab === 'invoicing' && (
           <Card style={styles.tabCard}>
-            <View style={styles.tabHeaderRow}>
-              <View style={[styles.tabHeaderIcon, { backgroundColor: colors.warning.light }]}>
-                <Receipt size={18} color={colors.warning.dark} />
+            <View style={[styles.tabHeaderRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <View style={[styles.tabHeaderIcon, { backgroundColor: colors.purple[50] }]}>
+                <Receipt size={18} color={colors.purple[700]} />
               </View>
               <View style={{ flex: 1, alignItems }}>
                 <Text style={[styles.tabTitle, { color: colors.text.primary, textAlign }]}>
                   {t('storeSettings.invoicingTab')}
                 </Text>
                 <Text style={[styles.tabSubtitle, { color: colors.text.tertiary, textAlign }]}>
-                  {t('printTemplates.subtitle')}
-                </Text>
-              </View>
-            </View>
-
-            <FormField
-              label={t('storeSettings.invoicePrefix')}
-              value={form.invoice_prefix || 'INV-'}
-              onChangeText={(v: string) => updateField('invoice_prefix', v)}
-              editMode={editMode}
-              icon={<FileText size={16} color={colors.text.tertiary} />}
-              colors={colors}
-              textAlign={textAlign}
-              placeholder="INV- / FAC-"
-            />
-
-            <FormField
-              label={t('storeSettings.startNumber')}
-              value={String(form.invoice_start_number ?? 1)}
-              onChangeText={(v: string) => updateField('invoice_start_number', v)}
-              editMode={editMode}
-              keyboardType="numeric"
-              icon={<Hash size={16} color={colors.text.tertiary} />}
-              colors={colors}
-              textAlign={textAlign}
-              placeholder="1"
-            />
-
-            <FormField
-              label={t('storeSettings.printWidth')}
-              value={String(form.print_width_mm || 80)}
-              onChangeText={(v: string) => updateField('print_width_mm', v)}
-              editMode={editMode}
-              keyboardType="numeric"
-              icon={<Printer size={16} color={colors.text.tertiary} />}
-              colors={colors}
-              textAlign={textAlign}
-              placeholder="80 / 58"
-            />
-
-            <FormField
-              label={t('storeSettings.printLang')}
-              value={form.print_language === 'fr' ? 'Français' : form.print_language === 'en' ? 'English' : 'العربية'}
-              onChangeText={(v: string) => updateField('print_language', v)}
-              editMode={editMode}
-              icon={<Sliders size={16} color={colors.text.tertiary} />}
-              colors={colors}
-              textAlign={textAlign}
-              placeholder="ar / fr / en"
-            />
-
-            <FormField
-              label={t('print.invoiceHeader')}
-              value={form.receipt_header}
-              onChangeText={(v: string) => updateField('receipt_header', v)}
-              editMode={editMode}
-              icon={<Info size={16} color={colors.text.tertiary} />}
-              colors={colors}
-              textAlign={textAlign}
-              placeholder="Header note..."
-            />
-
-            <FormField
-              label={t('print.invoiceFooter')}
-              value={form.receipt_footer || 'Merci pour votre visite'}
-              onChangeText={(v: string) => updateField('receipt_footer', v)}
-              editMode={editMode}
-              multiline
-              icon={<Info size={16} color={colors.text.tertiary} />}
-              colors={colors}
-              textAlign={textAlign}
-              placeholder="Thank you for your visit..."
-            />
-          </Card>
-        )}
-
-        {/* ── Tab 4: System & Operations ───────────────────────── */}
-        {activeTab === 'system' && (
-          <Card style={styles.tabCard}>
-            <View style={styles.tabHeaderRow}>
-              <View style={[styles.tabHeaderIcon, { backgroundColor: colors.emerald[50] }]}>
-                <Coins size={18} color={colors.emerald[600]} />
-              </View>
-              <View style={{ flex: 1, alignItems }}>
-                <Text style={[styles.tabTitle, { color: colors.text.primary, textAlign }]}>
-                  {t('storeSettings.systemTab')}
-                </Text>
-                <Text style={[styles.tabSubtitle, { color: colors.text.tertiary, textAlign }]}>
-                  {t('storeSettings.subtitle')}
+                  {t('storeSettings.invoicingTab')}
                 </Text>
               </View>
             </View>
 
             <FormField
               label={t('common.currency')}
-              value={form.base_currency || form.currency || t('common.currency')}
+              value={form.base_currency || form.currency}
               onChangeText={(v: string) => {
                 updateField('base_currency', v);
                 updateField('currency', v);
@@ -722,34 +787,94 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
               icon={<Coins size={16} color={colors.text.tertiary} />}
               colors={colors}
               textAlign={textAlign}
-              placeholder="DA / DZD"
+              placeholder="دج / DA"
             />
+
+            <FormField
+              label={t('storeSettings.invoicePrefix')}
+              value={form.invoice_prefix}
+              onChangeText={(v: string) => updateField('invoice_prefix', v)}
+              editMode={editMode}
+              colors={colors}
+              textAlign={textAlign}
+              placeholder="INV-"
+            />
+
+            <FormField
+              label={t('storeSettings.startNumber')}
+              value={String(form.invoice_start_number || '1')}
+              onChangeText={(v: string) => updateField('invoice_start_number', v)}
+              editMode={editMode}
+              keyboardType="numeric"
+              colors={colors}
+              textAlign={textAlign}
+              placeholder="1"
+            />
+
+            <FormField
+              label={t('storeSettings.printWidth')}
+              value={String(form.print_width_mm || '80')}
+              onChangeText={(v: string) => updateField('print_width_mm', v)}
+              editMode={editMode}
+              keyboardType="numeric"
+              icon={<Printer size={16} color={colors.text.tertiary} />}
+              colors={colors}
+              textAlign={textAlign}
+              placeholder="80 or 58"
+            />
+
+            <FormField
+              label={t('print.invoiceFooter')}
+              value={form.receipt_footer}
+              onChangeText={(v: string) => updateField('receipt_footer', v)}
+              editMode={editMode}
+              colors={colors}
+              textAlign={textAlign}
+              placeholder="Thank you for your visit!"
+            />
+          </Card>
+        )}
+
+        {/* ── Tab 4: System & Operations ────────────────────────── */}
+        {activeTab === 'system' && (
+          <Card style={styles.tabCard}>
+            <View style={[styles.tabHeaderRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <View style={[styles.tabHeaderIcon, { backgroundColor: colors.emerald[50] }]}>
+                <Sliders size={18} color={colors.emerald[700]} />
+              </View>
+              <View style={{ flex: 1, alignItems }}>
+                <Text style={[styles.tabTitle, { color: colors.text.primary, textAlign }]}>
+                  {t('storeSettings.systemTab')}
+                </Text>
+                <Text style={[styles.tabSubtitle, { color: colors.text.tertiary, textAlign }]}>
+                  {t('storeSettings.systemTab')}
+                </Text>
+              </View>
+            </View>
 
             <View style={[styles.switchRow, { borderBottomColor: colors.border.subtle }]}>
               <View style={{ flex: 1, alignItems }}>
-                <Text style={[styles.switchLabel, { color: colors.text.primary, textAlign }]}>
-                  {t('storeSettings.quickSale')}
-                </Text>
+                <Text style={[styles.switchLabel, { color: colors.text.primary }]}>{t('storeSettings.quickSale')}</Text>
+                <Text style={[styles.tabSubtitle, { color: colors.text.tertiary }]}>{t('storeSettings.quickSale')}</Text>
               </View>
               <Switch
                 value={Boolean(form.quick_sale)}
-                onValueChange={(v) => updateField('quick_sale', v ? 1 : 0)}
+                onValueChange={(val) => updateField('quick_sale', val)}
                 disabled={!editMode}
-                trackColor={{ false: colors.slate[200], true: colors.primary[500] }}
+                thumbColor={form.quick_sale ? colors.primary[600] : '#ccc'}
               />
             </View>
 
             <View style={[styles.switchRow, { borderBottomColor: colors.border.subtle }]}>
               <View style={{ flex: 1, alignItems }}>
-                <Text style={[styles.switchLabel, { color: colors.text.primary, textAlign }]}>
-                  {t('storeSettings.allowNegativeStock')}
-                </Text>
+                <Text style={[styles.switchLabel, { color: colors.text.primary }]}>{t('storeSettings.allowNegativeStock')}</Text>
+                <Text style={[styles.tabSubtitle, { color: colors.text.tertiary }]}>{t('storeSettings.allowNegativeStock')}</Text>
               </View>
               <Switch
                 value={Boolean(form.allow_negative_stock)}
-                onValueChange={(v) => updateField('allow_negative_stock', v ? 1 : 0)}
+                onValueChange={(val) => updateField('allow_negative_stock', val)}
                 disabled={!editMode}
-                trackColor={{ false: colors.slate[200], true: colors.primary[500] }}
+                thumbColor={form.allow_negative_stock ? colors.primary[600] : '#ccc'}
               />
             </View>
 
@@ -775,79 +900,311 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
           </Card>
         )}
 
-        {/* ── Tab 5: Diagnostics & Live Data ───────────────────── */}
+        {/* ── Tab 5: Technical Diagnostics ─────────────────────── */}
         {activeTab === 'diagnostics' && (
           <Card style={styles.tabCard}>
-            <View style={styles.tabHeaderRow}>
-              <View style={[styles.tabHeaderIcon, { backgroundColor: colors.primary[50] }]}>
-                <HardDrive size={18} color={colors.primary[600]} />
+            <View style={[styles.tabHeaderRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <View style={[styles.tabHeaderIcon, { backgroundColor: colors.indigo[50] }]}>
+                <HardDrive size={18} color={colors.indigo[700]} />
               </View>
               <View style={{ flex: 1, alignItems }}>
                 <Text style={[styles.tabTitle, { color: colors.text.primary, textAlign }]}>
                   {t('storeSettings.diagnosticsTab')}
                 </Text>
                 <Text style={[styles.tabSubtitle, { color: colors.text.tertiary, textAlign }]}>
-                  {t('settings.systemConfig')}
+                  {t('storeSettings.diagnosticsTab')}
                 </Text>
               </View>
             </View>
 
-            <View style={[styles.diagRow, { backgroundColor: isDark ? colors.surfaceElevated : colors.slate[50] }]}>
-              <Text style={[styles.diagKey, { color: colors.text.secondary }]}>{t('settings.appMode')}:</Text>
-              <Text style={[styles.diagVal, { color: colors.text.primary }]}>{appMode}</Text>
-            </View>
+            <DiagnosticRow label={t('storeSettings.syncStatus')} value={appMode === 'connected' ? t('settings.connected') : t('settings.standalone')} colors={colors} />
+            <DiagnosticRow label={t('settings.serverUrl')} value={serverUrl} colors={colors} />
+            <DiagnosticRow label={t('settings.lastSync')} value={lastSyncTimestamp || '—'} colors={colors} />
+            <DiagnosticRow label={t('storeSettings.fieldsCount')} value={`${Object.keys(form).length} keys`} colors={colors} />
+            <DiagnosticRow label={t('settings.appMode')} value={appMode === 'connected' ? t('settings.connectedModeDesc') : t('settings.standaloneModeDesc')} colors={colors} />
 
-            <View style={[styles.diagRow, { backgroundColor: isDark ? colors.surfaceElevated : colors.slate[50] }]}>
-              <Text style={[styles.diagKey, { color: colors.text.secondary }]}>{t('settings.serverUrl')}:</Text>
-              <Text style={[styles.diagVal, { color: colors.text.primary }]}>{serverUrl}</Text>
-            </View>
+            <View style={{ marginTop: 14, gap: 10 }}>
+              <TouchableOpacity
+                style={{
+                  backgroundColor: colors.primary[600],
+                  paddingVertical: 12,
+                  paddingHorizontal: 16,
+                  borderRadius: 12,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexDirection: isRTL ? 'row-reverse' : 'row',
+                  gap: 8,
+                }}
+                onPress={() => navigation.navigate('Pair', { initialTab: 'discover' })}
+                activeOpacity={0.85}
+              >
+                <Radio size={16} color="#ffffff" />
+                <Text style={{ color: '#ffffff', fontWeight: '700', fontSize: 13, fontFamily: 'Cairo' }}>
+                  {t('pair.changeDesktop')} ({t('pair.discoverTab')})
+                </Text>
+              </TouchableOpacity>
 
-            <View style={[styles.diagRow, { backgroundColor: isDark ? colors.surfaceElevated : colors.slate[50] }]}>
-              <Text style={[styles.diagKey, { color: colors.text.secondary }]}>{t('storeSettings.fieldsCount')}:</Text>
-              <Text style={[styles.diagVal, { color: colors.text.primary }]}>
-                {Object.keys(form).length}
-              </Text>
+              {appMode === 'connected' && (
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: colors.danger.light,
+                    borderColor: colors.danger.border,
+                    borderWidth: 1,
+                    paddingVertical: 12,
+                    paddingHorizontal: 16,
+                    borderRadius: 12,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexDirection: isRTL ? 'row-reverse' : 'row',
+                    gap: 8,
+                  }}
+                  onPress={async () => {
+                    Alert.alert(
+                      t('pair.unpair'),
+                      'هل أنت متأكد من إلغاء الربط والتحويل للوضع المستقل؟',
+                      [
+                        { text: t('common.cancel'), style: 'cancel' },
+                        {
+                          text: t('pair.unpair'),
+                          style: 'destructive',
+                          onPress: async () => {
+                            await session.clear();
+                            await unifiedDB.switchToStandalone();
+                            Alert.alert(t('common.success'), 'تم إلغاء الربط بنجاح.');
+                            navigation.replace('Login');
+                          },
+                        },
+                      ]
+                    );
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <AlertCircle size={16} color={colors.danger.main} />
+                  <Text style={{ color: colors.danger.main, fontWeight: '700', fontSize: 13, fontFamily: 'Cairo' }}>
+                    {t('pair.unpair')}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
-
-            <View style={[styles.diagRow, { backgroundColor: isDark ? colors.surfaceElevated : colors.slate[50] }]}>
-              <Text style={[styles.diagKey, { color: colors.text.secondary }]}>Engine:</Text>
-              <Text style={[styles.diagVal, { color: colors.emerald[600] }]}>
-                AnposSQLite + UnifiedDB
-              </Text>
-            </View>
-
-            <Button
-              title={t('storeSettings.fetchFromDesktop')}
-              variant="primary"
-              size="md"
-              loading={fetchingRemote}
-              icon={<RefreshCw size={16} color="#fff" />}
-              onPress={handleFetchFromDesktop}
-              style={{ marginTop: spacing.md }}
-            />
           </Card>
         )}
 
-        {/* ── Bottom CTA ───────────────────────────────────────── */}
+        {/* Save button if in edit mode */}
         {editMode && (
           <View style={styles.bottomBar}>
             <Button
               title={t('storeSettings.saveAndSync')}
-              variant="primary"
+              variant="success"
               size="lg"
-              loading={saving}
               icon={<Check size={18} color="#fff" />}
               onPress={handleSave}
-              style={{ flex: 1 }}
+              loading={saving}
+              fullWidth
             />
           </View>
         )}
       </ScrollView>
+
+      {/* ── Logo Picker Action Sheet Modal ──────────────────────── */}
+      <Modal
+        visible={logoPickerVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setLogoPickerVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.actionSheetOverlay}
+          activeOpacity={1}
+          onPress={() => setLogoPickerVisible(false)}
+        >
+          <View style={[styles.actionSheetCard, { backgroundColor: colors.surface }]} onStartShouldSetResponder={() => true}>
+            <View style={[styles.actionSheetHandle, { backgroundColor: colors.border.default }]} />
+
+            <View style={[styles.actionSheetHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 8 }}>
+                <Store size={20} color={colors.primary[600]} />
+                <Text style={[styles.actionSheetTitle, { color: colors.text.primary }]}>
+                  {t('storeSettings.storeLogo')}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setLogoPickerVisible(false)} style={{ padding: 4 }}>
+                <X size={20} color={colors.text.tertiary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Options List */}
+            <View style={styles.actionSheetOptions}>
+              {/* Option 1: Take Photo with Camera */}
+              <TouchableOpacity
+                style={[
+                  styles.actionSheetOptionItem,
+                  {
+                    backgroundColor: isDark ? colors.surfaceElevated : colors.slate[50],
+                    borderColor: colors.border.subtle,
+                    flexDirection: isRTL ? 'row-reverse' : 'row',
+                  },
+                ]}
+                onPress={handleCaptureLogo}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.actionOptionIconBox, { backgroundColor: colors.primary[50] }]}>
+                  <Camera size={22} color={colors.primary[600]} />
+                </View>
+                <View style={[styles.actionOptionTextGroup, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+                  <Text style={[styles.actionOptionTitle, { color: colors.text.primary }]}>
+                    {t('storeSettings.takeLogoPhoto')}
+                  </Text>
+                  <Text style={[styles.actionOptionDesc, { color: colors.text.tertiary }]}>
+                    {t('storeSettings.takeLogoPhotoDesc')}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Option 2: Choose from Gallery */}
+              <TouchableOpacity
+                style={[
+                  styles.actionSheetOptionItem,
+                  {
+                    backgroundColor: isDark ? colors.surfaceElevated : colors.slate[50],
+                    borderColor: colors.border.subtle,
+                    flexDirection: isRTL ? 'row-reverse' : 'row',
+                  },
+                ]}
+                onPress={handlePickLogoGallery}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.actionOptionIconBox, { backgroundColor: colors.indigo[50] }]}>
+                  <ImageIcon size={22} color={colors.indigo[600]} />
+                </View>
+                <View style={[styles.actionOptionTextGroup, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+                  <Text style={[styles.actionOptionTitle, { color: colors.text.primary }]}>
+                    {t('storeSettings.chooseLogoGallery')}
+                  </Text>
+                  <Text style={[styles.actionOptionDesc, { color: colors.text.tertiary }]}>
+                    {t('storeSettings.chooseLogoGalleryDesc')}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Option 3: Enter URL */}
+              <TouchableOpacity
+                style={[
+                  styles.actionSheetOptionItem,
+                  {
+                    backgroundColor: isDark ? colors.surfaceElevated : colors.slate[50],
+                    borderColor: colors.border.subtle,
+                    flexDirection: isRTL ? 'row-reverse' : 'row',
+                  },
+                ]}
+                onPress={() => {
+                  setLogoPickerVisible(false);
+                  setLogoUrlModalVisible(true);
+                }}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.actionOptionIconBox, { backgroundColor: colors.amber[50] }]}>
+                  <Globe size={22} color={colors.amber[700]} />
+                </View>
+                <View style={[styles.actionOptionTextGroup, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+                  <Text style={[styles.actionOptionTitle, { color: colors.text.primary }]}>
+                    {t('storeSettings.enterLogoUrl')}
+                  </Text>
+                  <Text style={[styles.actionOptionDesc, { color: colors.text.tertiary }]}>
+                    {t('storeSettings.enterLogoUrlDesc')}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Option 4: Delete Logo */}
+              {form.logo ? (
+                <TouchableOpacity
+                  style={[
+                    styles.actionSheetOptionItem,
+                    {
+                      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : colors.danger.light,
+                      borderColor: colors.danger.border,
+                      flexDirection: isRTL ? 'row-reverse' : 'row',
+                    },
+                  ]}
+                  onPress={handleRemoveLogo}
+                  activeOpacity={0.75}
+                >
+                  <View style={[styles.actionOptionIconBox, { backgroundColor: colors.danger.light }]}>
+                    <Trash2 size={22} color={colors.danger.main} />
+                  </View>
+                  <View style={[styles.actionOptionTextGroup, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+                    <Text style={[styles.actionOptionTitle, { color: colors.danger.main }]}>
+                      {t('storeSettings.removeStoreLogo')}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── Enter URL Modal ─────────────────────────────────────── */}
+      <Modal
+        visible={logoUrlModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLogoUrlModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.actionSheetOverlay}
+          activeOpacity={1}
+          onPress={() => setLogoUrlModalVisible(false)}
+        >
+          <View style={[styles.urlModalCard, { backgroundColor: colors.surface }]} onStartShouldSetResponder={() => true}>
+            <Text style={[styles.urlModalTitle, { color: colors.text.primary }]}>
+              {t('storeSettings.enterLogoUrl')}
+            </Text>
+            <TextInput
+              style={[
+                styles.urlTextInput,
+                {
+                  color: colors.text.primary,
+                  backgroundColor: colors.inputBg,
+                  borderColor: colors.border.default,
+                  textAlign,
+                },
+              ]}
+              value={customLogoUrl}
+              onChangeText={setCustomLogoUrl}
+              placeholder="https://example.com/logo.png"
+              placeholderTextColor={colors.slate[400]}
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoFocus
+            />
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: spacing.md }}>
+              <Button
+                title={t('common.cancel')}
+                variant="outline"
+                size="md"
+                onPress={() => {
+                  setCustomLogoUrl('');
+                  setLogoUrlModalVisible(false);
+                }}
+                style={{ flex: 1 }}
+              />
+              <Button
+                title={t('common.save')}
+                variant="primary"
+                size="md"
+                onPress={handleApplyLogoUrl}
+                style={{ flex: 1 }}
+              />
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 };
 
-/* ── Helper Components ───────────────────────────────────────── */
+/* ── Helper Components ────────────────────────────────────────── */
 
 const TabButton = ({ active, title, icon, onPress, colors }: any) => (
   <TouchableOpacity
@@ -859,15 +1216,15 @@ const TabButton = ({ active, title, icon, onPress, colors }: any) => (
       },
     ]}
     onPress={onPress}
-    activeOpacity={0.75}
+    activeOpacity={0.7}
   >
     {icon}
     <Text
       style={[
         styles.tabBtnText,
         {
-          color: active ? '#ffffff' : colors.text.secondary,
-          fontWeight: active ? '800' : '600',
+          color: active ? '#fff' : colors.text.secondary,
+          fontWeight: active ? '700' : '500',
         },
       ]}
     >
@@ -881,12 +1238,11 @@ const FormField = ({
   value,
   onChangeText,
   editMode,
-  placeholder,
   keyboardType = 'default',
-  multiline = false,
   icon,
   colors,
   textAlign = 'right',
+  placeholder,
 }: any) => (
   <View style={[styles.formField, { borderBottomColor: colors.border.subtle }]}>
     <View style={styles.formFieldHeader}>
@@ -897,28 +1253,35 @@ const FormField = ({
       <TextInput
         style={[
           styles.formInput,
-          multiline && { height: 72, textAlignVertical: 'top' },
           {
+            color: colors.text.primary,
             backgroundColor: colors.inputBg,
             borderColor: colors.border.default,
-            color: colors.text.primary,
+            textAlign,
           },
         ]}
-        value={value || ''}
+        value={String(value || '')}
         onChangeText={onChangeText}
+        keyboardType={keyboardType}
         placeholder={placeholder}
         placeholderTextColor={colors.slate[400]}
-        keyboardType={keyboardType}
-        multiline={multiline}
-        textAlign={textAlign}
       />
     ) : (
       <Text style={[styles.formValue, { color: colors.text.primary, textAlign }]}>
-        {value ? String(value) : '—'}
+        {value || '—'}
       </Text>
     )}
   </View>
 );
+
+const DiagnosticRow = ({ label, value, colors }: any) => (
+  <View style={[styles.diagRow, { backgroundColor: colors.surfaceSubtle }]}>
+    <Text style={[styles.diagKey, { color: colors.text.secondary }]}>{label}</Text>
+    <Text style={[styles.diagVal, { color: colors.text.primary }]}>{value}</Text>
+  </View>
+);
+
+/* ── Styles ───────────────────────────────────────────────────── */
 
 const styles = StyleSheet.create({
   container: {
@@ -934,22 +1297,21 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     fontSize: 14,
     fontFamily: 'Cairo',
-    fontWeight: '600',
   },
 
-  /* App Bar */
+  /* Header */
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 4,
+    paddingVertical: spacing.md,
     borderBottomWidth: 1,
     gap: spacing.sm,
   },
   backBtn: {
     width: 38,
     height: 38,
-    borderRadius: radii.lg,
+    borderRadius: radii.circle,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -969,11 +1331,11 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: spacing.xs,
   },
   iconActionBtn: {
-    width: 36,
-    height: 36,
+    width: 34,
+    height: 34,
     borderRadius: radii.md,
     alignItems: 'center',
     justifyContent: 'center',
@@ -986,20 +1348,20 @@ const styles = StyleSheet.create({
   },
   editToggleBtnText: {
     color: '#fff',
-    fontSize: 12.5,
-    fontWeight: '800',
+    fontSize: 12,
+    fontWeight: '700',
     fontFamily: 'Cairo',
   },
   cancelBtn: {
-    width: 36,
-    height: 36,
+    width: 34,
+    height: 34,
     borderRadius: radii.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
   saveBtn: {
-    width: 36,
-    height: 36,
+    width: 34,
+    height: 34,
     borderRadius: radii.md,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1011,33 +1373,36 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: spacing.md,
-    paddingBottom: spacing.xxxl + spacing.xl,
+    paddingBottom: spacing.xxxl,
   },
 
   /* Hero Card */
   heroCard: {
     padding: spacing.md,
     marginBottom: spacing.md,
+    borderRadius: radii.xl,
     borderWidth: 1,
   },
   heroTopRow: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: spacing.md,
+    gap: spacing.sm,
   },
   heroTitleGroup: {
     flex: 1,
   },
   heroStoreName: {
-    fontSize: 17,
-    fontWeight: '800',
+    fontSize: 18,
+    fontWeight: '900',
     fontFamily: 'Cairo',
   },
   heroStoreAddress: {
     fontSize: 12,
     fontFamily: 'Cairo',
     marginTop: 2,
+  },
+  heroLogoTouchable: {
+    position: 'relative',
   },
   heroAvatar: {
     width: 52,
@@ -1046,6 +1411,23 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  heroLogoImg: {
+    width: '100%',
+    height: '100%',
+  },
+  heroCameraBadge: {
+    position: 'absolute',
+    bottom: -3,
+    right: -3,
+    width: 18,
+    height: 18,
+    borderRadius: radii.circle,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#ffffff',
   },
   heroDivider: {
     height: 1,
@@ -1115,7 +1497,6 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   tabHeaderRow: {
-    flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
     marginBottom: spacing.md,
@@ -1139,6 +1520,71 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: 'Cairo',
     marginTop: 1,
+  },
+
+  /* Store Logo Box in Tab */
+  logoSectionCard: {
+    alignItems: 'center',
+    padding: spacing.md,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    marginBottom: spacing.md,
+    gap: spacing.md,
+  },
+  logoBoxTouchable: {
+    position: 'relative',
+  },
+  logoBox: {
+    width: 58,
+    height: 58,
+    borderRadius: radii.lg,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  logoPreviewImg: {
+    width: '100%',
+    height: '100%',
+  },
+  logoActionBadge: {
+    position: 'absolute',
+    bottom: -3,
+    right: -3,
+    width: 20,
+    height: 20,
+    borderRadius: radii.circle,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#ffffff',
+  },
+  logoInfoBox: {
+    flex: 1,
+    gap: 2,
+  },
+  logoTitle: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    fontFamily: 'Cairo',
+  },
+  logoDesc: {
+    fontSize: 11,
+    fontFamily: 'Cairo',
+  },
+  smallLogoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 4,
+    borderRadius: radii.md,
+  },
+  smallLogoBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    fontFamily: 'Cairo',
+    color: '#ffffff',
   },
 
   /* Form Fields */
@@ -1206,6 +1652,94 @@ const styles = StyleSheet.create({
 
   bottomBar: {
     marginTop: spacing.lg,
+  },
+
+  // Action Sheet Modals
+  actionSheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    justifyContent: 'flex-end',
+  },
+  actionSheetCard: {
+    borderTopLeftRadius: radii.xxl,
+    borderTopRightRadius: radii.xxl,
+    padding: spacing.xl,
+    paddingBottom: spacing.xxxl,
+    gap: spacing.md,
+    ...shadows.lg,
+  },
+  actionSheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: radii.full,
+    alignSelf: 'center',
+    marginBottom: spacing.xs,
+  },
+  actionSheetHeader: {
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(150,150,150,0.1)',
+  },
+  actionSheetTitle: {
+    fontSize: 16.5,
+    fontWeight: '800',
+    fontFamily: 'Cairo',
+  },
+  actionSheetOptions: {
+    gap: spacing.sm,
+  },
+  actionSheetOptionItem: {
+    alignItems: 'center',
+    padding: spacing.md,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    gap: spacing.md,
+  },
+  actionOptionIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: radii.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionOptionTextGroup: {
+    flex: 1,
+    gap: 1,
+  },
+  actionOptionTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    fontFamily: 'Cairo',
+  },
+  actionOptionDesc: {
+    fontSize: 11.5,
+    fontFamily: 'Cairo',
+  },
+
+  // URL Modal Card
+  urlModalCard: {
+    marginHorizontal: spacing.xl,
+    marginBottom: 'auto',
+    marginTop: 'auto',
+    borderRadius: radii.xxl,
+    padding: spacing.xl,
+    gap: spacing.md,
+    ...shadows.lg,
+  },
+  urlModalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    fontFamily: 'Cairo',
+    textAlign: 'center',
+  },
+  urlTextInput: {
+    borderRadius: radii.xl,
+    padding: spacing.md,
+    borderWidth: 1.5,
+    fontSize: 14,
+    fontFamily: 'Cairo',
   },
 });
 

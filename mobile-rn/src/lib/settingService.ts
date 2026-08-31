@@ -97,45 +97,69 @@ export function normalizeStoreSettings(input: any): StoreSettings {
 
   if (!input) return merged as StoreSettings;
 
-  // Case 1: Array of rows (either key-value pairs or row objects from SQLite / Dexie)
-  if (Array.isArray(input)) {
-    for (const r of input) {
-      if (!r || typeof r !== 'object') continue;
-      // Key-value pair format
-      if (r.key !== undefined && r.value !== undefined) {
-        merged[r.key] = r.value;
-      }
-      // Direct column format (e.g. { id: 'default', shop_name: '...', phone: '...' })
-      for (const [k, v] of Object.entries(r)) {
-        if (k !== 'key' && k !== 'value' && v !== null && v !== undefined) {
+  // Unwrap wrapper object (e.g. { success: true, settings: { ... } } or { data: [ ... ] } or { data: { ... } })
+  let source = input;
+  if (input && typeof input === 'object' && !Array.isArray(input)) {
+    if (input.settings !== undefined && input.settings !== null) {
+      source = input.settings;
+    } else if (input.data !== undefined && input.data !== null) {
+      source = input.data;
+    }
+  }
+
+  // Case 1: Array of rows or KV pairs (or input.data was an array)
+  if (Array.isArray(source)) {
+    // Look for master/default row first
+    const defaultRow = source.find((r: any) => r && typeof r === 'object' && (r.id === 'default' || r.id === 'master' || r.id === 'settings'));
+    if (defaultRow) {
+      for (const [k, v] of Object.entries(defaultRow)) {
+        if (v !== null && v !== undefined && v !== '') {
           merged[k] = v;
         }
       }
     }
-  } else if (typeof input === 'object') {
-    // Case 2: Object from API (e.g. { settings: { ... } } or { data: { ... } } or direct { shop_name: '...' })
-    const source = input.settings || input.data || input;
-    if (typeof source === 'object') {
-      for (const [k, v] of Object.entries(source)) {
-        if (v !== null && v !== undefined) {
-          merged[k] = v;
+
+    // Process other rows, BUT do not overwrite non-empty values with empty strings!
+    for (const r of source) {
+      if (!r || typeof r !== 'object') continue;
+      // Key-value pair format { key: '...', value: '...' }
+      if (r.key !== undefined && r.value !== undefined && r.value !== null && r.value !== '') {
+        merged[r.key] = r.value;
+      }
+      // Direct column format
+      for (const [k, v] of Object.entries(r)) {
+        if (k !== 'key' && k !== 'value' && v !== null && v !== undefined && v !== '') {
+          if (!merged[k] || merged[k] === DEFAULT_STORE_SETTINGS[k] || k === 'logo' || k === 'shop_logo' || k === 'shop_name' || k === 'store_name') {
+            merged[k] = v;
+          }
         }
+      }
+    }
+  } else if (source && typeof source === 'object') {
+    // Case 2: Direct Object
+    for (const [k, v] of Object.entries(source)) {
+      if (v !== null && v !== undefined && v !== '') {
+        merged[k] = v;
       }
     }
   }
 
   // Cross-map aliases
-  const shopName = String(merged.shop_name || merged.store_name || merged.shopName || DEFAULT_STORE_SETTINGS.shop_name).trim();
-  const phone = String(merged.phone || merged.store_phone || merged.shop_phone || '').trim();
-  const email = String(merged.email || merged.store_email || merged.shop_email || '').trim();
-  const address = String(merged.address || merged.store_address || merged.shop_address || '').trim();
-  const currency = String(merged.base_currency || merged.currency || merged.currency_code || DEFAULT_STORE_SETTINGS.base_currency).trim();
-  const rc = String(merged.commercial_register || merged.company_rc || merged.rc || '').trim();
-  const nif = String(merged.tax_number || merged.company_nif || merged.nif || merged.tax_id || '').trim();
-  const art = String(merged.company_art || merged.tax_article || merged.art || '').trim();
-  const ai = String(merged.company_ai || merged.nis || merged.ai || '').trim();
+  const rawShopName = merged.shop_name || merged.store_name || merged.shopName || merged.name;
+  const shopName = rawShopName && String(rawShopName).trim() ? String(rawShopName).trim() : DEFAULT_STORE_SETTINGS.shop_name;
+  const phone = String(merged.phone || merged.store_phone || merged.shop_phone || merged.shopPhone || '').trim();
+  const phone2 = String(merged.phone2 || merged.shop_phone2 || merged.shopPhone2 || '').trim();
+  const email = String(merged.email || merged.store_email || merged.shop_email || merged.shopEmail || '').trim();
+  const address = String(merged.address || merged.store_address || merged.shop_address || merged.shopAddress || '').trim();
+  const city = String(merged.city || '').trim();
+  const currency = String(merged.base_currency || merged.baseCurrency || merged.currency || merged.currency_code || DEFAULT_STORE_SETTINGS.base_currency).trim();
+  const rc = String(merged.commercial_register || merged.commercialRegister || merged.company_rc || merged.companyRC || merged.rc || '').trim();
+  const nif = String(merged.tax_number || merged.taxNumber || merged.company_nif || merged.companyNif || merged.companyNIF || merged.nif || merged.tax_id || '').trim();
+  const art = String(merged.company_art || merged.companyArt || merged.tax_article || merged.taxArticle || merged.art || '').trim();
+  const ai = String(merged.company_ai || merged.companyAI || merged.nis || merged.ai || '').trim();
   const footer = String(merged.receipt_footer || merged.receiptFooter || DEFAULT_STORE_SETTINGS.receipt_footer).trim();
   const prefix = String(merged.invoice_prefix || merged.invoicePrefix || DEFAULT_STORE_SETTINGS.invoice_prefix).trim();
+  const logo = String(merged.logo || merged.shop_logo || merged.shopLogo || merged.logo_url || merged.imageUrl || '').trim();
 
   let tvaRate = Number(merged.tva_rate ?? merged.tvaRate ?? DEFAULT_STORE_SETTINGS.tva_rate);
   if (isNaN(tvaRate)) tvaRate = 0;
@@ -147,27 +171,45 @@ export function normalizeStoreSettings(input: any): StoreSettings {
     ...merged,
     shop_name: shopName,
     store_name: shopName,
+    shopName,
     phone,
     store_phone: phone,
+    phone2,
     email,
     store_email: email,
     address,
     store_address: address,
+    city,
     base_currency: currency,
+    baseCurrency: currency,
     currency,
     commercial_register: rc,
+    commercialRegister: rc,
     company_rc: rc,
+    companyRC: rc,
     tax_number: nif,
+    taxNumber: nif,
     company_nif: nif,
+    companyNif: nif,
     company_art: art,
+    companyArt: art,
     tax_article: art,
+    taxArticle: art,
     company_ai: ai,
+    companyAI: ai,
     receipt_footer: footer,
+    receiptFooter: footer,
     invoice_prefix: prefix,
-    invoice_start_number: Number(merged.invoice_start_number ?? DEFAULT_STORE_SETTINGS.invoice_start_number),
+    invoicePrefix: prefix,
+    invoice_start_number: Number(merged.invoice_start_number ?? merged.invoiceStartNumber ?? DEFAULT_STORE_SETTINGS.invoice_start_number),
     print_language: String(merged.print_language || merged.printLanguage || DEFAULT_STORE_SETTINGS.print_language),
+    logo,
+    shop_logo: logo,
+    shopLogo: logo,
     tva_rate: tvaRate,
+    tvaRate,
     print_width_mm: printWidth,
+    printWidthMm: printWidth,
     rawMap: merged,
   };
 }
@@ -191,11 +233,15 @@ export async function fetchStoreSettingsFromDesktop(): Promise<{
       return { success: false, error: 'عنوان خادم سطح المكتب غير متوفر' };
     }
 
-    // Try /api/settings first
-    let res: any = await apiCall('GET', '/api/settings', undefined, 6000).catch(() => null);
+    // 1. Try GET /api/settings/default first (most direct & accurate)
+    let res: any = await apiCall('GET', '/api/settings/default', undefined, 6000).catch(() => null);
 
-    // If /api/settings is not directly available, try /api/pair/info or /api/sync/pull
-    if (!res || (res.error && !res.settings)) {
+    // 2. Fallbacks
+    if (!res || (res.error && !res.settings && !res.data)) {
+      res = await apiCall('GET', '/api/settings', undefined, 6000).catch(() => null);
+    }
+
+    if (!res || (res.error && !res.settings && !res.data)) {
       res = await apiCall('GET', '/api/pair/info', undefined, 4000).catch(() => null);
     }
 
@@ -215,7 +261,7 @@ export async function fetchStoreSettingsFromDesktop(): Promise<{
 }
 
 /**
- * Save normalized settings to local SQLite cache (both as single master row and KV entries)
+ * Save normalized settings to local SQLite cache (single master row)
  */
 export async function saveStoreSettingsToLocalSQLite(settings: StoreSettings): Promise<void> {
   try {
@@ -223,26 +269,29 @@ export async function saveStoreSettingsToLocalSQLite(settings: StoreSettings): P
     const sqlite = unifiedDB.getSqliteDriver();
     const nowIso = new Date().toISOString();
 
+    const logo = settings.logo || settings.shop_logo || '';
+
     // 1. Save master row in settings table
     const masterRow = {
       id: 'default',
-      shop_name: settings.shop_name,
-      phone: settings.phone,
+      shop_name: settings.shop_name || settings.store_name || DEFAULT_STORE_SETTINGS.shop_name,
+      phone: settings.phone || settings.store_phone || '',
       phone2: settings.phone2 || '',
-      email: settings.email,
-      address: settings.address,
+      email: settings.email || settings.store_email || '',
+      address: settings.address || settings.store_address || '',
       city: settings.city || '',
-      logo: settings.logo || '',
-      tva_rate: settings.tva_rate,
-      print_width_mm: settings.print_width_mm,
-      base_currency: settings.base_currency,
-      invoice_prefix: settings.invoice_prefix,
+      logo: logo,
+      shop_logo: logo,
+      tva_rate: settings.tva_rate || 0,
+      print_width_mm: settings.print_width_mm || 80,
+      base_currency: settings.base_currency || settings.currency || 'دج',
+      invoice_prefix: settings.invoice_prefix || 'INV-',
       invoice_start_number: settings.invoice_start_number || 1,
-      receipt_footer: settings.receipt_footer,
-      commercial_register: settings.commercial_register || '',
-      company_rc: settings.commercial_register || '',
-      tax_number: settings.tax_number || '',
-      company_nif: settings.tax_number || '',
+      receipt_footer: settings.receipt_footer || '',
+      commercial_register: settings.commercial_register || settings.company_rc || '',
+      company_rc: settings.commercial_register || settings.company_rc || '',
+      tax_number: settings.tax_number || settings.company_nif || '',
+      company_nif: settings.tax_number || settings.company_nif || '',
       company_art: settings.company_art || '',
       company_ai: settings.company_ai || '',
       allow_negative_stock: settings.allow_negative_stock ? 1 : 0,
@@ -254,36 +303,10 @@ export async function saveStoreSettingsToLocalSQLite(settings: StoreSettings): P
 
     await sqlite.create('settings', masterRow).catch(() => {});
 
-    // 2. Also save / update key-value pairs for Dexie where('key').equals(...) compatibility
-    const kvPairs = [
-      { key: 'store_name', value: settings.shop_name },
-      { key: 'shop_name', value: settings.shop_name },
-      { key: 'store_address', value: settings.address },
-      { key: 'address', value: settings.address },
-      { key: 'store_phone', value: settings.phone },
-      { key: 'phone', value: settings.phone },
-      { key: 'store_email', value: settings.email },
-      { key: 'currency', value: settings.base_currency },
-      { key: 'base_currency', value: settings.base_currency },
-      { key: 'tva_rate', value: String(settings.tva_rate) },
-      { key: 'receipt_footer', value: settings.receipt_footer },
-      { key: 'invoice_prefix', value: settings.invoice_prefix },
-      { key: 'commercial_register', value: settings.commercial_register || '' },
-      { key: 'company_rc', value: settings.commercial_register || '' },
-      { key: 'tax_number', value: settings.tax_number || '' },
-      { key: 'company_nif', value: settings.tax_number || '' },
-      { key: 'company_art', value: settings.company_art || '' },
-      { key: 'company_ai', value: settings.company_ai || '' },
-    ];
-
-    for (const kv of kvPairs) {
-      const existing = await db.settings.where('key').equals(kv.key).toArray().catch(() => []);
-      if (existing.length > 0) {
-        await db.settings.update(existing[0].id, { value: kv.value, updated_at: nowIso }).catch(() => {});
-      } else {
-        await db.settings.add({ id: `s_${kv.key}`, key: kv.key, value: kv.value, created_at: nowIso, updated_at: nowIso }).catch(() => {});
-      }
-    }
+    // Clean up any legacy dummy rows created by older versions
+    try {
+      await sqlite.execute("DELETE FROM settings WHERE id != 'default' AND id LIKE 's_%'");
+    } catch {}
   } catch (err) {
     console.warn('[settingService] Error saving settings to local SQLite:', err);
   }
@@ -306,12 +329,13 @@ export async function getStoreSettings(forceRefresh = false): Promise<StoreSetti
     }
   }
 
-  // Load from local SQLite
+  // 1. Try direct default master row from local SQLite
   try {
-    const rows = await db.settings.toArray().catch(() => []);
-    if (rows && rows.length > 0) {
-      const normalized = normalizeStoreSettings(rows);
-      // If connected but haven't fetched from server yet, trigger background fetch
+    const sqlite = unifiedDB.getSqliteDriver();
+    const defaultRow = await sqlite.get<Record<string, unknown>>('settings', 'default').catch(() => null);
+    if (defaultRow && typeof defaultRow === 'object' && Object.keys(defaultRow).length > 0) {
+      const normalized = normalizeStoreSettings(defaultRow);
+      // Trigger background sync if connected
       if (mode === 'connected' || isConn) {
         fetchStoreSettingsFromDesktop().catch(() => {});
       }
@@ -319,7 +343,19 @@ export async function getStoreSettings(forceRefresh = false): Promise<StoreSetti
     }
   } catch {}
 
-  // If local SQLite is empty and connected, fetch now
+  // 2. Fallback to toArray()
+  try {
+    const rows = await db.settings.toArray().catch(() => []);
+    if (rows && rows.length > 0) {
+      const normalized = normalizeStoreSettings(rows);
+      if (mode === 'connected' || isConn) {
+        fetchStoreSettingsFromDesktop().catch(() => {});
+      }
+      return normalized;
+    }
+  } catch {}
+
+  // 3. If local SQLite is empty and connected, fetch now
   if (mode === 'connected' || isConn) {
     const remote = await fetchStoreSettingsFromDesktop();
     if (remote.success && remote.settings) {
@@ -334,7 +370,7 @@ export async function getStoreSettings(forceRefresh = false): Promise<StoreSetti
  * Save updated settings:
  * Updates local SQLite and (if in connected mode) pushes changes to Desktop POS server.
  */
-export async function saveStoreSettings(patch: Partial<StoreSettings>): Promise<{ success: boolean; error?: string }> {
+export async function saveStoreSettings(patch: Partial<StoreSettings>): Promise<{ success: boolean; settings?: StoreSettings; error?: string }> {
   try {
     const current = await getStoreSettings(false);
     const updated = normalizeStoreSettings({ ...current, ...patch });
@@ -345,18 +381,45 @@ export async function saveStoreSettings(patch: Partial<StoreSettings>): Promise<
     // 2. If in connected mode, push to Desktop POS server
     const mode = await getStoredMode();
     const isConn = await session.isConnected();
+    let finalSettings = updated;
+
     if (mode === 'connected' || isConn) {
       try {
-        await apiCall('PUT', '/api/settings', updated, 6000).catch(async () => {
-          // If PUT fails, try POST
-          await apiCall('POST', '/api/settings', updated, 6000).catch(() => {});
+        const payload = {
+          ...updated,
+          id: 'default',
+          shop_name: updated.shop_name,
+          store_name: updated.shop_name,
+          shopName: updated.shop_name,
+          phone: updated.phone,
+          store_phone: updated.phone,
+          email: updated.email,
+          store_email: updated.email,
+          address: updated.address,
+          store_address: updated.address,
+          logo: updated.logo || updated.shop_logo || '',
+          shop_logo: updated.logo || updated.shop_logo || '',
+          shopLogo: updated.logo || updated.shop_logo || '',
+          base_currency: updated.base_currency,
+          currency: updated.base_currency,
+        };
+
+        let res: any = await apiCall('PUT', '/api/settings/default', payload, 8000).catch(async () => {
+          return await apiCall('PUT', '/api/settings', payload, 8000).catch(async () => {
+            return await apiCall('POST', '/api/settings', payload, 8000).catch(() => null);
+          });
         });
+
+        if (res && (res.settings || res.data)) {
+          finalSettings = normalizeStoreSettings(res);
+          await saveStoreSettingsToLocalSQLite(finalSettings);
+        }
       } catch (pushErr: any) {
         console.warn('[settingService] Could not push settings to desktop:', pushErr);
       }
     }
 
-    return { success: true };
+    return { success: true, settings: finalSettings };
   } catch (err: any) {
     return { success: false, error: err?.message || 'فشل حفظ الإعدادات' };
   }

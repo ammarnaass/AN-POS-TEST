@@ -11,7 +11,8 @@ import {
 } from 'react-native';
 import {
   Calculator,
-  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
   Package,
   Wallet,
   Users,
@@ -19,7 +20,6 @@ import {
   CheckCircle,
   AlertTriangle,
   Info,
-  ArrowLeft,
 } from 'lucide-react-native';
 import { db, ensureInit } from '@/lib/db';
 import type { Product, Customer, Supplier, CashSession } from '@shared/types';
@@ -30,7 +30,10 @@ const ZAKAT_RATE = 0.025; // 2.5%
 
 export const ZakatCalculatorScreen = ({ navigation }: any) => {
   const { isDark, colors } = useTheme();
-  const { t, isRTL, currency } = useI18n();
+  const { t, isRTL, textAlign, currency, language } = useI18n();
+  const localeStr = language === 'ar' ? 'ar-DZ' : language === 'fr' ? 'fr-FR' : 'en-US';
+  const styles = useMemo(() => makeStyles(colors, isDark), [colors, isDark]);
+
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -68,7 +71,7 @@ export const ZakatCalculatorScreen = ({ navigation }: any) => {
     setLoading(false);
   }
 
-  // 1. Inventory Cost Value (عروض التجارة بسعر التكلفة)
+  // 1. Inventory Cost Value
   const inventoryCostValue = useMemo(() => {
     return products.reduce((sum, p) => {
       const cost = p.costPrice || (p as any).purchase_price || 0;
@@ -77,7 +80,7 @@ export const ZakatCalculatorScreen = ({ navigation }: any) => {
     }, 0);
   }, [products]);
 
-  // 2. Cash on hand (السيولة النقدية)
+  // 2. Cash on hand
   const autoCashValue = useMemo(() => {
     const openSession = cashSessions.find((s) => s.status === 'open');
     if (!openSession) return 0;
@@ -90,17 +93,17 @@ export const ZakatCalculatorScreen = ({ navigation }: any) => {
     ? parseFloat(manualCashOverride) || 0
     : autoCashValue;
 
-  // 3. Customer Receivables (ديون الكريدي المرجوة)
+  // 3. Customer Receivables
   const receivablesValue = useMemo(() => {
     return customers.reduce((sum, c) => sum + Math.max(0, c.balance || 0), 0);
   }, [customers]);
 
-  // 4. Supplier Debts to Deduct (ديون الموردين الواجبة الخصم)
+  // 4. Supplier Debts to Deduct
   const payablesValue = useMemo(() => {
     return suppliers.reduce((sum, s) => sum + Math.max(0, s.balance || 0), 0);
   }, [suppliers]);
 
-  // Total Zakatable Wealth (الوعاء الزكوي)
+  // Total Zakatable Wealth
   const zakatCalculation = useMemo(() => {
     let totalWealth = inventoryCostValue;
     if (includeCash) totalWealth += effectiveCash;
@@ -127,48 +130,49 @@ export const ZakatCalculatorScreen = ({ navigation }: any) => {
     nisab,
   ]);
 
-  const BackIcon = isRTL ? ArrowRight : ArrowLeft;
+  const BackIcon = isRTL ? ChevronRight : ChevronLeft;
 
   if (loading) {
     return (
-      <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={colors.primary[600]} />
       </View>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={styles.container}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border.default }]}>
+      <View style={[styles.header, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBackBtn}>
           <BackIcon size={22} color={colors.text.primary} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text.primary }]}>{t('zakatCalculator.title')}</Text>
+        <Text style={styles.headerTitle}>{t('zakatCalculator.title')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: 40 }}>
         {/* Zakat Result Hero Card */}
-        <View style={[styles.heroCard, { backgroundColor: isDark ? colors.surfaceElevated : '#065f46', borderColor: colors.border.default }]}>
+        <View style={styles.heroCard}>
           <View style={styles.heroIconBox}>
-            <Calculator size={26} color="#10b981" />
+            <Calculator size={26} color={colors.emerald[600]} />
           </View>
           <Text style={styles.heroLabel}>{t('zakatCalculator.zakatDue')}</Text>
           <Text style={styles.heroVal}>
-            {zakatCalculation.zakatDue.toLocaleString()} {currency}
+            {zakatCalculation.zakatDue.toLocaleString(localeStr)} {currency}
           </Text>
 
           <View
             style={[
               styles.nisabBadge,
+              { flexDirection: isRTL ? 'row-reverse' : 'row' },
               zakatCalculation.isNisabReached ? styles.nisabMet : styles.nisabNotMet,
             ]}
           >
             {zakatCalculation.isNisabReached ? (
-              <CheckCircle size={14} color="#22c55e" />
+              <CheckCircle size={14} color={colors.emerald[600]} />
             ) : (
-              <AlertTriangle size={14} color="#f59e0b" />
+              <AlertTriangle size={14} color={colors.warning.text} />
             )}
             <Text
               style={[
@@ -184,12 +188,12 @@ export const ZakatCalculatorScreen = ({ navigation }: any) => {
         </View>
 
         {/* Nisab Configuration */}
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border.default }]}>
-          <Text style={[styles.cardSectionTitle, { color: colors.text.primary }]}>{t('zakatCalculator.nisabValue')}</Text>
+        <View style={styles.card}>
+          <Text style={[styles.cardSectionTitle, { textAlign }]}>{t('zakatCalculator.nisabValue')}</Text>
           <View style={styles.formGroup}>
-            <Text style={[styles.formLabel, { color: colors.text.secondary }]}>{t('zakatCalculator.nisabValue')}</Text>
+            <Text style={[styles.formLabel, { textAlign }]}>{t('zakatCalculator.nisabValue')} ({currency})</Text>
             <TextInput
-              style={[styles.formInput, { color: colors.text.primary, backgroundColor: colors.background, borderColor: colors.border.default }]}
+              style={styles.formInput}
               value={nisab}
               onChangeText={setNisab}
               keyboardType="numeric"
@@ -199,91 +203,91 @@ export const ZakatCalculatorScreen = ({ navigation }: any) => {
         </View>
 
         {/* Wealth Breakdown */}
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border.default }]}>
-          <Text style={[styles.cardSectionTitle, { color: colors.text.primary }]}>{t('zakatCalculator.zakatableAssets')}</Text>
+        <View style={styles.card}>
+          <Text style={[styles.cardSectionTitle, { textAlign }]}>{t('zakatCalculator.zakatableAssets')}</Text>
 
           {/* Inventory */}
-          <View style={styles.wealthRow}>
-            <Text style={[styles.wealthVal, { color: colors.text.primary }]}>
-              +{inventoryCostValue.toLocaleString()} {currency}
-            </Text>
-            <View style={styles.wealthLabelCol}>
-              <View style={styles.labelWithIcon}>
-                <Text style={[styles.wealthLabel, { color: colors.text.primary }]}>{t('zakatCalculator.inventoryValue')}</Text>
-                <Package size={15} color="#3b82f6" />
+          <View style={[styles.wealthRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+            <View style={[styles.wealthLabelCol, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+              <View style={[styles.labelWithIcon, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <Package size={15} color={colors.primary[600]} />
+                <Text style={styles.wealthLabel}>{t('zakatCalculator.inventoryValue')}</Text>
               </View>
-              <Text style={[styles.wealthSub, { color: colors.text.tertiary }]}>{t('profitCenter.costOfGoods')}</Text>
+              <Text style={styles.wealthSub}>{t('profitCenter.costOfGoods')}</Text>
             </View>
+            <Text style={styles.wealthVal}>
+              +{inventoryCostValue.toLocaleString(localeStr)} {currency}
+            </Text>
           </View>
 
-          <View style={[styles.divider, { backgroundColor: colors.border.subtle }]} />
+          <View style={styles.divider} />
 
           {/* Cash */}
-          <View style={styles.wealthRow}>
-            <Text style={[styles.wealthVal, { color: colors.text.primary }]}>
-              +{effectiveCash.toLocaleString()} {currency}
-            </Text>
-            <View style={styles.wealthLabelCol}>
-              <View style={styles.labelWithIcon}>
-                <Text style={[styles.wealthLabel, { color: colors.text.primary }]}>{t('zakatCalculator.cashOnHand')}</Text>
-                <Wallet size={15} color="#10b981" />
+          <View style={[styles.wealthRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+            <View style={[styles.wealthLabelCol, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+              <View style={[styles.labelWithIcon, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <Wallet size={15} color={colors.emerald[600]} />
+                <Text style={styles.wealthLabel}>{t('zakatCalculator.cashOnHand')}</Text>
               </View>
               <Switch
                 value={includeCash}
                 onValueChange={setIncludeCash}
-                trackColor={{ true: '#10b981', false: '#cbd5e1' }}
+                trackColor={{ true: colors.emerald[600], false: colors.slate[300] }}
               />
             </View>
+            <Text style={styles.wealthVal}>
+              +{effectiveCash.toLocaleString(localeStr)} {currency}
+            </Text>
           </View>
 
-          <View style={[styles.divider, { backgroundColor: colors.border.subtle }]} />
+          <View style={styles.divider} />
 
           {/* Receivables */}
-          <View style={styles.wealthRow}>
-            <Text style={[styles.wealthVal, { color: colors.text.primary }]}>
-              +{receivablesValue.toLocaleString()} {currency}
-            </Text>
-            <View style={styles.wealthLabelCol}>
-              <View style={styles.labelWithIcon}>
-                <Text style={[styles.wealthLabel, { color: colors.text.primary }]}>{t('zakatCalculator.receivables')}</Text>
-                <Users size={15} color="#8b5cf6" />
+          <View style={[styles.wealthRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+            <View style={[styles.wealthLabelCol, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+              <View style={[styles.labelWithIcon, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <Users size={15} color={colors.purple[600]} />
+                <Text style={styles.wealthLabel}>{t('zakatCalculator.receivables')}</Text>
               </View>
               <Switch
                 value={includeReceivables}
                 onValueChange={setIncludeReceivables}
-                trackColor={{ true: '#8b5cf6', false: '#cbd5e1' }}
+                trackColor={{ true: colors.purple[600], false: colors.slate[300] }}
               />
             </View>
+            <Text style={styles.wealthVal}>
+              +{receivablesValue.toLocaleString(localeStr)} {currency}
+            </Text>
           </View>
 
-          <View style={[styles.divider, { backgroundColor: colors.border.subtle }]} />
+          <View style={styles.divider} />
 
           {/* Payables deduction */}
-          <View style={styles.wealthRow}>
-            <Text style={[styles.wealthVal, { color: '#ef4444' }]}>
-              -{payablesValue.toLocaleString()} {currency}
-            </Text>
-            <View style={styles.wealthLabelCol}>
-              <View style={styles.labelWithIcon}>
-                <Text style={[styles.wealthLabel, { color: colors.text.primary }]}>{t('zakatCalculator.debtsToDeduct')}</Text>
-                <Truck size={15} color="#ef4444" />
+          <View style={[styles.wealthRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+            <View style={[styles.wealthLabelCol, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+              <View style={[styles.labelWithIcon, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <Truck size={15} color={colors.danger.main} />
+                <Text style={styles.wealthLabel}>{t('zakatCalculator.debtsToDeduct')}</Text>
               </View>
               <Switch
                 value={deductPayables}
                 onValueChange={setDeductPayables}
-                trackColor={{ true: '#ef4444', false: '#cbd5e1' }}
+                trackColor={{ true: colors.danger.main, false: colors.slate[300] }}
               />
             </View>
+            <Text style={[styles.wealthVal, { color: colors.danger.main }]}>
+              -{payablesValue.toLocaleString(localeStr)} {currency}
+            </Text>
           </View>
 
-          <View style={[styles.divider, { marginVertical: 12, backgroundColor: colors.border.subtle }]} />
+          <View style={[styles.divider, { marginVertical: 12 }]} />
 
           {/* Total Zakatable Pool */}
-          <View style={styles.poolTotalRow}>
-            <Text style={[styles.poolTotalVal, { color: '#10b981' }]}>
-              {zakatCalculation.totalWealth.toLocaleString()} {currency}
+          <View style={[styles.poolTotalRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+            <Text style={styles.poolTotalLabel}>{t('zakatCalculator.netZakatable')}</Text>
+            <Text style={styles.poolTotalVal}>
+              {zakatCalculation.totalWealth.toLocaleString(localeStr)} {currency}
             </Text>
-            <Text style={[styles.poolTotalLabel, { color: colors.text.primary }]}>{t('zakatCalculator.netZakatable')}</Text>
           </View>
         </View>
       </ScrollView>
@@ -291,83 +295,91 @@ export const ZakatCalculatorScreen = ({ navigation }: any) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
+const makeStyles = (colors: any, isDark: boolean) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
 
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-  },
-  headerBackBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: '#f1f5f9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: { fontSize: 17, fontWeight: 'bold', color: '#0f172a', fontFamily: 'Cairo' },
+    header: {
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.surface,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border.default,
+    },
+    headerBackBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 10,
+      backgroundColor: isDark ? colors.surfaceElevated : colors.slate[100],
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerTitle: { fontSize: 17, fontWeight: 'bold', color: colors.text.primary, fontFamily: 'Cairo' },
 
-  scroll: { flex: 1, padding: 14 },
-  heroCard: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 20,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    marginBottom: 12,
-  },
-  heroIconBox: { width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(16,185,129,0.1)', alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  heroLabel: { fontSize: 13, color: '#64748b', fontFamily: 'Cairo' },
-  heroVal: { fontSize: 32, fontWeight: '900', color: '#10b981', fontFamily: 'Cairo', marginVertical: 6 },
-  nisabBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
-  nisabMet: { backgroundColor: 'rgba(34,197,94,0.1)' },
-  nisabNotMet: { backgroundColor: 'rgba(245,158,11,0.1)' },
-  nisabBadgeText: { fontSize: 12, fontWeight: 'bold', fontFamily: 'Cairo' },
-  nisabMetText: { color: '#22c55e' },
-  nisabNotMetText: { color: '#f59e0b' },
+    scroll: { flex: 1, padding: 14 },
+    heroCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 20,
+      padding: 20,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border.default,
+      marginBottom: 12,
+    },
+    heroIconBox: {
+      width: 52,
+      height: 52,
+      borderRadius: 26,
+      backgroundColor: isDark ? 'rgba(16,185,129,0.15)' : colors.emerald[50],
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 10,
+    },
+    heroLabel: { fontSize: 13, color: colors.text.secondary, fontFamily: 'Cairo' },
+    heroVal: { fontSize: 32, fontWeight: '900', color: colors.emerald[600], fontFamily: 'Cairo', marginVertical: 6 },
+    nisabBadge: { alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
+    nisabMet: { backgroundColor: isDark ? 'rgba(34,197,94,0.15)' : colors.emerald[50] },
+    nisabNotMet: { backgroundColor: isDark ? 'rgba(245,158,11,0.15)' : colors.warning.light },
+    nisabBadgeText: { fontSize: 12, fontWeight: 'bold', fontFamily: 'Cairo' },
+    nisabMetText: { color: colors.emerald[600] },
+    nisabNotMetText: { color: colors.warning.text },
 
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    marginBottom: 12,
-  },
-  cardSectionTitle: { fontSize: 14, fontWeight: 'bold', color: '#0f172a', fontFamily: 'Cairo', textAlign: 'right', marginBottom: 12 },
-  formGroup: { marginBottom: 4 },
-  formLabel: { fontSize: 11, color: '#64748b', fontFamily: 'Cairo', textAlign: 'right', marginBottom: 6 },
-  formInput: {
-    backgroundColor: '#f8fafc',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    padding: 10,
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#0f172a',
-  },
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+      marginBottom: 12,
+    },
+    cardSectionTitle: { fontSize: 14, fontWeight: 'bold', color: colors.text.primary, fontFamily: 'Cairo', marginBottom: 12 },
+    formGroup: { marginBottom: 4 },
+    formLabel: { fontSize: 11, color: colors.text.secondary, fontFamily: 'Cairo', marginBottom: 6 },
+    formInput: {
+      backgroundColor: isDark ? colors.surfaceElevated : colors.slate[50],
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border.default,
+      padding: 10,
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: colors.text.primary,
+    },
 
-  wealthRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
-  wealthLabelCol: { alignItems: 'flex-end' },
-  labelWithIcon: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  wealthLabel: { fontSize: 13, fontWeight: '600', color: '#0f172a', fontFamily: 'Cairo' },
-  wealthSub: { fontSize: 10, color: '#94a3b8', fontFamily: 'Cairo', marginTop: 2 },
-  wealthVal: { fontSize: 14, fontWeight: 'bold', color: '#0f172a', fontFamily: 'Cairo' },
-  divider: { height: 1, backgroundColor: '#f1f5f9', marginVertical: 8 },
+    wealthRow: { justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
+    wealthLabelCol: { gap: 4 },
+    labelWithIcon: { alignItems: 'center', gap: 6 },
+    wealthLabel: { fontSize: 13, fontWeight: '600', color: colors.text.primary, fontFamily: 'Cairo' },
+    wealthSub: { fontSize: 10, color: colors.text.tertiary, fontFamily: 'Cairo', marginTop: 2 },
+    wealthVal: { fontSize: 14, fontWeight: 'bold', color: colors.text.primary, fontFamily: 'Cairo' },
+    divider: { height: 1, backgroundColor: colors.border.subtle, marginVertical: 8 },
 
-  poolTotalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 6 },
-  poolTotalLabel: { fontSize: 14, fontWeight: 'bold', color: '#0f172a', fontFamily: 'Cairo' },
-  poolTotalVal: { fontSize: 18, fontWeight: '800', color: '#3b82f6', fontFamily: 'Cairo' },
-});
+    poolTotalRow: { justifyContent: 'space-between', alignItems: 'center', paddingTop: 6 },
+    poolTotalLabel: { fontSize: 14, fontWeight: 'bold', color: colors.text.primary, fontFamily: 'Cairo' },
+    poolTotalVal: { fontSize: 18, fontWeight: '800', color: colors.primary[600], fontFamily: 'Cairo' },
+  });
 
 export default ZakatCalculatorScreen;

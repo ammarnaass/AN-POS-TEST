@@ -218,12 +218,15 @@ export async function registerPairRoutes(server: FastifyInstance): Promise<void>
     return reply.send({ success: true });
   });
 
-  // GET /api/pair/info — معلومات الخادم (IPs، shopName) — متاح قبل الاقتران لعرضه في الـ QR
+  // GET /api/pair/info — معلومات الخادم (IPs، shopName، وبيانات المحل) — متاح قبل الاقتران
   server.get('/api/pair/info', async () => {
-    const settings = queryOne("SELECT shop_name FROM settings WHERE id = 'default'") || {};
+    const settings = queryOne("SELECT * FROM settings WHERE id = 'default'") || {};
     return {
       shopName: (settings.shop_name as string) || 'AN POS',
+      shop_name: (settings.shop_name as string) || 'AN POS',
       requiresKey: true,
+      settings,
+      data: settings,
     };
   });
 

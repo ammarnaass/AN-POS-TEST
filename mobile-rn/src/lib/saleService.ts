@@ -63,13 +63,28 @@ export async function findProductByBarcodeOrQuery(code: string): Promise<Product
     }
   } catch {}
 
-  // 3. Fast match on SKU
+  // 3. Fast search in custom prices
+  try {
+    const allProds = await db.products.toArray();
+    for (const p of allProds) {
+      const rawCP = (p as any).custom_prices ?? (p as any).customPrices;
+      if (rawCP) {
+        try {
+          const cPrices = typeof rawCP === 'string' ? JSON.parse(rawCP) : (Array.isArray(rawCP) ? rawCP : []);
+          const matchCP = cPrices.find((cp: any) => cp.barcode && String(cp.barcode).trim().toLowerCase() === query.toLowerCase());
+          if (matchCP) return p;
+        } catch {}
+      }
+    }
+  } catch {}
+
+  // 4. Fast match on SKU
   try {
     const directSku = await db.products.where('sku').equals(query).first();
     if (directSku) return directSku;
   } catch {}
 
-  // 4. Fallback name/barcode partial search (limit to 1 item)
+  // 5. Fallback name/barcode partial search (limit to 1 item)
   try {
     const searchRes = await db.products.where('name').equals(query).first();
     if (searchRes) return searchRes;

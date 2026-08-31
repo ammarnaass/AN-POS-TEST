@@ -154,8 +154,8 @@ export async function apiCall<T>(
 
 export const electronAPI = {
   pair: {
-    info: () => apiCall<{ shopName: string; requiresKey: boolean }>('GET', '/api/pair/info'),
-    pair: (payload: { deviceName: string; connectionKey: string }) =>
+    info: () => apiCall<{ shopName: string; requiresKey: boolean; requiresPairing?: boolean }>('GET', '/api/pair/info'),
+    pair: (payload: { deviceName: string; connectionKey: string; key?: string; code?: string; pairingToken?: string }) =>
       apiCall<{
         success?: boolean;
         sessionToken?: string;
@@ -165,8 +165,24 @@ export const electronAPI = {
         error?: { status: number; detail: string };
       }>('POST', '/api/pair', {
         deviceName: payload.deviceName,
-        connectionKey: payload.connectionKey,
-        key: payload.connectionKey,
+        connectionKey: payload.connectionKey || payload.key || payload.code || payload.pairingToken,
+        key: payload.connectionKey || payload.key || payload.code || payload.pairingToken,
+        code: payload.code || payload.pairingToken || payload.connectionKey,
+        pairingToken: payload.pairingToken || payload.code || payload.connectionKey,
+      }),
+    confirm: (payload: { deviceName: string; pairingToken?: string; code?: string; key?: string }) =>
+      apiCall<{
+        success?: boolean;
+        sessionToken?: string;
+        token?: string;
+        deviceId?: string;
+        id?: string;
+        error?: { status: number; detail: string };
+      }>('POST', '/api/pair/confirm', {
+        deviceName: payload.deviceName,
+        pairingToken: payload.pairingToken || payload.code || payload.key,
+        code: payload.code || payload.pairingToken || payload.key,
+        key: payload.key || payload.code || payload.pairingToken,
       }),
     unpair: () => apiCall<{ success: boolean }>('POST', '/api/pair/unpair'),
   },

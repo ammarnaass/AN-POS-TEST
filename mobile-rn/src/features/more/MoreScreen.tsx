@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   Image,
+  Modal,
 } from 'react-native';
 import { AppImages } from '@/assets';
 import {
@@ -18,6 +19,7 @@ import {
   RefreshCw,
   LogOut,
   ChevronLeft,
+  ChevronRight,
   Check,
   X,
   Printer,
@@ -41,6 +43,11 @@ import {
   Warehouse,
   ClipboardCheck,
   History,
+  Camera,
+  Image as ImageIcon,
+  Trash2,
+  Globe,
+  Sparkles,
 } from 'lucide-react-native';
 import { useAuthStore } from '@/store/authStore';
 import { session } from '@/lib/apiClient';
@@ -57,12 +64,13 @@ import {
   saveStoreSettings,
   type StoreSettings,
 } from '@/lib/settingService';
+import { AnposCamera } from '@/modules/AnposCamera';
 
 export const MoreScreen = ({ navigation }: any) => {
   const { user, logout } = useAuthStore();
   const sync = useSyncEngine();
   const { mode, isDark, colors, setMode } = useTheme();
-  const { t, isRTL } = useI18n();
+  const { t, isRTL, textAlign } = useI18n();
 
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [storeData, setStoreData] = useState<StoreSettings | null>(null);
@@ -73,6 +81,12 @@ export const MoreScreen = ({ navigation }: any) => {
   const [form, setForm] = useState<Record<string, string>>({});
   const [appMode, setAppMode] = useState<'standalone' | 'connected'>('standalone');
   const [serverUrlDisplay, setServerUrlDisplay] = useState<string>('—');
+  const [activeShift, setActiveShift] = useState<any>(null);
+
+  // Store Logo Modal state
+  const [logoPickerVisible, setLogoPickerVisible] = useState(false);
+  const [logoUrlModalVisible, setLogoUrlModalVisible] = useState(false);
+  const [customLogoUrl, setCustomLogoUrl] = useState('');
 
   useEffect(() => {
     loadSettings();
@@ -112,9 +126,18 @@ export const MoreScreen = ({ navigation }: any) => {
         base_currency: st.base_currency,
         receipt_footer: st.receipt_footer,
         invoice_prefix: st.invoice_prefix,
+        logo: st.logo || st.shop_logo || '',
+        shop_logo: st.logo || st.shop_logo || '',
       };
       setSettings(map);
       setForm({ ...map });
+
+      // Fetch active cash session
+      try {
+        const allSessions = await db.cashSessions.toArray().catch(() => []);
+        const open = allSessions.find((s: any) => s.status === 'open') || null;
+        setActiveShift(open);
+      } catch {}
     } catch {
       /* ignore */
     } finally {
@@ -147,15 +170,17 @@ export const MoreScreen = ({ navigation }: any) => {
           base_currency: res.settings.base_currency,
           receipt_footer: res.settings.receipt_footer,
           invoice_prefix: res.settings.invoice_prefix,
+          logo: res.settings.logo || res.settings.shop_logo || '',
+          shop_logo: res.settings.logo || res.settings.shop_logo || '',
         };
         setSettings(map);
         setForm({ ...map });
-        Alert.alert('✓ تم التحديث', 'تم جلب بيانات وإعدادات المحل بنجاح من تطبيق سطح المكتب');
+        Alert.alert(t('common.success'), t('storeSettings.desktopFetchSuccess'));
       } else {
-        Alert.alert('تنبيه', res.error || 'تعذر الاتصال بسطح المكتب، تم استخدام الإعدادات المخزنة محلياً');
+        Alert.alert(t('common.warning'), res.error || t('storeSettings.desktopFetchFallback'));
       }
     } catch (e: any) {
-      Alert.alert('خطأ', e?.message || 'فشل جلب الإعدادات من سطح المكتب');
+      Alert.alert(t('common.error'), e?.message || t('storeSettings.desktopFetchError'));
     } finally {
       setFetchingRemote(false);
     }
@@ -180,41 +205,140 @@ export const MoreScreen = ({ navigation }: any) => {
         currency: form.currency || form.base_currency,
         receipt_footer: form.receipt_footer,
         invoice_prefix: form.invoice_prefix || 'INV-',
+        logo: form.logo || '',
+        shop_logo: form.logo || '',
       };
 
       const result = await saveStoreSettings(patch);
       if (result.success) {
         setSettings({ ...form });
         setEditMode(false);
-        Alert.alert('✓ تم الحفظ', appMode === 'connected' ? 'تم حفظ الإعدادات ومزامنتها مع الحاسوب بنجاح' : 'تم حفظ الإعدادات محلياً بنجاح');
+        Alert.alert(
+          t('common.success'),
+          appMode === 'connected'
+            ? t('storeSettings.connectedSaveSuccess')
+            : t('storeSettings.standaloneSaveSuccess')
+        );
       } else {
-        Alert.alert('خطأ', result.error || 'فشل حفظ الإعدادات');
+        Alert.alert(t('common.error'), result.error || t('common.error'));
       }
     } catch {
-      Alert.alert('خطأ', 'فشل حفظ الإعدادات');
+      Alert.alert(t('common.error'), t('common.error'));
     }
     setSaving(false);
   };
 
+  // Logo Actions
+  const handleCaptureLogo = async () => {
+    setLogoPickerVisible(false);
+    try {
+      const granted = await AnposCamera.requestPermission();
+      if (!granted) {
+        Alert.alert(t('common.warning'), 'يرجى منح صلاحية الكاميرا لالتقاط صورة الشعار');
+        return;
+      }
+      const photoUri = await AnposCamera.capturePhoto();
+      if (photoUri) {
+        setForm((prev) => ({ ...prev, logo: photoUri, shop_logo: photoUri }));
+        setSettings((prev) => ({ ...prev, logo: photoUri, shop_logo: photoUri }));
+        await saveStoreSettings({
+          shop_name: form.store_name || form.shop_name,
+          store_name: form.store_name || form.shop_name,
+          address: form.store_address || form.address,
+          phone: form.store_phone || form.phone,
+          email: form.store_email || form.email,
+          base_currency: form.currency || form.base_currency,
+          logo: photoUri,
+          shop_logo: photoUri,
+        });
+        Alert.alert(t('common.success'), t('storeSettings.logoUpdatedSuccess'));
+      }
+    } catch (e) {
+      console.warn('Capture logo failed:', e);
+    }
+  };
+
+  const handlePickLogoGallery = async () => {
+    setLogoPickerVisible(false);
+    try {
+      const imageUri = await AnposCamera.pickImage();
+      if (imageUri) {
+        setForm((prev) => ({ ...prev, logo: imageUri, shop_logo: imageUri }));
+        setSettings((prev) => ({ ...prev, logo: imageUri, shop_logo: imageUri }));
+        await saveStoreSettings({
+          shop_name: form.store_name || form.shop_name,
+          store_name: form.store_name || form.shop_name,
+          address: form.store_address || form.address,
+          phone: form.store_phone || form.phone,
+          email: form.store_email || form.email,
+          base_currency: form.currency || form.base_currency,
+          logo: imageUri,
+          shop_logo: imageUri,
+        });
+        Alert.alert(t('common.success'), t('storeSettings.logoUpdatedSuccess'));
+      }
+    } catch (e) {
+      console.warn('Pick logo gallery failed:', e);
+    }
+  };
+
+  const handleApplyLogoUrl = async () => {
+    const trimmed = customLogoUrl.trim();
+    if (trimmed) {
+      setForm((prev) => ({ ...prev, logo: trimmed, shop_logo: trimmed }));
+      setSettings((prev) => ({ ...prev, logo: trimmed, shop_logo: trimmed }));
+      await saveStoreSettings({
+        shop_name: form.store_name || form.shop_name,
+        store_name: form.store_name || form.shop_name,
+        address: form.store_address || form.address,
+        phone: form.store_phone || form.phone,
+        email: form.store_email || form.email,
+        base_currency: form.currency || form.base_currency,
+        logo: trimmed,
+        shop_logo: trimmed,
+      });
+      setCustomLogoUrl('');
+      setLogoUrlModalVisible(false);
+      Alert.alert(t('common.success'), t('storeSettings.logoUpdatedSuccess'));
+    }
+  };
+
+  const handleRemoveLogo = async () => {
+    setLogoPickerVisible(false);
+    setForm((prev) => ({ ...prev, logo: '', shop_logo: '' }));
+    setSettings((prev) => ({ ...prev, logo: '', shop_logo: '' }));
+    await saveStoreSettings({
+      shop_name: form.store_name || form.shop_name,
+      store_name: form.store_name || form.shop_name,
+      address: form.store_address || form.address,
+      phone: form.store_phone || form.phone,
+      email: form.store_email || form.email,
+      base_currency: form.currency || form.base_currency,
+      logo: '',
+      shop_logo: '',
+    });
+    Alert.alert(t('common.success'), t('storeSettings.logoRemovedSuccess'));
+  };
+
   const handleSync = async () => {
     if (appMode !== 'connected') {
-      Alert.alert('الوضع المستقل', 'المزامنة متاحة فقط في وضع الاتصال بالحاسوب');
+      Alert.alert(t('settings.standalone'), t('settings.syncOnlyConnected'));
       return;
     }
     await sync.pullUpdates();
     await sync.processQueue();
     await loadSettings(true);
     Alert.alert(
-      'تمت المزامنة',
-      `آخر مزامنة: ${sync.lastSyncTime ? new Date(sync.lastSyncTime).toLocaleTimeString('ar') : '—'}`
+      t('settings.syncStatus'),
+      `${t('settings.lastSync')}: ${sync.lastSyncTime ? new Date(sync.lastSyncTime).toLocaleTimeString(isRTL ? 'ar-DZ' : 'en-US') : '—'}`
     );
   };
 
   const handleLogout = () => {
-    Alert.alert('تسجيل الخروج', 'هل أنت متأكد من تسجيل الخروج؟', [
-      { text: 'إلغاء', style: 'cancel' },
+    Alert.alert(t('auth.logoutConfirmTitle'), t('auth.logoutConfirmMsg'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'خروج',
+        text: t('auth.logout'),
         style: 'destructive',
         onPress: () => {
           logout();
@@ -238,7 +362,70 @@ export const MoreScreen = ({ navigation }: any) => {
       contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={false}
     >
-      {/* User Card */}
+      {/* 1. Store Identity & Logo Bento Hero Card */}
+      <Card variant="elevated" style={styles.storeHeroCard}>
+        <View style={[styles.storeHeroTopRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+          {/* Interactive Logo Avatar */}
+          <TouchableOpacity
+            style={styles.storeLogoTouchable}
+            onPress={() => setLogoPickerVisible(true)}
+            activeOpacity={0.8}
+          >
+            <View
+              style={[
+                styles.storeLogoBox,
+                {
+                  backgroundColor: isDark ? colors.surfaceElevated : colors.primary[50],
+                  borderColor: form.logo ? colors.primary[400] : colors.border.default,
+                },
+              ]}
+            >
+              {form.logo ? (
+                <Image source={{ uri: form.logo }} style={styles.storeLogoImg} resizeMode="cover" />
+              ) : (
+                <Store size={30} color={colors.primary[600]} />
+              )}
+            </View>
+            <View style={[styles.logoCameraBadge, { backgroundColor: colors.primary[600] }]}>
+              <Camera size={12} color="#ffffff" />
+            </View>
+          </TouchableOpacity>
+
+          {/* Store Information */}
+          <View style={[styles.storeInfoColumn, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+            <Text style={[styles.storeHeroName, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
+              {form.store_name || form.shop_name || t('storeSettings.shopName')}
+            </Text>
+            <Text style={[styles.storeHeroAddress, { color: colors.text.secondary, textAlign: isRTL ? 'right' : 'left' }]} numberOfLines={1}>
+              {form.store_address || form.address || t('storeSettings.address')}
+            </Text>
+            {form.store_phone ? (
+              <Text style={[styles.storeHeroPhone, { color: colors.text.tertiary, textAlign: isRTL ? 'right' : 'left' }]}>
+                📞 {form.store_phone}
+              </Text>
+            ) : null}
+          </View>
+        </View>
+
+        <View style={[styles.storeHeroFooter, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+          <Badge variant={appMode === 'connected' ? 'emerald' : 'neutral'} size="xs" dot>
+            {appMode === 'connected' ? t('settings.connected') : t('settings.standalone')}
+          </Badge>
+
+          <TouchableOpacity
+            style={[styles.editLogoBtn, { backgroundColor: isDark ? colors.surfaceElevated : colors.slate[100] }]}
+            onPress={() => setLogoPickerVisible(true)}
+            activeOpacity={0.7}
+          >
+            <Camera size={13} color={colors.primary[600]} />
+            <Text style={[styles.editLogoBtnText, { color: colors.primary[600] }]}>
+              {form.logo ? t('storeSettings.changeStoreLogo') : t('storeSettings.storeLogo')}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </Card>
+
+      {/* 2. User & Session Card */}
       <Card variant="elevated" style={styles.userCard}>
         <View
           style={[
@@ -253,8 +440,10 @@ export const MoreScreen = ({ navigation }: any) => {
             {user?.name?.charAt(0)?.toUpperCase() || 'A'}
           </Text>
         </View>
-        <View style={{ flex: 1, alignItems: 'flex-end' }}>
-          <Text style={[styles.userName, { color: colors.text.primary }]}>{user?.name || 'المستخدم'}</Text>
+        <View style={{ flex: 1, alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
+          <Text style={[styles.userName, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
+            {user?.name || t('users.role') || 'User'}
+          </Text>
           <Badge
             variant={user?.role === 'admin' ? 'purple' : 'primary'}
             size="xs"
@@ -281,11 +470,11 @@ export const MoreScreen = ({ navigation }: any) => {
         </TouchableOpacity>
       </Card>
 
-      {/* Language Selection Section */}
+      {/* 3. Language Selection Section */}
       <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>{t('settings.language')}</Text>
       <LanguageSelectorGrid style={{ marginBottom: spacing.sm }} />
 
-      {/* Theme Selection Section */}
+      {/* 4. Theme Selection Section */}
       <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>{t('settings.themeMode')}</Text>
       <View style={styles.themeSelectorGrid}>
         <TouchableOpacity
@@ -376,8 +565,7 @@ export const MoreScreen = ({ navigation }: any) => {
         </TouchableOpacity>
       </View>
 
-      {/* Main Operations Modules Hub */}
-      {/* Main Operations Modules Hub */}
+      {/* 5. Main Operations Modules Hub */}
       <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>{t('settings.operationsHub')}</Text>
       <View style={styles.hubGrid}>
         <TouchableOpacity
@@ -393,15 +581,48 @@ export const MoreScreen = ({ navigation }: any) => {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+          style={[
+            styles.hubCard,
+            { backgroundColor: colors.surface, borderColor: colors.border.default },
+            activeShift && {
+              borderColor: isDark ? colors.emerald[800] : colors.emerald[300],
+              backgroundColor: isDark ? 'rgba(16, 185, 129, 0.06)' : colors.emerald[50] + '35',
+            },
+          ]}
           onPress={() => navigation.navigate('Cash')}
           activeOpacity={0.75}
         >
-          <View style={[styles.hubIconBox, { backgroundColor: colors.emerald[50] }]}>
-            <Wallet size={20} color={colors.emerald[700]} />
+          <View
+            style={[
+              styles.hubIconBox,
+              {
+                backgroundColor: activeShift
+                  ? (isDark ? 'rgba(16, 185, 129, 0.2)' : colors.emerald[100])
+                  : (isDark ? colors.surfaceElevated : colors.slate[100]),
+              },
+            ]}
+          >
+            <Wallet size={20} color={activeShift ? colors.emerald[600] : colors.slate[600]} />
           </View>
-          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('nav.cash')}</Text>
-          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('cash.currentShift')}</Text>
+          <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('nav.cash')}</Text>
+            {activeShift ? (
+              <Badge variant="emerald" size="xs" dot>
+                #{activeShift.sessionNumber || (activeShift as any).number || 1}
+              </Badge>
+            ) : null}
+          </View>
+          <Text
+            style={[
+              styles.hubCardSub,
+              {
+                color: activeShift ? colors.emerald[600] : colors.text.tertiary,
+                fontWeight: activeShift ? '700' : '500',
+              },
+            ]}
+          >
+            {activeShift ? t('cash.activeShiftBadge') : t('cash.closedShiftBadge')}
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -469,8 +690,8 @@ export const MoreScreen = ({ navigation }: any) => {
           onPress={() => navigation.navigate('InventoryCount')}
           activeOpacity={0.75}
         >
-          <View style={[styles.hubIconBox, { backgroundColor: colors.success.light }]}>
-            <ClipboardCheck size={20} color={colors.success.dark} />
+          <View style={[styles.hubIconBox, { backgroundColor: colors.emerald[100] }]}>
+            <ClipboardCheck size={20} color={colors.emerald[700]} />
           </View>
           <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('nav.inventoryCount')}</Text>
           <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('inventoryCount.title')}</Text>
@@ -481,70 +702,74 @@ export const MoreScreen = ({ navigation }: any) => {
           onPress={() => navigation.navigate('StockMovements')}
           activeOpacity={0.75}
         >
-          <View style={[styles.hubIconBox, { backgroundColor: colors.warning.light }]}>
-            <History size={20} color={colors.warning.dark} />
+          <View style={[styles.hubIconBox, { backgroundColor: colors.indigo[100] }]}>
+            <History size={20} color={colors.indigo[700]} />
           </View>
           <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('nav.stockMovements')}</Text>
           <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('stockMovements.title')}</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+          onPress={() => navigation.navigate('ProfitCenter')}
+          activeOpacity={0.75}
+        >
+          <View style={[styles.hubIconBox, { backgroundColor: colors.emerald[50] }]}>
+            <DollarSign size={20} color={colors.emerald[700]} />
+          </View>
+          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('nav.profitCenter')}</Text>
+          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('dashboard.netProfit')}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+          onPress={() => navigation.navigate('ZakatCalculator')}
+          activeOpacity={0.75}
+        >
+          <View style={[styles.hubIconBox, { backgroundColor: colors.amber[50] }]}>
+            <Calculator size={20} color={colors.amber[700]} />
+          </View>
+          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('nav.zakatCalculator')}</Text>
+          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('dashboard.zakatSub')}</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Advanced Reports & Tools */}
-      <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>{t('dashboard.analytics')}</Text>
+      {/* 6. Hardware, Print & Printing Templates */}
+      <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>{t('print.printerSettings')}</Text>
       <Card style={styles.sectionMenu}>
         <MenuItem
-          icon={<BarChart3 size={18} color={colors.primary[600]} />}
-          title={t('profitCenter.title')}
-          subtitle={t('profitCenter.subtitle')}
-          onPress={() => navigation.navigate('ProfitCenter')}
+          icon={<Printer size={18} color={colors.primary[600]} />}
+          title={t('nav.printerSettings')}
+          subtitle={t('print.printerSettings')}
+          onPress={() => navigation.navigate('Printers')}
           colors={colors}
         />
         <View style={[styles.menuDivider, { backgroundColor: colors.border.subtle }]} />
         <MenuItem
-          icon={<Calculator size={18} color={colors.emerald[700]} />}
-          title={t('zakatCalculator.title')}
-          subtitle={t('zakatCalculator.subtitle')}
-          onPress={() => navigation.navigate('ZakatCalculator')}
-          colors={colors}
-        />
-        <View style={[styles.menuDivider, { backgroundColor: colors.border.subtle }]} />
-        <MenuItem
-          icon={<FileText size={18} color={colors.primary[600]} />}
-          title={t('printTemplates.title')}
+          icon={<FileText size={18} color={colors.indigo[600]} />}
+          title={t('print.templates')}
           subtitle={t('printTemplates.subtitle')}
-          onPress={() => navigation.navigate('PrintTemplates')}
-          colors={colors}
-        />
-        <View style={[styles.menuDivider, { backgroundColor: colors.border.subtle }]} />
-        <MenuItem
-          icon={<Printer size={18} color={colors.indigo[600]} />}
-          title={t('print.printerSettings')}
-          subtitle={t('print.printerType')}
-          onPress={() => navigation.navigate('PrinterSettings')}
+          onPress={() => navigation.navigate('TemplateEditor')}
           colors={colors}
         />
         <View style={[styles.menuDivider, { backgroundColor: colors.border.subtle }]} />
         <MenuItem
           icon={<Barcode size={18} color={colors.purple[600]} />}
-          title={t('barcodeLabels.title')}
+          title={t('nav.barcodeLabels')}
           subtitle={t('barcodeLabels.subtitle')}
-          onPress={() => navigation.navigate('BarcodeLabels')}
+          onPress={() => navigation.navigate('BarcodePrint')}
           colors={colors}
         />
-        <View style={[styles.menuDivider, { backgroundColor: colors.border.subtle }]} />
+      </Card>
+
+      {/* 7. System Management & Users */}
+      <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>{t('settings.systemConfig')}</Text>
+      <Card style={styles.sectionMenu}>
         <MenuItem
-          icon={<Users size={18} color={colors.warning.dark} />}
-          title={t('users.title')}
-          subtitle={t('settings.userManagement')}
+          icon={<Users size={18} color={colors.purple[600]} />}
+          title={t('nav.users')}
+          subtitle={t('users.title')}
           onPress={() => navigation.navigate('Users')}
-          colors={colors}
-        />
-        <View style={[styles.menuDivider, { backgroundColor: colors.border.subtle }]} />
-        <MenuItem
-          icon={<Store size={18} color={colors.primary[600]} />}
-          title={t('storeSettings.title')}
-          subtitle={t('storeSettings.subtitle')}
-          onPress={() => navigation.navigate('StoreSettings')}
           colors={colors}
         />
         <View style={[styles.menuDivider, { backgroundColor: colors.border.subtle }]} />
@@ -557,7 +782,7 @@ export const MoreScreen = ({ navigation }: any) => {
         />
       </Card>
 
-      {/* Connection Status */}
+      {/* 8. Connection Status & Sync */}
       <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>{t('settings.systemConfig')}</Text>
       <Card style={styles.sectionCard}>
         <View style={styles.statusRow}>
@@ -597,7 +822,7 @@ export const MoreScreen = ({ navigation }: any) => {
         )}
       </Card>
 
-      {/* Store Settings */}
+      {/* 9. Store Settings */}
       <View style={styles.sectionHeaderRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
           <Text style={[styles.sectionTitle, { color: colors.text.secondary, marginBottom: 0 }]}>{t('storeSettings.title')}</Text>
@@ -764,38 +989,248 @@ export const MoreScreen = ({ navigation }: any) => {
         </TouchableOpacity>
       </Card>
 
-      {/* App Branding Footer */}
+      {/* 10. App Branding Footer */}
       <View style={styles.appBrandingFooter}>
         <Image source={AppImages.logo64} style={styles.brandingLogo} resizeMode="contain" />
         <Text style={[styles.brandingName, { color: colors.text.primary }]}>AN POS Mobile</Text>
         <Text style={[styles.brandingVersion, { color: colors.text.tertiary }]}>
-          الإصدار 3.0.0 • دعم الوضع المشرق والمظلم
+          {t('settings.versionDesc')}
         </Text>
       </View>
 
-      {/* Logout full button */}
+      {/* 11. Logout full button */}
       <Button
-        title="تسجيل الخروج من التطبيق"
+        title={t('auth.logout')}
         variant="destructive"
         size="lg"
         icon={<LogOut size={18} color="#fff" />}
         onPress={handleLogout}
         style={styles.logoutFullBtn}
       />
+
+      {/* ── Logo Picker Action Sheet Modal ──────────────────────── */}
+      <Modal
+        visible={logoPickerVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setLogoPickerVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.actionSheetOverlay}
+          activeOpacity={1}
+          onPress={() => setLogoPickerVisible(false)}
+        >
+          <View style={[styles.actionSheetCard, { backgroundColor: colors.surface }]} onStartShouldSetResponder={() => true}>
+            <View style={[styles.actionSheetHandle, { backgroundColor: colors.border.default }]} />
+
+            <View style={[styles.actionSheetHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 8 }}>
+                <Store size={20} color={colors.primary[600]} />
+                <Text style={[styles.actionSheetTitle, { color: colors.text.primary }]}>
+                  {t('storeSettings.storeLogo')}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setLogoPickerVisible(false)} style={{ padding: 4 }}>
+                <X size={20} color={colors.text.tertiary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Options List */}
+            <View style={styles.actionSheetOptions}>
+              {/* Option 1: Take Photo with Camera */}
+              <TouchableOpacity
+                style={[
+                  styles.actionSheetOptionItem,
+                  {
+                    backgroundColor: isDark ? colors.surfaceElevated : colors.slate[50],
+                    borderColor: colors.border.subtle,
+                    flexDirection: isRTL ? 'row-reverse' : 'row',
+                  },
+                ]}
+                onPress={handleCaptureLogo}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.actionOptionIconBox, { backgroundColor: colors.primary[50] }]}>
+                  <Camera size={22} color={colors.primary[600]} />
+                </View>
+                <View style={[styles.actionOptionTextGroup, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+                  <Text style={[styles.actionOptionTitle, { color: colors.text.primary }]}>
+                    {t('storeSettings.takeLogoPhoto')}
+                  </Text>
+                  <Text style={[styles.actionOptionDesc, { color: colors.text.tertiary }]}>
+                    {t('storeSettings.takeLogoPhotoDesc')}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Option 2: Choose from Gallery */}
+              <TouchableOpacity
+                style={[
+                  styles.actionSheetOptionItem,
+                  {
+                    backgroundColor: isDark ? colors.surfaceElevated : colors.slate[50],
+                    borderColor: colors.border.subtle,
+                    flexDirection: isRTL ? 'row-reverse' : 'row',
+                  },
+                ]}
+                onPress={handlePickLogoGallery}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.actionOptionIconBox, { backgroundColor: colors.indigo[50] }]}>
+                  <ImageIcon size={22} color={colors.indigo[600]} />
+                </View>
+                <View style={[styles.actionOptionTextGroup, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+                  <Text style={[styles.actionOptionTitle, { color: colors.text.primary }]}>
+                    {t('storeSettings.chooseLogoGallery')}
+                  </Text>
+                  <Text style={[styles.actionOptionDesc, { color: colors.text.tertiary }]}>
+                    {t('storeSettings.chooseLogoGalleryDesc')}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Option 3: Enter URL */}
+              <TouchableOpacity
+                style={[
+                  styles.actionSheetOptionItem,
+                  {
+                    backgroundColor: isDark ? colors.surfaceElevated : colors.slate[50],
+                    borderColor: colors.border.subtle,
+                    flexDirection: isRTL ? 'row-reverse' : 'row',
+                  },
+                ]}
+                onPress={() => {
+                  setLogoPickerVisible(false);
+                  setLogoUrlModalVisible(true);
+                }}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.actionOptionIconBox, { backgroundColor: colors.amber[50] }]}>
+                  <Globe size={22} color={colors.amber[700]} />
+                </View>
+                <View style={[styles.actionOptionTextGroup, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+                  <Text style={[styles.actionOptionTitle, { color: colors.text.primary }]}>
+                    {t('storeSettings.enterLogoUrl')}
+                  </Text>
+                  <Text style={[styles.actionOptionDesc, { color: colors.text.tertiary }]}>
+                    {t('storeSettings.enterLogoUrlDesc')}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Option 4: Delete Logo */}
+              {form.logo ? (
+                <TouchableOpacity
+                  style={[
+                    styles.actionSheetOptionItem,
+                    {
+                      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : colors.danger.light,
+                      borderColor: colors.danger.border,
+                      flexDirection: isRTL ? 'row-reverse' : 'row',
+                    },
+                  ]}
+                  onPress={handleRemoveLogo}
+                  activeOpacity={0.75}
+                >
+                  <View style={[styles.actionOptionIconBox, { backgroundColor: colors.danger.light }]}>
+                    <Trash2 size={22} color={colors.danger.main} />
+                  </View>
+                  <View style={[styles.actionOptionTextGroup, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+                    <Text style={[styles.actionOptionTitle, { color: colors.danger.main }]}>
+                      {t('storeSettings.removeStoreLogo')}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── Enter URL Modal ─────────────────────────────────────── */}
+      <Modal
+        visible={logoUrlModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLogoUrlModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.actionSheetOverlay}
+          activeOpacity={1}
+          onPress={() => setLogoUrlModalVisible(false)}
+        >
+          <View style={[styles.urlModalCard, { backgroundColor: colors.surface }]} onStartShouldSetResponder={() => true}>
+            <Text style={[styles.urlModalTitle, { color: colors.text.primary }]}>
+              {t('storeSettings.enterLogoUrl')}
+            </Text>
+            <TextInput
+              style={[
+                styles.urlTextInput,
+                {
+                  color: colors.text.primary,
+                  backgroundColor: colors.inputBg,
+                  borderColor: colors.border.default,
+                  textAlign,
+                },
+              ]}
+              value={customLogoUrl}
+              onChangeText={setCustomLogoUrl}
+              placeholder="https://example.com/logo.png"
+              placeholderTextColor={colors.slate[400]}
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoFocus
+            />
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: spacing.md }}>
+              <Button
+                title={t('common.cancel')}
+                variant="outline"
+                size="md"
+                onPress={() => {
+                  setCustomLogoUrl('');
+                  setLogoUrlModalVisible(false);
+                }}
+                style={{ flex: 1 }}
+              />
+              <Button
+                title={t('common.save')}
+                variant="primary"
+                size="md"
+                onPress={handleApplyLogoUrl}
+                style={{ flex: 1 }}
+              />
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </ScrollView>
   );
 };
 
-const MenuItem = ({ icon, title, subtitle, onPress, colors }: any) => (
-  <TouchableOpacity style={styles.menuItem} onPress={onPress} activeOpacity={0.7}>
-    <ChevronLeft size={16} color={colors.slate[400]} />
-    <View style={styles.menuItemInfo}>
-      <Text style={[styles.menuItemTitle, { color: colors.text.primary }]}>{title}</Text>
-      <Text style={[styles.menuItemSub, { color: colors.text.tertiary }]}>{subtitle}</Text>
-    </View>
-    <View style={[styles.menuItemIconBox, { backgroundColor: colors.primary[50] }]}>{icon}</View>
-  </TouchableOpacity>
-);
+const MenuItem = ({ icon, title, subtitle, onPress, colors }: any) => {
+  const { isRTL } = useI18n();
+  const ChevronIcon = isRTL ? ChevronLeft : ChevronRight;
+  return (
+    <TouchableOpacity
+      style={[styles.menuItem, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <ChevronIcon size={16} color={colors.slate[400]} />
+      <View style={[styles.menuItemInfo, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+        <Text style={[styles.menuItemTitle, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
+          {title}
+        </Text>
+        <Text style={[styles.menuItemSub, { color: colors.text.tertiary, textAlign: isRTL ? 'right' : 'left' }]}>
+          {subtitle}
+        </Text>
+      </View>
+      <View style={[styles.menuItemIconBox, { backgroundColor: colors.primary[50] }]}>
+        {icon}
+      </View>
+    </TouchableOpacity>
+  );
+};
 
 const SettingRow = ({
   label,
@@ -847,30 +1282,113 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
   },
 
+  // Store Hero Card & Logo Avatar
+  storeHeroCard: {
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
+    padding: spacing.md,
+    borderRadius: radii.xxl,
+    gap: spacing.md,
+  },
+  storeHeroTopRow: {
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  storeLogoTouchable: {
+    position: 'relative',
+  },
+  storeLogoBox: {
+    width: 64,
+    height: 64,
+    borderRadius: radii.xl,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  storeLogoImg: {
+    width: '100%',
+    height: '100%',
+  },
+  logoCameraBadge: {
+    position: 'absolute',
+    bottom: -4,
+    right: -4,
+    width: 22,
+    height: 22,
+    borderRadius: radii.circle,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#ffffff',
+    ...shadows.xs,
+  },
+  storeInfoColumn: {
+    flex: 1,
+    gap: 2,
+  },
+  storeHeroName: {
+    fontSize: 16,
+    fontWeight: '900',
+    fontFamily: 'Cairo',
+    letterSpacing: -0.2,
+  },
+  storeHeroAddress: {
+    fontSize: 12,
+    fontFamily: 'Cairo',
+  },
+  storeHeroPhone: {
+    fontSize: 11.5,
+    fontFamily: 'Cairo',
+    marginTop: 1,
+  },
+  storeHeroFooter: {
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(150,150,150,0.12)',
+  },
+  editLogoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: spacing.sm + 4,
+    paddingVertical: 5,
+    borderRadius: radii.full,
+  },
+  editLogoBtnText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    fontFamily: 'Cairo',
+  },
+
+  // User Card
   userCard: {
     flexDirection: 'row',
     alignItems: 'center',
     marginHorizontal: spacing.md,
-    marginTop: spacing.md,
+    marginTop: spacing.xs,
     marginBottom: spacing.xs,
     padding: spacing.md,
     gap: spacing.md,
   },
   userAvatar: {
-    width: 48,
-    height: 48,
+    width: 44,
+    height: 44,
     borderRadius: radii.full,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
   userAvatarText: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '800',
     fontFamily: 'Cairo',
   },
   userName: {
-    fontSize: 15,
+    fontSize: 14.5,
     fontWeight: '800',
     fontFamily: 'Cairo',
     textAlign: 'right',
@@ -883,6 +1401,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
+  // Theme Selector
   themeSelectorGrid: {
     flexDirection: 'row',
     gap: spacing.xs + 2,
@@ -1181,6 +1700,94 @@ const styles = StyleSheet.create({
   logoutFullBtn: {
     marginHorizontal: spacing.md,
     marginTop: spacing.md,
+  },
+
+  // Action Sheet Modals
+  actionSheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    justifyContent: 'flex-end',
+  },
+  actionSheetCard: {
+    borderTopLeftRadius: radii.xxl,
+    borderTopRightRadius: radii.xxl,
+    padding: spacing.xl,
+    paddingBottom: spacing.xxxl,
+    gap: spacing.md,
+    ...shadows.lg,
+  },
+  actionSheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: radii.full,
+    alignSelf: 'center',
+    marginBottom: spacing.xs,
+  },
+  actionSheetHeader: {
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(150,150,150,0.1)',
+  },
+  actionSheetTitle: {
+    fontSize: 16.5,
+    fontWeight: '800',
+    fontFamily: 'Cairo',
+  },
+  actionSheetOptions: {
+    gap: spacing.sm,
+  },
+  actionSheetOptionItem: {
+    alignItems: 'center',
+    padding: spacing.md,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    gap: spacing.md,
+  },
+  actionOptionIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: radii.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionOptionTextGroup: {
+    flex: 1,
+    gap: 1,
+  },
+  actionOptionTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    fontFamily: 'Cairo',
+  },
+  actionOptionDesc: {
+    fontSize: 11.5,
+    fontFamily: 'Cairo',
+  },
+
+  // URL Modal Card
+  urlModalCard: {
+    marginHorizontal: spacing.xl,
+    marginBottom: 'auto',
+    marginTop: 'auto',
+    borderRadius: radii.xxl,
+    padding: spacing.xl,
+    gap: spacing.md,
+    ...shadows.lg,
+  },
+  urlModalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    fontFamily: 'Cairo',
+    textAlign: 'center',
+  },
+  urlTextInput: {
+    borderRadius: radii.xl,
+    padding: spacing.md,
+    borderWidth: 1.5,
+    fontSize: 14,
+    fontFamily: 'Cairo',
   },
 });
 
