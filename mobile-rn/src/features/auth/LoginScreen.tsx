@@ -11,7 +11,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   User,
   Lock,
@@ -24,6 +26,11 @@ import {
   UserPlus,
   Mail,
   Phone,
+  ShieldCheck,
+  Wifi,
+  Sparkles,
+  CheckCircle2,
+  Layers,
 } from 'lucide-react-native';
 import { useAuthStore } from '@/store/authStore';
 import { useI18n } from '@/store/i18nStore';
@@ -41,6 +48,14 @@ export const LoginScreen = ({ navigation }: any) => {
   const { login, loading } = useAuthStore();
   const { isDark, colors } = useTheme();
   const { t, isRTL } = useI18n();
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+
+  // Responsive breakpoints
+  const isSmallPhone = width < 360;
+  const isPhoneLandscape = width > height && height < 550 && width < 950;
+  const isTablet = width >= 600;
+  const isLargeTabletLandscape = width >= 900 && width > height;
 
   const [mode, setMode] = useState<'connected' | 'standalone'>('standalone');
   const [activeServerUrl, setActiveServerUrl] = useState<string | null>(null);
@@ -223,45 +238,171 @@ export const LoginScreen = ({ navigation }: any) => {
     );
   }
 
-  const inputBg = isDark ? '#131b2e' : '#f1f5f9';
+  const inputBg = isDark ? '#131b2e' : '#f8fafc';
   const borderColor = isDark ? '#1e293b' : '#e2e8f0';
+  const cardBg = isDark ? '#0f172a' : '#ffffff';
   const SubmitArrow = isRTL ? ArrowLeft : ArrowRight;
 
-  return (
-    <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+  // Render Left Hero section (for tablet landscape)
+  const renderTabletHero = () => (
+    <View
+      style={[
+        styles.tabletHeroCol,
+        {
+          backgroundColor: isDark ? 'rgba(30, 58, 138, 0.25)' : 'rgba(239, 246, 255, 0.85)',
+          borderColor: isDark ? 'rgba(59, 130, 246, 0.25)' : 'rgba(191, 219, 254, 0.6)',
+        },
+      ]}
     >
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Language Quick Switch Row */}
-        <View style={[styles.langRow, { justifyContent: isRTL ? 'flex-start' : 'flex-end' }]}>
-          <LanguageQuickButton />
+      <View style={styles.tabletHeroContent}>
+        <View style={[styles.logoSquircle, { width: 92, height: 92, borderRadius: 26 }]}>
+          <Image source={AppImages.logo} style={{ width: 74, height: 74 }} resizeMode="contain" />
         </View>
 
-        {/* Brand / Logo Top Area */}
-        <View style={styles.brandingHeader}>
-          <View style={styles.logoSquircle}>
+        <View style={styles.brandTitleWrap}>
+          <Text style={[styles.appTitle, { color: colors.text.primary, fontSize: 28 }]}>
+            AN POS
+          </Text>
+          <View style={styles.badgeRow}>
+            <View style={[styles.miniPill, { backgroundColor: colors.primary[500] + '20', borderColor: colors.primary[500] + '40' }]}>
+              <Sparkles size={12} color={colors.primary[500]} />
+              <Text style={[styles.miniPillText, { color: colors.primary[500] }]}>Enterprise Edition</Text>
+            </View>
+          </View>
+        </View>
+
+        <Text style={[styles.appSubtitle, { color: colors.text.secondary, textAlign: 'center', fontSize: 13.5, lineHeight: 22, maxWidth: 300 }]}>
+          {t('auth.loginSubtitle')} — منظومة إدارة المبيعات ونقاط البيع السريعة
+        </Text>
+
+        {/* Feature bullets */}
+        <View style={styles.heroFeatureList}>
+          <View style={[styles.heroFeatureItem, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+            <CheckCircle2 size={16} color="#22c55e" />
+            <Text style={[styles.heroFeatureText, { color: colors.text.secondary }]}>مزامنة فورية على الشبكة المحلية LAN</Text>
+          </View>
+          <View style={[styles.heroFeatureItem, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+            <CheckCircle2 size={16} color="#22c55e" />
+            <Text style={[styles.heroFeatureText, { color: colors.text.secondary }]}>إدارة ذكية للمخزون والباركود</Text>
+          </View>
+          <View style={[styles.heroFeatureItem, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+            <CheckCircle2 size={16} color="#22c55e" />
+            <Text style={[styles.heroFeatureText, { color: colors.text.secondary }]}>طباعة الإيصالات والفواتير الرسمية</Text>
+          </View>
+        </View>
+
+        {/* Server Status info */}
+        {mode === 'connected' ? (
+          <View
+            style={[
+              styles.connectedServerBadge,
+              {
+                backgroundColor: isDark ? 'rgba(30, 58, 138, 0.35)' : '#eff6ff',
+                borderColor: isDark ? '#3b82f6' : '#bfdbfe',
+                flexDirection: isRTL ? 'row-reverse' : 'row',
+                marginTop: 16,
+              },
+            ]}
+          >
+            <View style={styles.connectedGreenDot} />
+            <Text style={[styles.connectedServerText, { color: isDark ? '#93c5fd' : '#1d4ed8' }]}>
+              {t('auth.connectedToPC')} {activeServerUrl ? `(${activeServerUrl.replace(/^https?:\/\//, '')})` : ''}
+            </Text>
+          </View>
+        ) : (
+          <View
+            style={[
+              styles.pairPillBtn,
+              {
+                backgroundColor: isDark ? 'rgba(59, 130, 246, 0.12)' : '#eff6ff',
+                borderColor: isDark ? '#1e3a8a' : '#bfdbfe',
+                flexDirection: isRTL ? 'row-reverse' : 'row',
+                marginTop: 16,
+              },
+            ]}
+          >
+            <Store size={14} color={isDark ? '#60a5fa' : '#2563eb'} />
+            <Text style={[styles.pairPillBtnText, { color: isDark ? '#60a5fa' : '#2563eb' }]}>
+              {t('modeSelect.standaloneTitle')} (وضع غير متصل)
+            </Text>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+
+  // Render Form Content
+  const renderFormContent = () => (
+    <View style={[styles.formWrapper, isLargeTabletLandscape && styles.tabletFormWrapper]}>
+      {/* Top Bar inside card: Language button + Mode indicator */}
+      <View style={[styles.cardTopRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+        {/* Compact Mode Pill */}
+        <TouchableOpacity
+          style={[
+            styles.modeHeaderTag,
+            {
+              backgroundColor: mode === 'connected'
+                ? (isDark ? 'rgba(34, 197, 94, 0.15)' : '#f0fdf4')
+                : (isDark ? 'rgba(59, 130, 246, 0.15)' : '#eff6ff'),
+              borderColor: mode === 'connected'
+                ? (isDark ? '#15803d' : '#86efac')
+                : (isDark ? '#1d4ed8' : '#bfdbfe'),
+              flexDirection: isRTL ? 'row-reverse' : 'row',
+            },
+          ]}
+          onPress={() => navigation.navigate('ModeSelect')}
+          activeOpacity={0.8}
+        >
+          {mode === 'connected' ? (
+            <View style={styles.connectedGreenDot} />
+          ) : (
+            <Store size={12} color={isDark ? '#60a5fa' : '#2563eb'} />
+          )}
+          <Text
+            style={[
+              styles.modeHeaderTagText,
+              { color: mode === 'connected' ? (isDark ? '#4ade80' : '#15803d') : (isDark ? '#93c5fd' : '#1d4ed8') },
+            ]}
+          >
+            {mode === 'connected' ? t('modeSelect.connectedTitle') : t('modeSelect.standaloneTitle')}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Language quick switcher */}
+        <LanguageQuickButton />
+      </View>
+
+      {/* Brand Header for Phones and Tablet Portrait */}
+      {!isLargeTabletLandscape && (
+        <View style={[styles.brandingHeader, isPhoneLandscape && styles.brandingHeaderLandscape]}>
+          <View
+            style={[
+              styles.logoSquircle,
+              isSmallPhone && { width: 68, height: 68, borderRadius: 20 },
+              isPhoneLandscape && { width: 54, height: 54, borderRadius: 16, marginBottom: 4 },
+            ]}
+          >
             <Image
               source={AppImages.logo}
-              style={styles.logoImg}
+              style={[
+                styles.logoImg,
+                isSmallPhone && { width: 52, height: 52 },
+                isPhoneLandscape && { width: 42, height: 42 },
+              ]}
               resizeMode="contain"
             />
           </View>
-          <Text style={[styles.appTitle, { color: colors.text.primary }]}>
+          <Text style={[styles.appTitle, { color: colors.text.primary, fontSize: isSmallPhone ? 22 : 25 }]}>
             AN POS
           </Text>
-          <Text style={[styles.appSubtitle, { color: colors.text.secondary }]}>
+          <Text style={[styles.appSubtitle, { color: colors.text.secondary, fontSize: isSmallPhone ? 12 : 13 }]}>
             {mode === 'connected'
               ? t('auth.connectedSubtitle')
               : view === 'login'
               ? t('auth.loginSubtitle')
               : t('auth.register')}
           </Text>
-          {mode === 'connected' ? (
+          {mode === 'connected' && (
             <TouchableOpacity
               style={[
                 styles.connectedServerBadge,
@@ -279,288 +420,345 @@ export const LoginScreen = ({ navigation }: any) => {
                 {t('auth.connectedToPC')} {activeServerUrl ? `(${activeServerUrl.replace(/^https?:\/\//, '')})` : ''} • {t('pair.changeDesktop')}
               </Text>
             </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
+          )}
+        </View>
+      )}
+
+      {/* Main View: Login or Register */}
+      {view === 'login' ? (
+        <View style={styles.formSection}>
+          {/* Username Field */}
+          <View style={styles.inputGroup}>
+            <Text style={[styles.fieldLabel, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
+              {t('auth.username')}
+            </Text>
+            <View
               style={[
-                styles.pairPillBtn,
+                styles.inputFieldContainer,
                 {
-                  backgroundColor: isDark ? 'rgba(59, 130, 246, 0.12)' : '#eff6ff',
-                  borderColor: isDark ? '#1e3a8a' : '#bfdbfe',
-                  flexDirection: isRTL ? 'row-reverse' : 'row',
+                  backgroundColor: inputBg,
+                  borderColor: borderColor,
+                  flexDirection: isRTL ? 'row' : 'row-reverse',
+                  height: isSmallPhone ? 48 : isPhoneLandscape ? 46 : 52,
                 },
               ]}
-              onPress={() => navigation.navigate('Pair', { initialTab: 'discover' })}
-              activeOpacity={0.8}
             >
-              <Store size={15} color={isDark ? '#60a5fa' : '#2563eb'} />
-              <Text style={[styles.pairPillBtnText, { color: isDark ? '#60a5fa' : '#2563eb' }]}>
-                {t('modeSelect.connectedBtn')} ({t('pair.discoverTab')})
+              <TextInput
+                style={[
+                  styles.textInput,
+                  { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left', fontSize: isSmallPhone ? 13.5 : 14.5 },
+                ]}
+                placeholder={t('auth.usernamePlaceholder')}
+                placeholderTextColor={colors.text.tertiary}
+                value={username}
+                onChangeText={setUsername}
+                autoCapitalize="none"
+                autoCorrect={false}
+                accessibilityLabel={t('auth.username')}
+              />
+              <User size={18} color={colors.text.tertiary} style={styles.fieldIcon} />
+            </View>
+          </View>
+
+          {/* Password / PIN Field */}
+          <View style={styles.inputGroup}>
+            <Text style={[styles.fieldLabel, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
+              {t('auth.pin')}
+            </Text>
+            <View
+              style={[
+                styles.inputFieldContainer,
+                {
+                  backgroundColor: inputBg,
+                  borderColor: borderColor,
+                  flexDirection: isRTL ? 'row' : 'row-reverse',
+                  height: isSmallPhone ? 48 : isPhoneLandscape ? 46 : 52,
+                },
+              ]}
+            >
+              <TouchableOpacity
+                onPress={() => setShowPin(!showPin)}
+                style={styles.eyeToggleBtn}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Toggle PIN visibility"
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                {showPin ? (
+                  <EyeOff size={18} color={colors.text.tertiary} />
+                ) : (
+                  <Eye size={18} color={colors.text.tertiary} />
+                )}
+              </TouchableOpacity>
+
+              <TextInput
+                style={[
+                  styles.textInput,
+                  { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left', fontSize: isSmallPhone ? 13.5 : 14.5 },
+                ]}
+                placeholder="••••••••"
+                placeholderTextColor={colors.text.tertiary}
+                value={pin}
+                onChangeText={setPin}
+                secureTextEntry={!showPin}
+                keyboardType="default"
+                accessibilityLabel={t('auth.pin')}
+              />
+              <Lock size={18} color={colors.text.tertiary} style={styles.fieldIcon} />
+            </View>
+          </View>
+
+          {/* Error Banner */}
+          {submitError ? (
+            <View style={[styles.errorBanner, { backgroundColor: colors.danger.light, borderColor: colors.danger.border, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <AlertCircle size={16} color={colors.danger.main} />
+              <Text style={[styles.errorBannerText, { color: colors.danger.text, textAlign: isRTL ? 'right' : 'left' }]}>
+                {submitError}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* Primary Submit Button */}
+          <TouchableOpacity
+            style={[
+              styles.primarySubmitBtn,
+              {
+                flexDirection: isRTL ? 'row' : 'row-reverse',
+                paddingVertical: isSmallPhone ? 13 : isPhoneLandscape ? 12 : 15,
+              },
+            ]}
+            onPress={handleLogin}
+            activeOpacity={0.88}
+            disabled={loading}
+            accessibilityRole="button"
+            accessibilityLabel={t('auth.loginButton')}
+          >
+            {loading ? (
+              <ActivityIndicator size="small" color="#ffffff" />
+            ) : (
+              <>
+                <SubmitArrow size={18} color="#ffffff" />
+                <Text style={[styles.primarySubmitBtnText, { fontSize: isSmallPhone ? 14.5 : 15.5 }]}>
+                  {t('auth.loginButton')}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          {/* Secondary Quick Pair / Action Links */}
+          <TouchableOpacity
+            style={[
+              styles.quickPairActionBtn,
+              {
+                borderColor,
+                flexDirection: isRTL ? 'row-reverse' : 'row',
+                paddingVertical: isSmallPhone ? 10 : 12,
+              },
+            ]}
+            onPress={() => navigation.navigate('Pair', { initialTab: 'discover' })}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+          >
+            <Store size={15} color={isDark ? '#60a5fa' : '#2563eb'} />
+            <Text style={[styles.quickPairActionText, { color: isDark ? '#60a5fa' : '#2563eb', fontSize: isSmallPhone ? 12 : 13 }]}>
+              {mode === 'connected' ? t('pair.changeDesktop') : t('pair.discoverTab')}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Switch View Link (Register only in Standalone) */}
+          {mode === 'standalone' && (
+            <TouchableOpacity
+              style={styles.switchViewBtn}
+              onPress={() => {
+                setView('register');
+                setSubmitError(null);
+              }}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={[styles.switchViewText, { color: colors.text.secondary, fontSize: isSmallPhone ? 12 : 13 }]}>
+                {t('auth.noAccount')}{' '}
+                <Text style={{ color: isDark ? '#60a5fa' : '#2563eb', fontWeight: '700' }}>
+                  {t('auth.createAccount')}
+                </Text>
               </Text>
             </TouchableOpacity>
           )}
         </View>
-
-        {/* Form Container */}
-        {view === 'login' ? (
-          <View style={styles.formSection}>
-            {/* Username Field */}
-            <View style={styles.inputGroup}>
-              <Text style={[styles.fieldLabel, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
-                {t('auth.username')}
-              </Text>
-              <View
-                style={[
-                  styles.inputFieldContainer,
-                  { backgroundColor: inputBg, borderColor: borderColor, flexDirection: isRTL ? 'row' : 'row-reverse' },
-                ]}
-              >
-                <TextInput
-                  style={[styles.textInput, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}
-                  placeholder={t('auth.usernamePlaceholder')}
-                  placeholderTextColor={colors.text.tertiary}
-                  value={username}
-                  onChangeText={setUsername}
-                  autoCapitalize="none"
-                />
-                <User size={20} color={colors.text.tertiary} style={styles.fieldIcon} />
-              </View>
+      ) : (
+        /* Register View */
+        <View style={styles.formSection}>
+          <View style={styles.inputGroup}>
+            <Text style={[styles.fieldLabel, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
+              {t('auth.fullName')}
+            </Text>
+            <View style={[styles.inputFieldContainer, { backgroundColor: inputBg, borderColor: borderColor, flexDirection: isRTL ? 'row' : 'row-reverse', height: isSmallPhone ? 48 : 52 }]}>
+              <TextInput
+                style={[styles.textInput, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left', fontSize: isSmallPhone ? 13.5 : 14.5 }]}
+                placeholder={t('auth.fullNamePlaceholder')}
+                placeholderTextColor={colors.text.tertiary}
+                value={regName}
+                onChangeText={setRegName}
+              />
+              <User size={18} color={colors.text.tertiary} style={styles.fieldIcon} />
             </View>
+          </View>
 
-            {/* Password / PIN Field */}
-            <View style={styles.inputGroup}>
-              <Text style={[styles.fieldLabel, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
-                {t('auth.pin')}
-              </Text>
-              <View
-                style={[
-                  styles.inputFieldContainer,
-                  { backgroundColor: inputBg, borderColor: borderColor, flexDirection: isRTL ? 'row' : 'row-reverse' },
-                ]}
-              >
-                <TouchableOpacity
-                  onPress={() => setShowPin(!showPin)}
-                  style={styles.eyeToggleBtn}
-                  activeOpacity={0.7}
-                >
-                  {showPin ? (
-                    <EyeOff size={18} color={colors.text.tertiary} />
-                  ) : (
-                    <Eye size={18} color={colors.text.tertiary} />
-                  )}
-                </TouchableOpacity>
-
-                <TextInput
-                  style={[styles.textInput, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}
-                  placeholder="••••••••"
-                  placeholderTextColor={colors.text.tertiary}
-                  value={pin}
-                  onChangeText={setPin}
-                  secureTextEntry={!showPin}
-                  keyboardType="default"
-                />
-                <Lock size={20} color={colors.text.tertiary} style={styles.fieldIcon} />
-              </View>
+          <View style={styles.inputGroup}>
+            <Text style={[styles.fieldLabel, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
+              {t('auth.username')}
+            </Text>
+            <View style={[styles.inputFieldContainer, { backgroundColor: inputBg, borderColor: borderColor, flexDirection: isRTL ? 'row' : 'row-reverse', height: isSmallPhone ? 48 : 52 }]}>
+              <TextInput
+                style={[styles.textInput, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left', fontSize: isSmallPhone ? 13.5 : 14.5 }]}
+                placeholder="admin..."
+                placeholderTextColor={colors.text.tertiary}
+                value={regUsername}
+                onChangeText={setRegUsername}
+                autoCapitalize="none"
+              />
+              <UserPlus size={18} color={colors.text.tertiary} style={styles.fieldIcon} />
             </View>
+          </View>
 
-            {/* Error Message */}
-            {submitError ? (
-              <View style={[styles.errorBanner, { backgroundColor: colors.danger.light, borderColor: colors.danger.border }]}>
-                <AlertCircle size={16} color={colors.danger.main} />
-                <Text style={[styles.errorBannerText, { color: colors.danger.text, textAlign: isRTL ? 'right' : 'left' }]}>
-                  {submitError}
-                </Text>
-              </View>
-            ) : null}
+          <View style={styles.inputGroup}>
+            <Text style={[styles.fieldLabel, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
+              {t('auth.email')} / {t('auth.phone')} ({t('common.optional')})
+            </Text>
+            <View style={[styles.inputFieldContainer, { backgroundColor: inputBg, borderColor: borderColor, flexDirection: isRTL ? 'row' : 'row-reverse', height: isSmallPhone ? 48 : 52 }]}>
+              <TextInput
+                style={[styles.textInput, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left', fontSize: isSmallPhone ? 13.5 : 14.5 }]}
+                placeholder="user@store.com"
+                placeholderTextColor={colors.text.tertiary}
+                value={regEmail}
+                onChangeText={setRegEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+              <Mail size={18} color={colors.text.tertiary} style={styles.fieldIcon} />
+            </View>
+          </View>
 
-            {/* Primary Submit Button */}
-            <TouchableOpacity
-              style={[styles.primarySubmitBtn, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}
-              onPress={handleLogin}
-              activeOpacity={0.88}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator size="small" color="#ffffff" />
-              ) : (
-                <>
-                  <SubmitArrow size={20} color="#ffffff" />
-                  <Text style={styles.primarySubmitBtnText}>{t('auth.loginButton')}</Text>
-                </>
-              )}
-            </TouchableOpacity>
+          <View style={styles.inputGroup}>
+            <Text style={[styles.fieldLabel, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
+              {t('auth.pin')}
+            </Text>
+            <View style={[styles.inputFieldContainer, { backgroundColor: inputBg, borderColor: borderColor, flexDirection: isRTL ? 'row' : 'row-reverse', height: isSmallPhone ? 48 : 52 }]}>
+              <TextInput
+                style={[styles.textInput, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left', fontSize: isSmallPhone ? 13.5 : 14.5 }]}
+                placeholder="••••••••"
+                placeholderTextColor={colors.text.tertiary}
+                value={regPin}
+                onChangeText={setRegPin}
+                secureTextEntry
+              />
+              <Lock size={18} color={colors.text.tertiary} style={styles.fieldIcon} />
+            </View>
+          </View>
 
-            {/* Quick Auto-Discovery / Pair Link */}
-            <TouchableOpacity
-              style={[styles.quickPairActionBtn, { borderColor, flexDirection: isRTL ? 'row-reverse' : 'row' }]}
-              onPress={() => navigation.navigate('Pair', { initialTab: 'discover' })}
-              activeOpacity={0.75}
-            >
-              <Store size={16} color={isDark ? '#60a5fa' : '#2563eb'} />
-              <Text style={[styles.quickPairActionText, { color: isDark ? '#60a5fa' : '#2563eb' }]}>
-                {mode === 'connected' ? t('pair.changeDesktop') : t('pair.discoverTab')}
+          <View style={styles.inputGroup}>
+            <Text style={[styles.fieldLabel, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
+              {t('auth.confirmPin')}
+            </Text>
+            <View style={[styles.inputFieldContainer, { backgroundColor: inputBg, borderColor: borderColor, flexDirection: isRTL ? 'row' : 'row-reverse', height: isSmallPhone ? 48 : 52 }]}>
+              <TextInput
+                style={[styles.textInput, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left', fontSize: isSmallPhone ? 13.5 : 14.5 }]}
+                placeholder="••••••••"
+                placeholderTextColor={colors.text.tertiary}
+                value={regPinConfirm}
+                onChangeText={setRegPinConfirm}
+                secureTextEntry
+              />
+              <Lock size={18} color={colors.text.tertiary} style={styles.fieldIcon} />
+            </View>
+          </View>
+
+          {submitError ? (
+            <View style={[styles.errorBanner, { backgroundColor: colors.danger.light, borderColor: colors.danger.border, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <AlertCircle size={16} color={colors.danger.main} />
+              <Text style={[styles.errorBannerText, { color: colors.danger.text, textAlign: isRTL ? 'right' : 'left' }]}>
+                {submitError}
               </Text>
-            </TouchableOpacity>
+            </View>
+          ) : null}
 
-            {/* Navigation & Mode Link */}
-            <TouchableOpacity
-              style={styles.modeLinkBtn}
-              onPress={() => navigation.navigate('ModeSelect')}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.modeLinkText, { color: isDark ? '#60a5fa' : '#2563eb' }]}>
-                {t('auth.switchMode')} • {mode === 'connected' ? t('modeSelect.connectedTitle') : t('modeSelect.standaloneTitle')}
-              </Text>
-            </TouchableOpacity>
-
-            {/* Switch to Register (Only in standalone mode) */}
-            {mode === 'standalone' && (
-              <TouchableOpacity
-                style={styles.switchViewBtn}
-                onPress={() => {
-                  setView('register');
-                  setSubmitError(null);
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.switchViewText, { color: colors.text.secondary }]}>
-                  {t('auth.noAccount')}{' '}
-                  <Text style={{ color: isDark ? '#60a5fa' : '#2563eb', fontWeight: '700' }}>
-                    {t('auth.createAccount')}
-                  </Text>
+          <TouchableOpacity
+            style={[styles.primarySubmitBtn, { flexDirection: isRTL ? 'row' : 'row-reverse', paddingVertical: isSmallPhone ? 13 : 15 }]}
+            onPress={handleRegister}
+            activeOpacity={0.88}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator size="small" color="#ffffff" />
+            ) : (
+              <>
+                <SubmitArrow size={18} color="#ffffff" />
+                <Text style={[styles.primarySubmitBtnText, { fontSize: isSmallPhone ? 14.5 : 15.5 }]}>
+                  {t('auth.registerButton')}
                 </Text>
-              </TouchableOpacity>
+              </>
             )}
-          </View>
-        ) : (
-          /* Register Form */
-          <View style={styles.formSection}>
-            <View style={styles.inputGroup}>
-              <Text style={[styles.fieldLabel, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
-                {t('auth.fullName')}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.switchViewBtn}
+            onPress={() => {
+              setView('login');
+              setSubmitError(null);
+            }}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.switchViewText, { color: colors.text.secondary, fontSize: isSmallPhone ? 12 : 13 }]}>
+              {t('auth.haveAccount')}{' '}
+              <Text style={{ color: isDark ? '#60a5fa' : '#2563eb', fontWeight: '700' }}>
+                {t('auth.loginButton')}
               </Text>
-              <View style={[styles.inputFieldContainer, { backgroundColor: inputBg, borderColor: borderColor, flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
-                <TextInput
-                  style={[styles.textInput, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}
-                  placeholder={t('auth.fullNamePlaceholder')}
-                  placeholderTextColor={colors.text.tertiary}
-                  value={regName}
-                  onChangeText={setRegName}
-                />
-                <User size={20} color={colors.text.tertiary} style={styles.fieldIcon} />
-              </View>
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+
+  return (
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: Math.max(insets.top + 8, 16),
+            paddingBottom: Math.max(insets.bottom + 24, 32),
+            paddingHorizontal: isTablet ? 32 : isSmallPhone ? 14 : 20,
+          },
+        ]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Main Card Container */}
+        <View
+          style={[
+            styles.mainCard,
+            {
+              backgroundColor: isTablet ? cardBg : 'transparent',
+              borderColor: isTablet ? borderColor : 'transparent',
+              borderWidth: isTablet ? 1 : 0,
+              maxWidth: isLargeTabletLandscape ? 940 : isTablet ? 520 : '100%',
+              ...((isTablet && !isDark) ? shadows.lg : {}),
+            },
+          ]}
+        >
+          {isLargeTabletLandscape ? (
+            <View style={[styles.tabletTwoColRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              {renderTabletHero()}
+              {renderFormContent()}
             </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={[styles.fieldLabel, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
-                {t('auth.username')}
-              </Text>
-              <View style={[styles.inputFieldContainer, { backgroundColor: inputBg, borderColor: borderColor, flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
-                <TextInput
-                  style={[styles.textInput, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}
-                  placeholder="admin..."
-                  placeholderTextColor={colors.text.tertiary}
-                  value={regUsername}
-                  onChangeText={setRegUsername}
-                  autoCapitalize="none"
-                />
-                <UserPlus size={20} color={colors.text.tertiary} style={styles.fieldIcon} />
-              </View>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={[styles.fieldLabel, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
-                {t('auth.email')} / {t('auth.phone')} ({t('common.optional')})
-              </Text>
-              <View style={[styles.inputFieldContainer, { backgroundColor: inputBg, borderColor: borderColor, flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
-                <TextInput
-                  style={[styles.textInput, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}
-                  placeholder="user@store.com"
-                  placeholderTextColor={colors.text.tertiary}
-                  value={regEmail}
-                  onChangeText={setRegEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-                <Mail size={20} color={colors.text.tertiary} style={styles.fieldIcon} />
-              </View>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={[styles.fieldLabel, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
-                {t('auth.pin')}
-              </Text>
-              <View style={[styles.inputFieldContainer, { backgroundColor: inputBg, borderColor: borderColor, flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
-                <TextInput
-                  style={[styles.textInput, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}
-                  placeholder="••••••••"
-                  placeholderTextColor={colors.text.tertiary}
-                  value={regPin}
-                  onChangeText={setRegPin}
-                  secureTextEntry
-                />
-                <Lock size={20} color={colors.text.tertiary} style={styles.fieldIcon} />
-              </View>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={[styles.fieldLabel, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
-                {t('auth.confirmPin')}
-              </Text>
-              <View style={[styles.inputFieldContainer, { backgroundColor: inputBg, borderColor: borderColor, flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
-                <TextInput
-                  style={[styles.textInput, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}
-                  placeholder="••••••••"
-                  placeholderTextColor={colors.text.tertiary}
-                  value={regPinConfirm}
-                  onChangeText={setRegPinConfirm}
-                  secureTextEntry
-                />
-                <Lock size={20} color={colors.text.tertiary} style={styles.fieldIcon} />
-              </View>
-            </View>
-
-            {submitError ? (
-              <View style={[styles.errorBanner, { backgroundColor: colors.danger.light, borderColor: colors.danger.border }]}>
-                <AlertCircle size={16} color={colors.danger.main} />
-                <Text style={[styles.errorBannerText, { color: colors.danger.text, textAlign: isRTL ? 'right' : 'left' }]}>
-                  {submitError}
-                </Text>
-              </View>
-            ) : null}
-
-            <TouchableOpacity
-              style={[styles.primarySubmitBtn, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}
-              onPress={handleRegister}
-              activeOpacity={0.88}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator size="small" color="#ffffff" />
-              ) : (
-                <>
-                  <SubmitArrow size={20} color="#ffffff" />
-                  <Text style={styles.primarySubmitBtnText}>{t('auth.registerButton')}</Text>
-                </>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.switchViewBtn}
-              onPress={() => {
-                setView('login');
-                setSubmitError(null);
-              }}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.switchViewText, { color: colors.text.secondary }]}>
-                {t('auth.haveAccount')}{' '}
-                <Text style={{ color: isDark ? '#60a5fa' : '#2563eb', fontWeight: '700' }}>
-                  {t('auth.loginButton')}
-                </Text>
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
+          ) : (
+            renderFormContent()
+          )}
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -576,41 +774,131 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   scrollContent: {
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 40,
-    gap: 20,
-  },
-  langRow: {
-    flexDirection: 'row',
+    flexGrow: 1,
     alignItems: 'center',
-    marginBottom: 2,
+    justifyContent: 'center',
   },
 
-  // Branding
-  brandingHeader: {
+  // Main Responsive Card
+  mainCard: {
+    width: '100%',
+    borderRadius: 28,
+    overflow: 'hidden',
+  },
+  formWrapper: {
+    width: '100%',
+    paddingHorizontal: 4,
+  },
+  tabletFormWrapper: {
+    flex: 1,
+    padding: 32,
+    justifyContent: 'center',
+  },
+
+  // Two column tablet landscape
+  tabletTwoColRow: {
+    width: '100%',
+    minHeight: 520,
+  },
+  tabletHeroCol: {
+    width: '44%',
+    padding: 32,
+    borderRightWidth: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
+  },
+  tabletHeroContent: {
+    alignItems: 'center',
+    width: '100%',
+  },
+  brandTitleWrap: {
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  badgeRow: {
+    flexDirection: 'row',
     marginTop: 4,
   },
+  miniPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: radii.full,
+    borderWidth: 1,
+  },
+  miniPillText: {
+    fontSize: 10.5,
+    fontFamily: 'Cairo',
+    fontWeight: '700',
+  },
+  heroFeatureList: {
+    marginTop: 20,
+    gap: 10,
+    width: '100%',
+    paddingHorizontal: 12,
+  },
+  heroFeatureItem: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  heroFeatureText: {
+    fontSize: 12,
+    fontFamily: 'Cairo',
+    fontWeight: '600',
+  },
+
+  // Card Top Row (Language switcher + Mode Tag)
+  cardTopRow: {
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+    width: '100%',
+  },
+  modeHeaderTag: {
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: radii.full,
+    borderWidth: 1,
+  },
+  modeHeaderTagText: {
+    fontSize: 11.5,
+    fontFamily: 'Cairo',
+    fontWeight: '700',
+  },
+
+  // Branding for mobile / portrait
+  brandingHeader: {
+    alignItems: 'center',
+    gap: 6,
+    marginVertical: 8,
+  },
+  brandingHeaderLandscape: {
+    marginVertical: 4,
+    gap: 4,
+  },
   logoSquircle: {
-    width: 92,
-    height: 92,
-    borderRadius: 26,
+    width: 84,
+    height: 84,
+    borderRadius: 24,
     backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: 4,
     borderWidth: 1,
     borderColor: 'rgba(226, 232, 240, 0.8)',
     ...shadows.md,
   },
   logoImg: {
-    width: 74,
-    height: 74,
+    width: 66,
+    height: 66,
   },
   appTitle: {
-    fontSize: 26,
+    fontSize: 25,
     fontWeight: '800',
     fontFamily: 'Cairo',
     letterSpacing: 0.5,
@@ -619,13 +907,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: 'Cairo',
     textAlign: 'center',
+    maxWidth: 320,
   },
   connectedServerBadge: {
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: radii.full,
-    marginTop: 6,
+    marginTop: 4,
     borderWidth: 1,
     gap: 6,
   },
@@ -643,15 +932,16 @@ const styles = StyleSheet.create({
 
   // Form Section
   formSection: {
-    gap: 18,
-    marginTop: 6,
+    gap: 14,
+    marginTop: 8,
+    width: '100%',
   },
   inputGroup: {
-    gap: 6,
+    gap: 5,
     alignItems: 'stretch',
   },
   fieldLabel: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '700',
     fontFamily: 'Cairo',
   },
@@ -659,25 +949,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderRadius: 16,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     height: 52,
   },
   textInput: {
     flex: 1,
-    fontSize: 14.5,
+    fontSize: 14,
     fontFamily: 'Cairo',
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
   },
   fieldIcon: {
-    marginHorizontal: 4,
+    marginHorizontal: 2,
   },
   eyeToggleBtn: {
     padding: 6,
   },
 
-  // Errors
+  // Error Banner
   errorBanner: {
-    flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     borderRadius: 14,
@@ -691,36 +980,36 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // Submit Button
+  // Primary Action Button
   primarySubmitBtn: {
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
+    gap: 8,
     backgroundColor: '#3b82f6',
-    borderRadius: 18,
-    paddingVertical: 15,
-    marginTop: 6,
+    borderRadius: 16,
+    paddingVertical: 14,
+    marginTop: 4,
     ...shadows.md,
   },
   primarySubmitBtnText: {
-    fontSize: 15.5,
+    fontSize: 15,
     fontWeight: '800',
     color: '#ffffff',
     fontFamily: 'Cairo',
   },
 
-  // Links
+  // Secondary Links
   quickPairActionBtn: {
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 6,
     borderWidth: 1,
     borderRadius: 14,
-    paddingVertical: 12,
+    paddingVertical: 11,
     marginTop: 2,
   },
   quickPairActionText: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '700',
     fontFamily: 'Cairo',
   },
@@ -728,34 +1017,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: radii.full,
-    marginTop: 6,
+    marginTop: 4,
     borderWidth: 1,
   },
   pairPillBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    fontFamily: 'Cairo',
-  },
-  modeLinkBtn: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 6,
-  },
-  modeLinkText: {
-    fontSize: 13,
+    fontSize: 11.5,
     fontWeight: '700',
     fontFamily: 'Cairo',
   },
   switchViewBtn: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 4,
+    paddingVertical: 6,
   },
   switchViewText: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontFamily: 'Cairo',
   },
 });
