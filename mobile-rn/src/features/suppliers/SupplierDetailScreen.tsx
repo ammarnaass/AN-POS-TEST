@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import {
   ArrowRight,
+  ArrowLeft,
   Truck,
   Phone,
   DollarSign,
@@ -158,9 +159,17 @@ export const SupplierDetailScreen = ({ route, navigation }: any) => {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border.default, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.headerBackBtn, { backgroundColor: isDark ? colors.surfaceSubtle : '#f1f5f9' }]}>
-          <ChevronLeft size={22} color={colors.text.primary} style={{ transform: [{ rotate: isRTL ? '180deg' : '0deg' }] }} />
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border.default }]}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={[styles.headerBackBtn, { backgroundColor: isDark ? colors.surfaceSubtle : '#f1f5f9' }]}
+          activeOpacity={0.7}
+        >
+          {isRTL ? (
+            <ArrowRight size={22} color={colors.text.primary} />
+          ) : (
+            <ArrowLeft size={22} color={colors.text.primary} />
+          )}
         </TouchableOpacity>
         <View style={styles.headerTitleCol}>
           <Text style={[styles.headerTitle, { color: colors.text.primary }]}>{supplier.name}</Text>

@@ -219,11 +219,29 @@ export const PairScreen = ({ navigation, route }: any) => {
 
   // Open Pairing Confirmation Modal (PRD §5.4)
   const handleOpenPairModal = (device: DiscoveredDevice) => {
+    // Abort any ongoing background discovery scan to prevent socket contention
+    abortControllerRef.current?.abort();
+    if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
+    if (scanStatus === 'scanning') setScanStatus('found');
+
     setTargetDevice(device);
+    setPairingMethod('code');
     setSixDigitCode('');
     setPairModalError('');
     setPairSuccess(false);
     setPairModalVisible(true);
+  };
+
+  const handleOpenScanner = (fromModal = false) => {
+    // Abort any ongoing network discovery scan
+    abortControllerRef.current?.abort();
+    if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
+
+    // Dismiss modal if open so modals don't overlap in Android
+    if (fromModal) {
+      setPairModalVisible(false);
+    }
+    setShowScanner(true);
   };
 
   // Execute Confirmation / Pairing (PRD §5.4)
@@ -892,7 +910,7 @@ export const PairScreen = ({ navigation, route }: any) => {
                 </Text>
                 <TouchableOpacity
                   style={[styles.primaryPanelBtn, { width: '100%', flexDirection: isRTL ? 'row-reverse' : 'row' }]}
-                  onPress={() => setShowScanner(true)}
+                  onPress={() => handleOpenScanner(false)}
                   activeOpacity={0.88}
                 >
                   <Camera size={18} color="#ffffff" />
@@ -1103,8 +1121,7 @@ export const PairScreen = ({ navigation, route }: any) => {
                       { flexDirection: isRTL ? 'row-reverse' : 'row' },
                     ]}
                     onPress={() => {
-                      setPairingMethod('qr');
-                      setShowScanner(true);
+                      handleOpenScanner(true);
                     }}
                   >
                     <QrCode size={16} color={pairingMethod === 'qr' ? '#3b82f6' : colors.text.tertiary} />
@@ -1173,17 +1190,24 @@ export const PairScreen = ({ navigation, route }: any) => {
         <DesktopPairingScanner
           onConnect={(scannedUrl, scannedKey) => {
             setShowScanner(false);
-            if (pairModalVisible) {
-              handleConfirmPairing(scannedKey || 'paired-token');
+            if (targetDevice && scannedKey) {
+              handleConfirmPairing(scannedKey);
             } else {
               handleConnect(scannedUrl, scannedKey);
             }
           }}
           onManualInput={() => {
             setShowScanner(false);
+            setPairModalVisible(false);
             setActiveTab('manual');
           }}
-          onClose={() => setShowScanner(false)}
+          onClose={() => {
+            setShowScanner(false);
+            if (targetDevice) {
+              setPairingMethod('code');
+              setPairModalVisible(true);
+            }
+          }}
         />
       )}
     </ScrollView>

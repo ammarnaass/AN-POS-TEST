@@ -110,6 +110,8 @@ export default function POSPage() {
     allowNegativeStock: settings?.allowNegativeStock ?? false,
     confirmNoStock: settings?.confirmNoStock ?? true,
     averagePricing: settings?.averagePricing ?? false,
+    allowCardPayment: Boolean((settings as any)?.allowCardPayment ?? false),
+    allowTransferPayment: Boolean((settings as any)?.allowTransferPayment ?? false),
   }), [settings]);
 
   const { data: sales = [] } = useQuery({
@@ -118,8 +120,8 @@ export default function POSPage() {
   });
 
   const { data: allSessions = [] } = useQuery({
-    queryKey: ['cashSessions'],
-    queryFn: () => db.cash_sessions.toArray(),
+    queryKey: ['pos_sessions_all'],
+    queryFn: () => db.pos_sessions.toArray(),
   });
 
   const currentSession = useMemo(() => {
@@ -150,6 +152,15 @@ export default function POSPage() {
 
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'transfer' | 'credit'>('cash');
   const [paidAmount, setPaidAmount] = useState<number>(0);
+
+  // Auto-reset payment method to cash if currently selected method is disabled in settings
+  useEffect(() => {
+    if (paymentMethod === 'card' && !posSettings.allowCardPayment) {
+      setPaymentMethod('cash');
+    } else if (paymentMethod === 'transfer' && !posSettings.allowTransferPayment) {
+      setPaymentMethod('cash');
+    }
+  }, [paymentMethod, posSettings.allowCardPayment, posSettings.allowTransferPayment]);
 
   const [returnMode, setReturnMode] = useState(false);
   const [showReturnSaleModal, setShowReturnSaleModal] = useState(false);
@@ -2016,31 +2027,49 @@ export default function POSPage() {
               </div>
 
               {/* Payment Methods Tabs */}
-              <div className="grid grid-cols-4 gap-2">
-                {[
+              {(() => {
+                const availableMethods: { id: 'cash' | 'card' | 'transfer' | 'credit'; label: string; icon: any }[] = [
                   { id: 'cash', label: 'نقداً', icon: Banknote },
-                  { id: 'card', label: 'بطاقة', icon: CreditCard },
-                  { id: 'transfer', label: 'تحويل', icon: ArrowLeftRight },
-                  { id: 'credit', label: 'آجل / ذمم', icon: UserCheck },
-                ].map((m) => {
-                  const Icon = m.icon;
-                  const active = paymentMethod === m.id;
-                  return (
-                    <button
-                      key={m.id}
-                      onClick={() => setPaymentMethod(m.id as any)}
-                      className={`p-3 rounded-2xl border flex flex-col items-center gap-1.5 transition-all ${
-                        active
-                          ? 'bg-primary text-on-primary border-primary shadow-sm'
-                          : 'bg-surface-container hover:bg-surface-container-high text-on-surface-variant border-outline-variant/15'
-                      }`}
-                    >
-                      <Icon className="w-5 h-5" />
-                      <span className="text-xs font-bold">{m.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
+                ];
+                if (posSettings.allowCardPayment) {
+                  availableMethods.push({ id: 'card', label: 'بطاقة', icon: CreditCard });
+                }
+                if (posSettings.allowTransferPayment) {
+                  availableMethods.push({ id: 'transfer', label: 'تحويل', icon: ArrowLeftRight });
+                }
+                availableMethods.push({ id: 'credit', label: 'آجل / ذمم', icon: UserCheck });
+
+                const gridColsClass =
+                  availableMethods.length === 2
+                    ? 'grid-cols-2'
+                    : availableMethods.length === 3
+                    ? 'grid-cols-3'
+                    : 'grid-cols-2 sm:grid-cols-4';
+
+                return (
+                  <div className={`grid ${gridColsClass} gap-2`}>
+                    {availableMethods.map((m) => {
+                      const Icon = m.icon;
+                      const active = paymentMethod === m.id;
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => setPaymentMethod(m.id as any)}
+                          className={`p-3 rounded-2xl border flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
+                            active
+                              ? 'bg-primary text-on-primary border-primary shadow-sm'
+                              : 'bg-surface-container hover:bg-surface-container-high text-on-surface-variant border-outline-variant/15'
+                          }`}
+                        >
+                          <Icon className="w-5 h-5" />
+                          <span className="text-xs font-bold">{m.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
 
               {/* Cash Denominations and Paid Input */}
               {paymentMethod === 'cash' && (

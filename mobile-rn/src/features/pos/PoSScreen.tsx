@@ -59,6 +59,7 @@ import { getStoreSettings, fetchStoreSettingsFromDesktop, StoreSettings, DEFAULT
 import CameraScanner from '@/features/barcode/CameraScanner';
 import InvoicePrintPreviewModal from '@/features/print/InvoicePrintPreviewModal';
 import type { Product, Customer } from '@/lib/apiClient';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAuthStore } from '@/store/authStore';
 import { useTheme } from '@/theme';
 import { useI18n } from '@/store/i18nStore';
@@ -151,28 +152,9 @@ export const POSScreen = ({ route, navigation }: any) => {
   const [showSuspendedModal, setShowSuspendedModal] = useState(false);
   const [suspendedOrders, setSuspendedOrders] = useState<SuspendedOrder[]>([]);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  // Handle external barcode passed via navigation params
-  useEffect(() => {
-    if (!products.length) return;
-    if (route?.params?.initialCodes && Array.isArray(route.params.initialCodes)) {
-      const codes: string[] = route.params.initialCodes;
-      codes.forEach((code) => {
-        handleBarcodeScan(code, 'multi');
-      });
-      navigation.setParams({ initialCodes: undefined });
-    } else if (route?.params?.barcode) {
-      const barcodeStr = String(route.params.barcode);
-      handleBarcodeScan(barcodeStr, 'single');
-      navigation.setParams({ barcode: undefined });
-    }
-  }, [route?.params, products]);
-
-  async function loadData() {
-    setLoading(true);
+  // Real-time / Instant Data Loading
+  const loadData = useCallback(async (showLoader = false) => {
+    if (showLoader) setLoading(true);
     setError(null);
     try {
       await ensureInit();
@@ -253,7 +235,6 @@ export const POSScreen = ({ route, navigation }: any) => {
         };
       });
       setProducts(mappedProducts);
-      setFiltered(mappedProducts);
       setCustomers(
         allCustomers.map((c: any) => ({
           ...c,
@@ -283,9 +264,53 @@ export const POSScreen = ({ route, navigation }: any) => {
       setHasOpenSession(!!session);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'خطأ في جلب البيانات');
+    } finally {
+      if (showLoader) setLoading(false);
     }
-    setLoading(false);
-  }
+  }, []);
+
+  // 1. Instant silent refresh when navigating to POS screen
+  useFocusEffect(
+    useCallback(() => {
+      loadData(products.length === 0);
+    }, [loadData, products.length])
+  );
+
+  // 2. Real-time background sync listener and periodic heartbeat
+  useEffect(() => {
+    loadData(true);
+
+    const unsubscribeSync = syncEngine.subscribe((syncState) => {
+      if (!syncState.isSyncing) {
+        loadData(false);
+      }
+    });
+
+    const interval = setInterval(() => {
+      loadData(false);
+    }, 8000);
+
+    return () => {
+      unsubscribeSync();
+      clearInterval(interval);
+    };
+  }, [loadData]);
+
+  // Handle external barcode passed via navigation params
+  useEffect(() => {
+    if (!products.length) return;
+    if (route?.params?.initialCodes && Array.isArray(route.params.initialCodes)) {
+      const codes: string[] = route.params.initialCodes;
+      codes.forEach((code) => {
+        handleBarcodeScan(code, 'multi');
+      });
+      navigation.setParams({ initialCodes: undefined });
+    } else if (route?.params?.barcode) {
+      const barcodeStr = String(route.params.barcode);
+      handleBarcodeScan(barcodeStr, 'single');
+      navigation.setParams({ barcode: undefined });
+    }
+  }, [route?.params, products]);
 
   const findPromotion = (productId: string) => {
     const now = new Date().toISOString().split('T')[0];
@@ -1328,15 +1353,6 @@ export const POSScreen = ({ route, navigation }: any) => {
               ) : (
                 <LayoutGrid size={18} color={isDark ? '#94a3b8' : colors.slate[600]} />
               )}
-            </TouchableOpacity>
-
-            {/* Refresh */}
-            <TouchableOpacity
-              style={[styles.searchIconBtn, { backgroundColor: isDark ? '#1f2937' : colors.slate[100] }]}
-              onPress={loadData}
-              activeOpacity={0.7}
-            >
-              <RotateCcw size={17} color={isDark ? '#94a3b8' : colors.slate[600]} />
             </TouchableOpacity>
 
             {/* Barcode Scanner */}

@@ -604,7 +604,7 @@ export const MoreScreen = ({ navigation }: any) => {
           >
             <Wallet size={20} color={activeShift ? colors.emerald[600] : colors.slate[600]} />
           </View>
-          <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
             <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('nav.cash')}</Text>
             {activeShift ? (
               <Badge variant="emerald" size="xs" dot>
@@ -741,15 +741,15 @@ export const MoreScreen = ({ navigation }: any) => {
           icon={<Printer size={18} color={colors.primary[600]} />}
           title={t('nav.printerSettings')}
           subtitle={t('print.printerSettings')}
-          onPress={() => navigation.navigate('Printers')}
+          onPress={() => navigation.navigate('PrinterSettings')}
           colors={colors}
         />
         <View style={[styles.menuDivider, { backgroundColor: colors.border.subtle }]} />
         <MenuItem
           icon={<FileText size={18} color={colors.indigo[600]} />}
-          title={t('print.templates')}
+          title={t('nav.printTemplates')}
           subtitle={t('printTemplates.subtitle')}
-          onPress={() => navigation.navigate('TemplateEditor')}
+          onPress={() => navigation.navigate('PrintTemplates')}
           colors={colors}
         />
         <View style={[styles.menuDivider, { backgroundColor: colors.border.subtle }]} />
@@ -757,7 +757,7 @@ export const MoreScreen = ({ navigation }: any) => {
           icon={<Barcode size={18} color={colors.purple[600]} />}
           title={t('nav.barcodeLabels')}
           subtitle={t('barcodeLabels.subtitle')}
-          onPress={() => navigation.navigate('BarcodePrint')}
+          onPress={() => navigation.navigate('BarcodeLabels')}
           colors={colors}
         />
       </Card>

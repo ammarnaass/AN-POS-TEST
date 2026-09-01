@@ -115,6 +115,8 @@ export default function SettingsPage() {
     allowNegativeStock: Boolean((rawSettings as any)?.allowNegativeStock ?? (rawSettings as any)?.allow_negative_stock),
     confirmNoStock: Boolean((rawSettings as any)?.confirmNoStock ?? (rawSettings as any)?.confirm_no_stock ?? true),
     averagePricing: Boolean((rawSettings as any)?.averagePricing ?? (rawSettings as any)?.average_pricing),
+    allowCardPayment: Boolean((rawSettings as any)?.allowCardPayment ?? (rawSettings as any)?.allow_card_payment),
+    allowTransferPayment: Boolean((rawSettings as any)?.allowTransferPayment ?? (rawSettings as any)?.allow_transfer_payment),
     ...rawSettings,
     currencies: Array.isArray((rawSettings as unknown as Record<string, unknown> | undefined)?.currencies) ? (rawSettings as unknown as Record<string, Currency[]>).currencies : ([] as Currency[]),
     expenseCategories: Array.isArray((rawSettings as unknown as Record<string, unknown> | undefined)?.expenseCategories) ? (rawSettings as unknown as Record<string, string[]>).expenseCategories : ['ايجار', 'كهرباء', 'ماء', 'رواتب', 'نقل', 'صيانة'],
@@ -748,6 +750,14 @@ export default function SettingsPage() {
     addNotification({ title: 'تم التصدير', message: 'تم تصدير النسخة الاحتياطية بنجاح', type: 'success' });
   };
 
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const handleCopyText = (text: string, fieldName: string) => {
+    navigator.clipboard?.writeText(text);
+    setCopiedField(fieldName);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
   const handleExportExcel = async () => {
     const products = await db.products.toArray();
     const csvHeader = 'الاسم,الباركود,التصنيف,السعر,الكمية,الحد الادنى\n';
@@ -812,35 +822,69 @@ export default function SettingsPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-background p-6 space-y-6" dir="rtl">
+    <div className="min-h-screen bg-background p-3 sm:p-5 md:p-6 space-y-4 sm:space-y-6 max-w-7xl mx-auto w-full" dir="rtl">
       {/* Header Banner */}
-      <header className="bg-gradient-to-r from-surface-container-low via-surface-container to-surface-container-high p-6 rounded-3xl border border-outline-variant/20 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center border border-primary/20 shadow-inner">
-            <Settings className="w-6 h-6" />
+      <header className="bg-gradient-to-r from-surface-container-low via-surface-container to-surface-container-high p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-outline-variant/20 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
+        <div className="flex items-center gap-3 sm:gap-3.5">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-primary/10 text-primary flex items-center justify-center border border-primary/20 shadow-inner shrink-0">
+            <Settings className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold font-cairo text-on-surface">لوحة الإعدادات والتحكم</h1>
-            <p className="text-xs text-on-surface-variant">إدارة وتخصيص كافة وظائف النظام، المبيعات، الصلاحيات، والشبكة</p>
+            <h1 className="text-lg sm:text-xl md:text-2xl font-bold font-cairo text-on-surface">لوحة الإعدادات والتحكم</h1>
+            <p className="text-xs text-on-surface-variant font-tajawal">إدارة وتخصيص كافة وظائف النظام، المبيعات، الصلاحيات، والشبكة</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="px-3.5 py-1.5 rounded-xl bg-surface-container-highest border border-outline-variant/20 flex items-center gap-2 text-xs font-semibold text-on-surface">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          <div className="px-3 py-1.5 rounded-xl bg-surface-container-highest border border-outline-variant/20 flex items-center gap-2 text-xs font-semibold text-on-surface">
             <div className={`w-2.5 h-2.5 rounded-full ${serverStatus?.running ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
             <span>خادم الشبكة: {serverStatus?.running ? `يعمل (منفذ ${serverStatus.port})` : 'متوقف'}</span>
           </div>
 
-          <div className="px-3.5 py-1.5 rounded-xl bg-surface-container-highest border border-outline-variant/20 flex items-center gap-2 text-xs font-semibold text-on-surface">
+          <div className="px-3 py-1.5 rounded-xl bg-surface-container-highest border border-outline-variant/20 flex items-center gap-2 text-xs font-semibold text-on-surface">
             <ShieldCheck className="w-4 h-4 text-primary" />
             <span>{license.activated ? 'النسخة الكاملة' : trial.isActive ? `تجريبي (${trial.remainingDays} يوم)` : 'غير مفعل'}</span>
           </div>
         </div>
       </header>
 
+      {/* Mobile / Tablet Horizontal Navigation (< lg) */}
+      <div className="lg:hidden bg-surface-container-low/90 backdrop-blur-md border border-outline-variant/20 rounded-2xl p-2.5 shadow-sm space-y-2">
+        <div className="overflow-x-auto no-scrollbar flex items-center gap-1.5 pb-1">
+          {tabGroups.flatMap((g) => g.items).map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 cursor-pointer ${
+                  isActive
+                    ? 'bg-primary text-on-primary shadow-sm shadow-primary/20'
+                    : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container bg-surface-container/60'
+                }`}
+              >
+                <Icon className={`w-4 h-4 ${isActive ? 'text-on-primary' : 'text-primary'}`} />
+                <span>{tab.label}</span>
+                {tab.badge && (
+                  <span
+                    className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+                      isActive ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'
+                    }`}
+                  >
+                    {tab.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="flex flex-col lg:flex-row gap-6">
-        {/* Sidebar Navigation */}
-        <aside className="w-full lg:w-72 flex-shrink-0">
+        {/* Desktop Sidebar Navigation (>= lg) */}
+        <aside className="hidden lg:block lg:w-72 flex-shrink-0">
           <div className="bg-surface-container-low/90 backdrop-blur-md border border-outline-variant/20 rounded-3xl p-4 sticky top-6 shadow-sm space-y-5">
             {tabGroups.map((group, gIdx) => (
               <div key={gIdx} className="space-y-1.5">
@@ -852,7 +896,7 @@ export default function SettingsPage() {
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id)}
-                      className={`flex items-center justify-between w-full px-3.5 py-2.5 rounded-2xl transition-all text-xs font-bold ${
+                      className={`flex items-center justify-between w-full px-3.5 py-2.5 rounded-2xl transition-all text-xs font-bold cursor-pointer ${
                         activeTab === tab.id
                           ? 'bg-primary text-on-primary shadow-md shadow-primary/20 scale-[1.02]'
                           : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container border border-transparent'
@@ -1722,6 +1766,20 @@ export default function SettingsPage() {
                     desc: 'حساب زكاة عروض التجارة والنقدية تلقائياً عند بلوغ النصاب السنوي',
                     icon: ShieldCheck,
                     color: 'text-teal-500 bg-teal-500/10',
+                  },
+                  {
+                    key: 'allowCardPayment',
+                    title: 'الدفع بالبطاقة البنكية (CIB / الذهبية / Visa)',
+                    desc: 'إظهار خيار الدفع عبر البطاقة في نافذة إتمام البيع بنقطة البيع (افتراضياً: غير مفعل)',
+                    icon: CreditCard,
+                    color: 'text-indigo-500 bg-indigo-500/10',
+                  },
+                  {
+                    key: 'allowTransferPayment',
+                    title: 'الدفع بالتحويل البنكي / بريدي موب',
+                    desc: 'إظهار خيار الدفع عبر التحويل البنكي أو التطبيقات المالية في نافذة الدفع (افتراضياً: غير مفعل)',
+                    icon: ArrowLeftRight,
+                    color: 'text-cyan-500 bg-cyan-500/10',
                   },
                 ].map((item) => (
                   <div
@@ -3719,43 +3777,43 @@ export default function SettingsPage() {
 
         {/* === تطبيق الهاتف المحمول (AN POS Mobile) === */}
         {activeTab === 'mobile' && (
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             {/* بطاقة الترويسة والتحكم بالخادم */}
-            <div className="bg-surface-container-low rounded-3xl border border-outline-variant/20 p-6 shadow-sm">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-outline-variant/15">
-                <div className="flex items-center gap-3.5">
-                  <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center border border-primary/20 shadow-inner">
-                    <Smartphone className="w-6 h-6" />
+            <div className="bg-surface-container-low rounded-2xl sm:rounded-3xl border border-outline-variant/20 p-4 sm:p-6 shadow-sm">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 sm:pb-5 border-b border-outline-variant/15">
+                <div className="flex items-start sm:items-center gap-3 sm:gap-3.5">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-primary/10 text-primary flex items-center justify-center border border-primary/20 shadow-inner shrink-0">
+                    <Smartphone className="w-5 h-5 sm:w-6 sm:h-6" />
                   </div>
                   <div>
-                    <div className="flex items-center gap-2.5 flex-wrap">
-                      <h2 className="text-xl font-bold font-cairo text-on-surface">تطبيق الهاتف المقترن (AN POS Mobile)</h2>
+                    <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
+                      <h2 className="text-lg sm:text-xl font-bold font-cairo text-on-surface">تطبيق الهاتف المقترن (AN POS Mobile)</h2>
                       {serverStatus?.running ? (
-                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 flex items-center gap-1.5">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-extrabold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 flex items-center gap-1.5">
                           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                           خادم الربط يعمل (منفذ {serverStatus.port})
                         </span>
                       ) : (
-                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-surface-container-high text-on-surface-variant">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-medium bg-surface-container-high text-on-surface-variant">
                           الخادم متوقف
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-on-surface-variant mt-0.5">
+                    <p className="text-xs text-on-surface-variant mt-0.5 font-tajawal">
                       ربط هواتف الكاشير والمبيعات المحمولة ومزامنة الفواتير والمخزون في الوقت الفعلي
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
                   {serverStatus?.running && (
                     <button
                       type="button"
                       onClick={handleRegenerateKey}
-                      className="px-4 py-2.5 bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant hover:text-on-surface rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border border-outline-variant/20"
+                      className="px-3.5 sm:px-4 py-2 sm:py-2.5 bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant hover:text-on-surface rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border border-outline-variant/20 cursor-pointer"
                       title="توليد مفتاح أمان سري جديد لقطع وإعادة اقتران الأجهزة"
                     >
-                      <Key className="w-4 h-4" />
+                      <Key className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                       <span>تجديد المفتاح السري</span>
                     </button>
                   )}
@@ -3764,18 +3822,18 @@ export default function SettingsPage() {
                     type="button"
                     onClick={toggleServer}
                     disabled={serverLoading}
-                    className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm ${
+                    className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm cursor-pointer ${
                       serverStatus?.running
                         ? 'bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20'
                         : 'bg-primary text-on-primary hover:bg-primary/90'
                     }`}
                   >
                     {serverLoading ? (
-                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" />
                     ) : serverStatus?.running ? (
-                      <LogOut className="w-4 h-4" />
+                      <LogOut className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     ) : (
-                      <Zap className="w-4 h-4" />
+                      <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     )}
                     <span>{serverLoading ? 'جاري المعالجة...' : serverStatus?.running ? 'إيقاف خادم الربط' : 'تشغيل خادم الربط'}</span>
                   </button>
@@ -3784,9 +3842,9 @@ export default function SettingsPage() {
 
               {/* المحتوى المركزي: إذا كان الخادم يعمل، نعرض رمز QR وإرشادات الربط */}
               {serverStatus?.running && pairingInfo ? (
-                <div className="pt-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+                <div className="pt-5 sm:pt-6 grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-center">
                   {/* عمود رمز QR الأنيق */}
-                  <div className="lg:col-span-5 flex flex-col items-center justify-center p-6 bg-white rounded-3xl border border-outline-variant/20 shadow-sm text-center">
+                  <div className="lg:col-span-5 flex flex-col items-center justify-center p-4 sm:p-6 bg-surface-container-lowest/80 dark:bg-surface-container-low rounded-2xl sm:rounded-3xl border border-outline-variant/20 shadow-sm text-center">
                     <PairingQR
                       data={pairingInfo}
                       title="امسح الرمز بكاميرا الهاتف"
@@ -3796,46 +3854,77 @@ export default function SettingsPage() {
 
                   {/* عمود خطوات الربط السريعة والمعلومات التقنية */}
                   <div className="lg:col-span-7 space-y-4">
-                    <div className="p-5 rounded-2xl bg-surface-container border border-outline-variant/15 space-y-3">
-                      <h3 className="text-sm font-bold font-cairo text-on-surface flex items-center gap-2">
+                    <div className="p-4 sm:p-5 rounded-2xl bg-surface-container border border-outline-variant/15 space-y-3">
+                      <h3 className="text-xs sm:text-sm font-bold font-cairo text-on-surface flex items-center gap-2">
                         <ListChecks className="w-4 h-4 text-primary" />
                         <span>خطوات الربط في 3 خطوات بسيطة:</span>
                       </h3>
 
-                      <ol className="space-y-2.5 text-xs text-on-surface-variant pr-4 list-decimal list-inside">
+                      <ol className="space-y-2.5 text-xs text-on-surface-variant pr-2 sm:pr-4 list-decimal list-inside font-tajawal">
                         <li className="leading-relaxed">
-                          <strong className="text-on-surface">تأكد من الاتصال بنفس الشبكة:</strong> يجب أن يكون هاتفك وجهاز الكمبيوتر متصلين بنفس شبكة الـ Wi-Fi المحلية.
+                          <strong className="text-on-surface">الاتصال بنفس الشبكة:</strong> يجب أن يكون هاتفك وجهاز الكمبيوتر متصلين بنفس شبكة الـ Wi-Fi المحلية.
                         </li>
                         <li className="leading-relaxed">
-                          <strong className="text-on-surface">افتح تطبيق AN POS Mobile:</strong> اضغط على زر <span className="text-primary font-bold">"مسح رمز الاقتران"</span> في شاشة البداية.
+                          <strong className="text-on-surface">افتح تطبيق AN POS Mobile:</strong> اختر <span className="text-primary font-bold">"اقتران بالحاسوب"</span> أو مسح QR في شاشة البداية.
                         </li>
                         <li className="leading-relaxed">
-                          <strong className="text-on-surface">وجّه الكاميرا نحو الرمز:</strong> سيتم الاتصال ونقل الأصناف والمخزون وصلاحيات المستخدم تلقائياً وذرياً.
+                          <strong className="text-on-surface">وجّه الكاميرا نحو الرمز:</strong> سيتم الاتصال ومزامنة الأصناف والمخزون وحركات البيع تلقائياً.
                         </li>
                       </ol>
                     </div>
 
                     {/* بيانات الاتصال المباشرة للمطورين والإدخال اليدوي */}
-                    <div className="p-4 rounded-2xl bg-surface-container-low border border-outline-variant/15 space-y-2">
+                    <div className="p-4 rounded-2xl bg-surface-container-low border border-outline-variant/15 space-y-2.5">
                       <div className="flex items-center justify-between text-xs font-bold text-on-surface">
                         <span>معلومات الاتصال المباشر (Manual Pairing):</span>
-                        <span className="text-[10px] text-emerald-600 font-mono bg-emerald-500/10 px-2 py-0.5 rounded-md">
+                        <span className="text-[10px] text-emerald-600 font-mono bg-emerald-500/10 px-2 py-0.5 rounded-md flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                           جاهز للاستقبال
                         </span>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 text-xs font-mono">
-                        <div className="p-2.5 rounded-xl bg-surface-container border border-outline-variant/10">
-                          <span className="text-[10px] text-on-surface-variant block font-cairo">عنوان الخادم IP</span>
-                          <strong className="text-on-surface">{pairingInfo.ip}</strong>
+                        <div className="p-2.5 rounded-xl bg-surface-container border border-outline-variant/10 flex items-center justify-between">
+                          <div>
+                            <span className="text-[10px] text-on-surface-variant block font-cairo">عنوان الخادم IP</span>
+                            <strong className="text-on-surface select-all">{pairingInfo.ip}</strong>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyText(pairingInfo.ip, 'ip')}
+                            className="p-1 text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
+                            title="نسخ IP"
+                          >
+                            {copiedField === 'ip' ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
                         </div>
-                        <div className="p-2.5 rounded-xl bg-surface-container border border-outline-variant/10">
-                          <span className="text-[10px] text-on-surface-variant block font-cairo">منفذ الاتصال Port</span>
-                          <strong className="text-on-surface">{pairingInfo.port}</strong>
+                        <div className="p-2.5 rounded-xl bg-surface-container border border-outline-variant/10 flex items-center justify-between">
+                          <div>
+                            <span className="text-[10px] text-on-surface-variant block font-cairo">منفذ الاتصال Port</span>
+                            <strong className="text-on-surface select-all">{pairingInfo.port}</strong>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyText(String(pairingInfo.port), 'port')}
+                            className="p-1 text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
+                            title="نسخ المنفذ"
+                          >
+                            {copiedField === 'port' ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
                         </div>
-                        <div className="p-2.5 rounded-xl bg-surface-container border border-outline-variant/10">
-                          <span className="text-[10px] text-on-surface-variant block font-cairo">رمز الأمان السري</span>
-                          <strong className="text-on-surface">{pairingInfo.key}</strong>
+                        <div className="p-2.5 rounded-xl bg-surface-container border border-outline-variant/10 flex items-center justify-between">
+                          <div>
+                            <span className="text-[10px] text-on-surface-variant block font-cairo">رمز الأمان السري</span>
+                            <strong className="text-on-surface select-all">{pairingInfo.key}</strong>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyText(pairingInfo.key, 'key')}
+                            className="p-1 text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
+                            title="نسخ المفتاح"
+                          >
+                            {copiedField === 'key' ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -3843,13 +3932,13 @@ export default function SettingsPage() {
                 </div>
               ) : (
                 /* في حالة توقف الخادم */
-                <div className="text-center py-12 px-4 max-w-lg mx-auto space-y-4">
-                  <div className="w-20 h-20 bg-surface-container rounded-3xl flex items-center justify-center mx-auto text-primary border border-outline-variant/20 shadow-inner">
-                    <Wifi className="w-10 h-10 animate-pulse" />
+                <div className="text-center py-8 sm:py-12 px-4 max-w-lg mx-auto space-y-4">
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 bg-surface-container rounded-2xl sm:rounded-3xl flex items-center justify-center mx-auto text-primary border border-outline-variant/20 shadow-inner">
+                    <Wifi className="w-8 h-8 sm:w-10 sm:h-10 animate-pulse" />
                   </div>
                   <div>
-                    <h3 className="font-cairo text-lg font-bold text-on-surface">خادم ربط الهواتف متوقف حالياً</h3>
-                    <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
+                    <h3 className="font-cairo text-base sm:text-lg font-bold text-on-surface">خادم ربط الهواتف متوقف حالياً</h3>
+                    <p className="text-xs text-on-surface-variant mt-1 leading-relaxed font-tajawal">
                       لتوصيل تطبيقات الكاشير والمبيعات المحمولة ومزامنة الفواتير والمخزون، يرجى تشغيل الخادم بالضغط على الزر أدناه لتوليد رمز الاستجابة السريعة (QR Code).
                     </p>
                   </div>
@@ -3857,7 +3946,7 @@ export default function SettingsPage() {
                     type="button"
                     onClick={toggleServer}
                     disabled={serverLoading}
-                    className="px-6 py-3 bg-primary text-on-primary rounded-2xl text-xs font-bold shadow-md hover:bg-primary/90 transition-all flex items-center justify-center gap-2 mx-auto"
+                    className="px-5 sm:px-6 py-2.5 sm:py-3 bg-primary text-on-primary rounded-xl sm:rounded-2xl text-xs font-bold shadow-md hover:bg-primary/90 transition-all flex items-center justify-center gap-2 mx-auto cursor-pointer"
                   >
                     <Zap className="w-4 h-4" />
                     <span>تشغيل الخادم وعرض رمز QR للربط</span>
@@ -3867,15 +3956,15 @@ export default function SettingsPage() {
             </div>
 
             {/* الهواتف المتصلة حالياً */}
-            <div className="p-6 rounded-3xl bg-surface-container-low border border-outline-variant/20 space-y-4">
+            <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-surface-container-low border border-outline-variant/20 space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-outline-variant/15">
                 <div className="flex items-center gap-2.5">
                   <Smartphone className="w-5 h-5 text-primary" />
                   <div>
-                    <h3 className="text-sm font-bold font-cairo text-on-surface">
+                    <h3 className="text-xs sm:text-sm font-bold font-cairo text-on-surface">
                       الهواتف والأجهزة المتصلة حالياً ({mobilePhones.length})
                     </h3>
-                    <p className="text-[11px] text-on-surface-variant">
+                    <p className="text-[11px] text-on-surface-variant font-tajawal">
                       متابعة الأجهزة المقترنة والتحكم في جلسات الاتصال النشطة
                     </p>
                   </div>
@@ -3885,7 +3974,7 @@ export default function SettingsPage() {
                   <button
                     type="button"
                     onClick={refetchConnected}
-                    className="p-2 rounded-xl hover:bg-surface-container-high text-on-surface-variant transition-all"
+                    className="p-2 rounded-xl hover:bg-surface-container-high text-on-surface-variant transition-all cursor-pointer"
                     title="تحديث قائمة الأجهزة"
                   >
                     <RefreshCw className="w-4 h-4" />
@@ -3898,14 +3987,14 @@ export default function SettingsPage() {
                   {mobilePhones.map((d: any) => (
                     <div
                       key={d.id}
-                      className="p-4 rounded-2xl bg-surface-container border border-outline-variant/15 flex items-center justify-between gap-3 shadow-xs"
+                      className="p-3.5 sm:p-4 rounded-2xl bg-surface-container border border-outline-variant/15 flex items-center justify-between gap-3 shadow-xs"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center border border-emerald-500/20">
-                          <Smartphone className="w-5 h-5" />
+                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center border border-emerald-500/20 shrink-0">
+                          <Smartphone className="w-4 h-4 sm:w-5 sm:h-5" />
                         </div>
-                        <div>
-                          <p className="text-xs font-bold text-on-surface">{d.device_name || d.deviceName || 'هاتف محمول'}</p>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-on-surface truncate">{d.device_name || d.deviceName || 'هاتف محمول'}</p>
                           <div className="flex items-center gap-1.5 text-[10px] text-on-surface-variant font-mono mt-0.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                             <span>متصل</span>
@@ -3923,7 +4012,7 @@ export default function SettingsPage() {
                             refetchConnected();
                           } catch {}
                         }}
-                        className="p-2 rounded-xl text-red-500 hover:bg-red-500/10 transition-all"
+                        className="p-2 rounded-xl text-red-500 hover:bg-red-500/10 transition-all cursor-pointer"
                         title="فصل الجهاز"
                       >
                         <LogOut className="w-4 h-4" />
@@ -3932,10 +4021,10 @@ export default function SettingsPage() {
                   ))}
                 </div>
               ) : (
-                <div className="py-8 text-center text-on-surface-variant">
-                  <Smartphone className="w-10 h-10 mx-auto mb-2 opacity-25" />
-                  <p className="text-xs font-bold">لا توجد هواتف متصلة بالخادم حالياً</p>
-                  <p className="text-[11px] opacity-70 mt-0.5">
+                <div className="py-6 sm:py-8 text-center text-on-surface-variant">
+                  <Smartphone className="w-8 h-8 sm:w-10 sm:h-10 mx-auto mb-2 opacity-25" />
+                  <p className="text-xs font-bold font-cairo">لا توجد هواتف متصلة بالخادم حالياً</p>
+                  <p className="text-[11px] opacity-70 mt-0.5 font-tajawal">
                     امسح رمز الـ QR أعلاه من تطبيق الهاتف ليظهر الجهاز في هذه القائمة تلقائياً
                   </p>
                 </div>
@@ -3943,7 +4032,7 @@ export default function SettingsPage() {
             </div>
 
             {/* بطاقات وظائف وقدرات تطبيق الهاتف المحمول */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               {[
                 {
                   title: 'نقطة بيع سريعة متنقلة',
@@ -3974,13 +4063,13 @@ export default function SettingsPage() {
                 return (
                   <div
                     key={feat.title}
-                    className="p-4 rounded-2xl bg-surface-container border border-outline-variant/15 space-y-2.5 shadow-xs"
+                    className="p-3.5 sm:p-4 rounded-2xl bg-surface-container border border-outline-variant/15 space-y-2 shadow-xs hover:border-outline-variant/30 transition-all"
                   >
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center border ${feat.color}`}>
+                    <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center border ${feat.color}`}>
                       <FeatIcon className="w-4 h-4" />
                     </div>
                     <h4 className="text-xs font-bold font-cairo text-on-surface">{feat.title}</h4>
-                    <p className="text-[11px] text-on-surface-variant leading-relaxed">{feat.desc}</p>
+                    <p className="text-[11px] text-on-surface-variant leading-relaxed font-tajawal">{feat.desc}</p>
                   </div>
                 );
               })}

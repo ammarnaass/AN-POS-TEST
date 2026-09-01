@@ -278,6 +278,8 @@ export interface SettingsEntity {
   allowNegativeStock?: boolean;
   confirmNoStock?: boolean;
   averagePricing?: boolean;
+  allowCardPayment?: boolean;
+  allowTransferPayment?: boolean;
   invoiceTemplate?: 'basic' | 'detailed';
   expenseCategories?: string[];
   // SYS-GEN-001: العملة واللغة

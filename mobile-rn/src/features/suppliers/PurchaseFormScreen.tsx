@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import {
   ArrowRight,
+  ArrowLeft,
   Plus,
   Trash2,
   Check,
@@ -242,15 +243,24 @@ export const PurchaseFormScreen = ({ navigation, route }: any) => {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border.default, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.headerBackBtn, { backgroundColor: isDark ? colors.surfaceSubtle : '#f1f5f9' }]}>
-          <ChevronLeft size={22} color={colors.text.primary} style={{ transform: [{ rotate: isRTL ? '180deg' : '0deg' }] }} />
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border.default }]}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={[styles.headerBackBtn, { backgroundColor: isDark ? colors.surfaceSubtle : '#f1f5f9' }]}
+          activeOpacity={0.7}
+        >
+          {isRTL ? (
+            <ArrowRight size={22} color={colors.text.primary} />
+          ) : (
+            <ArrowLeft size={22} color={colors.text.primary} />
+          )}
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text.primary }]}>{t('suppliers.purchaseInvoice')}</Text>
         <TouchableOpacity
           style={[styles.headerSaveBtn, items.length === 0 && styles.headerSaveBtnDisabled]}
           onPress={handleSavePurchase}
           disabled={saving || items.length === 0}
+          activeOpacity={0.7}
         >
           {saving ? (
             <ActivityIndicator size="small" color="#fff" />

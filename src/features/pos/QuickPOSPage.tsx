@@ -222,7 +222,18 @@ export default function QuickPOSPage() {
     phone: rawSettings?.phone ?? '',
     receiptFooter: rawSettings?.receiptFooter ?? 'شكراً لزيارتكم',
     allowNegativeStock: rawSettings?.allowNegativeStock ?? true,
+    allowCardPayment: Boolean((rawSettings as any)?.allowCardPayment ?? false),
+    allowTransferPayment: Boolean((rawSettings as any)?.allowTransferPayment ?? false),
   }), [rawSettings]);
+
+  // Auto-reset payment method to cash if currently selected method is disabled in settings
+  useEffect(() => {
+    if (paymentMethod === 'card' && !settingsOrDefault.allowCardPayment) {
+      setPaymentMethod('cash');
+    } else if (paymentMethod === 'transfer' && !settingsOrDefault.allowTransferPayment) {
+      setPaymentMethod('cash');
+    }
+  }, [paymentMethod, settingsOrDefault.allowCardPayment, settingsOrDefault.allowTransferPayment]);
 
   // Sale Calculations
   const saleSummary = useMemo(() => {
@@ -984,31 +995,49 @@ export default function QuickPOSPage() {
           <div className="p-3 bg-surface-container-high/60 border-t border-outline-variant/20 space-y-2.5 shrink-0 shadow-lg">
             
             {/* Payment Method Selector */}
-            <div className="grid grid-cols-4 gap-1.5">
-              {[
+            {(() => {
+              const availableMethods: { id: 'cash' | 'card' | 'transfer' | 'credit'; label: string; icon: any }[] = [
                 { id: 'cash', label: 'نقداً', icon: Banknote },
-                { id: 'card', label: 'بطاقة', icon: CreditCard },
-                { id: 'transfer', label: 'تحويل', icon: ArrowLeftRight },
-                { id: 'credit', label: 'آجل', icon: UserCheck },
-              ].map((m) => {
-                const Icon = m.icon;
-                const active = paymentMethod === m.id;
-                return (
-                  <button
-                    key={m.id}
-                    onClick={() => setPaymentMethod(m.id as any)}
-                    className={`py-1.5 px-1 rounded-xl text-xs font-bold border flex items-center justify-center gap-1 transition-all ${
-                      active
-                        ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
-                        : 'bg-surface hover:bg-surface-container text-on-surface-variant border-outline-variant/15'
-                    }`}
-                  >
-                    <Icon className="w-3.5 h-3.5" />
-                    <span>{m.label}</span>
-                  </button>
-                );
-              })}
-            </div>
+              ];
+              if (settingsOrDefault.allowCardPayment) {
+                availableMethods.push({ id: 'card', label: 'بطاقة', icon: CreditCard });
+              }
+              if (settingsOrDefault.allowTransferPayment) {
+                availableMethods.push({ id: 'transfer', label: 'تحويل', icon: ArrowLeftRight });
+              }
+              availableMethods.push({ id: 'credit', label: 'آجل', icon: UserCheck });
+
+              const gridColsClass =
+                availableMethods.length === 2
+                  ? 'grid-cols-2'
+                  : availableMethods.length === 3
+                  ? 'grid-cols-3'
+                  : 'grid-cols-4';
+
+              return (
+                <div className={`grid ${gridColsClass} gap-1.5`}>
+                  {availableMethods.map((m) => {
+                    const Icon = m.icon;
+                    const active = paymentMethod === m.id;
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setPaymentMethod(m.id as any)}
+                        className={`py-1.5 px-1 rounded-xl text-xs font-bold border flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                          active
+                            ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
+                            : 'bg-surface hover:bg-surface-container text-on-surface-variant border-outline-variant/15'
+                        }`}
+                      >
+                        <Icon className="w-3.5 h-3.5" />
+                        <span>{m.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })()}
 
             {/* Rapid Cash Tender Buttons (When Cash is active) */}
             {paymentMethod === 'cash' && saleSummary.total > 0 && (

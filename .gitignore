@@ -59,3 +59,8 @@ mobile-rn/*.png
 __pycache__/
 *.pyc
 *.pyo
+
+# Kotlin build files
+.kotlin
+**/.kotlin
+
