@@ -109,11 +109,21 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
           }
         }
 
-        if (currentSession) {
-          const updateData = isReturn
-            ? { totalReturns: (currentSession.totalReturns || 0) + saleSummary.total }
-            : { totalSales: (currentSession.totalSales || 0) + saleSummary.total };
-          await db.cash_sessions.update(currentSession.id, updateData);
+        // تحديث إجمالي مبيعات أو مرتجعات الجلسة النقدية المفتوحة
+        let targetSessionId = currentSession?.id;
+        if (!targetSessionId) {
+          const openSession = await db.cash_sessions.filter(s => s.status === 'open').first();
+          if (openSession) targetSessionId = openSession.id;
+        }
+
+        if (targetSessionId) {
+          const freshSession = await db.cash_sessions.get(targetSessionId);
+          if (freshSession) {
+            const updateData = isReturn
+              ? { totalReturns: (freshSession.totalReturns || 0) + saleSummary.total, updatedAt: new Date().toISOString() }
+              : { totalSales: (freshSession.totalSales || 0) + saleSummary.total, updatedAt: new Date().toISOString() };
+            await db.cash_sessions.update(targetSessionId, updateData);
+          }
         }
       });
 

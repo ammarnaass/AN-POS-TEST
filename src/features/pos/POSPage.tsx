@@ -120,8 +120,8 @@ export default function POSPage() {
   });
 
   const { data: allSessions = [] } = useQuery({
-    queryKey: ['pos_sessions_all'],
-    queryFn: () => db.pos_sessions.toArray(),
+    queryKey: ['cashSessions'],
+    queryFn: () => db.cash_sessions.toArray(),
   });
 
   const currentSession = useMemo(() => {
@@ -940,16 +940,32 @@ export default function POSPage() {
 
           {/* 3. Active Sessions / Shifts */}
           <button
-            onClick={() => setShowOpenSession(true)}
-            className="group relative w-8.5 h-8.5 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-xl bg-primary/10 hover:bg-primary/20 border border-primary/25 hover:border-primary/50 flex items-center justify-center text-primary hover:scale-105 active:scale-95 transition-all duration-200 shadow-2xs"
-            title="المناوبات والجلسات النشطة"
+            onClick={() => {
+              if (currentSession) {
+                navigate('/cash');
+              } else {
+                setShowOpenSession(true);
+              }
+            }}
+            className={`group relative h-8.5 sm:h-9 md:h-10 px-2 sm:px-2.5 rounded-xl border flex items-center gap-1.5 transition-all duration-200 shadow-2xs cursor-pointer ${
+              currentSession
+                ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 border-emerald-500/30'
+                : 'bg-primary/10 hover:bg-primary/20 text-primary border-primary/25'
+            }`}
+            title={currentSession ? `مناوبة نشطة #${currentSession.sessionNumber} - إدارة الصندوق` : 'فتح مناوبة جديدة'}
           >
-            <PlayCircle className="w-4 h-4 text-primary" />
-            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center">
-              <span className="relative w-4 h-4 rounded-full bg-gradient-to-tr from-red-600 to-rose-500 text-white text-[9px] font-black flex items-center justify-center font-mono shadow-xs">
-                3
-              </span>
-            </span>
+            {currentSession ? (
+              <>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <Wallet className="w-4 h-4 text-emerald-600" />
+                <span className="text-[11px] font-bold font-mono hidden sm:inline">#{currentSession.sessionNumber}</span>
+              </>
+            ) : (
+              <>
+                <Wallet className="w-4 h-4 text-primary" />
+                <span className="text-[11px] font-bold hidden md:inline font-cairo">فتح مناوبة</span>
+              </>
+            )}
           </button>
 
           {/* 4. Keyboard Shortcuts */}
