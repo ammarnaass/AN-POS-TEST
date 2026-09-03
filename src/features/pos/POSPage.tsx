@@ -19,6 +19,7 @@ import { parseAndAddScannedCode, playAdded, playErrorBeep, unlockAudio } from '@
 import { useSaleCompletion } from './hooks/useSaleCompletion';
 import { usePOSKeyboardShortcuts } from './hooks/usePOSKeyboardShortcuts';
 import { POSActionBar } from './components/POSActionBar';
+import { ClassicPOSLayout } from './components/ClassicPOSLayout';
 import { useOpenCashSession } from '@/features/cash/useOpenCashSession';
 import {
   Search, Plus, Minus, Trash2, ShoppingCart, Banknote, UserPlus, Clock, X, Package, RotateCcw,
@@ -1066,41 +1067,97 @@ export default function POSPage() {
       {/* ───────────────────────────────────────────────────────────── */}
       {/* MOBILE VIEW SWITCHER (Visible on screens < md)                */}
       {/* ───────────────────────────────────────────────────────────── */}
-      <div className="md:hidden flex items-center bg-surface-container/90 p-1 mx-3 my-1.5 rounded-2xl border border-outline-variant/20 shrink-0 gap-1 shadow-xs">
-        <button
-          onClick={() => setMobileTab('products')}
-          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-            mobileTab === 'products'
-              ? 'bg-primary text-on-primary shadow-sm'
-              : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
-          }`}
-        >
-          <Package className="w-4 h-4" />
-          <span>الأصناف ({products.length})</span>
-        </button>
-        <button
-          onClick={() => setMobileTab('cart')}
-          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-            mobileTab === 'cart'
-              ? 'bg-primary text-on-primary shadow-sm'
-              : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
-          }`}
-        >
-          <ShoppingCart className="w-4 h-4" />
-          <span>السلة ({cart.length})</span>
-          {cart.length > 0 && (
-            <span className="px-1.5 py-0.2 rounded-md bg-amber-500 text-white text-[10px] font-mono font-bold">
-              {formatNumber(saleSummary?.total)} دج
-            </span>
-          )}
-        </button>
-      </div>
+      {posLayout !== 'classic' && (
+        <div className="md:hidden flex items-center bg-surface-container/90 p-1 mx-3 my-1.5 rounded-2xl border border-outline-variant/20 shrink-0 gap-1 shadow-xs">
+          <button
+            onClick={() => setMobileTab('products')}
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+              mobileTab === 'products'
+                ? 'bg-primary text-on-primary shadow-sm'
+                : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
+            }`}
+          >
+            <Package className="w-4 h-4" />
+            <span>الأصناف ({products.length})</span>
+          </button>
+          <button
+            onClick={() => setMobileTab('cart')}
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+              mobileTab === 'cart'
+                ? 'bg-primary text-on-primary shadow-sm'
+                : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
+            }`}
+          >
+            <ShoppingCart className="w-4 h-4" />
+            <span>السلة ({cart.length})</span>
+            {cart.length > 0 && (
+              <span className="px-1.5 py-0.2 rounded-md bg-amber-500 text-white text-[10px] font-mono font-bold">
+                {formatNumber(saleSummary?.total)} دج
+              </span>
+            )}
+          </button>
+        </div>
+      )}
 
 
       {/* ========================================================= */}
       {/* MAIN CONTENT AREA: CART PANEL + PRODUCT CATALOG            */}
       {/* ========================================================= */}
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+      {posLayout === 'classic' ? (
+        <ClassicPOSLayout
+          cart={cart}
+          onAddToCart={(p) => handleAddProduct(p as any)}
+          onUpdateQty={updateCartQty}
+          onRemoveFromCart={removeFromCart}
+          onClearCart={() => {
+            clearCart();
+            setSelectedCustomer('');
+            setDiscount(0);
+          }}
+          saleSummary={saleSummary}
+          products={products as any}
+          categories={availableCategories}
+          selectedCategory={filterCategory}
+          onSelectCategory={(catId) => setFilterCategory(catId)}
+          barcodeInput={barcodeInput}
+          setBarcodeInput={setBarcodeInput}
+          onBarcodeSubmit={handleBarcodeSubmit}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          onSettleSale={() => {
+            if (!isSessionOpen) {
+              setShowSessionWarning(true);
+              return;
+            }
+            if (cart.length === 0) return;
+            setPaidAmount(saleSummary.total);
+            setShowPaymentModal(true);
+          }}
+          onSuspendSale={handleSuspend}
+          onOpenSuspended={() => setShowSuspended(true)}
+          suspendedCount={suspendedOrders.length}
+          onSelectCustomer={() => setShowCustomerSelect(true)}
+          selectedCustomerName={selectedCustomer ? customers.find((c) => c.id === selectedCustomer)?.name || '' : ''}
+          autoPrintReceipt={autoPrintReceipt}
+          onToggleAutoPrint={() => {
+            setAutoPrintReceipt(!autoPrintReceipt);
+            addNotification({
+              title: 'الطباعة التلقائية',
+              message: !autoPrintReceipt ? 'تم تفعيل الطباعة التلقائية للإيصالات' : 'تم إيقاف الطباعة التلقائية',
+              type: 'info',
+            });
+          }}
+          onOpenDiscount={() => setShowDiscountModal(true)}
+          onOpenReturns={() => setShowReturnSaleModal(true)}
+          formatMoney={formatMoney}
+          currency="دج"
+          userName={currentUser?.name || 'Admin'}
+          storeName={settingsOrDefault?.shopName || 'AN POS'}
+          isSessionOpen={isSessionOpen}
+          isSalePending={isSalePending}
+        />
+      ) : (
+        <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
 
         {/* --------------------------------------------------------- */}
         {/* RIGHT (IN RTL): PRODUCT DISCOVERY AREA (ZONE 2)           */}
@@ -1273,8 +1330,8 @@ export default function POSPage() {
             </button>
           </div>
 
-          {/* Bottom Financial & Action Bar for Design 2 and Design 3 */}
-          {(posLayout === 'bottom' || posLayout === 'classic') && (
+          {/* Bottom Financial & Action Bar for Design 2 */}
+          {posLayout === 'bottom' && (
             <POSActionBar
               cartLength={cart.length}
               subtotal={saleSummary.subtotal}
@@ -1329,7 +1386,7 @@ export default function POSPage() {
         <aside className={`bg-surface-container-low/95 backdrop-blur-md flex flex-col h-full shrink-0 shadow-xl border-r border-outline-variant/20 z-10 transition-all duration-200 ${
           mobileTab === 'cart' ? 'flex w-full' : 'hidden md:flex'
         } ${
-          (posLayout === 'bottom' || posLayout === 'classic') ? 'md:w-[320px] lg:w-[350px]' : 'md:w-[420px] lg:w-[450px]'
+          posLayout === 'bottom' ? 'md:w-[320px] lg:w-[350px]' : 'md:w-[420px] lg:w-[450px]'
         }`}>
           
           {/* Mobile Top Bar inside Cart */}
@@ -1346,37 +1403,51 @@ export default function POSPage() {
             </span>
           </div>
 
-          {/* Customer Search / Selector Bar */}
-          <div className="p-3 bg-surface-container/80 border-b border-outline-variant/15 flex items-center gap-2 shrink-0 shadow-2xs">
-            <div className="relative flex-1 group">
-              <select
-                value={selectedCustomer}
-                onChange={(e) => setSelectedCustomer(e.target.value)}
-                className="w-full h-10 pr-3.5 pl-8 bg-surface-container-low/90 hover:bg-surface-container border border-outline-variant/20 focus:border-primary/50 rounded-xl text-xs text-on-surface font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none cursor-pointer transition-all shadow-2xs"
-              >
-                <option value="">البحث عن زبون بالاسم أو المعرف...</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} {c.balance && c.balance > 0 ? `(دين: ${formatNumber(c.balance)} دج)` : ''}
-                  </option>
-                ))}
-              </select>
-              <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant/70 text-[10px]">
-                ▼
+          {/* Cart Customer Selector */}
+          <div className="p-3 bg-surface-container-low border-b border-outline-variant/20 shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="flex-1 relative">
+                <button
+                  type="button"
+                  onClick={() => setShowCustomerSelect(true)}
+                  className="w-full py-2 px-3 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-xs font-bold flex items-center justify-between transition-colors text-right cursor-pointer"
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <User className="w-3.5 h-3.5 text-primary shrink-0" />
+                    <span className="truncate">
+                      {selectedCustomer
+                        ? customers.find((c) => c.id === selectedCustomer)?.name
+                        : 'زبون عام (افتراضي)'}
+                    </span>
+                  </div>
+                  <ChevronDown className="w-3.5 h-3.5 text-on-surface-variant/70 shrink-0" />
+                </button>
               </div>
-            </div>
 
-            <button
-              onClick={() => setShowAddCustomer(true)}
-              className="w-10 h-10 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 text-emerald-600 flex items-center justify-center font-bold transition-all shrink-0 shadow-2xs hover:scale-105 active:scale-95"
-              title="إضافة زبون جديد"
-            >
-              <UserPlus className="w-4 h-4" />
-            </button>
+              {selectedCustomer && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedCustomer('')}
+                  className="p-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/30 transition-colors cursor-pointer"
+                  title="إلغاء تحديد الزبون"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setShowAddCustomer(true)}
+                className="p-2 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 transition-colors cursor-pointer"
+                title="إضافة زبون جديد"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
-          {/* Cart Items Scrollable List */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-2.5 custom-scrollbar">
+          {/* Cart Items List */}
+          <div className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-2 custom-scrollbar">
             {cart.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center p-6 text-on-surface-variant">
                 <div className="w-16 h-16 rounded-3xl bg-surface-container/60 flex items-center justify-center mb-3 shadow-inner border border-outline-variant/10">
@@ -1553,11 +1624,12 @@ export default function POSPage() {
           )}
         </aside>
       </div>
+      )}
 
       {/* ───────────────────────────────────────────────────────────── */}
       {/* FLOATING MOBILE CART SUMMARY BAR (Visible on mobile during product browsing) */}
       {/* ───────────────────────────────────────────────────────────── */}
-      {mobileTab === 'products' && cart.length > 0 && (
+      {posLayout !== 'classic' && mobileTab === 'products' && cart.length > 0 && (
         <div className="md:hidden fixed bottom-3 left-3 right-3 z-40 bg-surface-container-high/95 backdrop-blur-xl border border-primary/30 p-3 rounded-2xl shadow-2xl flex items-center justify-between gap-3 animate-in slide-in-from-bottom-5">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-primary text-on-primary flex items-center justify-center font-bold shadow-md shadow-primary/25 relative shrink-0">
