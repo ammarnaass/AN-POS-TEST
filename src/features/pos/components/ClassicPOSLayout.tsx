@@ -383,7 +383,7 @@ export const ClassicPOSLayout: React.FC<ClassicPOSLayoutProps> = ({
                   const isSelected = selectedCartRowId === item.productId;
                   return (
                     <tr
-                      key={item.productId}
+                      key={`${item.productId}-${index}`}
                       onClick={() => setSelectedCartRowId(item.productId)}
                       className={`cursor-pointer transition-colors ${
                         isSelected
@@ -491,9 +491,9 @@ export const ClassicPOSLayout: React.FC<ClassicPOSLayoutProps> = ({
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1.5">
-              {filteredProducts.map((prod) => (
+              {filteredProducts.map((prod, pIdx) => (
                 <button
-                  key={prod.id}
+                  key={prod.id || `prod-${pIdx}`}
                   type="button"
                   onClick={() => onAddToCart(prod)}
                   className="p-2 rounded-xl bg-surface-container hover:bg-primary/10 border border-outline-variant/20 hover:border-primary/40 text-right flex flex-col justify-between transition-all active:scale-95 shadow-2xs hover:shadow-xs group cursor-pointer h-20"
@@ -530,11 +530,11 @@ export const ClassicPOSLayout: React.FC<ClassicPOSLayoutProps> = ({
             <Layers className="w-3.5 h-3.5 opacity-70" />
           </button>
 
-          {categories.map((cat) => {
+          {categories.map((cat, cIdx) => {
             const isSelected = selectedCategory === cat.id;
             return (
               <button
-                key={cat.id}
+                key={cat.id || `cat-${cIdx}`}
                 type="button"
                 onClick={() => onSelectCategory(cat.id)}
                 className={`px-3 py-2 text-right text-xs font-bold border-b border-outline-variant/10 flex items-center justify-between transition-all cursor-pointer truncate ${
