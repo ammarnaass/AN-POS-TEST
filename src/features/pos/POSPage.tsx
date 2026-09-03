@@ -1122,9 +1122,15 @@ export default function POSPage() {
           categories={availableCategories}
           selectedCategory={filterCategory}
           onSelectCategory={(catId) => setFilterCategory(catId)}
-          barcodeInput={barcodeInput}
-          setBarcodeInput={setBarcodeInput}
-          onBarcodeSubmit={handleBarcodeSubmit}
+          barcodeInput={barcodeHeaderInput}
+          setBarcodeInput={setBarcodeHeaderInput}
+          onBarcodeSubmit={(e) => {
+            e?.preventDefault();
+            if (barcodeHeaderInput.trim()) {
+              handleExternalScan(barcodeHeaderInput.trim());
+              setBarcodeHeaderInput('');
+            }
+          }}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
           onSettleSale={() => {
