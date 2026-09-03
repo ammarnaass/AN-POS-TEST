@@ -1217,23 +1217,23 @@ export default function POSPage() {
                     >
                       {/* Top Area: 60% Image & Visual Identity */}
                       <div className="h-[60%] w-full relative overflow-hidden bg-surface-container/60 shrink-0">
-                        {/* Category Badge (تصنيف المنتج) */}
+                        {/* Category Badge (تصنيف المنتج) with Theme Surface Colors */}
                         <div className="absolute top-2.5 right-2.5 z-10">
-                          <span className="px-2.5 py-1 rounded-xl bg-slate-950/75 dark:bg-black/80 backdrop-blur-md border border-white/15 text-white text-[10px] font-bold flex items-center gap-1.5 shadow-md">
+                          <span className="px-2.5 py-1 rounded-xl bg-surface-container-highest/90 backdrop-blur-md border border-outline-variant/30 text-on-surface text-[10px] font-bold flex items-center gap-1.5 shadow-sm">
                             <Tag className="w-2.5 h-2.5 text-primary" />
                             <span className="max-w-[90px] truncate">{categoryName}</span>
                           </span>
                         </div>
 
-                        {/* Stock Status Badge */}
+                        {/* Stock Status Badge with Theme Surface Colors */}
                         <div className="absolute top-2.5 left-2.5 z-10">
                           {isOutOfStock ? (
-                            <span className="px-2.5 py-1 rounded-xl bg-rose-600/90 backdrop-blur-md border border-white/20 text-white text-[10px] font-extrabold shadow-md">
+                            <span className="px-2.5 py-1 rounded-xl bg-error-container/90 backdrop-blur-md border border-error/30 text-on-error-container text-[10px] font-extrabold shadow-sm">
                               نفذ
                             </span>
                           ) : (
-                            <span className="px-2.5 py-1 rounded-xl bg-slate-950/75 dark:bg-black/80 backdrop-blur-md border border-white/15 text-emerald-400 text-[10px] font-mono font-bold shadow-md flex items-center gap-1">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            <span className="px-2.5 py-1 rounded-xl bg-surface-container-highest/90 backdrop-blur-md border border-outline-variant/30 text-emerald-600 dark:text-emerald-400 text-[10px] font-mono font-bold shadow-sm flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                               <span>{product.quantity} قطع</span>
                             </span>
                           )}

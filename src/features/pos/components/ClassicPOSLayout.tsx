@@ -19,6 +19,7 @@ import {
   Edit3,
   Check,
   FolderOpen,
+  Tag,
 } from 'lucide-react';
 import type { CartItem, Product, Category } from '@/types';
 
@@ -480,7 +481,7 @@ export const ClassicPOSLayout: React.FC<ClassicPOSLayoutProps> = ({
       {/* ───────────────────────────────────────────────────────────── */}
       {/* 4. BOTTOM SECTION: QUICK ITEMS GRID & CATEGORIES (شبكة بالأسفل) */}
       {/* ───────────────────────────────────────────────────────────── */}
-      <div className="h-[38vh] min-h-[190px] max-h-[320px] flex flex-row overflow-hidden bg-surface-container-lowest/60 shrink-0">
+      <div className="h-[40vh] min-h-[220px] max-h-[380px] flex flex-row overflow-hidden bg-surface-container-lowest/60 shrink-0">
         
         {/* Left / Center: Quick Product Buttons Grid */}
         <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
@@ -490,34 +491,85 @@ export const ClassicPOSLayout: React.FC<ClassicPOSLayoutProps> = ({
               <p>لا توجد منتجات مطابقة لهذا التصنيف أو البحث</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1.5">
-              {filteredProducts.map((prod, pIdx) => (
-                <button
-                  key={prod.id || `prod-${pIdx}`}
-                  type="button"
-                  onClick={() => onAddToCart(prod)}
-                  className="p-2 rounded-xl bg-surface-container hover:bg-primary/10 border border-outline-variant/20 hover:border-primary/40 text-right flex flex-col justify-between transition-all active:scale-95 shadow-2xs hover:shadow-xs group cursor-pointer h-20"
-                >
-                  <div className="flex items-start gap-1.5 min-w-0 w-full">
-                    {prod.image && (
-                      <div className="w-8 h-8 rounded-lg bg-surface-container-high overflow-hidden shrink-0 border border-outline-variant/15 shadow-2xs">
-                        <img src={prod.image} alt={prod.name} className="w-full h-full object-cover" />
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+              {filteredProducts.map((prod, pIdx) => {
+                const categoryName = (typeof prod.category === 'object' && prod.category !== null ? (prod.category as any).name : prod.category) || 'عام';
+                const isOutOfStock = prod.stock !== undefined && prod.stock <= 0;
+
+                return (
+                  <button
+                    key={prod.id || `prod-${pIdx}`}
+                    type="button"
+                    onClick={() => onAddToCart(prod)}
+                    className="group relative rounded-2xl bg-surface-container-lowest hover:bg-surface-container-low border border-outline-variant/20 hover:border-primary/50 text-right flex flex-col justify-between overflow-hidden transition-all duration-200 active:scale-[0.97] shadow-2xs hover:shadow-md cursor-pointer h-36"
+                  >
+                    {/* Top 60%: Image & Surface Badges */}
+                    <div className="h-[58%] w-full relative overflow-hidden bg-surface-container/60 shrink-0">
+                      {/* Category Badge (تصنيف المنتج) with Surface Colors */}
+                      <div className="absolute top-1.5 right-1.5 z-10">
+                        <span className="px-1.5 py-0.5 rounded-md bg-surface-container-highest/90 backdrop-blur-xs text-on-surface border border-outline-variant/30 text-[9px] font-bold flex items-center gap-1 shadow-2xs">
+                          <Tag className="w-2 h-2 text-primary" />
+                          <span className="truncate max-w-[65px]">{categoryName}</span>
+                        </span>
                       </div>
-                    )}
-                    <p className="text-xs font-bold text-on-surface line-clamp-2 leading-tight group-hover:text-primary transition-colors flex-1 min-w-0">
-                      {prod.name}
-                    </p>
-                  </div>
-                  <div className="flex items-baseline justify-between w-full pt-1 border-t border-outline-variant/10 mt-1">
-                    <span className="text-[10px] text-on-surface-variant/70 font-mono">
-                      {prod.stock !== undefined ? `المخزون: ${prod.stock}` : ''}
-                    </span>
-                    <span className="text-xs font-black font-mono text-primary">
-                      {formatMoney(prod.price)} {currency}
-                    </span>
-                  </div>
-                </button>
-              ))}
+
+                      {/* Stock Badge with Surface Colors */}
+                      <div className="absolute top-1.5 left-1.5 z-10">
+                        {isOutOfStock ? (
+                          <span className="px-1.5 py-0.5 rounded-md bg-error/15 backdrop-blur-xs text-error border border-error/30 text-[9px] font-black shadow-2xs">
+                            نفذ
+                          </span>
+                        ) : prod.stock !== undefined ? (
+                          <span className="px-1.5 py-0.5 rounded-md bg-surface-container-highest/90 backdrop-blur-xs text-emerald-600 dark:text-emerald-400 border border-outline-variant/30 text-[9px] font-mono font-bold shadow-2xs flex items-center gap-1">
+                            <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
+                            <span>{prod.stock}</span>
+                          </span>
+                        ) : null}
+                      </div>
+
+                      {/* Product Image or Surface-themed Fallback */}
+                      {prod.image ? (
+                        <img
+                          src={prod.image}
+                          alt={prod.name}
+                          className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-300"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center bg-surface-container/40 text-on-surface-variant/40 group-hover:text-primary/70 transition-colors relative">
+                          <Package className="w-7 h-7 opacity-40 group-hover:scale-110 transition-transform" />
+                        </div>
+                      )}
+
+                      {/* Quick Add Hover Overlay */}
+                      <div className="absolute inset-0 bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center justify-center pointer-events-none">
+                        <span className="w-6 h-6 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-md">
+                          <Plus className="w-3.5 h-3.5" />
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Bottom 40%: Name, Category, Price with Surface Colors */}
+                    <div className="h-[42%] p-2 flex flex-col justify-between bg-surface-container-lowest group-hover:bg-surface-container-low border-t border-outline-variant/15 flex-1">
+                      <p className="text-xs font-bold text-on-surface line-clamp-1 group-hover:text-primary transition-colors leading-tight">
+                        {prod.name}
+                      </p>
+                      <div className="flex items-baseline justify-between w-full pt-0.5">
+                        <div className="flex items-baseline gap-0.5">
+                          <span className="text-xs sm:text-sm font-black font-mono text-primary">
+                            {formatMoney(prod.price)}
+                          </span>
+                          <span className="text-[9px] font-bold text-on-surface-variant font-cairo">
+                            {currency}
+                          </span>
+                        </div>
+                        <div className="w-5 h-5 rounded-md bg-primary/10 group-hover:bg-primary text-primary group-hover:text-on-primary border border-primary/20 group-hover:border-transparent flex items-center justify-center transition-colors shadow-2xs">
+                          <Plus className="w-3 h-3" />
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
