@@ -498,9 +498,16 @@ export const ClassicPOSLayout: React.FC<ClassicPOSLayoutProps> = ({
                   onClick={() => onAddToCart(prod)}
                   className="p-2 rounded-xl bg-surface-container hover:bg-primary/10 border border-outline-variant/20 hover:border-primary/40 text-right flex flex-col justify-between transition-all active:scale-95 shadow-2xs hover:shadow-xs group cursor-pointer h-20"
                 >
-                  <p className="text-xs font-bold text-on-surface line-clamp-2 leading-tight group-hover:text-primary transition-colors">
-                    {prod.name}
-                  </p>
+                  <div className="flex items-start gap-1.5 min-w-0 w-full">
+                    {prod.image && (
+                      <div className="w-8 h-8 rounded-lg bg-surface-container-high overflow-hidden shrink-0 border border-outline-variant/15 shadow-2xs">
+                        <img src={prod.image} alt={prod.name} className="w-full h-full object-cover" />
+                      </div>
+                    )}
+                    <p className="text-xs font-bold text-on-surface line-clamp-2 leading-tight group-hover:text-primary transition-colors flex-1 min-w-0">
+                      {prod.name}
+                    </p>
+                  </div>
                   <div className="flex items-baseline justify-between w-full pt-1 border-t border-outline-variant/10 mt-1">
                     <span className="text-[10px] text-on-surface-variant/70 font-mono">
                       {prod.stock !== undefined ? `المخزون: ${prod.stock}` : ''}
