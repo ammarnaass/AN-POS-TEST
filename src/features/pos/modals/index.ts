@@ -11,3 +11,4 @@ export { AdvancedFiltersModal } from './AdvancedFiltersModal';
 export { CustomizeLayoutModal } from './CustomizeLayoutModal';
 export { SaveAsProformaModal, SaveAsOrderModal } from './ProformaAndOrderModals';
 export { QuickProductModal } from './QuickProductModal';
+export { CustomerSelectModal } from './CustomerSelectModal';

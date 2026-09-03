@@ -48,6 +48,7 @@ import {
   SaveAsProformaModal,
   SaveAsOrderModal,
   QuickProductModal,
+  CustomerSelectModal,
 } from './modals';
 
 const PRODUCTS_PER_PAGE = 12;
@@ -199,6 +200,7 @@ export default function POSPage() {
 
   // Quick Add Customer Modal
   const [showAddCustomer, setShowAddCustomer] = useState(false);
+  const [showCustomerSelect, setShowCustomerSelect] = useState(false);
   const [newCustomerName, setNewCustomerName] = useState('');
   const [newCustomerPhone, setNewCustomerPhone] = useState('');
 
@@ -1720,6 +1722,17 @@ export default function POSPage() {
         isOpen={showAddCustomer}
         onClose={() => setShowAddCustomer(false)}
         onSelectCustomer={(id) => setSelectedCustomer(id)}
+      />
+
+      {/* 5b. Customer Selection Modal */}
+      <CustomerSelectModal
+        isOpen={showCustomerSelect}
+        onClose={() => setShowCustomerSelect(false)}
+        customers={customers}
+        selectedCustomerId={selectedCustomer}
+        onSelectCustomer={(id) => setSelectedCustomer(id)}
+        onOpenAddCustomer={() => setShowAddCustomer(true)}
+        formatMoney={formatMoney}
       />
 
       {/* 6. Suspended Orders Modal */}
