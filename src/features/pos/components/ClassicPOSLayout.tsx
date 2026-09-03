@@ -20,8 +20,7 @@ import {
   Check,
   FolderOpen,
 } from 'lucide-react';
-import type { CartItem } from '../types';
-import type { Product, Category } from '../../../types';
+import type { CartItem, Product, Category } from '@/types';
 
 interface ClassicPOSLayoutProps {
   cart: CartItem[];
@@ -400,15 +399,15 @@ export const ClassicPOSLayout: React.FC<ClassicPOSLayoutProps> = ({
                       <td className="py-2 px-3 font-medium text-on-surface">
                         <div className="flex items-center gap-1.5">
                           <span className="truncate">{item.name}</span>
-                          {item.variantName && (
+                          {(item as any).variantName && (
                             <span className="text-[10px] px-1.5 py-0.2 bg-primary/10 text-primary rounded font-mono">
-                              {item.variantName}
+                              {(item as any).variantName}
                             </span>
                           )}
                         </div>
                       </td>
                       <td className="py-2 px-3 font-mono text-on-surface-variant text-[11px]">
-                        {item.barcode || '—'}
+                        {(item as any).barcode || products.find(p => p.id === item.productId)?.barcode || '—'}
                       </td>
                       <td className="py-1.5 px-3">
                         <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
@@ -438,10 +437,10 @@ export const ClassicPOSLayout: React.FC<ClassicPOSLayoutProps> = ({
                         </div>
                       </td>
                       <td className="py-2 px-3 text-left font-mono text-on-surface-variant">
-                        {formatMoney(item.price)}
+                        {formatMoney((item as any).unitPrice ?? (item as any).price ?? 0)}
                       </td>
                       <td className="py-2 px-3 text-left font-mono text-emerald-500">
-                        {item.discount && item.discount > 0 ? `-${formatMoney(item.discount)}` : '0.00'}
+                        {(item as any).discount && (item as any).discount > 0 ? `-${formatMoney((item as any).discount)}` : '0.00'}
                       </td>
                       <td className="py-2 px-3 text-left font-mono font-black text-on-surface text-sm">
                         {formatMoney(item.lineTotal)}

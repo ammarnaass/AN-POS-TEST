@@ -1107,8 +1107,11 @@ export default function POSPage() {
         <ClassicPOSLayout
           cart={cart}
           onAddToCart={(p) => handleAddProduct(p as any)}
-          onUpdateQty={updateCartQty}
-          onRemoveFromCart={removeFromCart}
+          onUpdateQty={(productId, qty) => {
+            const it = cart.find((c) => c.productId === productId);
+            if (it) handleUpdateQty(it, qty);
+          }}
+          onRemoveFromCart={(productId) => removeItem(productId)}
           onClearCart={() => {
             clearCart();
             setSelectedCustomer('');
