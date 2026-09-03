@@ -1,0 +1,13 @@
+{
+  "name": "anpos-license-generator",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "لوحة وأداة توليد تراخيص AN POS الموقعة رقمياً (Ed25519)",
+  "scripts": {
+    "start": "node ui.js",
+    "ui": "node ui.js",
+    "gen": "node generate-license.js",
+    "keypair": "node generate-keypair.js"
+  }
+}

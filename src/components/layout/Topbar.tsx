@@ -5,6 +5,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import { getTrialState } from '@/services/trialService';
 import NotificationDropdown from '@/components/notifications/NotificationDropdown';
+import { useSidebarStore } from '@/store/sidebarStore';
 import {
   Menu,
   Search,
@@ -14,6 +15,8 @@ import {
   DollarSign,
   Clock,
   Zap,
+  PanelRightClose,
+  PanelRightOpen,
 } from 'lucide-react';
 
 interface TopbarProps {
@@ -52,6 +55,7 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
     queryFn: () => db.settings.get('default'),
   });
 
+  const { isCollapsed, toggleCollapse } = useSidebarStore();
   const shopName = rawSettings?.shopName || (rawSettings as any)?.shop_name || 'AN POS';
   const currentSession = allSessions.find((s) => s.status === 'open') || null;
 
@@ -65,6 +69,19 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
           title="القائمة الرئيسية"
         >
           <Menu className="w-5 h-5" />
+        </button>
+
+        {/* زر طي وتوسيع الشريط الجانبي على الشاشات الكبيرة */}
+        <button
+          onClick={toggleCollapse}
+          className="hidden lg:flex text-on-surface-variant hover:text-on-surface p-2 rounded-xl hover:bg-surface-container-high transition-colors cursor-pointer shrink-0"
+          title={isCollapsed ? 'توسيع القائمة الجانبية' : 'طي القائمة الجانبية'}
+        >
+          {isCollapsed ? (
+            <PanelRightOpen className="w-5 h-5 text-primary" />
+          ) : (
+            <PanelRightClose className="w-5 h-5" />
+          )}
         </button>
 
         {/* اسم المحل على الشاشات الصغيرة (عندما يكون الشريط الجانبي مغلقاً) */}

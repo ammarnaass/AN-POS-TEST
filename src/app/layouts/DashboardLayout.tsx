@@ -82,8 +82,8 @@ export default function DashboardLayout() {
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <Topbar onMenuClick={() => setSidebarOpen(true)} />
-          <main className="flex-1 overflow-y-auto p-6 pb-24 lg:pb-6 bg-background">
-            <div className="max-w-7xl mx-auto space-y-6">
+          <main className="flex-1 overflow-y-auto p-3 sm:p-5 lg:p-6 pb-24 lg:pb-6 bg-background custom-scrollbar">
+            <div className="max-w-[1920px] w-full mx-auto space-y-4 sm:space-y-6">
               <Outlet />
             </div>
           </main>

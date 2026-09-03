@@ -160,6 +160,18 @@ const electronAPI = {
     disconnectDevice: (deviceId: string) =>
       ipcRenderer.invoke('server:disconnect-device', deviceId),
   },
+
+  // ===== نظام الترخيص والتفعيل (Ed25519) =====
+  license: {
+    getStatus: () =>
+      ipcRenderer.invoke('license:status'),
+    activate: (keyOrContent: string) =>
+      ipcRenderer.invoke('license:activate', keyOrContent),
+    deactivate: () =>
+      ipcRenderer.invoke('license:deactivate'),
+    getFingerprint: () =>
+      ipcRenderer.invoke('license:fingerprint'),
+  },
 };
 
 try {

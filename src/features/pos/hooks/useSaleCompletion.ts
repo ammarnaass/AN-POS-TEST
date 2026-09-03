@@ -1,12 +1,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { db } from '@/infrastructure/database/dexie/db';
+import { db, type SaleItemEntity } from '@/infrastructure/database/dexie/db';
 import { SaleRepository } from '@/infrastructure/database/repositories/SaleRepository';
 import { useCartStore } from '@/store/cartStore';
 import { useAuthStore } from '@/store/authStore';
 import { useNotificationStore } from '@/store/notificationStore';
-import { calculateSaleTotal, createSale, generateReceiptHTML } from '@/services';
+import { calculateSaleTotal, createSale } from '@/services';
 import { printDocument } from '@/services/print/printService';
-import type { CartItem, Sale } from '@/types';
+import type { CartItem, Sale, DocType } from '@/types';
 import { v4 as createId } from 'uuid';
 
 interface SaleSettings {
@@ -16,6 +16,7 @@ interface SaleSettings {
   shopName: string;
   phone: string;
   receiptFooter: string;
+  autoPrintReceipt?: boolean;
 }
 
 interface SaleCompletionParams {
@@ -24,7 +25,12 @@ interface SaleCompletionParams {
   discountType: 'percent' | 'amount';
   selectedCustomer: string;
   paymentMethod: 'cash' | 'credit';
+  amountPaid?: number;
+  paidAmount?: number;
   isReturn?: boolean;
+  docType?: DocType;
+  autoPrint?: boolean;
+  note?: string;
   currentSession: { id: string; totalSales?: number; totalReturns?: number } | null;
   settings: SaleSettings;
   products: any[];
@@ -41,116 +47,214 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
   const completeSaleMutation = useMutation({
     mutationFn: async (params: SaleCompletionParams) => {
       const {
-        cart, discount, discountType, selectedCustomer, paymentMethod,
-        isReturn = false, currentSession, products, packs, customers,
+        cart,
+        discount,
+        discountType,
+        selectedCustomer,
+        paymentMethod,
+        isReturn = false,
+        docType = 'facture',
+        currentSession,
+        products,
+        packs,
+        customers,
+        note,
       } = params;
 
       const saleSummary = calculateSaleTotal(cart, discount, discountType, settings.tvaRate);
       const saleType = isReturn ? 'return' : 'sale';
       const nextNumber = await SaleRepository.getNextNumber(settings.invoicePrefix);
 
-      const sale = {
-        ...createSale(
-          cart, saleSummary.subtotal, discount, discountType,
-          saleSummary.tvaAmount, saleSummary.total,
-          paymentMethod, selectedCustomer,
-          paymentMethod === 'cash' ? saleSummary.total : 0,
-          currentUser?.name || '', currentSession?.id || '',
-          settings, saleType, 'facture'
-        ),
+      // تحديد المبلغ المدفوع فعلياً
+      const effectivePaidAmount =
+        paymentMethod === 'cash'
+          ? saleSummary.total
+          : (params.paidAmount ?? params.amountPaid ?? 0);
+
+      // جلب بيانات العميل المختار إن وجد
+      const matchedCustomer = selectedCustomer
+        ? customers.find((c) => c.id === selectedCustomer)
+        : undefined;
+      const customerName = matchedCustomer?.name || matchedCustomer?.fullname || '';
+
+      const baseSale = createSale(
+        cart,
+        saleSummary.subtotal,
+        discount,
+        discountType,
+        saleSummary.tvaAmount,
+        saleSummary.total,
+        paymentMethod,
+        selectedCustomer,
+        effectivePaidAmount,
+        currentUser?.name || '',
+        currentSession?.id || '',
+        settings as any,
+        saleType,
+        docType
+      );
+
+      const sale: Sale = {
+        ...baseSale,
         number: nextNumber,
+        customerName,
+        note: note || '',
+        paidAmount: effectivePaidAmount,
       };
 
-      await db.transaction('rw', [db.sales, db.products, db.customers, db.cash_sessions, db.stock_movements], async () => {
-        await db.sales.add(sale);
+      // تحضير سجلات عناصر البيع المنفردة لـ sale_items
+      const saleItemEntities: SaleItemEntity[] = cart.map((item) => ({
+        id: createId(),
+        saleId: sale.id,
+        productId: item.productId,
+        name: item.name,
+        qty: item.qty,
+        unitPrice: item.unitPrice,
+        lineTotal: item.lineTotal,
+      }));
 
-        for (const item of cart) {
-          if (item.isPack && item.packId) {
-            const pack = packs.find((p) => p.id === item.packId);
-            if (pack) {
-              for (const comp of pack.items) {
-                const product = products.find((p) => p.id === comp.productId);
-                if (product) {
-                  const qtyChange = saleType === 'return'
-                    ? Math.abs(comp.qty * item.qty)
-                    : -(comp.qty * item.qty);
-                  await db.products.update(product.id, { quantity: Math.max(0, product.quantity + qtyChange) });
-                  await db.stock_movements.add({
-                    id: createId(), productId: product.id,
-                    type: saleType === 'return' ? 'return' : 'sale',
-                    qty: qtyChange, date: new Date().toISOString(), reference: sale.number,
-                    createdBy: currentUser?.name || '',
-                    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-                  });
+      // تنفيذ المعاملة الشاملة في قاعدة البيانات
+      await db.transaction(
+        'rw',
+        [
+          db.sales,
+          db.sale_items,
+          db.products,
+          db.customers,
+          db.cash_sessions,
+          db.stock_movements,
+        ],
+        async () => {
+          // 1. إضافة الفاتورة وعناصرها
+          await db.sales.add(sale as any);
+          if (saleItemEntities.length > 0) {
+            await db.sale_items.bulkAdd(saleItemEntities);
+          }
+
+          // 2. تحديث المخزون وسجل الحركات
+          for (const item of cart) {
+            if (item.isPack && item.packId) {
+              const pack = packs.find((p) => p.id === item.packId);
+              if (pack) {
+                for (const comp of pack.items) {
+                  const product = products.find((p) => p.id === comp.productId);
+                  if (product) {
+                    const qtyChange =
+                      saleType === 'return'
+                        ? Math.abs(comp.qty * item.qty)
+                        : -(comp.qty * item.qty);
+                    const newQuantity = settings?.allowNegativeStock
+                      ? product.quantity + qtyChange
+                      : Math.max(0, product.quantity + qtyChange);
+                    await db.products.update(product.id, {
+                      quantity: newQuantity,
+                    });
+                    await db.stock_movements.add({
+                      id: createId(),
+                      productId: product.id,
+                      type: saleType === 'return' ? 'return' : 'sale',
+                      qty: qtyChange,
+                      date: new Date().toISOString(),
+                      reference: sale.number,
+                      createdBy: currentUser?.name || '',
+                      createdAt: new Date().toISOString(),
+                      updatedAt: new Date().toISOString(),
+                    });
+                  }
                 }
               }
+            } else {
+              const product = products.find((p) => p.id === item.productId);
+              if (product && !item.isCustom) {
+                const qtyChange = saleType === 'return' ? Math.abs(item.qty) : -item.qty;
+                const newQuantity = settings?.allowNegativeStock
+                  ? product.quantity + qtyChange
+                  : Math.max(0, product.quantity + qtyChange);
+                await db.products.update(product.id, {
+                  quantity: newQuantity,
+                });
+                await db.stock_movements.add({
+                  id: createId(),
+                  productId: product.id,
+                  type: saleType === 'return' ? 'return' : 'sale',
+                  qty: qtyChange,
+                  date: new Date().toISOString(),
+                  reference: sale.number,
+                  createdBy: currentUser?.name || '',
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                });
+              }
             }
-          } else {
-            const product = products.find((p) => p.id === item.productId);
-            if (product && !item.isCustom) {
-              const qtyChange = saleType === 'return' ? Math.abs(item.qty) : -item.qty;
-              await db.products.update(product.id, { quantity: Math.max(0, product.quantity + qtyChange) });
-              await db.stock_movements.add({
-                id: createId(), productId: product.id,
-                type: saleType === 'return' ? 'return' : 'sale',
-                qty: qtyChange, date: new Date().toISOString(), reference: sale.number,
-                createdBy: currentUser?.name || '',
-                createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+          }
+
+          // 3. تحديث رصيد العميل في حال الدفع بالآجل (الديون) أو الإرجاع
+          if (selectedCustomer && matchedCustomer) {
+            if (saleType === 'return') {
+              // الإرجاع ينقص من دين العميل
+              await db.customers.update(selectedCustomer, {
+                balance: (matchedCustomer.balance || 0) - saleSummary.total,
+              });
+            } else if (paymentMethod === 'credit') {
+              // البيع بالآجل: الدين المتبقي = الإجمالي - المبلغ المدفوع حالياً
+              const unpaidPart = Math.max(0, saleSummary.total - effectivePaidAmount);
+              await db.customers.update(selectedCustomer, {
+                balance: (matchedCustomer.balance || 0) + unpaidPart,
               });
             }
           }
-        }
 
-        if (selectedCustomer && paymentMethod === 'credit') {
-          const customer = customers.find((c) => c.id === selectedCustomer);
-          if (customer) {
-            const balanceChange = isReturn ? -saleSummary.total : saleSummary.total;
-            await db.customers.update(selectedCustomer, { balance: customer.balance + balanceChange });
+          // 4. تحديث الصندوق والجلسة النقدية المفتوحة بالمبلغ النقدي المستلم فعلياً
+          let targetSessionId = currentSession?.id;
+          if (!targetSessionId) {
+            const openSession = await db.cash_sessions.filter((s) => s.status === 'open').first();
+            if (openSession) targetSessionId = openSession.id;
+          }
+
+          if (targetSessionId) {
+            const freshSession = await db.cash_sessions.get(targetSessionId);
+            if (freshSession) {
+              if (saleType === 'return') {
+                const newReturns = (freshSession.totalReturns || 0) + saleSummary.total;
+                await db.cash_sessions.update(targetSessionId, {
+                  totalReturns: newReturns,
+                  updatedAt: new Date().toISOString(),
+                });
+              } else {
+                const cashInflow = effectivePaidAmount;
+                const newSales = (freshSession.totalSales || 0) + cashInflow;
+                await db.cash_sessions.update(targetSessionId, {
+                  totalSales: newSales,
+                  updatedAt: new Date().toISOString(),
+                });
+              }
+            }
           }
         }
+      );
 
-        // تحديث إجمالي مبيعات أو مرتجعات الجلسة النقدية المفتوحة
-        let targetSessionId = currentSession?.id;
-        if (!targetSessionId) {
-          const openSession = await db.cash_sessions.filter(s => s.status === 'open').first();
-          if (openSession) targetSessionId = openSession.id;
-        }
-
-        if (targetSessionId) {
-          const freshSession = await db.cash_sessions.get(targetSessionId);
-          if (freshSession) {
-            const updateData = isReturn
-              ? { totalReturns: (freshSession.totalReturns || 0) + saleSummary.total, updatedAt: new Date().toISOString() }
-              : { totalSales: (freshSession.totalSales || 0) + saleSummary.total, updatedAt: new Date().toISOString() };
-            await db.cash_sessions.update(targetSessionId, updateData);
-          }
-        }
-      });
-
-      return sale as Sale;
+      return {
+        sale,
+        autoPrint: params.autoPrint ?? settings.autoPrintReceipt ?? false,
+      };
     },
-    onSuccess: (sale: Sale) => {
+    onSuccess: ({ sale, autoPrint }: { sale: Sale; autoPrint: boolean }) => {
+      // تحديث الكاش وإعادة جلب البيانات الحديثة
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['sales'] });
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       queryClient.invalidateQueries({ queryKey: ['cashSessions'] });
+      queryClient.invalidateQueries({ queryKey: ['stockMovements'] });
 
-      if (sale) {
+      // الطباعة التلقائية عبر محرك الطباعة (بدون تجميد أو نوافذ منبثقة معطلة)
+      if (autoPrint && sale) {
         const printDocType = sale.type === 'return' ? 'return-invoice' : 'thermal-receipt';
         printDocument(sale.id, printDocType, {
           userId: currentUser?.id ?? '',
           userName: currentUser?.name ?? '',
           copies: 1,
-        }).then((res) => {
-          if (!res.success) {
-            const html = generateReceiptHTML(sale, settings);
-            const printWindow = window.open('', '_blank');
-            if (printWindow) {
-              printWindow.document.write(`<html><head><title>إيصال - ${sale.number}</title><style>@media print { body { margin: 0; } }</style></head><body>${html}</body></html>`);
-              printWindow.document.close();
-              printWindow.print();
-            }
-          }
+        }).catch((err) => {
+          console.warn('Auto-print error (silent):', err);
         });
       }
 
@@ -162,7 +266,7 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
     onError: (error: any) => {
       addNotification({
         title: 'خطأ في إتمام البيع',
-        message: error?.message || 'حدث خطأ غير متوقع',
+        message: error?.message || 'حدث خطأ غير متوقع أثناء حفظ العملية',
         type: 'error',
       });
     },

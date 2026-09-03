@@ -64,3 +64,10 @@ __pycache__/
 .kotlin
 **/.kotlin
 
+# License security
+license-generator/private-key.pem
+license-generator/*.lic
+license-generator/licenses-history.json
+license-generator/*.csv
+.license-dev
+

@@ -1,0 +1,13 @@
+export { PaymentModal } from './PaymentModal';
+export { SuccessModal } from './SuccessModal';
+export { ShortcutsGuideModal } from './ShortcutsGuideModal';
+export { FreeProductModal } from './FreeProductModal';
+export { QuickCustomerModal } from './QuickCustomerModal';
+export { SuspendedOrdersModal } from './SuspendedOrdersModal';
+export { ReturnSaleModal } from './ReturnSaleModal';
+export { SessionWarningModal, OpenSessionModal } from './CashSessionModals';
+export { DiscountModal } from './DiscountModal';
+export { AdvancedFiltersModal } from './AdvancedFiltersModal';
+export { CustomizeLayoutModal } from './CustomizeLayoutModal';
+export { SaveAsProformaModal, SaveAsOrderModal } from './ProformaAndOrderModals';
+export { QuickProductModal } from './QuickProductModal';

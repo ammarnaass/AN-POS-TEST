@@ -15,6 +15,7 @@ import {
   queryAll,
   execute,
 } from '../../handlers/db-utils';
+import { licenseManager } from '../../license/licenseManager';
 
 /**
  * جلسات الأجهزة النشطة — مُحمّلة من قاعدة البيانات.
@@ -139,6 +140,21 @@ async function pairDevice(
   }
   if (!payload.deviceName) {
     return { error: { status: 422, detail: 'اسم الجهاز مطلوب' } };
+  }
+
+  // فحص الحد الأقصى لأجهزة الهاتف المصرح بربطها من الترخيص
+  const maxAllowed = licenseManager.getMaxMobileDevices();
+  const currentCountRow = queryOne(
+    "SELECT COUNT(DISTINCT device_id) as count FROM device_sessions WHERE expires_at IS NULL OR expires_at > datetime('now')"
+  );
+  const currentCount = (currentCountRow?.count as number) || activeSessions.size || 0;
+  if (currentCount >= maxAllowed) {
+    return {
+      error: {
+        status: 403,
+        detail: `تم الوصول للحد الأقصى لعدد الأجهزة المرخصة لهذا المتجر (${maxAllowed} أجهزة). يرجى فصل جهاز قديم أو ترقية الترخيص.`,
+      },
+    };
   }
 
   // إنشاء entry في connected_devices

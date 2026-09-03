@@ -235,6 +235,7 @@ export const POSScreen = ({ route, navigation }: any) => {
         };
       });
       setProducts(mappedProducts);
+      setFiltered(mappedProducts);
       setCustomers(
         allCustomers.map((c: any) => ({
           ...c,
@@ -294,7 +295,7 @@ export const POSScreen = ({ route, navigation }: any) => {
       unsubscribeSync();
       clearInterval(interval);
     };
-  }, [loadData]);
+  }, []);
 
   // Handle external barcode passed via navigation params
   useEffect(() => {

@@ -8,9 +8,10 @@ export default function PosLayout() {
 
   return (
     <AuthGuard>
-      <div className="flex h-screen overflow-hidden bg-background" dir="rtl">
-        <Sidebar isOpen={isOpen} onClose={close} />
-        <div className="flex-1 min-w-0 overflow-hidden">
+      <div className="flex h-screen w-screen overflow-hidden bg-background" dir="rtl">
+        {/* On POS screens, the sidebar is an off-canvas drawer that opens when invoked, saving 100% width for cashier */}
+        <Sidebar isOpen={isOpen} onClose={close} isPosMode={true} />
+        <div className="flex-1 min-w-0 h-full overflow-hidden">
           <Outlet />
         </div>
       </div>

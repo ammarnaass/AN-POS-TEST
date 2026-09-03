@@ -9,6 +9,7 @@ import { registerCashIpc } from './cash';
 import { registerCategoriesIpc } from './categories';
 import { registerMigrationIpc } from './migration';
 import { registerNetworkIpc } from './network';
+import { registerLicenseIpc } from './license';
 import { ipcMain } from 'electron';
 import {
   listBarcodePrints,
@@ -79,6 +80,7 @@ export function registerIpcHandlers(): void {
   registerCategoriesIpc();
   registerMigrationIpc();
   registerNetworkIpc();
+  registerLicenseIpc();
 
   // ===== barcodePrints (list with filter) =====
   ipcMain.handle('barcodePrints:list', async (_evt, opts?: { productId?: string }) => listBarcodePrints(opts));

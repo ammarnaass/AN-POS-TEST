@@ -8,11 +8,13 @@ import { useThemeStore } from '@/store/themeStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useBarcodeScanner } from '@/features/barcode/useBarcodeScanner';
 import { useSaleCompletion } from '@/features/pos/hooks/useSaleCompletion';
+import { useSidebarStore } from '@/store/sidebarStore';
 import { calculateSaleTotal } from '@/services';
 import { printDocument } from '@/services/print/printService';
 import { generateId } from '@/utils';
 import type { Product, Customer, Sale } from '@/types';
 import {
+  Menu,
   Zap,
   ShoppingCart,
   Search,
@@ -66,6 +68,7 @@ export default function QuickPOSPage() {
   const { items: cart, addItem, removeItem, updateQty, updatePrice, clear: clearCart } = useCartStore();
   const { user: currentUser } = useAuthStore();
   const { theme, toggleTheme } = useThemeStore();
+  const { open: openSidebar } = useSidebarStore();
   const addNotification = useNotificationStore((s) => s.addNotification);
 
   // States
@@ -610,35 +613,55 @@ export default function QuickPOSPage() {
       {/* ───────────────────────────────────────────────────────────── */}
       <header className="h-14 px-3 sm:px-4 bg-surface-container border-b border-outline-variant/20 flex items-center justify-between shrink-0 shadow-xs z-20 gap-2">
         
-        {/* Left / Start: Brand & Mode Switcher */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          <div className="flex items-center gap-2">
+        {/* Left / Start: Back button, Menu Toggle, Brand & Mode Switcher */}
+        <div className="flex items-center gap-1.5 sm:gap-2.5">
+          {/* Distinctive Back Button (زر الرجوع المميز) */}
+          <button
+            onClick={() => navigate('/')}
+            className="group flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-2 rounded-xl bg-gradient-to-r from-primary/10 via-primary/15 to-blue-500/10 hover:from-primary/20 hover:to-blue-500/20 text-primary border border-primary/30 hover:border-primary/50 text-xs font-black transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 cursor-pointer shrink-0"
+            title="الرجوع إلى لوحة التحكم الرئيسية"
+          >
+            <ArrowRight className="w-4 h-4 text-primary transition-transform duration-200 group-hover:translate-x-1" />
+            <span className="font-cairo font-black text-xs hidden sm:inline">الرجوع</span>
+          </button>
+
+          {/* زر فتح القائمة الجانبية */}
+          <button
+            onClick={openSidebar}
+            className="text-on-surface-variant hover:text-primary p-2 sm:p-2.5 rounded-xl bg-surface-container/70 hover:bg-surface-container-high border border-outline-variant/25 hover:border-primary/40 transition-all cursor-pointer shrink-0 shadow-2xs hover:scale-105 active:scale-95 flex items-center justify-center"
+            title="فتح القائمة الجانبية"
+          >
+            <Menu className="w-4 h-4 sm:w-5 sm:h-5" />
+          </button>
+
+          <div className="h-5 w-px bg-outline-variant/25 mx-0.5 hidden xs:block" />
+
+          {/* Shop identity badge */}
+          <div className="hidden md:flex items-center gap-2">
             <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-extrabold shadow-sm shrink-0">
-              <Zap className="w-5 h-5 fill-current" />
+              <Zap className="w-4 h-4 fill-current" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="text-xs sm:text-sm font-extrabold tracking-tight text-on-surface truncate max-w-[100px] sm:max-w-none">
+                <span className="text-xs font-extrabold tracking-tight text-on-surface truncate max-w-[110px]">
                   {settingsOrDefault.shopName}
                 </span>
-                <span className="hidden xs:inline px-1.5 py-0.5 rounded text-[10px] font-black bg-amber-500/15 text-amber-600 border border-amber-500/30">
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-amber-500/15 text-amber-600 border border-amber-500/30">
                   ⚡ كاشير سريع
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="h-5 w-px bg-outline-variant/25 mx-1 hidden sm:block" />
-
           {/* Switch to Advanced POS Button */}
           <button
             onClick={() => navigate('/pos')}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold transition-all border border-primary/25 cursor-pointer shadow-2xs shrink-0"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-primary hover:bg-primary/90 text-on-primary text-xs font-bold transition-all shadow-xs hover:shadow-md cursor-pointer shrink-0 active:scale-95 border border-primary/40"
             title="الانتقال إلى نقطة البيع المتقدمة"
           >
-            <Layers className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">نقطة البيع المتقدمة</span>
-            <span className="px-1 py-0.2 text-[9px] bg-primary text-on-primary rounded font-mono">PRO</span>
+            <Layers className="w-4 h-4" />
+            <span className="font-cairo font-bold hidden sm:inline">نقطة البيع المتقدمة</span>
+            <span className="px-1.5 py-0.5 text-[9px] bg-white/20 text-white rounded font-mono font-bold shadow-2xs">PRO</span>
           </button>
         </div>
 
@@ -687,17 +710,9 @@ export default function QuickPOSPage() {
           <button
             onClick={toggleTheme}
             className="p-1.5 sm:p-2 rounded-xl text-on-surface-variant hover:bg-surface-container-high transition-colors"
+            title={theme === 'dark' ? 'التبديل إلى الوضع الفاتح' : 'التبديل إلى الوضع الليلي'}
           >
             {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          </button>
-
-          {/* Exit / Return to Dashboard */}
-          <button
-            onClick={() => navigate('/')}
-            className="p-1.5 sm:p-2 rounded-xl text-on-surface-variant hover:bg-surface-container-high hover:text-red-500 transition-colors"
-            title="العودة للوحة التحكم"
-          >
-            <ArrowRight className="w-4 h-4 rotate-180" />
           </button>
         </div>
       </header>
