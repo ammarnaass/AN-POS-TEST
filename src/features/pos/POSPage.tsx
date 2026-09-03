@@ -22,7 +22,7 @@ import { POSActionBar } from './components/POSActionBar';
 import { ClassicPOSLayout } from './components/ClassicPOSLayout';
 import { useOpenCashSession } from '@/features/cash/useOpenCashSession';
 import {
-  Search, Plus, Minus, Trash2, ShoppingCart, Banknote, UserPlus, Clock, X, Package, RotateCcw,
+  Search, Plus, Minus, Trash2, ShoppingCart, Banknote, User, UserPlus, Clock, X, Package, RotateCcw,
   FileText, File, Truck, AlertTriangle, Receipt, Layers, ChevronLeft, ChevronRight, Wallet,
   Printer, Sun, Filter, Maximize, Bell, Moon, Menu, LayoutGrid, List, Barcode, Zap, ScanLine, ArrowRight,
   CreditCard, ArrowLeftRight, CheckCircle2, HelpCircle, Delete, PauseCircle, PlayCircle,
