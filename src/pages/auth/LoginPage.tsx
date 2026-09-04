@@ -25,14 +25,16 @@ import {
 import { db } from '@/infrastructure/database/dexie/db';
 import { generateId } from '@/utils';
 import { startTrial } from '@/services/trialService';
+import { validatePasswordStrength, PasswordStrengthBar } from '@/utils/passwordStrength';
 
 type View = 'login' | 'register' | 'success';
 
 export default function LoginPage() {
-  const { login, register, isAuthenticated } = useAuthStore();
+  const { login, register, isAuthenticated, checkRegistrationAllowed } = useAuthStore();
   const navigate = useNavigate();
   const [view, setView] = useState<View>('login');
   const [isLoading, setIsLoading] = useState(false);
+  const [allowSelfRegistration, setAllowSelfRegistration] = useState<boolean>(true);
 
   // Login form
   const [username, setUsername] = useState('');
@@ -55,7 +57,12 @@ export default function LoginPage() {
   useEffect(() => {
     if (isAuthenticated) navigate('/', { replace: true });
     setIsElectronAvailable(Boolean((window as any).electronAPI));
-  }, [isAuthenticated, navigate]);
+    checkRegistrationAllowed().then((res) => {
+      if (res && typeof res.allowSelfRegistration === 'boolean') {
+        setAllowSelfRegistration(res.allowSelfRegistration);
+      }
+    }).catch(() => {});
+  }, [isAuthenticated, navigate, checkRegistrationAllowed]);
 
   const resetForms = () => {
     setUsername('');
@@ -120,15 +127,16 @@ export default function LoginPage() {
       setRegError('أدخل كلمة المرور');
       return;
     }
-    if (regPassword.length < 8) {
-      setRegError('كلمة المرور يجب أن تكون 8 أحرف على الأقل');
+    const strength = validatePasswordStrength(regPassword);
+    if (!strength.valid) {
+      setRegError(strength.errors[0] || 'كلمة المرور يجب أن تكون 8 أحرف على الأقل وتتضمن أرقاماً وأحرفاً');
       return;
     }
     setRegError('');
     setIsLoading(true);
 
     try {
-      // 1. تسجيل المستخدم في قاعدة بيانات SQLite الحقيقية عبر IPC
+      // 1. تسجيل المستخدم في قاعدة بيانات SQLite الحقيقية عبر IPC (مع التشفير بـ scrypt في Main)
       const result = await register({
         username: regUsername.trim(),
         name: regName.trim(),
@@ -142,17 +150,20 @@ export default function LoginPage() {
         return;
       }
 
-      // 2. مزامنة Dexie محلياً كنسخة احتياطية للواجهات
+      // 2. مزامنة Dexie محلياً كنسخة احتياطية للواجهات (بدون حفظ كلمة المرور كنص عادي)
       const now = new Date().toISOString();
       const userId = (result.user as any)?.id || generateId();
+      const assignedRole = (result.user as any)?.role || 'seller';
+      const assignedRoleId = (result.user as any)?.roleId || '';
 
       await db.users.put({
         id: userId,
         username: regUsername.trim(),
         name: regName.trim(),
-        pin: regPassword,
+        pin: '',
         phone: regPhone || '',
-        role: 'seller',
+        role: assignedRole,
+        roleId: assignedRoleId,
         status: 'active',
         loginAttempts: 0,
         createdAt: now,
@@ -315,29 +326,54 @@ export default function LoginPage() {
             {/* View: REGISTER */}
             {view === 'register' && !regSuccess && (
               <div className="flex flex-col justify-center my-auto space-y-3.5 sm:space-y-4">
-                <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 sm:w-10 sm:h-10 bg-primary/10 rounded-xl flex items-center justify-center border border-primary/20 shrink-0 text-primary">
-                      <UserPlus className="w-4 h-4 sm:w-5 sm:h-5" />
+                {!allowSelfRegistration ? (
+                  <div className="bg-surface-container-high/60 border border-outline-variant/30 rounded-2xl p-6 text-center space-y-4">
+                    <div className="w-12 h-12 bg-amber-500/10 text-amber-500 rounded-2xl flex items-center justify-center mx-auto border border-amber-500/20">
+                      <Lock className="w-6 h-6" />
                     </div>
                     <div>
-                      <h2 className="font-cairo text-base sm:text-lg font-bold text-on-surface">إنشاء حساب جديد</h2>
-                      <p className="text-[11px] sm:text-xs text-on-surface-variant font-tajawal">أنشئ حسابك وابدأ استخدام النظام</p>
+                      <h2 className="font-cairo text-base sm:text-lg font-bold text-on-surface">التسجيل الذاتي مغلق</h2>
+                      <p className="text-xs text-on-surface-variant font-tajawal mt-1.5 leading-relaxed">
+                        تم إغلاق إنشاء الحسابات الذاتية من قِبل إدارة النظام. يُرجى التواصل مع مسؤول النظام (Admin) لإنشاء حساب لك وتحديد صلاحياتك.
+                      </p>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        resetForms();
+                        setView('login');
+                      }}
+                      className="px-5 py-2.5 bg-primary text-on-primary rounded-xl font-cairo text-xs font-bold shadow-md hover:bg-primary/90 transition-all flex items-center justify-center gap-1.5 mx-auto"
+                    >
+                      <ArrowRight className="w-3.5 h-3.5" />
+                      <span>العودة لتسجيل الدخول</span>
+                    </button>
                   </div>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 sm:w-10 sm:h-10 bg-primary/10 rounded-xl flex items-center justify-center border border-primary/20 shrink-0 text-primary">
+                          <UserPlus className="w-4 h-4 sm:w-5 sm:h-5" />
+                        </div>
+                        <div>
+                          <h2 className="font-cairo text-base sm:text-lg font-bold text-on-surface">إنشاء حساب جديد</h2>
+                          <p className="text-[11px] sm:text-xs text-on-surface-variant font-tajawal">أنشئ حسابك وابدأ استخدام النظام</p>
+                        </div>
+                      </div>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      resetForms();
-                      setView('login');
-                    }}
-                    className="flex items-center gap-1 text-xs text-primary hover:text-primary-container font-cairo font-semibold p-1.5 rounded-lg hover:bg-primary/5 transition-colors cursor-pointer"
-                  >
-                    <span>تسجيل الدخول</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          resetForms();
+                          setView('login');
+                        }}
+                        className="flex items-center gap-1 text-xs text-primary hover:text-primary-container font-cairo font-semibold p-1.5 rounded-lg hover:bg-primary/5 transition-colors cursor-pointer"
+                      >
+                        <span>تسجيل الدخول</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
 
                 {/* Form fields */}
                 <div className="space-y-2.5 sm:space-y-3">
@@ -383,31 +419,35 @@ export default function LoginPage() {
                     <Phone className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant/70" />
                   </div>
 
-                  {/* Password */}
-                  <div className="relative">
-                    <input
-                      type={regShowPassword ? 'text' : 'password'}
-                      value={regPassword}
-                      onChange={(e) => {
-                        setRegPassword(e.target.value);
-                        setRegError('');
-                      }}
-                      onKeyDown={(e) => e.key === 'Enter' && handleRegister()}
-                      placeholder="كلمة المرور (8 أحرف على الأقل)"
-                      className="w-full h-10 sm:h-11 bg-surface-container-lowest border border-outline-variant/30 dark:border-white/10 rounded-xl pr-10 pl-10 text-xs sm:text-sm text-on-surface placeholder-on-surface-variant/70 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
-                    />
-                    <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant/70" />
-                    <button
-                      type="button"
-                      onClick={() => setRegShowPassword(!regShowPassword)}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer p-1"
-                      aria-label="تبديل إظهار كلمة المرور"
-                    >
-                      {regShowPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
+                    {/* Password */}
+                    <div className="relative">
+                      <input
+                        type={regShowPassword ? 'text' : 'password'}
+                        value={regPassword}
+                        onChange={(e) => {
+                          setRegPassword(e.target.value);
+                          setRegError('');
+                        }}
+                        onKeyDown={(e) => e.key === 'Enter' && handleRegister()}
+                        placeholder="كلمة المرور (8 أحرف على الأقل)"
+                        className="w-full h-10 sm:h-11 bg-surface-container-lowest border border-outline-variant/30 dark:border-white/10 rounded-xl pr-10 pl-10 text-xs sm:text-sm text-on-surface placeholder-on-surface-variant/70 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+                      />
+                      <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant/70" />
+                      <button
+                        type="button"
+                        onClick={() => setRegShowPassword(!regShowPassword)}
+                        className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer p-1"
+                        aria-label="تبديل إظهار كلمة المرور"
+                      >
+                        {regShowPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
 
+                    {/* مؤشر قوة كلمة المرور */}
+                    {regPassword && (
+                      <PasswordStrengthBar password={regPassword} showDetails={true} />
+                    )}
+                  </div>
                 {/* Error Banner */}
                 {regError && (
                   <div className="bg-error/10 border border-error/25 text-error text-xs p-2.5 rounded-xl flex items-center gap-2 animate-slide-down">
@@ -437,10 +477,12 @@ export default function LoginPage() {
                 </button>
 
                 <p className="text-[11px] text-on-surface-variant text-center font-tajawal leading-tight">
-                  سيتم تسجيلك كبائع مع صلاحيات أولية. يمكن للمدير تعديل الصلاحيات لاحقاً.
+                  سيتم تعيين الصلاحيات المحددة في النظام للمستخدمين الجدد. يمكن للمدير تعديل الصلاحيات لاحقاً.
                 </p>
-              </div>
+              </>
             )}
+          </div>
+        )}
 
             {/* View: LOGIN (Default) */}
             {view === 'login' && !regSuccess && (
@@ -465,9 +507,8 @@ export default function LoginPage() {
                           setError('');
                         }}
                         onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                        placeholder="أدخل اسم المستخدم"
-                        className="w-full h-10 sm:h-11 bg-surface-container-lowest border border-outline-variant/30 dark:border-white/10 rounded-xl pr-10 pl-3.5 text-xs sm:text-sm text-on-surface placeholder-on-surface-variant/60 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
-                        autoFocus
+                        placeholder="اسم المستخدم"
+                        className="w-full h-10 sm:h-11 bg-surface-container-lowest border border-outline-variant/30 dark:border-white/10 rounded-xl pr-10 pl-3.5 text-xs sm:text-sm text-on-surface placeholder-on-surface-variant/70 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
                       />
                       <User className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant/70" />
                     </div>
@@ -475,7 +516,7 @@ export default function LoginPage() {
 
                   {/* Password Field */}
                   <div className="space-y-1">
-                    <label className="block text-xs font-semibold text-on-surface font-cairo">كلمة المرور / PIN</label>
+                    <label className="block text-xs font-semibold text-on-surface font-cairo">كلمة المرور / الرمز السري</label>
                     <div className="relative">
                       <input
                         type={showPassword ? 'text' : 'password'}
@@ -486,7 +527,7 @@ export default function LoginPage() {
                         }}
                         onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
                         placeholder="••••••••"
-                        className="w-full h-10 sm:h-11 bg-surface-container-lowest border border-outline-variant/30 dark:border-white/10 rounded-xl pr-10 pl-10 text-xs sm:text-sm text-on-surface placeholder-on-surface-variant/60 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+                        className="w-full h-10 sm:h-11 bg-surface-container-lowest border border-outline-variant/30 dark:border-white/10 rounded-xl pr-10 pl-10 text-xs sm:text-sm text-on-surface placeholder-on-surface-variant/70 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
                       />
                       <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant/70" />
                       <button
@@ -505,11 +546,11 @@ export default function LoginPage() {
                 {error && (
                   <div className="bg-error/10 border border-error/25 text-error text-xs p-2.5 rounded-xl flex items-center gap-2 animate-slide-down">
                     <AlertCircle className="w-4 h-4 shrink-0" />
-                    <span className="leading-tight">{error}</span>
+                    <span>{error}</span>
                   </div>
                 )}
 
-                {/* Primary Submit Button */}
+                {/* Login Button */}
                 <button
                   type="button"
                   onClick={handleLogin}
@@ -540,18 +581,20 @@ export default function LoginPage() {
                 </div>
 
                 {/* Secondary Action Buttons (Register & Trial) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      resetForms();
-                      setView('register');
-                    }}
-                    className="w-full h-9 sm:h-10 border border-outline-variant/30 dark:border-white/10 rounded-xl text-on-surface text-xs font-cairo font-semibold hover:bg-surface-container-high hover:border-outline-variant/50 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <UserPlus className="w-3.5 h-3.5 text-primary" />
-                    <span>إنشاء حساب جديد</span>
-                  </button>
+                <div className={`grid ${allowSelfRegistration ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'} gap-2`}>
+                  {allowSelfRegistration && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        resetForms();
+                        setView('register');
+                      }}
+                      className="w-full h-9 sm:h-10 border border-outline-variant/30 dark:border-white/10 rounded-xl text-on-surface text-xs font-cairo font-semibold hover:bg-surface-container-high hover:border-outline-variant/50 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <UserPlus className="w-3.5 h-3.5 text-primary" />
+                      <span>إنشاء حساب جديد</span>
+                    </button>
+                  )}
 
                   <button
                     type="button"

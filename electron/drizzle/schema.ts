@@ -61,6 +61,8 @@ export const settings = sqliteTable('settings', {
   cacheDays: integer('cache_days').notNull().default(7),
   connectionAlert: integer('connection_alert').notNull().default(1),
   connectionCheckInterval: integer('connection_check_interval').notNull().default(5),
+  allowSelfRegistration: integer('allow_self_registration').notNull().default(1),
+  defaultRole: text('default_role').notNull().default('seller'),
 });
 
 // ============ المستخدمون والصلاحيات ============

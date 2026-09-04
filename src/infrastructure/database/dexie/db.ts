@@ -295,6 +295,8 @@ export interface SettingsEntity {
   cacheDays?: number;
   connectionAlert?: boolean;
   connectionCheckInterval?: number;
+  allowSelfRegistration?: boolean;
+  defaultRole?: string;
 }
 
 export interface PrintTemplateEntity {

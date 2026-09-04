@@ -1,9 +1,20 @@
 // مسارات المصادقة عبر HTTP REST
 
 import type { FastifyInstance } from 'fastify';
-import { loginUser, registerUser, getCurrentUser, logoutUser } from '../../handlers/auth';
+import {
+  loginUser,
+  registerUser,
+  getCurrentUser,
+  logoutUser,
+  checkRegistrationAllowed,
+} from '../../handlers/auth';
 
 export async function registerAuthRoutes(server: FastifyInstance): Promise<void> {
+  // GET /api/auth/registration-config
+  server.get('/api/auth/registration-config', async () => {
+    return checkRegistrationAllowed();
+  });
+
   // POST /api/auth/login { username, pin } → { user } || { error }
   server.post('/api/auth/login', async (request, reply) => {
     const body = request.body as { username?: string; pin?: string };
@@ -17,13 +28,23 @@ export async function registerAuthRoutes(server: FastifyInstance): Promise<void>
 
   // POST /api/auth/register
   server.post('/api/auth/register', async (request, reply) => {
-    const body = request.body as { username?: string; name?: string; pin?: string; phone?: string; email?: string };
+    const body = request.body as {
+      username?: string;
+      name?: string;
+      pin?: string;
+      phone?: string;
+      email?: string;
+      role?: string;
+      roleId?: string;
+    };
     const result = await registerUser({
       username: body.username || '',
       name: body.name || '',
       pin: body.pin || '',
       phone: body.phone,
       email: body.email,
+      role: body.role,
+      roleId: body.roleId,
     });
     if (result.error) {
       return reply.code(result.error.status).send({ error: result.error });

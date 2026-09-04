@@ -1,6 +1,9 @@
 // Tab Component: UsersRolesTab (Refactored from SettingsPage.tsx)
 import React from 'react';
-import { Settings, Users, Plus, Edit2, Trash2, Shield, Key, ScrollText } from 'lucide-react';
+import {
+  Settings, Users, Plus, Edit2, Trash2, Shield, Key, ScrollText,
+  KeyRound, Lock, CheckCircle2, ShieldCheck, AlertCircle, Sparkles, UserCheck
+} from 'lucide-react';
 import { PERMISSION_LABELS } from '../constants/permissionGroups';
 
 interface UsersRolesTabProps {
@@ -17,6 +20,7 @@ export default function UsersRolesTab({
   filteredActivities,
   filteredUsers,
   getRoleUsers,
+  handleSaveSettings,
   openAddRole,
   openEditRole,
   removeRole,
@@ -27,6 +31,7 @@ export default function UsersRolesTab({
   setNewPassword,
   setShowResetPassword,
   setShowUserForm,
+  settings,
   setUserForm,
   setUserSearch,
   setUserStatusFilter,
@@ -83,6 +88,7 @@ export default function UsersRolesTab({
                 { id: 'users', label: 'المستخدمون', Icon: Users, count: users.length },
                 { id: 'activities', label: 'سجل النشاطات', Icon: ScrollText, count: filteredActivities.length },
                 { id: 'roles', label: 'الأدوار والصلاحيات', Icon: Shield, count: roles.length },
+                { id: 'security', label: 'سياسات التسجيل والأمان', Icon: KeyRound, count: undefined },
               ] as const).map(({ id, label, Icon, count }) => {
                 const active = userSubTab === id;
                 return (
@@ -98,13 +104,15 @@ export default function UsersRolesTab({
                   >
                     <Icon className="w-4 h-4" />
                     <span>{label}</span>
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                        active ? 'bg-white/20 text-white' : 'bg-surface-container-highest text-on-surface-variant'
-                      }`}
-                    >
-                      {count}
-                    </span>
+                    {count !== undefined && (
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                          active ? 'bg-white/20 text-white' : 'bg-surface-container-highest text-on-surface-variant'
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -556,6 +564,173 @@ export default function UsersRolesTab({
                 </div>
               </div>
             )}
-          </div>
+
+            {/* === تبويب 4: سياسات التسجيل والأمان === */}
+            {userSubTab === 'security' && (
+              <div className="space-y-6 animate-fadeIn">
+                {/* بطاقة 1: سياسة التسجيل الذاتي */}
+                <div className="bg-surface-container rounded-2xl border border-outline-variant/20 p-5 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 border border-primary/20">
+                        <Lock className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-cairo font-bold text-sm text-on-surface">السماح بالتسجيل الذاتي للمستخدمين</h3>
+                        <p className="text-xs text-on-surface-variant font-tajawal mt-0.5 max-w-xl">
+                          التحكم في إمكانية إنشاء حسابات جديدة مباشرة من شاشة تسجيل الدخول. عند التعطيل، يختفي خيار "إنشاء حساب جديد" ولا يمكن إضافة المستخدمين إلا بواسطة المدير.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Toggle Button */}
+                    <button
+                      type="button"
+                      onClick={() => handleSaveSettings?.({ allowSelfRegistration: !settings?.allowSelfRegistration })}
+                      className={`relative inline-flex h-7 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        settings?.allowSelfRegistration ? 'bg-primary' : 'bg-surface-container-highest'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                          settings?.allowSelfRegistration ? 'translate-x-7' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <div className={`p-3 rounded-xl text-xs flex items-center gap-2.5 font-tajawal ${
+                    settings?.allowSelfRegistration
+                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                      : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                  }`}>
+                    {settings?.allowSelfRegistration ? (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 shrink-0" />
+                        <span>التسجيل الذاتي متاح حالياً: يمكن لأي شخص إنشاء حساب من شاشة الدخول.</span>
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck className="w-4 h-4 shrink-0" />
+                        <span>وضع الأمان المشدد نشط: التسجيل محصور بمدير النظام فقط لمنع أي وصول غير مصرح.</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* بطاقة 2: الدور الافتراضي للمستخدمين الجدد */}
+                <div className="bg-surface-container rounded-2xl border border-outline-variant/20 p-5 space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0 border border-secondary/20">
+                      <Shield className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-cairo font-bold text-sm text-on-surface">الدور الافتراضي للتسجيل</h3>
+                      <p className="text-xs text-on-surface-variant font-tajawal mt-0.5">
+                        الدور والصلاحيات التي تُمنح تلقائياً لأي مستخدم جديد يتم إنشاؤه عبر التسجيل الذاتي أو بدون تحديد دور خاص.
+                      </p>
+
+                      <div className="mt-3 max-w-sm">
+                        <select
+                          value={settings?.defaultRole || 'seller'}
+                          onChange={(e) => handleSaveSettings?.({ defaultRole: e.target.value })}
+                          className="w-full px-4 py-2.5 rounded-xl bg-surface-container-high border border-outline-variant/20 text-xs font-bold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer"
+                        >
+                          <option value="seller">🔵 بائع (Seller) — نقطة البيع الأساسية فقط</option>
+                          <option value="cashier">🟣 كاشير (Cashier) — البيع وإدارة صندوق الكاش</option>
+                          <option value="accountant">🔷 محاسب (Accountant) — فواتير ومصاريف وتقارير</option>
+                          <option value="sales_manager">🟢 مدير مبيعات (Sales Manager) — مبيعات وزبائن</option>
+                          <option value="inventory_manager">🟡 مدير مخزون (Inventory Manager) — منتجات ومخزون</option>
+                          {roles?.filter((r: any) => !['seller', 'cashier', 'accountant', 'sales_manager', 'inventory_manager', 'admin'].includes(r.name)).map((r: any) => (
+                            <option key={r.id} value={r.name}>
+                              ⚙️ دور مخصص: {r.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* بطاقة 3: معايير قوة كلمة المرور */}
+                <div className="bg-surface-container rounded-2xl border border-outline-variant/20 p-5 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0 border border-amber-500/20">
+                      <KeyRound className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-cairo font-bold text-sm text-on-surface">سياسة تعقيد كلمات المرور</h3>
+                      <p className="text-xs text-on-surface-variant font-tajawal mt-0.5">
+                        القواعد الإلزامية المطبقة عند إنشاء الحسابات أو إعادة تعيين كلمة المرور
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                    <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant/15 flex items-center gap-2 text-xs">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                      <div>
+                        <span className="font-bold text-on-surface block">8 أحرف على الأقل</span>
+                        <span className="text-[11px] text-on-surface-variant">طول كلمة المرور الأدنى</span>
+                      </div>
+                    </div>
+                    <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant/15 flex items-center gap-2 text-xs">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                      <div>
+                        <span className="font-bold text-on-surface block">أحرف وأرقام معاً</span>
+                        <span className="text-[11px] text-on-surface-variant">مزيج الحروف والخانة الرقمية</span>
+                      </div>
+                    </div>
+                    <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant/15 flex items-center gap-2 text-xs">
+                      <Sparkles className="w-4 h-4 text-primary shrink-0" />
+                      <div>
+                        <span className="font-bold text-on-surface block">شريط تقييم ديناميكي</span>
+                        <span className="text-[11px] text-on-surface-variant">فحص فوري حي للقوة أثناء الكتابة</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* بطاقة 4: بنية التشفير وحماية البيانات */}
+                <div className="bg-surface-container rounded-2xl border border-outline-variant/20 p-5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0 border border-emerald-500/20">
+                        <ShieldCheck className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-cairo font-bold text-sm text-on-surface">تشفير كلمات المرور وعزل العمليات</h3>
+                        <p className="text-xs text-on-surface-variant font-tajawal mt-0.5">
+                          خوارزمية Scrypt القياسية في Node.js Main Process
+                        </p>
+                      </div>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                      نشط ومشفّر
+                    </span>
+                  </div>
+
+                  <div className="bg-surface-container-low rounded-xl p-3 border border-outline-variant/15 space-y-1.5 text-xs font-tajawal text-on-surface-variant">
+                    <div className="flex items-center justify-between py-1 border-b border-outline-variant/10">
+                      <span>خوارزمية اشتقاق المفاتيح (KDF):</span>
+                      <span className="font-mono font-bold text-on-surface">scrypt (N=16384, r=8, p=1, keyLen=32)</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1 border-b border-outline-variant/10">
+                      <span>الملح العشوائي (Salt):</span>
+                      <span className="font-mono font-bold text-on-surface">128-bit Cryptographic Salt (Hex)</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1 border-b border-outline-variant/10">
+                      <span>عزل الواجهة (Renderer Isolation):</span>
+                      <span className="font-bold text-emerald-500">مطبّق — لا يتم تسريب أي كلمات مرور أو هاشات للواجهة</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                      <span>الترحيل التلقائي (Auto-Migration):</span>
+                      <span className="font-bold text-primary">تشفير فوري لأي حساب قديم عند أول تسجيل دخول ناجح</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+    </div>
   );
 }

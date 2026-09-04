@@ -41,12 +41,16 @@ const electronAPI = {
   auth: {
     login: (username: string, pin: string) =>
       ipcRenderer.invoke('auth:login', username, pin),
-    register: (data: { username: string; name: string; pin: string; phone?: string; email?: string }) =>
+    register: (data: { username: string; name: string; pin: string; phone?: string; email?: string; role?: string; roleId?: string; callerRole?: string }) =>
       ipcRenderer.invoke('auth:register', data),
     getCurrentUser: (userId: string) =>
       ipcRenderer.invoke('auth:me', userId),
     logout: (userId: string) =>
       ipcRenderer.invoke('auth:logout', userId),
+    resetPassword: (userId: string, newPin: string) =>
+      ipcRenderer.invoke('auth:reset-password', userId, newPin),
+    checkRegistrationAllowed: () =>
+      ipcRenderer.invoke('auth:check-registration-allowed'),
   },
 
   // ===== المبيعات (مسارات مخصصة) =====

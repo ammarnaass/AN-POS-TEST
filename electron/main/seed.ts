@@ -4,6 +4,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { getSqlite } from './database';
+import { hashPassword, verifyPassword, isHashed } from './handlers/password-hash';
 
 const DEFAULT_USERS = [
   { username: 'admin@dante.com', name: 'مدير النظام', pin: 'admin1234', role: 'admin' },
@@ -79,11 +80,18 @@ export async function seedDatabase(): Promise<void> {
   for (const def of DEFAULT_USERS) {
     const existing = queryOne('SELECT * FROM users WHERE username = ?', [def.username]);
     if (existing) {
-      // تحديث PIN/role إذا تغيرت
-      if (existing.pin !== def.pin || existing.role !== def.role) {
+      // إذا كانت كلمة المرور غير مشفرة، نقوم بترحيلها إلى هاش مشفر فوراً
+      if (!isHashed(existing.pin as string)) {
+        const plainPin = (existing.pin as string) || def.pin;
         execute(
-          'UPDATE users SET pin = ?, role = ?, name = ?, status = ?, updated_at = ? WHERE id = ?',
-          [def.pin, def.role, def.name, 'active', now, existing.id as string]
+          'UPDATE users SET pin = ?, updated_at = ? WHERE id = ?',
+          [hashPassword(plainPin), now, existing.id as string]
+        );
+      }
+      if (existing.role !== def.role) {
+        execute(
+          'UPDATE users SET role = ?, updated_at = ? WHERE id = ?',
+          [def.role, now, existing.id as string]
         );
       }
       if (def.username === 'admin@dante.com') adminId = existing.id as string;
@@ -91,7 +99,7 @@ export async function seedDatabase(): Promise<void> {
       const id = randomUUID();
       execute(
         'INSERT INTO users (id, username, name, pin, role, status, login_attempts, locked_until, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [id, def.username, def.name, def.pin, def.role, 'active', 0, '', now, now]
+        [id, def.username, def.name, hashPassword(def.pin), def.role, 'active', 0, '', now, now]
       );
       if (def.username === 'admin@dante.com') adminId = id;
     }

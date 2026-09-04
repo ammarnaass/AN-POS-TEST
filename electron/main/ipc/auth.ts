@@ -2,7 +2,15 @@
 // المنطق الفعلي في ../handlers/auth.ts (يُشارك مع خادم HTTP)
 
 import { ipcMain } from 'electron';
-import { loginUser, registerUser, getCurrentUser, logoutUser } from '../handlers/auth';
+import {
+  loginUser,
+  registerUser,
+  getCurrentUser,
+  logoutUser,
+  resetUserPassword,
+  checkRegistrationAllowed,
+  type RegisterUserData,
+} from '../handlers/auth';
 
 export function registerAuthIpc(): void {
   // auth:login
@@ -11,7 +19,7 @@ export function registerAuthIpc(): void {
   );
 
   // auth:register
-  ipcMain.handle('auth:register', async (_evt, data: { username: string; name: string; pin: string; phone?: string; email?: string }) =>
+  ipcMain.handle('auth:register', async (_evt, data: RegisterUserData) =>
     registerUser(data)
   );
 
@@ -23,5 +31,15 @@ export function registerAuthIpc(): void {
   // auth:logout
   ipcMain.handle('auth:logout', async (_evt, userId: string) =>
     logoutUser(userId)
+  );
+
+  // auth:reset-password
+  ipcMain.handle('auth:reset-password', async (_evt, userId: string, newPin: string) =>
+    resetUserPassword(userId, newPin)
+  );
+
+  // auth:check-registration-allowed
+  ipcMain.handle('auth:check-registration-allowed', async () =>
+    checkRegistrationAllowed()
   );
 }

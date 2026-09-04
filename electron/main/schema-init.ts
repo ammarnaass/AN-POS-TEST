@@ -60,7 +60,9 @@ CREATE TABLE IF NOT EXISTS settings (
   auto_sync INTEGER NOT NULL DEFAULT 1,
   cache_days INTEGER NOT NULL DEFAULT 7,
   connection_alert INTEGER NOT NULL DEFAULT 1,
-  connection_check_interval INTEGER NOT NULL DEFAULT 5
+  connection_check_interval INTEGER NOT NULL DEFAULT 5,
+  allow_self_registration INTEGER NOT NULL DEFAULT 1,
+  default_role TEXT NOT NULL DEFAULT 'seller'
 );
 
 -- المستخدمون
@@ -832,4 +834,6 @@ export function initSchema(): void {
   try { execSql("ALTER TABLE suspended_orders ADD COLUMN customer_name TEXT DEFAULT '';"); } catch { /* موجود */ }
   try { execSql("ALTER TABLE suspended_orders ADD COLUMN subtotal REAL DEFAULT 0;"); } catch { /* موجود */ }
   try { execSql("ALTER TABLE suspended_orders ADD COLUMN total REAL DEFAULT 0;"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE settings ADD COLUMN allow_self_registration INTEGER NOT NULL DEFAULT 1;"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE settings ADD COLUMN default_role TEXT NOT NULL DEFAULT 'seller';"); } catch { /* موجود */ }
 }

@@ -22,8 +22,9 @@ import {
   Network, Server, Usb, Bluetooth, BluetoothConnected, Cable, ScanLine,
   ShieldCheck, KeyRound, Activity, Plug, AlertCircle, CheckCircle2, Cpu,
   // General Settings Enhancements
-  Building2, Phone, Mail, MapPin, Copy, Check, Sparkles, SlidersHorizontal, ArrowLeftRight, Landmark, BadgePercent, Coins, Eye, CheckCircle,
+  Building2, Phone, Mail, Mail as MailIcon, MapPin, Copy, Check, Sparkles, SlidersHorizontal, ArrowLeftRight, Landmark, BadgePercent, Coins, Eye, CheckCircle,
 } from 'lucide-react';
+import { validatePasswordStrength, PasswordStrengthBar } from '@/utils/passwordStrength';
 
 // ===== مجموعات وترجمات الصلاحيات (نقل من RolesPage.tsx) =====
 
@@ -84,6 +85,8 @@ export default function SettingsPage() {
     averagePricing: Boolean((rawSettings as any)?.averagePricing ?? (rawSettings as any)?.average_pricing),
     allowCardPayment: Boolean((rawSettings as any)?.allowCardPayment ?? (rawSettings as any)?.allow_card_payment),
     allowTransferPayment: Boolean((rawSettings as any)?.allowTransferPayment ?? (rawSettings as any)?.allow_transfer_payment),
+    allowSelfRegistration: ((rawSettings as any)?.allowSelfRegistration ?? (rawSettings as any)?.allow_self_registration ?? 1) !== 0 && ((rawSettings as any)?.allowSelfRegistration ?? (rawSettings as any)?.allow_self_registration) !== false,
+    defaultRole: (rawSettings as any)?.defaultRole || (rawSettings as any)?.default_role || 'seller',
     ...rawSettings,
     currencies: Array.isArray((rawSettings as unknown as Record<string, unknown> | undefined)?.currencies) ? (rawSettings as unknown as Record<string, Currency[]>).currencies : ([] as Currency[]),
     expenseCategories: Array.isArray((rawSettings as unknown as Record<string, unknown> | undefined)?.expenseCategories) ? (rawSettings as unknown as Record<string, string[]>).expenseCategories : ['ايجار', 'كهرباء', 'ماء', 'رواتب', 'نقل', 'صيانة'],
@@ -203,8 +206,23 @@ export default function SettingsPage() {
       const now = new Date().toISOString();
       const api = (window as any).electronAPI;
 
-      // 1. كتابة في قاعدة بيانات SQLite الحقيقية
-      if (api?.db?.create) {
+      // 1. كتابة في قاعدة بيانات SQLite الحقيقية مع تشفير كلمة المرور بـ scrypt
+      if (api?.auth?.register) {
+        try {
+          await api.auth.register({
+            username: (data.username as string) || (data.name as string),
+            name: data.name as string,
+            pin: data.pin as string,
+            role: (data.role as string) || 'seller',
+            roleId: (data.roleId as string) || '',
+            email: (data.email as string) || '',
+            phone: (data.phone as string) || '',
+            callerRole: 'admin',
+          });
+        } catch (e) {
+          console.error('Failed to create user via auth API in SQLite:', e);
+        }
+      } else if (api?.db?.create) {
         try {
           await api.db.create('users', {
             id: newId,
@@ -225,12 +243,12 @@ export default function SettingsPage() {
         }
       }
 
-      // 2. كتابة في Dexie محلياً
+      // 2. كتابة في Dexie محلياً (بدون تخزين كلمة المرور كنص عادي)
       await db.users.add({
         id: newId,
         username: (data.username as string) || (data.name as string),
         name: data.name as string,
-        pin: data.pin as string,
+        pin: '',
         role: (data.role as 'admin' | 'cashier' | 'seller' | 'accountant' | 'sales_manager' | 'inventory_manager') || 'seller',
         roleId: (data.roleId as string) || '',
         email: (data.email as string) || '',
@@ -341,7 +359,7 @@ export default function SettingsPage() {
   const [userForm, setUserForm] = useState({ name: '', pin: '', role: 'seller' as 'admin' | 'cashier' | 'seller' | 'accountant' | 'sales_manager' | 'inventory_manager', roleId: '', email: '', phone: '' });
   const [userSearch, setUserSearch] = useState('');
   const [userStatusFilter, setUserStatusFilter] = useState('all');
-  const [userSubTab, setUserSubTab] = useState<'users' | 'activities' | 'roles'>('users');
+  const [userSubTab, setUserSubTab] = useState<'users' | 'activities' | 'roles' | 'security'>('users');
   const [actUserFilter, setActUserFilter] = useState('');
   const [actActionFilter, setActActionFilter] = useState('');
   const [showRoleForm, setShowRoleForm] = useState(false);
@@ -495,6 +513,14 @@ export default function SettingsPage() {
     if (updates.taxArticle !== undefined) {
       mirrored.tax_article = updates.taxArticle;
       mirrored.company_art = updates.taxArticle;
+    }
+    if (updates.allowSelfRegistration !== undefined) {
+      mirrored.allow_self_registration = updates.allowSelfRegistration ? 1 : 0;
+      mirrored.allowSelfRegistration = updates.allowSelfRegistration;
+    }
+    if (updates.defaultRole !== undefined) {
+      mirrored.default_role = updates.defaultRole;
+      mirrored.defaultRole = updates.defaultRole;
     }
     settingsMutation.mutate(mirrored);
   };
@@ -681,26 +707,66 @@ export default function SettingsPage() {
     setShowDeviceForm(false);
   };
 
-  const handleAddUser = () => {
-    if (!userForm.name || !userForm.pin) return;
-    // BR-USR-007: قوة كلمة المرور (8+ أحرف)
-    if (userForm.pin.length < 8) {
-      alert('كلمة المرور يجب أن تكون 8 أحرف على الأقل');
+  const handleAddUser = async () => {
+    if (!userForm.name) {
+      alert('يرجى إدخال اسم المستخدم');
       return;
     }
-    if (editingUser) updateUserMutation.mutate({ ...editingUser, ...userForm, status: editingUser.status, username: editingUser.username });
-    else addUserMutation.mutate({ ...userForm, username: userForm.name, status: 'active' });
-    setUserForm({ name: '', pin: '', role: 'seller', roleId: '', email: '', phone: '' }); setEditingUser(null); setShowUserForm(false);
+
+    if (!editingUser) {
+      if (!userForm.pin) {
+        alert('يرجى إدخال كلمة المرور');
+        return;
+      }
+      const strength = validatePasswordStrength(userForm.pin);
+      if (!strength.valid) {
+        alert(strength.errors[0] || 'كلمة المرور يجب أن تكون 8 أحرف على الأقل وتتضمن أرقاماً وأحرفاً');
+        return;
+      }
+      addUserMutation.mutate({ ...userForm, username: userForm.name, status: 'active' });
+    } else {
+      if (userForm.pin) {
+        const strength = validatePasswordStrength(userForm.pin);
+        if (!strength.valid) {
+          alert(strength.errors[0] || 'كلمة المرور يجب أن تكون 8 أحرف على الأقل وتتضمن أرقاماً وأحرفاً');
+          return;
+        }
+        const api = (window as any).electronAPI;
+        if (api?.auth?.resetPassword) {
+          try {
+            await api.auth.resetPassword(editingUser.id, userForm.pin);
+          } catch (e) {
+            console.error('Failed to reset password via auth API in SQLite:', e);
+          }
+        }
+      }
+      updateUserMutation.mutate({ ...editingUser, ...userForm, status: editingUser.status, username: editingUser.username });
+    }
+
+    setUserForm({ name: '', pin: '', role: 'seller', roleId: '', email: '', phone: '' });
+    setEditingUser(null);
+    setShowUserForm(false);
   };
 
   const handleResetPassword = async (userId: string) => {
-    if (!newPassword || newPassword.length < 8) {
-      alert('كلمة المرور يجب أن تكون 8 أحرف على الأقل');
+    if (!newPassword) {
+      alert('يرجى إدخال كلمة المرور الجديدة');
+      return;
+    }
+    const strength = validatePasswordStrength(newPassword);
+    if (!strength.valid) {
+      alert(strength.errors[0] || 'كلمة المرور يجب أن تكون 8 أحرف على الأقل وتتضمن أرقاماً وأحرفاً');
       return;
     }
     const now = new Date().toISOString();
     const api = (window as any).electronAPI;
-    if (api?.db?.update) {
+    if (api?.auth?.resetPassword) {
+      try {
+        await api.auth.resetPassword(userId, newPassword);
+      } catch (e) {
+        console.error('Failed to reset password via auth API in SQLite:', e);
+      }
+    } else if (api?.db?.update) {
       try {
         await api.db.update('users', userId, {
           pin: newPassword,
@@ -711,10 +777,10 @@ export default function SettingsPage() {
         console.error('Failed to reset password in SQLite:', e);
       }
     }
-    await db.users.update(userId, { pin: newPassword, passwordChangedAt: now, updatedAt: now });
+    await db.users.update(userId, { passwordChangedAt: now, updatedAt: now });
     setShowResetPassword(null);
     setNewPassword('');
-    addNotification({ title: 'تم', message: 'تم إعادة تعيين كلمة المرور بنجاح', type: 'success' });
+    addNotification({ title: 'تم', message: 'تم إعادة تعيين كلمة المرور وتشفيرها بنجاح', type: 'success' });
   };
 
   const filteredUsers = users.filter(u => {
@@ -1098,7 +1164,7 @@ export default function SettingsPage() {
 
         {/* === المستخدمون والأمان === */}
         {activeTab === 'users' && (
-          <UsersRolesTab {...{ ACTION_LABELS, SYSTEM_ROLE_INFO, actActionFilter, actUserFilter, currentUser, deleteUserMutation, filteredActivities, filteredUsers, getRoleUsers, openAddRole, openEditRole, removeRole, roles, setActActionFilter, setActUserFilter, setEditingUser, setNewPassword, setShowResetPassword, setShowUserForm, setUserForm, setUserSearch, setUserStatusFilter, setUserSubTab, setViewingRoleDetails, toggleStatusMutation, uniqueActions, userName, userSearch, userStatusFilter, userSubTab, users }} />
+          <UsersRolesTab {...{ ACTION_LABELS, SYSTEM_ROLE_INFO, actActionFilter, actUserFilter, currentUser, deleteUserMutation, filteredActivities, filteredUsers, getRoleUsers, handleSaveSettings, openAddRole, openEditRole, removeRole, roles, setActActionFilter, setActUserFilter, setEditingUser, setNewPassword, setShowResetPassword, setShowUserForm, settings, setUserForm, setUserSearch, setUserStatusFilter, setUserSubTab, setViewingRoleDetails, toggleStatusMutation, uniqueActions, userName, userSearch, userStatusFilter, userSubTab, users }} />
         )}
 
         {/* === الشبكة والاتصال === */}
@@ -1204,6 +1270,9 @@ export default function SettingsPage() {
                   onChange={(e) => setUserForm({ ...userForm, pin: e.target.value })}
                   className="w-full px-4 py-2.5 rounded-xl bg-surface-container border border-outline-variant/20 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-mono"
                 />
+                {userForm.pin && (
+                  <PasswordStrengthBar password={userForm.pin} showDetails={true} />
+                )}
               </div>
 
               <div>
@@ -1287,6 +1356,9 @@ export default function SettingsPage() {
                 onChange={(e) => setNewPassword(e.target.value)}
                 className="w-full px-4 py-2.5 rounded-xl bg-surface-container border border-outline-variant/20 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-mono"
               />
+              {newPassword && (
+                <PasswordStrengthBar password={newPassword} showDetails={true} />
+              )}
             </div>
 
             <div className="flex gap-2.5 pt-2">

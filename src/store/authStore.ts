@@ -22,7 +22,17 @@ interface AuthState {
   user: AuthUser | null;
   isAuthenticated: boolean;
   login: (username: string, pin: string) => Promise<{ success: boolean; error?: string }>;
-  register: (data: { username: string; name: string; pin: string; phone?: string; email?: string }) => Promise<{ success: boolean; error?: string; user?: any }>;
+  register: (data: {
+    username: string;
+    name: string;
+    pin: string;
+    phone?: string;
+    email?: string;
+    role?: string;
+    roleId?: string;
+    callerRole?: string;
+  }) => Promise<{ success: boolean; error?: string; user?: any }>;
+  checkRegistrationAllowed: () => Promise<{ allowSelfRegistration: boolean; defaultRole: string }>;
   logout: () => void;
   restoreSession: () => Promise<void>;
 }
@@ -118,7 +128,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  register: async (data: { username: string; name: string; pin: string; phone?: string; email?: string }) => {
+  register: async (data: {
+    username: string;
+    name: string;
+    pin: string;
+    phone?: string;
+    email?: string;
+    role?: string;
+    roleId?: string;
+    callerRole?: string;
+  }) => {
     try {
       const api = await waitForElectronAPI();
       const result = await api.auth.register(data);
@@ -137,6 +156,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         success: false,
         error: err instanceof Error ? `خطأ: ${err.message}` : 'حدث خطأ غير متوقع أثناء الاتصال',
       };
+    }
+  },
+
+  checkRegistrationAllowed: async () => {
+    try {
+      const api = await waitForElectronAPI();
+      if (api?.auth?.checkRegistrationAllowed) {
+        return await api.auth.checkRegistrationAllowed();
+      }
+      return { allowSelfRegistration: true, defaultRole: 'seller' };
+    } catch {
+      return { allowSelfRegistration: true, defaultRole: 'seller' };
     }
   },
 
