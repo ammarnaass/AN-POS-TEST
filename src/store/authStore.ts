@@ -22,6 +22,7 @@ interface AuthState {
   user: AuthUser | null;
   isAuthenticated: boolean;
   login: (username: string, pin: string) => Promise<{ success: boolean; error?: string }>;
+  register: (data: { username: string; name: string; pin: string; phone?: string; email?: string }) => Promise<{ success: boolean; error?: string; user?: any }>;
   logout: () => void;
   restoreSession: () => Promise<void>;
 }
@@ -109,6 +110,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
 
       return { success: true };
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? `خطأ: ${err.message}` : 'حدث خطأ غير متوقع أثناء الاتصال',
+      };
+    }
+  },
+
+  register: async (data: { username: string; name: string; pin: string; phone?: string; email?: string }) => {
+    try {
+      const api = await waitForElectronAPI();
+      const result = await api.auth.register(data);
+
+      if (result.error) {
+        return { success: false, error: result.error.detail };
+      }
+
+      if (!result.user) {
+        return { success: false, error: 'فشل إنشاء الحساب' };
+      }
+
+      return { success: true, user: result.user };
     } catch (err) {
       return {
         success: false,

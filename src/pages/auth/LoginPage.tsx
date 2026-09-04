@@ -26,12 +26,10 @@ import { db } from '@/infrastructure/database/dexie/db';
 import { generateId } from '@/utils';
 import { startTrial } from '@/services/trialService';
 
-const API_BASE = 'http://localhost:3001/api';
-
 type View = 'login' | 'register' | 'success';
 
 export default function LoginPage() {
-  const { login, isAuthenticated } = useAuthStore();
+  const { login, register, isAuthenticated } = useAuthStore();
   const navigate = useNavigate();
   const [view, setView] = useState<View>('login');
   const [isLoading, setIsLoading] = useState(false);
@@ -130,17 +128,25 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const exists = await db.users.where('username').equals(regUsername.trim()).first();
-      if (exists) {
-        setRegError('اسم المستخدم مستخدم بالفعل');
+      // 1. تسجيل المستخدم في قاعدة بيانات SQLite الحقيقية عبر IPC
+      const result = await register({
+        username: regUsername.trim(),
+        name: regName.trim(),
+        pin: regPassword,
+        phone: regPhone.trim() || undefined,
+      });
+
+      if (!result.success) {
+        setRegError(result.error || 'فشل إنشاء الحساب');
         setIsLoading(false);
         return;
       }
 
+      // 2. مزامنة Dexie محلياً كنسخة احتياطية للواجهات
       const now = new Date().toISOString();
-      const userId = generateId();
+      const userId = (result.user as any)?.id || generateId();
 
-      await db.users.add({
+      await db.users.put({
         id: userId,
         username: regUsername.trim(),
         name: regName.trim(),
@@ -151,37 +157,9 @@ export default function LoginPage() {
         loginAttempts: 0,
         createdAt: now,
         updatedAt: now,
+      }).catch((dexErr) => {
+        console.warn('Dexie cache sync warning:', dexErr);
       });
-
-      // مزامنة غير متزامنة مع الخادم
-      fetch(`${API_BASE}/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: regUsername.trim(),
-          name: regName.trim(),
-          pin: regPassword,
-          phone: regPhone.trim(),
-        }),
-      })
-        .then(async (res) => {
-          if (!res.ok) {
-            let detail = 'تعذر التسجيل على الخادم';
-            try {
-              const data = await res.json();
-              detail = data.detail || detail;
-            } catch {
-              /* ignore */
-            }
-            throw new Error(detail);
-          }
-        })
-        .catch((err: unknown) => {
-          const msg = err instanceof Error ? err.message : 'تعذر الاتصال بالخادم';
-          console.warn('Server register warning:', msg);
-          setRegError(`تنبيه: تم إنشاء الحساب محلياً فقط (${msg})`);
-          setTimeout(() => setRegError(''), 4000);
-        });
 
       setRegSuccess(true);
       setRegError('');

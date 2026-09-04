@@ -89,7 +89,42 @@ export default function SettingsPage() {
     expenseCategories: Array.isArray((rawSettings as unknown as Record<string, unknown> | undefined)?.expenseCategories) ? (rawSettings as unknown as Record<string, string[]>).expenseCategories : ['ايجار', 'كهرباء', 'ماء', 'رواتب', 'نقل', 'صيانة'],
   };
 
-  const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: () => db.users.toArray() });
+  const { data: users = [] } = useQuery({
+    queryKey: ['users'],
+    queryFn: async () => {
+      const api = (window as any).electronAPI;
+      if (api?.db?.list) {
+        try {
+          const sqliteUsers = await api.db.list('users');
+          if (Array.isArray(sqliteUsers) && sqliteUsers.length > 0) {
+            for (const u of sqliteUsers) {
+              await db.users.put({
+                id: u.id,
+                username: u.username,
+                name: u.name,
+                pin: u.pin,
+                role: u.role,
+                roleId: u.role_id || '',
+                email: u.email || '',
+                phone: u.phone || '',
+                avatar: u.avatar || '',
+                status: u.status || 'active',
+                loginAttempts: u.login_attempts || 0,
+                lockedUntil: u.locked_until || '',
+                passwordChangedAt: u.password_changed_at || '',
+                lastLogin: u.last_login || '',
+                createdAt: u.created_at || new Date().toISOString(),
+                updatedAt: u.updated_at || new Date().toISOString(),
+              }).catch(() => {});
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to fetch users from SQLite:', e);
+        }
+      }
+      return db.users.toArray();
+    },
+  });
   const { data: activities = [] } = useQuery({ queryKey: ['user_activities'], queryFn: () => db.user_activities.toArray() });
   const { data: roles = [] } = useQuery({ queryKey: ['roles'], queryFn: () => roleRepo.all() });
 
@@ -164,9 +199,36 @@ export default function SettingsPage() {
 
   const addUserMutation = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
+      const newId = generateId();
+      const now = new Date().toISOString();
+      const api = (window as any).electronAPI;
+
+      // 1. كتابة في قاعدة بيانات SQLite الحقيقية
+      if (api?.db?.create) {
+        try {
+          await api.db.create('users', {
+            id: newId,
+            username: (data.username as string) || (data.name as string),
+            name: data.name as string,
+            pin: data.pin as string,
+            role: (data.role as string) || 'seller',
+            role_id: (data.roleId as string) || '',
+            email: (data.email as string) || '',
+            phone: (data.phone as string) || '',
+            status: 'active',
+            login_attempts: 0,
+            created_at: now,
+            updated_at: now,
+          });
+        } catch (e) {
+          console.error('Failed to create user in SQLite:', e);
+        }
+      }
+
+      // 2. كتابة في Dexie محلياً
       await db.users.add({
-        id: generateId(),
-        username: data.username as string,
+        id: newId,
+        username: (data.username as string) || (data.name as string),
         name: data.name as string,
         pin: data.pin as string,
         role: (data.role as 'admin' | 'cashier' | 'seller' | 'accountant' | 'sales_manager' | 'inventory_manager') || 'seller',
@@ -175,8 +237,8 @@ export default function SettingsPage() {
         phone: (data.phone as string) || '',
         status: 'active',
         loginAttempts: 0,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: now,
+        updatedAt: now,
       });
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users'] }),
@@ -185,7 +247,29 @@ export default function SettingsPage() {
   const updateUserMutation = useMutation({
     mutationFn: async (user: User) => {
       const { id, ...data } = user;
-      await db.users.update(id, { ...data, updatedAt: new Date().toISOString() });
+      const now = new Date().toISOString();
+      const api = (window as any).electronAPI;
+
+      // 1. تحديث في SQLite
+      if (api?.db?.update) {
+        try {
+          await api.db.update('users', id, {
+            name: data.name,
+            username: data.username,
+            role: data.role,
+            role_id: data.roleId || '',
+            email: data.email || '',
+            phone: data.phone || '',
+            status: data.status,
+            updated_at: now,
+          });
+        } catch (e) {
+          console.error('Failed to update user in SQLite:', e);
+        }
+      }
+
+      // 2. تحديث في Dexie
+      await db.users.update(id, { ...data, updatedAt: now });
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users'] }),
   });
@@ -204,7 +288,16 @@ export default function SettingsPage() {
       if (id === currentUser?.id) {
         throw new Error('لا يمكن تعطيل المستخدم الحالي');
       }
-      await db.users.update(id, { status: 'inactive' });
+      const now = new Date().toISOString();
+      const api = (window as any).electronAPI;
+      if (api?.db?.update) {
+        try {
+          await api.db.update('users', id, { status: 'inactive', updated_at: now });
+        } catch (e) {
+          console.error('Failed to update user status in SQLite:', e);
+        }
+      }
+      await db.users.update(id, { status: 'inactive', updatedAt: now });
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users'] }),
   });
@@ -223,7 +316,17 @@ export default function SettingsPage() {
       if (id === currentUser?.id && current === 'active') {
         throw new Error('لا يمكن تعطيل المستخدم الحالي');
       }
-      await db.users.update(id, { status: current === 'active' ? 'inactive' : 'active' });
+      const newStatus = current === 'active' ? 'inactive' : 'active';
+      const now = new Date().toISOString();
+      const api = (window as any).electronAPI;
+      if (api?.db?.update) {
+        try {
+          await api.db.update('users', id, { status: newStatus, updated_at: now });
+        } catch (e) {
+          console.error('Failed to update user status in SQLite:', e);
+        }
+      }
+      await db.users.update(id, { status: newStatus, updatedAt: now });
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users'] }),
   });
@@ -595,7 +698,20 @@ export default function SettingsPage() {
       alert('كلمة المرور يجب أن تكون 8 أحرف على الأقل');
       return;
     }
-    await db.users.update(userId, { pin: newPassword, passwordChangedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+    const now = new Date().toISOString();
+    const api = (window as any).electronAPI;
+    if (api?.db?.update) {
+      try {
+        await api.db.update('users', userId, {
+          pin: newPassword,
+          password_changed_at: now,
+          updated_at: now,
+        });
+      } catch (e) {
+        console.error('Failed to reset password in SQLite:', e);
+      }
+    }
+    await db.users.update(userId, { pin: newPassword, passwordChangedAt: now, updatedAt: now });
     setShowResetPassword(null);
     setNewPassword('');
     addNotification({ title: 'تم', message: 'تم إعادة تعيين كلمة المرور بنجاح', type: 'success' });
