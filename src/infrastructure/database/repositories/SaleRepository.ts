@@ -29,13 +29,25 @@ export const SaleRepository = {
   async getNextNumber(prefix: string): Promise<string> {
     const cleanPrefix = normalizeInvoicePrefix(prefix);
     const pattern = new RegExp(`^${cleanPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-*(\\d+)$`);
-    const all = await db.sales.toArray();
-    const nums = all
-      .map((s) => s.number.match(pattern)?.[1])
+    // فحص أحدث 20 فاتورة فقط مباشرة عبر الفهرس بدلاً من تحميل كامل فواتير المتجر
+    const recent = await db.sales.orderBy('date').reverse().limit(20).toArray();
+    const nums = (recent as SaleEntity[])
+      .map((s) => s.number?.match(pattern)?.[1])
       .filter((n): n is string => Boolean(n))
       .map((n) => parseInt(n, 10))
       .filter((n) => !isNaN(n));
-    const max = nums.length > 0 ? Math.max(...nums) : 0;
+    let max = nums.length > 0 ? Math.max(...nums) : 0;
+
+    if (max === 0) {
+      // احتياط: إن لم تكن موجودة في آخر 20
+      const electron = (window as any).electronAPI;
+      if (electron?.sales?.list) {
+        const res = await electron.sales.list({ limit: 1, search: cleanPrefix });
+        const lastNum = res?.data?.[0]?.number;
+        const matched = lastNum ? String(lastNum).match(pattern)?.[1] : null;
+        if (matched) max = parseInt(matched, 10);
+      }
+    }
     return `${cleanPrefix}-${String(max + 1).padStart(6, '0')}`;
   },
 

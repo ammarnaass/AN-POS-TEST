@@ -35,8 +35,43 @@ export async function parseAndAddScannedCode(
   ctx: ParseScanContext,
 ): Promise<ParseScanResult> {
   const code = String(rawCode ?? '').trim();
-  if (!code) return { added: false, message: 'باركود فارغ' };
+  // 1) الفحص الفوري في المنتجات النشطة بالذاكرة أولاً (استجابة فورية 0ms دون الحاجة لـ IPC)
+  const inMemoryProduct = ctx.products.find(
+    (p) => p.status === 'active' && p.barcode && p.barcode.trim() === code
+  );
+  if (inMemoryProduct) {
+    const blocked = refusalReason(inMemoryProduct);
+    if (blocked) return { added: false, message: blocked.message };
+    const price = resolveUnitPrice(inMemoryProduct, 1, ctx.promotions);
+    ctx.addItem({
+      productId: inMemoryProduct.id,
+      name: inMemoryProduct.name,
+      qty: 1,
+      unitPrice: price,
+      lineTotal: price,
+      batchNumber: inMemoryProduct.batchNumber,
+    });
+    return { added: true, kind: 'product', name: inMemoryProduct.name };
+  }
 
+  // 2) الفحص الفوري في الباقات بالذاكرة
+  const inMemoryPack = ctx.packs.find(
+    (pk) => pk.status === 'active' && pk.barcode && pk.barcode.trim() === code
+  );
+  if (inMemoryPack) {
+    ctx.addItem({
+      productId: `pack-${inMemoryPack.id}`,
+      name: inMemoryPack.name,
+      qty: 1,
+      unitPrice: inMemoryPack.packPrice,
+      lineTotal: inMemoryPack.packPrice,
+      isPack: true,
+      packId: inMemoryPack.id,
+    });
+    return { added: true, kind: 'pack', name: inMemoryPack.name };
+  }
+
+  // 3) البحث في قاعدة البيانات (للباركودات المرتبطة والـ variants والـ batches)
   const result = await searchByBarcode(code);
   if (!result) {
     // fallback: بحث نصي جزئي بالاسم (لإدخال يدوي لتقصير)

@@ -49,10 +49,20 @@ export default function InventoryPage() {
       const r = await db.products.toArray();
       return r as unknown as Product[];
     },
-    refetchInterval: 3000, // تحديث دوري كل 3 ثوانٍ للمزامنة الفورية في وضع الاتصال
-    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
+
+  // تحديث فوري مبني على الأحداث بدلاً من الـ Polling المستمر
+  useEffect(() => {
+    const electron = (window as any).electronAPI;
+    if (electron?.db?.onTableUpdated) {
+      return electron.db.onTableUpdated((data: { table: string }) => {
+        if (data.table === 'products' || data.table === 'categories') {
+          queryClient.invalidateQueries({ queryKey: ['products'] });
+        }
+      });
+    }
+  }, [queryClient]);
 
   useQuery({
     queryKey: ['settings'],

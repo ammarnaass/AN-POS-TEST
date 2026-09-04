@@ -8,14 +8,24 @@ import { contextBridge, ipcRenderer } from 'electron';
 const electronAPI = {
   // ===== CRUD عام =====
   db: {
-    list: (table: string, opts?: { search?: string; from?: string; to?: string; limit?: number; offset?: number }) =>
+    list: (table: string, opts?: { search?: string; from?: string; to?: string; limit?: number; offset?: number; filter?: Record<string, unknown>; orderBy?: string; orderDir?: 'ASC' | 'DESC' | 'asc' | 'desc' }) =>
       ipcRenderer.invoke('db:list', table, opts),
+    count: (table: string, filter?: Record<string, unknown>) =>
+      ipcRenderer.invoke('db:count', table, filter),
+    clear: (table: string) =>
+      ipcRenderer.invoke('db:clear', table),
     get: (table: string, id: string) =>
       ipcRenderer.invoke('db:get', table, id),
+    bulkGet: (table: string, ids: string[]) =>
+      ipcRenderer.invoke('db:bulkGet', table, ids),
     create: (table: string, data: Record<string, unknown>) =>
       ipcRenderer.invoke('db:create', table, data),
+    bulkCreate: (table: string, items: Record<string, unknown>[]) =>
+      ipcRenderer.invoke('db:bulkCreate', table, items),
     update: (table: string, id: string, data: Record<string, unknown>) =>
       ipcRenderer.invoke('db:update', table, id, data),
+    bulkUpdate: (table: string, items: Record<string, unknown>[]) =>
+      ipcRenderer.invoke('db:bulkUpdate', table, items),
     remove: (table: string, id: string) =>
       ipcRenderer.invoke('db:remove', table, id),
     onTableUpdated: (callback: (data: { table: string; action?: string; id?: string }) => void) => {
@@ -171,6 +181,14 @@ const electronAPI = {
       ipcRenderer.invoke('license:deactivate'),
     getFingerprint: () =>
       ipcRenderer.invoke('license:fingerprint'),
+  },
+
+  // ===== محرك الطباعة الصامتة لسطح المكتب =====
+  print: {
+    silent: (html: string, options?: { silent?: boolean; deviceName?: string; copies?: number; color?: boolean }) =>
+      ipcRenderer.invoke('print:silent', html, options),
+    getPrinters: () =>
+      ipcRenderer.invoke('print:getPrinters'),
   },
 };
 

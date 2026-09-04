@@ -1,7 +1,7 @@
 // نقطة دخول Electron main process
 // يتولى: تهيئة قاعدة البيانات + إنشاء الجداول + seed + تسجيل IPC + إنشاء النافذة
 
-import { app, BrowserWindow, ipcMain, Menu } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron';
 import path from 'node:path';
 import { initDatabase, closeDatabase } from './database';
 import { initSchema } from './schema-init';
@@ -12,23 +12,21 @@ import { startHttpServer, stopHttpServer, getNetworkSettings, getOrCreateConnect
 // إخفاء شريط القوائم الافتراضي بالكامل (File, Edit, View, Window, etc.)
 Menu.setApplicationMenu(null);
 
-// تعطيل GPU sandbox — مطلوب في بيئات بدون GPU فعلي (خوادم/headless/VNC)
-app.commandLine.appendSwitch('disable-gpu');
-app.commandLine.appendSwitch('disable-software-rasterizer');
-app.commandLine.appendSwitch('disable-gpu-sandbox');
-app.commandLine.appendSwitch('disable-gpu-compositing');
-app.commandLine.appendSwitch('in-process-gpu');
-app.commandLine.appendSwitch('no-sandbox');
-app.commandLine.appendSwitch('disable-dev-shm-usage');
-
-// Wayland: اسمح لـ Electron بعرض النوافذ على جلسات Wayland عبر ozone
-// (بدون هذا على Wayland لا تظهر النافذة)
-app.commandLine.appendSwitch('ozone-platform', 'auto');
+// دعم Wayland على لينكس
+app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
 app.commandLine.appendSwitch('enable-features', 'WaylandWindowDecorations');
 
-// تعطيل تسريع العتاد بالكامل — حل رسمي لبيئات headless/VNC/server بدون GPU فعلي
-// يمنع خطأ "GPU process isn't usable" الذي يقتل التطبيق قبل ظهور النافذة
-app.disableHardwareAcceleration();
+// تعطيل GPU فقط عند الحاجة الصريحة في البيئات الافتراضية بدون شاشة (Headless/CI/VNC)
+if (process.env.HEADLESS === 'true' || process.env.DISABLE_GPU === 'true') {
+  app.commandLine.appendSwitch('disable-gpu');
+  app.commandLine.appendSwitch('disable-software-rasterizer');
+  app.commandLine.appendSwitch('disable-gpu-sandbox');
+  app.commandLine.appendSwitch('disable-gpu-compositing');
+  app.commandLine.appendSwitch('in-process-gpu');
+  app.commandLine.appendSwitch('no-sandbox');
+  app.commandLine.appendSwitch('disable-dev-shm-usage');
+  app.disableHardwareAcceleration();
+}
 
 // node:sqlite يتطلب flag --experimental-sqlite في بعض إصدارات Node/Electron
 // في Electron 43+ يُفعّل تلقائياً في main process
@@ -123,6 +121,25 @@ async function createWindow() {
   });
   mainWindow.webContents.on('console-message', (_e, _level, message, _line, _sourceId) => {
     console.log('[renderer]', message);
+  });
+
+  // منع فتح نوافذ عشوائية والتحكم في الروابط الخارجية
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https:') || url.startsWith('http:')) {
+      shell.openExternal(url);
+    }
+    return { action: 'deny' };
+  });
+
+  // منع الملاحة غير المقصودة خارج التطبيق
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    const isRendererUrl = Boolean(process.env['ELECTRON_RENDERER_URL'] && url.startsWith(process.env['ELECTRON_RENDERER_URL']));
+    const isLocalDev = url.startsWith('http://localhost:5173');
+    const isLocalFile = url.startsWith('file://');
+    if (!isRendererUrl && !isLocalDev && !isLocalFile) {
+      event.preventDefault();
+      shell.openExternal(url);
+    }
   });
 
   // تحميل الواجهة

@@ -6,6 +6,7 @@ import {
   queryAll,
   queryOne,
   execute,
+  transaction,
   serializeValue,
   toSnakeKey,
   tableHasColumn,
@@ -86,6 +87,9 @@ export interface ListOptions {
   to?: string;
   limit?: number;
   offset?: number;
+  filter?: Record<string, unknown>;
+  orderBy?: string;
+  orderDir?: 'ASC' | 'DESC' | 'asc' | 'desc';
 }
 
 /**
@@ -297,26 +301,64 @@ export async function listRows(
   const tableName = resolveTableName(rawTableName);
   const config = tableConfigs.get(tableName);
   const idField = config?.idField ?? 'id';
-  const listOrder = config?.listOrder ?? `${idField} DESC`;
+  const validCols = getTableColumns(tableName);
   let sql = `SELECT * FROM ${tableName}`;
   const params: unknown[] = [];
+  const whereClauses: string[] = [];
 
   if (config?.searchFields && opts?.search) {
     const search = `%${opts.search}%`;
     const conditions = config.searchFields.map((f) => `${f} LIKE ?`);
-    sql += ` WHERE ${conditions.join(' OR ')}`;
+    whereClauses.push(`(${conditions.join(' OR ')})`);
     params.push(...config.searchFields.map(() => search));
   }
+  if (opts?.filter && typeof opts.filter === 'object') {
+    for (const [key, val] of Object.entries(opts.filter)) {
+      const snake = toSnakeKey(key);
+      const col = validCols.has(snake) ? snake : validCols.has(key) ? key : null;
+      if (!col) continue;
+
+      if (Array.isArray(val)) {
+        if (val.length > 0) {
+          const inPlaceholders = val.map(() => '?').join(', ');
+          whereClauses.push(`${col} IN (${inPlaceholders})`);
+          params.push(...val);
+        } else {
+          whereClauses.push('1 = 0');
+        }
+      } else if (val && typeof val === 'object' && '$ne' in val) {
+        whereClauses.push(`${col} != ?`);
+        params.push((val as { $ne: unknown }).$ne);
+      } else {
+        whereClauses.push(`${col} = ?`);
+        params.push(val);
+      }
+    }
+  }
   if (opts?.from) {
-    sql += (config?.searchFields && opts.search) ? ' AND date >= ?' : ' WHERE date >= ?';
+    whereClauses.push('date >= ?');
     params.push(opts.from);
   }
   if (opts?.to) {
-    const hasWhere = (config?.searchFields && opts.search) || opts.from;
-    sql += hasWhere ? ' AND date <= ?' : ' WHERE date <= ?';
+    whereClauses.push('date <= ?');
     params.push(`${opts.to}T23:59:59.999Z`);
   }
+
+  if (whereClauses.length > 0) {
+    sql += ` WHERE ${whereClauses.join(' AND ')}`;
+  }
+
+  let listOrder = config?.listOrder ?? `${idField} DESC`;
+  if (opts?.orderBy) {
+    const snakeOrder = toSnakeKey(opts.orderBy);
+    if (validCols.has(snakeOrder) || validCols.has(opts.orderBy)) {
+      const orderCol = validCols.has(snakeOrder) ? snakeOrder : opts.orderBy;
+      const dir = (opts.orderDir || 'ASC').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+      listOrder = `${orderCol} ${dir}`;
+    }
+  }
   sql += ` ORDER BY ${listOrder}`;
+
   if (opts?.limit) { sql += ' LIMIT ?'; params.push(opts.limit); }
   if (opts?.offset) { sql += ' OFFSET ?'; params.push(opts.offset); }
 
@@ -426,4 +468,142 @@ export async function removeRow(
   }
   return { success: true };
 }
+
+export async function countRows(
+  rawTableName: string,
+  filter?: Record<string, unknown>
+): Promise<{ count: number }> {
+  const tableName = resolveTableName(rawTableName);
+  const validCols = getTableColumns(tableName);
+  let sql = `SELECT COUNT(*) as count FROM ${tableName}`;
+  const params: unknown[] = [];
+  const whereClauses: string[] = [];
+
+  if (filter && typeof filter === 'object') {
+    for (const [key, val] of Object.entries(filter)) {
+      const snake = toSnakeKey(key);
+      if (validCols.has(snake)) {
+        whereClauses.push(`${snake} = ?`);
+        params.push(val);
+      } else if (validCols.has(key)) {
+        whereClauses.push(`${key} = ?`);
+        params.push(val);
+      }
+    }
+  }
+
+  if (whereClauses.length > 0) {
+    sql += ` WHERE ${whereClauses.join(' AND ')}`;
+  }
+
+  const row = queryOne(sql, params);
+  return { count: Number(row?.count ?? 0) };
+}
+
+export async function clearTable(rawTableName: string): Promise<{ success: boolean }> {
+  const tableName = resolveTableName(rawTableName);
+  execute(`DELETE FROM ${tableName}`);
+  notifyTableChange(tableName, 'clear');
+  return { success: true };
+}
+
+/**
+ * إدراج مصفوفة صفوف دفعة واحدة داخل Transaction ذرية
+ */
+export async function bulkCreateRows(
+  rawTableName: string,
+  items: Record<string, unknown>[]
+): Promise<{ count: number }> {
+  if (!items || items.length === 0) return { count: 0 };
+  const tableName = resolveTableName(rawTableName);
+  const config = tableConfigs.get(tableName);
+  const idField = config?.idField ?? 'id';
+  const now = new Date().toISOString();
+  const hasCreatedAt = tableHasColumn(tableName, 'created_at');
+  const hasUpdatedAt = tableHasColumn(tableName, 'updated_at');
+
+  let insertedCount = 0;
+  transaction(() => {
+    for (const rawData of items) {
+      const data = normalizePayloadForTable(tableName, rawData);
+      const id = (data[idField] as string) || (rawData[idField] as string) || (rawData.id as string) || randomUUID();
+      if (hasCreatedAt && !data['created_at']) data['created_at'] = now;
+      if (hasUpdatedAt && !data['updated_at']) data['updated_at'] = now;
+
+      const entries = Object.entries(data).filter(([k]) => k !== idField && k !== 'id');
+      const cols = [idField, ...entries.map(([k]) => toSnakeKey(k))];
+      const vals = [id, ...entries.map(([, v]) => serializeValue(v))];
+      const placeholders = cols.map(() => '?').join(', ');
+
+      execute(`INSERT OR REPLACE INTO ${tableName} (${cols.join(', ')}) VALUES (${placeholders})`, vals);
+      insertedCount++;
+    }
+  });
+
+  notifyTableChange(tableName, 'bulk-create');
+  return { count: insertedCount };
+}
+
+/**
+ * تحديث مصفوفة صفوف دفعة واحدة داخل Transaction ذرية
+ */
+export async function bulkUpdateRows(
+  rawTableName: string,
+  items: Record<string, unknown>[]
+): Promise<{ count: number }> {
+  if (!items || items.length === 0) return { count: 0 };
+  const tableName = resolveTableName(rawTableName);
+  const config = tableConfigs.get(tableName);
+  const idField = config?.idField ?? 'id';
+  const now = new Date().toISOString();
+  const hasUpdatedAt = tableHasColumn(tableName, 'updated_at');
+
+  let updatedCount = 0;
+  transaction(() => {
+    for (const rawData of items) {
+      const resolvedId = (rawData[idField] as string | undefined) ?? (rawData.id as string | undefined);
+      if (!resolvedId) continue;
+      const data = normalizePayloadForTable(tableName, rawData);
+
+      const entries = Object.entries(data).filter(([k]) => {
+        if (k === idField || k === 'id') return false;
+        if (hasUpdatedAt && (k === 'updated_at' || k === 'updatedAt')) return false;
+        return true;
+      });
+
+      if (entries.length === 0) continue;
+
+      const setClause = entries.map(([k]) => `${toSnakeKey(k)} = ?`).join(', ');
+      const vals = entries.map(([, v]) => serializeValue(v));
+
+      if (hasUpdatedAt) {
+        execute(`UPDATE ${tableName} SET ${setClause}, updated_at = ? WHERE ${idField} = ?`, [...vals, now, resolvedId]);
+      } else {
+        execute(`UPDATE ${tableName} SET ${setClause} WHERE ${idField} = ?`, [...vals, resolvedId]);
+      }
+      updatedCount++;
+    }
+  });
+
+  notifyTableChange(tableName, 'bulk-update');
+  return { count: updatedCount };
+}
+
+/**
+ * جلب مصفوفة سجلات محددة بالمعرفات عبر استعلام IN واحد
+ */
+export async function bulkGetRows(
+  rawTableName: string,
+  ids: string[]
+): Promise<{ data: Record<string, unknown>[] }> {
+  if (!ids || ids.length === 0) return { data: [] };
+  const tableName = resolveTableName(rawTableName);
+  const config = tableConfigs.get(tableName);
+  const idField = config?.idField ?? 'id';
+
+  const placeholders = ids.map(() => '?').join(', ');
+  const rows = queryAll(`SELECT * FROM ${tableName} WHERE ${idField} IN (${placeholders})`, ids);
+  return { data: config ? rows.map((r) => transformRow(r, config)) : rows };
+}
+
 

@@ -91,12 +91,38 @@ export async function createSale(data: Record<string, unknown>): Promise<{ data:
   const amountPaid = Number(data.amountPaid ?? data.amount_paid ?? 0);
   const status = String(data.status || 'paid');
   const soldBy = String(data.soldBy ?? data.sold_by ?? '');
-  const cashSessionId = String(data.cashSessionId ?? data.cash_session_id ?? data.sessionId ?? data.session_id ?? '');
+  let cashSessionId = String(data.cashSessionId ?? data.cash_session_id ?? data.sessionId ?? data.session_id ?? '');
   const tvaAmount = Number(data.tvaAmount ?? data.tva_amount ?? 0);
   const subtotal = Number(data.subtotal ?? 0);
   const discount = Number(data.discount ?? 0);
   const total = Number(data.total ?? 0);
   const note = String(data.note ?? data.notes ?? '');
+  const saleNumber = String(data.number || '');
+
+  // البحث عن جلسة الصندوق المفتوحة تلقائياً إذا لم تُمرر
+  if (!cashSessionId) {
+    try {
+      const openSess = queryOne("SELECT id FROM cash_sessions WHERE status = 'open' ORDER BY opened_at DESC LIMIT 1");
+      if (openSess?.id) {
+        cashSessionId = String(openSess.id);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // فحص سياسة المخزون السالب
+  let allowNegativeStock = Boolean(data.allowNegativeStock ?? data.allow_negative_stock);
+  if (data.allowNegativeStock === undefined && data.allow_negative_stock === undefined) {
+    try {
+      const settingsRow = queryOne('SELECT allow_negative_stock FROM settings LIMIT 1');
+      if (settingsRow) {
+        allowNegativeStock = Boolean(settingsRow.allow_negative_stock);
+      }
+    } catch {
+      // ignore
+    }
+  }
 
   transaction(() => {
     // 1. إدراج الفاتورة في جدول sales
@@ -107,7 +133,7 @@ export async function createSale(data: Record<string, unknown>): Promise<{ data:
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
-        data.number || '',
+        saleNumber,
         data.date || now,
         docType,
         saleType,
@@ -131,7 +157,43 @@ export async function createSale(data: Record<string, unknown>): Promise<{ data:
       ]
     );
 
-    // 2. إدراج بنود البيع في sale_items وتحديث المخزون
+    // دالة مساعدة لتحديث المخزون وتسجيل الحركة
+    const updateProductAndMovement = (prodId: string, qtyChange: number) => {
+      if (!prodId || prodId.startsWith('custom-')) return;
+
+      if (allowNegativeStock) {
+        execute('UPDATE products SET quantity = quantity + ?, updated_at = ? WHERE id = ?', [
+          qtyChange,
+          now,
+          prodId,
+        ]);
+      } else {
+        execute('UPDATE products SET quantity = MAX(0, quantity + ?), updated_at = ? WHERE id = ?', [
+          qtyChange,
+          now,
+          prodId,
+        ]);
+      }
+
+      execute(
+        `INSERT INTO stock_movements (id, date, type, product_id, qty, reference, reason, created_by, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          randomUUID(),
+          now.slice(0, 10),
+          isReturn ? 'return' : 'sale',
+          prodId,
+          qtyChange,
+          saleNumber,
+          `${isReturn ? 'مرتجع' : 'مبيعات'} فاتورة رقم ${saleNumber}`,
+          soldBy,
+          now,
+          now,
+        ]
+      );
+    };
+
+    // 2. إدراج بنود البيع في sale_items وتحديث المخزون (مع فك الباقات Packs)
     if (Array.isArray(parsedItems)) {
       for (let i = 0; i < parsedItems.length; i++) {
         const item = parsedItems[i] as Record<string, unknown>;
@@ -142,6 +204,8 @@ export async function createSale(data: Record<string, unknown>): Promise<{ data:
         const lineTotal = Number(item.lineTotal ?? item.line_total ?? (qty * unitPrice));
         const batchNumber = String(item.batchNumber ?? item.batch_number ?? '');
         const itemId = String(item.id || randomUUID());
+        const isPack = Boolean(item.isPack || item.is_pack);
+        const packId = String(item.packId ?? item.pack_id ?? '');
 
         execute(
           'INSERT INTO sale_items (id, sale_id, product_id, name, qty, unit_price, line_total, batch_number) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
@@ -157,68 +221,85 @@ export async function createSale(data: Record<string, unknown>): Promise<{ data:
           ]
         );
 
-        // خصم/زيادة المخزون وتسجيل حركة في stock_movements للمنتجات الحقيقية
-        if (productId && !productId.startsWith('custom-')) {
-          try {
-            execute('UPDATE products SET quantity = MAX(0, quantity + ?), updated_at = ? WHERE id = ?', [
-              sign * qty,
-              now,
-              productId,
-            ]);
-
-            execute(
-              `INSERT INTO stock_movements (id, date, type, product_id, qty, reason, reference_id, created_by, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-              [
-                randomUUID(),
-                now.slice(0, 10),
-                isReturn ? 'return' : 'sale',
-                productId,
-                qty,
-                `${isReturn ? 'مرتجع' : 'مبيعات'} فاتورة رقم ${data.number || ''}`,
-                id,
-                soldBy,
-                now,
-                now,
-              ]
-            );
-          } catch {
-            // تجاوز إذا كان جدول stock_movements أو product غير متوفر
+        if (isPack && packId) {
+          // فك مكونات الباقة وخصم مخزون كل منتج فرعي
+          let packItems: Array<{ productId: string; qty: number }> = [];
+          const packRow = queryOne('SELECT items FROM packs WHERE id = ?', [packId]);
+          if (packRow && typeof packRow.items === 'string') {
+            try {
+              const decoded = JSON.parse(packRow.items);
+              if (Array.isArray(decoded)) {
+                packItems = decoded.map((c: any) => ({
+                  productId: String(c.productId ?? c.product_id ?? ''),
+                  qty: Number(c.qty ?? c.quantity ?? 1),
+                }));
+              }
+            } catch {
+              // ignore parse error
+            }
           }
+
+          for (const comp of packItems) {
+            if (comp.productId) {
+              const compQtyChange = sign * (comp.qty * qty);
+              updateProductAndMovement(comp.productId, compQtyChange);
+            }
+          }
+        } else if (productId) {
+          const qtyChange = sign * qty;
+          updateProductAndMovement(productId, qtyChange);
         }
       }
     }
 
-    // 3. تحديث رصيد العميل في حال البيع الآجل
-    const remaining = total - amountPaid;
-    if (customerId && remaining !== 0) {
-      try {
-        const custSign = isReturn ? -1 : 1;
-        execute('UPDATE customers SET balance = balance + ?, updated_at = ? WHERE id = ?', [
-          custSign * remaining,
+    // 3. تحديث رصيد العميل (الديون) بدقة
+    if (customerId) {
+      if (isReturn) {
+        // في المرتجع: ينقص دين العميل بمقدار قيمة الفاتورة
+        execute('UPDATE customers SET balance = balance - ?, updated_at = ? WHERE id = ?', [
+          total,
           now,
           customerId,
         ]);
-      } catch { /* ignore */ }
+      } else if (paymentMethod === 'credit') {
+        // في البيع الآجل: يزداد دين العميل بالمبلغ المتبقي غير المدفوع
+        const unpaidPart = Math.max(0, total - amountPaid);
+        if (unpaidPart > 0) {
+          execute('UPDATE customers SET balance = balance + ?, updated_at = ? WHERE id = ?', [
+            unpaidPart,
+            now,
+            customerId,
+          ]);
+        }
+      }
     }
 
-    // 4. تحديث جلسة الصندوق في حال الدفع النقدي
-    if (cashSessionId && (paymentMethod === 'cash' || !paymentMethod) && amountPaid > 0) {
-      try {
-        const cashSign = isReturn ? -1 : 1;
-        execute('UPDATE cash_sessions SET total_sales = total_sales + ?, actual_balance = actual_balance + ?, updated_at = ? WHERE id = ?', [
-          cashSign * amountPaid,
-          cashSign * amountPaid,
+    // 4. تحديث جلسة الصندوق
+    if (cashSessionId) {
+      if (isReturn) {
+        // الإرجاع: زيادة total_returns ونقصان النقدية الفعلية
+        execute('UPDATE cash_sessions SET total_returns = total_returns + ?, actual_balance = actual_balance - ?, updated_at = ? WHERE id = ?', [
+          total,
+          total,
           now,
           cashSessionId,
         ]);
-      } catch { /* ignore */ }
+      } else if ((paymentMethod === 'cash' || !paymentMethod) && amountPaid > 0) {
+        // البيع النقدي: زيادة total_sales وزيادة النقدية الفعلية
+        execute('UPDATE cash_sessions SET total_sales = total_sales + ?, actual_balance = actual_balance + ?, updated_at = ? WHERE id = ?', [
+          amountPaid,
+          amountPaid,
+          now,
+          cashSessionId,
+        ]);
+      }
     }
   });
 
   const created = queryOne('SELECT * FROM sales WHERE id = ?', [id]);
   return { data: created ? transformSale(created) : null };
 }
+
 
 export async function updateSale(id: string, data: Record<string, unknown>): Promise<{ data: Record<string, unknown> | null }> {
   const entries = Object.entries(data).filter(([k]) => k !== 'id' && k !== 'items');

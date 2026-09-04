@@ -147,9 +147,12 @@ export async function startHttpServer(config: ServerConfig = {}): Promise<{ url:
   // ===== تقييد IP (إن كان مُعيّناً) =====
   if (ipWhitelist.length > 0) {
     server.addHook('onRequest', async (request, reply) => {
-      const clientIp = request.ip.split(':')[0];
+      let clientIp = request.ip;
+      if (clientIp.startsWith('::ffff:')) {
+        clientIp = clientIp.substring(7);
+      }
       // استثناء localhost لتسهيل الاختبار المحلي
-      if (clientIp === '127.0.0.1' || clientIp === '::1') return;
+      if (clientIp === '127.0.0.1' || clientIp === '::1' || clientIp === 'localhost') return;
       if (!ipWhitelist.includes(clientIp)) {
         return reply.code(403).send({ error: { status: 403, detail: `عنوان IP غير مرخّص: ${clientIp}` } });
       }

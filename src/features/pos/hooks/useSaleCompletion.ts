@@ -17,6 +17,7 @@ interface SaleSettings {
   phone: string;
   receiptFooter: string;
   autoPrintReceipt?: boolean;
+  allowNegativeStock?: boolean;
 }
 
 interface SaleCompletionParams {
@@ -113,125 +114,158 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
         lineTotal: item.lineTotal,
       }));
 
-      // تنفيذ المعاملة الشاملة في قاعدة البيانات
-      await db.transaction(
-        'rw',
-        [
-          db.sales,
-          db.sale_items,
-          db.products,
-          db.customers,
-          db.cash_sessions,
-          db.stock_movements,
-        ],
-        async () => {
-          // 1. إضافة الفاتورة وعناصرها
-          await db.sales.add(sale as any);
-          if (saleItemEntities.length > 0) {
-            await db.sale_items.bulkAdd(saleItemEntities);
-          }
+      // تنفيذ المعاملة الذرية الحقيقية عبر IPC في بيئة Electron
+      // أو التراجع الاحتياطي (Fallback) في بيئة المتصفح الخالص/الاختبار
+      const electronApi = typeof window !== 'undefined' ? (window as any).electronAPI : undefined;
+      if (electronApi?.sales?.create) {
+        const payload = {
+          id: sale.id,
+          number: sale.number,
+          date: sale.date,
+          docType: sale.docType,
+          type: sale.type,
+          items: cart,
+          subtotal: sale.subtotal,
+          discount: sale.discount,
+          discountType: sale.discountType,
+          tvaAmount: sale.tvaAmount,
+          total: sale.total,
+          paymentMethod: sale.paymentMethod,
+          customerId: sale.customerId,
+          customerName: sale.customerName,
+          amountPaid: sale.paidAmount,
+          status: sale.status,
+          soldBy: currentUser?.name || '',
+          cashSessionId: currentSession?.id || '',
+          note: sale.note,
+          allowNegativeStock: settings?.allowNegativeStock ?? false,
+        };
 
-          // 2. تحديث المخزون وسجل الحركات
-          for (const item of cart) {
-            if (item.isPack && item.packId) {
-              const pack = packs.find((p) => p.id === item.packId);
-              if (pack) {
-                for (const comp of pack.items) {
-                  const product = products.find((p) => p.id === comp.productId);
-                  if (product) {
-                    const qtyChange =
-                      saleType === 'return'
-                        ? Math.abs(comp.qty * item.qty)
-                        : -(comp.qty * item.qty);
-                    const newQuantity = settings?.allowNegativeStock
-                      ? product.quantity + qtyChange
-                      : Math.max(0, product.quantity + qtyChange);
-                    await db.products.update(product.id, {
-                      quantity: newQuantity,
-                    });
-                    await db.stock_movements.add({
-                      id: createId(),
-                      productId: product.id,
-                      type: saleType === 'return' ? 'return' : 'sale',
-                      qty: qtyChange,
-                      date: new Date().toISOString(),
-                      reference: sale.number,
-                      createdBy: currentUser?.name || '',
-                      createdAt: new Date().toISOString(),
-                      updatedAt: new Date().toISOString(),
-                    });
+        const res = await electronApi.sales.create(payload);
+        if (!res || res.data === null) {
+          throw new Error('فشل تسجيل الفاتورة في قاعدة البيانات المركزية');
+        }
+      } else {
+        // تنفيذ المعاملة الشاملة في قاعدة البيانات (Fallback)
+        await db.transaction(
+          'rw',
+          [
+            db.sales,
+            db.sale_items,
+            db.products,
+            db.customers,
+            db.cash_sessions,
+            db.stock_movements,
+          ],
+          async () => {
+            // 1. إضافة الفاتورة وعناصرها
+            await db.sales.add(sale as any);
+            if (saleItemEntities.length > 0) {
+              await db.sale_items.bulkAdd(saleItemEntities);
+            }
+
+            // 2. تحديث المخزون وسجل الحركات
+            for (const item of cart) {
+              if (item.isPack && item.packId) {
+                const pack = packs.find((p) => p.id === item.packId);
+                if (pack) {
+                  for (const comp of pack.items) {
+                    const product = products.find((p) => p.id === comp.productId);
+                    if (product) {
+                      const qtyChange =
+                        saleType === 'return'
+                          ? Math.abs(comp.qty * item.qty)
+                          : -(comp.qty * item.qty);
+                      const newQuantity = settings?.allowNegativeStock
+                        ? product.quantity + qtyChange
+                        : Math.max(0, product.quantity + qtyChange);
+                      await db.products.update(product.id, {
+                        quantity: newQuantity,
+                      });
+                      await db.stock_movements.add({
+                        id: createId(),
+                        productId: product.id,
+                        type: saleType === 'return' ? 'return' : 'sale',
+                        qty: qtyChange,
+                        date: new Date().toISOString(),
+                        reference: sale.number,
+                        createdBy: currentUser?.name || '',
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString(),
+                      });
+                    }
                   }
                 }
-              }
-            } else {
-              const product = products.find((p) => p.id === item.productId);
-              if (product && !item.isCustom) {
-                const qtyChange = saleType === 'return' ? Math.abs(item.qty) : -item.qty;
-                const newQuantity = settings?.allowNegativeStock
-                  ? product.quantity + qtyChange
-                  : Math.max(0, product.quantity + qtyChange);
-                await db.products.update(product.id, {
-                  quantity: newQuantity,
-                });
-                await db.stock_movements.add({
-                  id: createId(),
-                  productId: product.id,
-                  type: saleType === 'return' ? 'return' : 'sale',
-                  qty: qtyChange,
-                  date: new Date().toISOString(),
-                  reference: sale.number,
-                  createdBy: currentUser?.name || '',
-                  createdAt: new Date().toISOString(),
-                  updatedAt: new Date().toISOString(),
-                });
-              }
-            }
-          }
-
-          // 3. تحديث رصيد العميل في حال الدفع بالآجل (الديون) أو الإرجاع
-          if (selectedCustomer && matchedCustomer) {
-            if (saleType === 'return') {
-              // الإرجاع ينقص من دين العميل
-              await db.customers.update(selectedCustomer, {
-                balance: (matchedCustomer.balance || 0) - saleSummary.total,
-              });
-            } else if (paymentMethod === 'credit') {
-              // البيع بالآجل: الدين المتبقي = الإجمالي - المبلغ المدفوع حالياً
-              const unpaidPart = Math.max(0, saleSummary.total - effectivePaidAmount);
-              await db.customers.update(selectedCustomer, {
-                balance: (matchedCustomer.balance || 0) + unpaidPart,
-              });
-            }
-          }
-
-          // 4. تحديث الصندوق والجلسة النقدية المفتوحة بالمبلغ النقدي المستلم فعلياً
-          let targetSessionId = currentSession?.id;
-          if (!targetSessionId) {
-            const openSession = await db.cash_sessions.filter((s) => s.status === 'open').first();
-            if (openSession) targetSessionId = openSession.id;
-          }
-
-          if (targetSessionId) {
-            const freshSession = await db.cash_sessions.get(targetSessionId);
-            if (freshSession) {
-              if (saleType === 'return') {
-                const newReturns = (freshSession.totalReturns || 0) + saleSummary.total;
-                await db.cash_sessions.update(targetSessionId, {
-                  totalReturns: newReturns,
-                  updatedAt: new Date().toISOString(),
-                });
               } else {
-                const cashInflow = effectivePaidAmount;
-                const newSales = (freshSession.totalSales || 0) + cashInflow;
-                await db.cash_sessions.update(targetSessionId, {
-                  totalSales: newSales,
-                  updatedAt: new Date().toISOString(),
+                const product = products.find((p) => p.id === item.productId);
+                if (product && !item.isCustom) {
+                  const qtyChange = saleType === 'return' ? Math.abs(item.qty) : -item.qty;
+                  const newQuantity = settings?.allowNegativeStock
+                    ? product.quantity + qtyChange
+                    : Math.max(0, product.quantity + qtyChange);
+                  await db.products.update(product.id, {
+                    quantity: newQuantity,
+                  });
+                  await db.stock_movements.add({
+                    id: createId(),
+                    productId: product.id,
+                    type: saleType === 'return' ? 'return' : 'sale',
+                    qty: qtyChange,
+                    date: new Date().toISOString(),
+                    reference: sale.number,
+                    createdBy: currentUser?.name || '',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                  });
+                }
+              }
+            }
+
+            // 3. تحديث رصيد العميل في حال الدفع بالآجل (الديون) أو الإرجاع
+            if (selectedCustomer && matchedCustomer) {
+              if (saleType === 'return') {
+                // الإرجاع ينقص من دين العميل
+                await db.customers.update(selectedCustomer, {
+                  balance: (matchedCustomer.balance || 0) - saleSummary.total,
+                });
+              } else if (paymentMethod === 'credit') {
+                // البيع بالآجل: الدين المتبقي = الإجمالي - المبلغ المدفوع حالياً
+                const unpaidPart = Math.max(0, saleSummary.total - effectivePaidAmount);
+                await db.customers.update(selectedCustomer, {
+                  balance: (matchedCustomer.balance || 0) + unpaidPart,
                 });
               }
             }
+
+            // 4. تحديث الصندوق والجلسة النقدية المفتوحة بالمبلغ النقدي المستلم فعلياً
+            let targetSessionId = currentSession?.id;
+            if (!targetSessionId) {
+              const openSession = await db.cash_sessions.where('status').equals('open').first();
+              if (openSession) targetSessionId = openSession.id;
+            }
+
+            if (targetSessionId) {
+              const freshSession = await db.cash_sessions.get(targetSessionId);
+              if (freshSession) {
+                if (saleType === 'return') {
+                  const newReturns = (freshSession.totalReturns || 0) + saleSummary.total;
+                  await db.cash_sessions.update(targetSessionId, {
+                    totalReturns: newReturns,
+                    updatedAt: new Date().toISOString(),
+                  });
+                } else {
+                  const cashInflow = effectivePaidAmount;
+                  const newSales = (freshSession.totalSales || 0) + cashInflow;
+                  await db.cash_sessions.update(targetSessionId, {
+                    totalSales: newSales,
+                    updatedAt: new Date().toISOString(),
+                  });
+                }
+              }
+            }
           }
-        }
-      );
+        );
+      }
 
       return {
         sale,

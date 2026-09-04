@@ -7,6 +7,8 @@ import {
   queryAll,
   queryOne,
   execute,
+  transaction,
+  notifyTableChange,
   serializeValue,
   type Row,
 } from './db-utils';
@@ -127,42 +129,48 @@ export async function logActivity(data: {
 
 export async function uploadProducts(rows: Record<string, unknown>[]): Promise<{ imported: number; total: number }> {
   let count = 0;
-  for (const row of rows) {
-    const id = (row.id as string) || randomUUID();
-    try {
-      execute(
-        `INSERT OR IGNORE INTO products (id, name, barcode, sku, category, unit, cost_price, retail_price, quantity, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          id, row.name || '', row.barcode || '', row.sku || '', row.category || '',
-          row.unit || 'قطعة', row.costPrice || 0, row.retailPrice || 0, row.quantity || 0,
-          new Date().toISOString(), new Date().toISOString(),
-        ]
-      );
-      count++;
-    } catch {
-      // تجاهل الصفوف الفاشلة
+  transaction(() => {
+    for (const row of rows) {
+      const id = (row.id as string) || randomUUID();
+      try {
+        execute(
+          `INSERT OR IGNORE INTO products (id, name, barcode, sku, category, unit, cost_price, retail_price, quantity, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            id, row.name || '', row.barcode || '', row.sku || '', row.category || '',
+            row.unit || 'قطعة', row.costPrice || 0, row.retailPrice || 0, row.quantity || 0,
+            new Date().toISOString(), new Date().toISOString(),
+          ]
+        );
+        count++;
+      } catch {
+        // تجاهل الصفوف الفاشلة
+      }
     }
-  }
+  });
+  notifyTableChange('products', 'bulk-create');
   return { imported: count, total: rows.length };
 }
 
 export async function uploadCustomers(rows: Record<string, unknown>[]): Promise<{ imported: number; total: number }> {
   let count = 0;
-  for (const row of rows) {
-    const id = (row.id as string) || randomUUID();
-    try {
-      execute(
-        'INSERT OR IGNORE INTO customers (id, name, phone, credit_limit, balance, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [
-          id, row.name || '', row.phone || '', row.creditLimit || 0, row.balance || 0,
-          new Date().toISOString(), new Date().toISOString(),
-        ]
-      );
-      count++;
-    } catch {
-      // تجاهل
+  transaction(() => {
+    for (const row of rows) {
+      const id = (row.id as string) || randomUUID();
+      try {
+        execute(
+          'INSERT OR IGNORE INTO customers (id, name, phone, credit_limit, balance, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [
+            id, row.name || '', row.phone || '', row.creditLimit || 0, row.balance || 0,
+            new Date().toISOString(), new Date().toISOString(),
+          ]
+        );
+        count++;
+      } catch {
+        // تجاهل
+      }
     }
-  }
+  });
+  notifyTableChange('customers', 'bulk-create');
   return { imported: count, total: rows.length };
 }

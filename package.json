@@ -25,9 +25,7 @@
       "output": "release"
     },
     "files": [
-      "dist-electron/**",
-      "dist/**",
-      "node_modules/**",
+      "out/**",
       "package.json"
     ],
     "extraResources": [

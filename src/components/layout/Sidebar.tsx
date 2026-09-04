@@ -1,5 +1,6 @@
+import { useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/infrastructure/database/dexie/db';
 import { useAuthStore } from '@/store/authStore';
 import { useSidebarStore } from '@/store/sidebarStore';
@@ -92,11 +93,26 @@ export default function Sidebar({ isOpen, onClose, isPosMode = false }: SidebarP
   const { isCollapsed, toggleCollapse } = useSidebarStore();
   const navigate = useNavigate();
 
+  const queryClient = useQueryClient();
+
   const { data: rawSettings } = useQuery({
     queryKey: ['settings'],
     queryFn: () => db.settings.get('default'),
-    refetchInterval: 5000,
+    staleTime: 60000,
   });
+
+  useEffect(() => {
+    const electron = (window as any).electronAPI;
+    if (electron?.db?.onTableUpdated) {
+      return electron.db.onTableUpdated((data: { table: string }) => {
+        if (data.table === 'settings' || data.table === 'network_settings') {
+          queryClient.invalidateQueries({ queryKey: ['settings'] });
+          queryClient.invalidateQueries({ queryKey: ['server-status-sidebar'] });
+          queryClient.invalidateQueries({ queryKey: ['connected-devices-sidebar'] });
+        }
+      });
+    }
+  }, [queryClient]);
 
   const { data: serverStatus } = useQuery({
     queryKey: ['server-status-sidebar'],
@@ -107,7 +123,7 @@ export default function Sidebar({ isOpen, onClose, isPosMode = false }: SidebarP
       }
       return null;
     },
-    refetchInterval: 5000,
+    refetchInterval: 30000,
   });
 
   const { data: connectedDevices } = useQuery({
@@ -120,7 +136,7 @@ export default function Sidebar({ isOpen, onClose, isPosMode = false }: SidebarP
       }
       return [];
     },
-    refetchInterval: 5000,
+    refetchInterval: 30000,
   });
 
   const shopName = rawSettings?.shopName || (rawSettings as any)?.shop_name || 'AN POS';

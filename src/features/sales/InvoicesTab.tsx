@@ -66,9 +66,20 @@ export default function InvoicesTab() {
   const { data: sales = [] } = useQuery({
     queryKey: ['sales'],
     queryFn: () => db.sales.toArray(),
-    refetchInterval: 3000,
     refetchOnWindowFocus: true,
   });
+
+  // تحديث فوري مبني على الأحداث بدلاً من الـ Polling المستمر
+  useEffect(() => {
+    const electron = (window as any).electronAPI;
+    if (electron?.db?.onTableUpdated) {
+      return electron.db.onTableUpdated((data: { table: string }) => {
+        if (data.table === 'sales' || data.table === 'sale_items') {
+          queryClient.invalidateQueries({ queryKey: ['sales'] });
+        }
+      });
+    }
+  }, [queryClient]);
 
   const { data: customers = [] } = useQuery({
     queryKey: ['customers'],

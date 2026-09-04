@@ -43,9 +43,9 @@ export const SuccessModal: React.FC<SuccessModalProps> = ({
             <span className="font-bold text-on-surface">
               {completedSale.paymentMethod === 'cash'
                 ? 'نقداً'
-                : completedSale.paymentMethod === 'card'
+                : (completedSale.paymentMethod as string) === 'card'
                 ? 'بطاقة'
-                : completedSale.paymentMethod === 'transfer'
+                : (completedSale.paymentMethod as string) === 'transfer'
                 ? 'تحويل'
                 : 'آجل'}
             </span>
@@ -55,7 +55,11 @@ export const SuccessModal: React.FC<SuccessModalProps> = ({
         <div className="grid grid-cols-2 gap-2 pt-2">
           <button
             onClick={() => {
-              printDocument(completedSale.id, 'thermal-receipt', { copies: 1 });
+              printDocument(completedSale.id, 'thermal-receipt', {
+                userId: '',
+                userName: '',
+                copies: 1,
+              });
             }}
             className="py-3 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-xs font-bold text-on-surface flex items-center justify-center gap-1.5 transition-all cursor-pointer"
           >

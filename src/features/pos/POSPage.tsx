@@ -21,9 +21,10 @@ import { usePOSKeyboardShortcuts } from './hooks/usePOSKeyboardShortcuts';
 import { POSActionBar } from './components/POSActionBar';
 import { ClassicPOSLayout } from './components/ClassicPOSLayout';
 import { useOpenCashSession } from '@/features/cash/useOpenCashSession';
+import { usePOSSessionStore } from './store/usePOSSessionStore';
 import {
   Search, Plus, Minus, Trash2, ShoppingCart, Banknote, User, UserPlus, Clock, X, Package, RotateCcw,
-  FileText, File, Truck, AlertTriangle, Receipt, Layers, ChevronLeft, ChevronRight, Wallet,
+  FileText, File, Truck, AlertTriangle, Receipt, ChevronLeft, ChevronRight, Wallet,
   Printer, Sun, Filter, Maximize, Bell, Moon, Menu, LayoutGrid, List, Barcode, Zap, ScanLine, ArrowRight,
   CreditCard, ArrowLeftRight, CheckCircle2, HelpCircle, Delete, PauseCircle, PlayCircle,
   Percent, ShieldCheck, DollarSign, Store, Tag, Sparkles, UserCheck, ArrowUpRight,
@@ -112,6 +113,21 @@ export default function POSPage() {
     queryFn: () => db.packs.toArray(),
   });
 
+  const { data: dbCategories = [] } = useQuery({
+    queryKey: ['categories'],
+    queryFn: () => db.categories.toArray().catch(() => []),
+  });
+
+  const { data: purchases = [] } = useQuery({
+    queryKey: ['purchases'],
+    queryFn: () => db.purchases.toArray().catch(() => []),
+  });
+
+  const { data: purchaseItems = [] } = useQuery({
+    queryKey: ['purchase_items'],
+    queryFn: () => db.purchase_items.toArray().catch(() => []),
+  });
+
   const { data: settings } = useQuery({
     queryKey: ['settings'],
     queryFn: () => db.settings.get('default'),
@@ -146,11 +162,36 @@ export default function POSPage() {
     queryFn: () => db.suspended_orders.toArray(),
   });
 
-  // State
+  // POS Session Store (حالة جلسة البيع وإعدادات العرض المشتركة)
+  const {
+    selectedCustomer,
+    setSelectedCustomer,
+    discount,
+    setDiscount,
+    discountType,
+    setDiscountType,
+    paymentMethod,
+    setPaymentMethod,
+    paidAmount,
+    setPaidAmount,
+    returnMode,
+    setReturnMode,
+    selectedItemId,
+    setSelectedItemId,
+    quickMode,
+    setQuickMode,
+    autoPrintReceipt,
+    setAutoPrintReceipt,
+    posLayout,
+    setPosLayout,
+    showProductImages,
+    setShowProductImages,
+    uiZoom,
+    setUiZoom,
+  } = usePOSSessionStore();
+
+  // Local UI Modals & Temporary Form States (حالات النوافذ المحلية والنماذج المؤقتة)
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCustomer, setSelectedCustomer] = useState('');
-  const [discount, setDiscount] = useState(0);
-  const [discountType, setDiscountType] = useState<'percent' | 'amount'>('percent');
   const [showSuspended, setShowSuspended] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -163,9 +204,6 @@ export default function POSPage() {
   const [keypadInput, setKeypadInput] = useState('');
   const [keypadTarget, setKeypadTarget] = useState<'qty' | 'price' | 'paid' | 'discount'>('paid');
 
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'transfer' | 'credit'>('cash');
-  const [paidAmount, setPaidAmount] = useState<number>(0);
-
   // Auto-reset payment method to cash if currently selected method is disabled in settings
   useEffect(() => {
     if (paymentMethod === 'card' && !posSettings.allowCardPayment) {
@@ -173,12 +211,9 @@ export default function POSPage() {
     } else if (paymentMethod === 'transfer' && !posSettings.allowTransferPayment) {
       setPaymentMethod('cash');
     }
-  }, [paymentMethod, posSettings.allowCardPayment, posSettings.allowTransferPayment]);
+  }, [paymentMethod, posSettings.allowCardPayment, posSettings.allowTransferPayment, setPaymentMethod]);
 
-  const [returnMode, setReturnMode] = useState(false);
   const [showReturnSaleModal, setShowReturnSaleModal] = useState(false);
-
-  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [editingPriceFor, setEditingPriceFor] = useState<string | null>(null);
   const [priceInput, setPriceInput] = useState('');
 
@@ -194,7 +229,6 @@ export default function POSPage() {
   const [barcodeScanMode, setBarcodeScanMode] = useState(false);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const [quickMode, setQuickMode] = useState(false);
   const [scanInput, setScanInput] = useState('');
   const scanInputRef = useRef<HTMLInputElement>(null);
 
@@ -210,9 +244,6 @@ export default function POSPage() {
   const [freeProductPrice, setFreeProductPrice] = useState<number>(0);
   const [freeProductQty, setFreeProductQty] = useState<number>(1);
 
-  // Auto Print Toggle (F5)
-  const [autoPrintReceipt, setAutoPrintReceipt] = useState(true);
-
   // Past Sales Quick Cycle Index (F9 / F10)
   const [pastSaleIndex, setPastSaleIndex] = useState<number>(-1);
 
@@ -223,39 +254,10 @@ export default function POSPage() {
   const [isFeaturedOnly, setIsFeaturedOnly] = useState(false);
   const [showCustomizeModal, setShowCustomizeModal] = useState(false);
   const [showDiscountModal, setShowDiscountModal] = useState(false);
-  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [showSaveAsProformaModal, setShowSaveAsProformaModal] = useState(false);
   const [showSaveAsOrderModal, setShowSaveAsOrderModal] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  const categoryDropdownRef = useRef<HTMLDivElement>(null);
-  const filtersDropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target as Node)) {
-        setShowCategoryDropdown(false);
-      }
-      if (filtersDropdownRef.current && !filtersDropdownRef.current.contains(event.target as Node)) {
-        setShowFiltersModal(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // Display & Layout customization states (إعدادات العرض)
-  const [posLayout, setPosLayout] = useState<'sidebar' | 'bottom' | 'classic'>(() => {
-    return (localStorage.getItem('pos_layout_mode') as 'sidebar' | 'bottom' | 'classic') || 'bottom';
-  });
-  const [showProductImages, setShowProductImages] = useState<boolean>(() => {
-    const saved = localStorage.getItem('pos_show_images');
-    return saved !== null ? saved === 'true' : true;
-  });
-  const [uiZoom, setUiZoom] = useState<number>(() => {
-    const saved = localStorage.getItem('pos_ui_zoom');
-    return saved ? Number(saved) : 100;
-  });
   // التبديل بين المنتجات والسلة على الشاشات الصغيرة (الهواتف والأجهزة اللوحية)
   const [mobileTab, setMobileTab] = useState<'products' | 'cart'>('products');
 
@@ -270,13 +272,46 @@ export default function POSPage() {
   };
 
   const availableCategories = useMemo(() => {
-    const cats = new Set(
-      products
-        .map((p) => (typeof p.category === 'object' && p.category !== null ? (p.category as any).name : p.category))
-        .filter(Boolean)
-    );
-    return Array.from(cats) as string[];
-  }, [products]);
+    const map = new Map<string, { id: string; name: string }>();
+
+    // 1. Categories from db.categories
+    if (Array.isArray(dbCategories)) {
+      dbCategories.forEach((c: any) => {
+        if (!c) return;
+        const name = (typeof c === 'object' ? c.name : String(c))?.trim();
+        const id = c.id || name;
+        if (name) map.set(name, { id, name });
+      });
+    }
+
+    // 2. Categories from active products list
+    if (Array.isArray(products)) {
+      products.forEach((p: any) => {
+        if (!p) return;
+        const name = (typeof p.category === 'object' && p.category !== null ? p.category.name : p.category)?.trim();
+        const id = p.categoryId || p.category_id || (name && map.get(name)?.id) || name;
+        if (name && !map.has(name)) {
+          map.set(name, { id: id || name, name });
+        }
+      });
+    }
+
+    return Array.from(map.values());
+  }, [dbCategories, products]);
+
+  // Track product IDs linked to the selected supplier via purchase invoices
+  const supplierProductIds = useMemo(() => {
+    if (!filterSupplier) return null;
+    const supplierPurchases = (purchases as any[]).filter((p) => p.supplierId === filterSupplier).map((p) => p.id);
+    const purchaseSet = new Set(supplierPurchases);
+    const productIds = new Set<string>();
+    (purchaseItems as any[]).forEach((pi) => {
+      if (purchaseSet.has(pi.purchaseId) && pi.productId) {
+        productIds.add(pi.productId);
+      }
+    });
+    return productIds;
+  }, [filterSupplier, purchases, purchaseItems]);
 
   const activeFiltersCount = useMemo(() => {
     return (filterCategory ? 1 : 0) + (filterSupplier ? 1 : 0) + (filterStockStatus !== 'all' ? 1 : 0) + (isFeaturedOnly ? 1 : 0);
@@ -300,33 +335,50 @@ export default function POSPage() {
     let baseProducts = products;
 
     // 1. Filter by Category / Family (العائلة)
-    if (filterCategory) {
-      baseProducts = baseProducts.filter((p) => p.category === filterCategory || (p as any).categoryId === filterCategory);
+    if (filterCategory && filterCategory !== 'ALL') {
+      baseProducts = baseProducts.filter((p) => {
+        const catName = typeof p.category === 'object' && p.category !== null ? (p.category as any).name : p.category;
+        return (
+          catName === filterCategory ||
+          p.category === filterCategory ||
+          (p as any).categoryId === filterCategory ||
+          (p as any).category_id === filterCategory
+        );
+      });
     }
 
     // 2. Filter by Supplier (المورد)
     if (filterSupplier) {
-      baseProducts = baseProducts.filter((p) => (p as any).supplierId === filterSupplier || (p as any).supplier === filterSupplier);
+      baseProducts = baseProducts.filter((p) => {
+        if ((p as any).supplierId === filterSupplier || (p as any).supplier === filterSupplier) return true;
+        if (supplierProductIds && supplierProductIds.has(p.id)) return true;
+        return false;
+      });
     }
 
     // 3. Filter by Stock Status (حالة المخزون)
     if (filterStockStatus === 'in_stock') {
-      baseProducts = baseProducts.filter((p) => p.quantity > 0);
+      baseProducts = baseProducts.filter((p) => Number(p.quantity ?? (p as any).stock ?? 0) > 0);
     } else if (filterStockStatus === 'out_of_stock') {
-      baseProducts = baseProducts.filter((p) => p.quantity <= 0);
+      baseProducts = baseProducts.filter((p) => Number(p.quantity ?? (p as any).stock ?? 0) <= 0);
     } else if (filterStockStatus === 'low_stock') {
-      baseProducts = baseProducts.filter((p) => p.quantity > 0 && p.quantity <= (p.lowStockThreshold || 5));
+      baseProducts = baseProducts.filter((p) => {
+        const qty = Number(p.quantity ?? (p as any).stock ?? 0);
+        const threshold = Number(p.lowStockThreshold || 5);
+        return qty > 0 && qty <= threshold;
+      });
     }
 
     // 4. Filter by Featured (المميزة)
     if (isFeaturedOnly) {
-      baseProducts = baseProducts.filter((p) => p.highlighted || (p.quantity > 0));
+      baseProducts = baseProducts.filter((p) => Boolean(p.highlighted || (p as any).isFeatured || (p as any).featured));
     }
 
     // 5. Search Query
+    const hasStrictFilter = Boolean(filterSupplier || filterStockStatus !== 'all' || (filterCategory && filterCategory !== 'ALL') || isFeaturedOnly);
     if (!searchQuery) {
       const stockProducts = baseProducts.filter((p) => p.status === 'active' && !('items' in p));
-      const mappedPacks = (filterSupplier || filterStockStatus !== 'all') ? [] : activePacks.map((p) => ({
+      const mappedPacks = hasStrictFilter ? [] : activePacks.map((p) => ({
         ...p, id: `pack-${p.id}`, retailPrice: p.packPrice, quantity: 9999,
       }));
       return [...stockProducts, ...mappedPacks];
@@ -337,13 +389,14 @@ export default function POSPage() {
         p.name.toLowerCase().includes(q) ||
         (p.barcode && p.barcode.toLowerCase().includes(q)) ||
         (p.sku && p.sku.toLowerCase().includes(q)) ||
-        (p.category && p.category.toLowerCase().includes(q))
+        (typeof p.category === 'string' && p.category.toLowerCase().includes(q)) ||
+        (typeof p.category === 'object' && p.category?.name && p.category.name.toLowerCase().includes(q))
       )
     );
-    const mappedPacks = (filterSupplier || filterStockStatus !== 'all') ? [] : activePacks.filter((p) => p.name.toLowerCase().includes(q) || (p.barcode && p.barcode.toLowerCase().includes(q)))
+    const mappedPacks = hasStrictFilter ? [] : activePacks.filter((p) => p.name.toLowerCase().includes(q) || (p.barcode && p.barcode.toLowerCase().includes(q)))
       .map((p) => ({ ...p, id: `pack-${p.id}`, retailPrice: p.packPrice, quantity: 9999 }));
-    return [...matchedProducts, ...matchedPacks];
-  }, [products, packs, searchQuery, filterCategory, filterSupplier, filterStockStatus, isFeaturedOnly]);
+    return [...matchedProducts, ...mappedPacks];
+  }, [products, packs, searchQuery, filterCategory, filterSupplier, filterStockStatus, isFeaturedOnly, supplierProductIds]);
 
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE));
   const paginatedProducts = useMemo(() => {
@@ -879,152 +932,54 @@ export default function POSPage() {
       {/* ========================================================= */}
       <div className="px-3 sm:px-4 py-2 bg-surface-container-low/90 backdrop-blur-xs border-b border-outline-variant/15 flex items-center justify-between gap-2 shrink-0 shadow-2xs relative z-30 overflow-x-auto no-scrollbar touch-scroll">
         <div className="flex items-center gap-1.5 sm:gap-2 flex-nowrap sm:flex-wrap shrink-0">
-
-
-          {/* Star / Featured Filter (F6) */}
+          {/* 1. Advanced Filters Modal Trigger (الفلاتر المتقدمة - الزر الأول) */}
           <button
+            type="button"
+            onClick={() => setShowFiltersModal(true)}
+            className={`h-9 sm:h-10 px-2.5 sm:px-3.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs hover:-translate-y-0.5 active:translate-y-0 shrink-0 cursor-pointer ${
+              activeFiltersCount > 0
+                ? 'bg-primary/15 text-primary border-primary/40 shadow-primary/10'
+                : 'bg-surface-container hover:bg-surface-container-high border-outline-variant/20 hover:border-primary/40 text-on-surface'
+            }`}
+            title="الفلاتر المتقدمة (العائلة، المورد، حالة المخزون)"
+          >
+            <SlidersHorizontal className={`w-4 h-4 ${activeFiltersCount > 0 ? 'text-primary' : 'text-on-surface-variant'}`} />
+            <span>الفلاتر</span>
+            {activeFiltersCount > 0 && (
+              <span className="w-5 h-5 rounded-full bg-primary text-on-primary text-[10px] font-black flex items-center justify-center font-mono shadow-xs">
+                {activeFiltersCount}
+              </span>
+            )}
+          </button>
+
+          {/* Quick Clear Filters if active */}
+          {activeFiltersCount > 0 && (
+            <button
+              type="button"
+              onClick={handleClearAllFilters}
+              className="h-9 px-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-600 border border-red-500/25 text-xs font-bold flex items-center gap-1 transition-all shadow-2xs active:scale-95 cursor-pointer"
+              title="إلغاء جميع الفلاتر النشطة"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-red-500" />
+              <span className="hidden sm:inline">مسح الفلاتر</span>
+            </button>
+          )}
+
+          {/* 2. Star / Featured Filter (F6) */}
+          <button
+            type="button"
             onClick={() => setIsFeaturedOnly(!isFeaturedOnly)}
-            className={`h-9 sm:h-10 px-2.5 sm:px-3.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border shadow-xs hover:-translate-y-0.5 active:translate-y-0 shrink-0 ${
+            className={`h-9 sm:h-10 px-2.5 sm:px-3.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border shadow-xs hover:-translate-y-0.5 active:translate-y-0 shrink-0 cursor-pointer ${
               isFeaturedOnly
                 ? 'bg-amber-500 text-white border-amber-500 shadow-amber-500/25'
                 : 'bg-surface-container hover:bg-surface-container-high text-on-surface border-outline-variant/20 hover:border-amber-500/40'
             }`}
+            title="عرض المنتجات المميزة فقط (F6)"
           >
             <Star className={`w-4 h-4 ${isFeaturedOnly ? 'fill-current' : 'text-amber-500'}`} />
             <span>مميزة</span>
             <span className="hidden sm:inline text-[10px] font-mono px-1.5 py-0.2 rounded bg-surface-container-high/90 border border-outline-variant/30 text-on-surface-variant font-bold shadow-2xs">F6</span>
           </button>
-
-          {/* Filters Dropdown (قائمة الفلاتر المنسدلة) */}
-          <div className="relative shrink-0" ref={filtersDropdownRef}>
-            <button
-              onClick={() => setShowFiltersModal(!showFiltersModal)}
-              className={`h-9 sm:h-10 px-2.5 sm:px-3.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs hover:-translate-y-0.5 active:translate-y-0 shrink-0 ${
-                showFiltersModal || activeFiltersCount > 0
-                  ? 'bg-primary/15 text-primary border-primary/40 shadow-primary/10'
-                  : 'bg-surface-container hover:bg-surface-container-high border-outline-variant/20 hover:border-primary/40 text-on-surface'
-              }`}
-            >
-              <SlidersHorizontal className={`w-4 h-4 ${activeFiltersCount > 0 ? 'text-primary' : 'text-on-surface-variant'}`} />
-              <span>الفلاتر</span>
-              {activeFiltersCount > 0 && (
-                <span className="w-5 h-5 rounded-full bg-primary text-on-primary text-[10px] font-black flex items-center justify-center font-mono shadow-xs">
-                  {activeFiltersCount}
-                </span>
-              )}
-              <ChevronDown className={`w-3.5 h-3.5 opacity-60 transition-transform duration-200 ${showFiltersModal ? 'rotate-180' : ''}`} />
-            </button>
-
-            {showFiltersModal && (
-              <div className="absolute top-full right-0 mt-2 w-80 bg-surface-container-low/95 backdrop-blur-md rounded-3xl shadow-2xl border border-outline-variant/25 p-4 z-50 animate-in fade-in zoom-in-95 duration-150 space-y-3.5">
-                {/* Header */}
-                <div className="flex items-center justify-between border-b border-outline-variant/15 pb-2.5">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center border border-primary/20">
-                      <SlidersHorizontal className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h3 className="text-xs font-extrabold text-on-surface">الفلاتر</h3>
-                      <p className="text-[10px] text-on-surface-variant">تصفية المنتجات المعروضة</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setShowFiltersModal(false)}
-                    className="w-7 h-7 rounded-lg hover:bg-surface-container-high flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-
-                {/* 1. العائلة (Family / Category) */}
-                <div className="space-y-1 text-right">
-                  <label className="text-[11px] font-bold text-on-surface flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5 text-primary" />
-                    <span>العائلة</span>
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={filterCategory}
-                      onChange={(e) => setFilterCategory(e.target.value)}
-                      className="w-full h-9.5 pr-3 pl-8 bg-surface-container border border-outline-variant/25 rounded-xl text-xs text-on-surface font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none cursor-pointer transition-all shadow-2xs"
-                    >
-                      <option value="">جميع العائلات</option>
-                      {availableCategories.map((cat) => (
-                        <option key={cat} value={cat}>
-                          {cat}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant/70 text-[10px]">
-                      ▼
-                    </div>
-                  </div>
-                </div>
-
-                {/* 2. المورد (Supplier) */}
-                <div className="space-y-1 text-right">
-                  <label className="text-[11px] font-bold text-on-surface flex items-center gap-1.5">
-                    <Truck className="w-3.5 h-3.5 text-primary" />
-                    <span>المورد</span>
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={filterSupplier}
-                      onChange={(e) => setFilterSupplier(e.target.value)}
-                      className="w-full h-9.5 pr-3 pl-8 bg-surface-container border border-outline-variant/25 rounded-xl text-xs text-on-surface font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none cursor-pointer transition-all shadow-2xs"
-                    >
-                      <option value="">جميع الموردين</option>
-                      {suppliers.map((sup) => (
-                        <option key={sup.id} value={sup.id}>
-                          {sup.name} {sup.phone ? `(${sup.phone})` : ''}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant/70 text-[10px]">
-                      ▼
-                    </div>
-                  </div>
-                </div>
-
-                {/* 3. حالة المخزون (Stock Status) */}
-                <div className="space-y-1 text-right">
-                  <label className="text-[11px] font-bold text-on-surface flex items-center gap-1.5">
-                    <Package className="w-3.5 h-3.5 text-primary" />
-                    <span>حالة المخزون</span>
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={filterStockStatus}
-                      onChange={(e) => setFilterStockStatus(e.target.value as any)}
-                      className="w-full h-9.5 pr-3 pl-8 bg-surface-container border border-outline-variant/25 rounded-xl text-xs text-on-surface font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none cursor-pointer transition-all shadow-2xs"
-                    >
-                      <option value="all">جميع الحالات</option>
-                      <option value="in_stock">متوفر في المخزون</option>
-                      <option value="out_of_stock">نفذ من المخزون</option>
-                      <option value="low_stock">مخزون منخفض</option>
-                    </select>
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant/70 text-[10px]">
-                      ▼
-                    </div>
-                  </div>
-                </div>
-
-                {/* 4. مسح الفلاتر (clear_all) */}
-                <div className="pt-2 border-t border-outline-variant/15 flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      handleClearAllFilters();
-                      setShowFiltersModal(false);
-                    }}
-                    className="w-full py-2.5 px-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-600 border border-red-500/25 text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all shadow-2xs active:scale-95"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5 text-red-500" />
-                    <span>مسح الفلاتر</span>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
 
 
 
@@ -1120,10 +1075,11 @@ export default function POSPage() {
             setDiscount(0);
           }}
           saleSummary={saleSummary}
-          products={products as any}
+          products={filteredProducts as any}
+          allProducts={products as any}
           categories={availableCategories}
           selectedCategory={filterCategory}
-          onSelectCategory={(catId) => setFilterCategory(catId)}
+          onSelectCategory={(catId) => setFilterCategory(catId === 'ALL' ? '' : catId)}
           barcodeInput={barcodeHeaderInput}
           setBarcodeInput={setBarcodeHeaderInput}
           onBarcodeSubmit={(e) => {

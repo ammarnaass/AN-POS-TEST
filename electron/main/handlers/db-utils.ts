@@ -2,7 +2,7 @@
 // تُستخدم من před IPC handlers ومن خادم HTTP REST على حد سواء.
 // الهدف: تجنب تكرار queryAll/queryOne/execute + التحويلات في كل ملف.
 
-import { getSqlite } from '../database';
+import { getSqlite, getCachedStatement } from '../database';
 
 export type Row = Record<string, string | number | null>;
 
@@ -10,8 +10,7 @@ export type Row = Record<string, string | number | null>;
  * تنفيذ SELECT متعدد الصفوف
  */
 export function queryAll(sql: string, params: unknown[] = []): Row[] {
-  const db = getSqlite();
-  const stmt = db.prepare(sql);
+  const stmt = getCachedStatement(sql);
   return stmt.all(...params) as Row[];
 }
 
@@ -19,8 +18,7 @@ export function queryAll(sql: string, params: unknown[] = []): Row[] {
  * تنفيذ SELECT صف واحد
  */
 export function queryOne(sql: string, params: unknown[] = []): Row | null {
-  const db = getSqlite();
-  const stmt = db.prepare(sql);
+  const stmt = getCachedStatement(sql);
   const row = stmt.get(...params) as Row | null;
   return row ?? null;
 }
@@ -29,8 +27,7 @@ export function queryOne(sql: string, params: unknown[] = []): Row | null {
  * تنفيذ INSERT/UPDATE/DELETE
  */
 export function execute(sql: string, params: unknown[] = []): void {
-  const db = getSqlite();
-  const stmt = db.prepare(sql);
+  const stmt = getCachedStatement(sql);
   stmt.run(...params);
 }
 

@@ -1,5 +1,8 @@
 import { create } from 'zustand';
-import type { CartItem, PaymentMethod } from '@/types';
+import type { CartItem } from '@/types';
+import { useCartStore } from '@/store/cartStore';
+
+export type POSPaymentMethod = 'cash' | 'card' | 'transfer' | 'credit';
 
 export interface SuspendedOrder {
   id: string;
@@ -19,7 +22,7 @@ interface POSSessionState {
   selectedCustomer: string;
   discount: number;
   discountType: 'percent' | 'amount';
-  paymentMethod: PaymentMethod;
+  paymentMethod: POSPaymentMethod;
   paidAmount: number;
 
   // Operating modes
@@ -28,6 +31,7 @@ interface POSSessionState {
   posLayout: 'sidebar' | 'bottom' | 'classic';
   showProductImages: boolean;
   uiZoom: number;
+  quickMode: boolean;
 
   // Suspended orders
   suspendedOrders: SuspendedOrder[];
@@ -38,19 +42,21 @@ interface POSSessionState {
   updateQty: (productId: string, qty: number) => void;
   removeItem: (productId: string) => void;
   clearCart: () => void;
-  setSelectedItemId: (id: string | null) => void;
-  setSelectedCustomer: (id: string) => void;
-  setDiscount: (discount: number) => void;
-  setDiscountType: (type: 'percent' | 'amount') => void;
-  setPaymentMethod: (method: PaymentMethod) => void;
-  setPaidAmount: (amount: number) => void;
+  setSelectedItemId: (id: string | null | ((prev: string | null) => string | null)) => void;
+  setSelectedCustomer: (id: string | ((prev: string) => string)) => void;
+  setDiscount: (discount: number | ((prev: number) => number)) => void;
+  setDiscountType: (type: 'percent' | 'amount' | ((prev: 'percent' | 'amount') => 'percent' | 'amount')) => void;
+  setPaymentMethod: (method: POSPaymentMethod | ((prev: POSPaymentMethod) => POSPaymentMethod)) => void;
+  setPaidAmount: (amount: number | ((prev: number) => number)) => void;
   setReturnMode: (val: boolean | ((prev: boolean) => boolean)) => void;
   setAutoPrintReceipt: (val: boolean | ((prev: boolean) => boolean)) => void;
-  setPosLayout: (layout: 'sidebar' | 'bottom' | 'classic') => void;
-  setShowProductImages: (show: boolean) => void;
-  setUiZoom: (zoom: number) => void;
+  setPosLayout: (layout: 'sidebar' | 'bottom' | 'classic' | ((prev: 'sidebar' | 'bottom' | 'classic') => 'sidebar' | 'bottom' | 'classic')) => void;
+  setShowProductImages: (show: boolean | ((prev: boolean) => boolean)) => void;
+  setUiZoom: (zoom: number | ((prev: number) => number)) => void;
+  setQuickMode: (val: boolean | ((prev: boolean) => boolean)) => void;
   setSuspendedOrders: (orders: SuspendedOrder[] | ((prev: SuspendedOrder[]) => SuspendedOrder[])) => void;
   resetCheckout: () => void;
+  resetSession: () => void;
 }
 
 export const usePOSSessionStore = create<POSSessionState>((set) => ({
@@ -99,6 +105,7 @@ export const usePOSSessionStore = create<POSSessionState>((set) => ({
       return 100;
     }
   })(),
+  quickMode: false,
   suspendedOrders: (() => {
     try {
       const saved = localStorage.getItem('pos_suspended');
@@ -177,7 +184,12 @@ export const usePOSSessionStore = create<POSSessionState>((set) => ({
       };
     }),
 
-  clearCart: () =>
+  clearCart: () => {
+    try {
+      useCartStore.getState().clear();
+    } catch {
+      // ignore
+    }
     set(() => {
       try {
         localStorage.removeItem('pos_cart');
@@ -185,14 +197,38 @@ export const usePOSSessionStore = create<POSSessionState>((set) => ({
         // ignore
       }
       return { cart: [], selectedItemId: null, discount: 0, paidAmount: 0 };
-    }),
+    });
+  },
 
-  setSelectedItemId: (id) => set({ selectedItemId: id }),
-  setSelectedCustomer: (id) => set({ selectedCustomer: id }),
-  setDiscount: (discount) => set({ discount }),
-  setDiscountType: (discountType) => set({ discountType }),
-  setPaymentMethod: (paymentMethod) => set({ paymentMethod }),
-  setPaidAmount: (paidAmount) => set({ paidAmount }),
+  setSelectedItemId: (id) =>
+    set((state) => ({
+      selectedItemId: typeof id === 'function' ? id(state.selectedItemId) : id,
+    })),
+
+  setSelectedCustomer: (id) =>
+    set((state) => ({
+      selectedCustomer: typeof id === 'function' ? id(state.selectedCustomer) : id,
+    })),
+
+  setDiscount: (discount) =>
+    set((state) => ({
+      discount: typeof discount === 'function' ? discount(state.discount) : discount,
+    })),
+
+  setDiscountType: (discountType) =>
+    set((state) => ({
+      discountType: typeof discountType === 'function' ? discountType(state.discountType) : discountType,
+    })),
+
+  setPaymentMethod: (paymentMethod) =>
+    set((state) => ({
+      paymentMethod: typeof paymentMethod === 'function' ? paymentMethod(state.paymentMethod) : paymentMethod,
+    })),
+
+  setPaidAmount: (paidAmount) =>
+    set((state) => ({
+      paidAmount: typeof paidAmount === 'function' ? paidAmount(state.paidAmount) : paidAmount,
+    })),
 
   setReturnMode: (val) =>
     set((state) => ({
@@ -211,34 +247,42 @@ export const usePOSSessionStore = create<POSSessionState>((set) => ({
     }),
 
   setPosLayout: (layout) =>
-    set(() => {
+    set((state) => {
+      const next = typeof layout === 'function' ? layout(state.posLayout) : layout;
       try {
-        localStorage.setItem('pos_layout_mode', layout);
+        localStorage.setItem('pos_layout_mode', next);
       } catch {
         // ignore
       }
-      return { posLayout: layout };
+      return { posLayout: next };
     }),
 
   setShowProductImages: (show) =>
-    set(() => {
+    set((state) => {
+      const next = typeof show === 'function' ? show(state.showProductImages) : show;
       try {
-        localStorage.setItem('pos_show_images', String(show));
+        localStorage.setItem('pos_show_images', String(next));
       } catch {
         // ignore
       }
-      return { showProductImages: show };
+      return { showProductImages: next };
     }),
 
   setUiZoom: (zoom) =>
-    set(() => {
+    set((state) => {
+      const next = typeof zoom === 'function' ? zoom(state.uiZoom) : zoom;
       try {
-        localStorage.setItem('pos_ui_zoom', String(zoom));
+        localStorage.setItem('pos_ui_zoom', String(next));
       } catch {
         // ignore
       }
-      return { uiZoom: zoom };
+      return { uiZoom: next };
     }),
+
+  setQuickMode: (val) =>
+    set((state) => ({
+      quickMode: typeof val === 'function' ? val(state.quickMode) : val,
+    })),
 
   setSuspendedOrders: (orders) =>
     set((state) => {
@@ -251,7 +295,12 @@ export const usePOSSessionStore = create<POSSessionState>((set) => ({
       return { suspendedOrders: nextOrders };
     }),
 
-  resetCheckout: () =>
+  resetCheckout: () => {
+    try {
+      useCartStore.getState().clear();
+    } catch {
+      // ignore
+    }
     set(() => {
       try {
         localStorage.removeItem('pos_cart');
@@ -263,8 +312,36 @@ export const usePOSSessionStore = create<POSSessionState>((set) => ({
         selectedItemId: null,
         selectedCustomer: '',
         discount: 0,
+        discountType: 'percent',
         paidAmount: 0,
+        paymentMethod: 'cash',
         returnMode: false,
       };
-    }),
+    });
+  },
+
+  resetSession: () => {
+    try {
+      useCartStore.getState().clear();
+    } catch {
+      // ignore
+    }
+    set(() => {
+      try {
+        localStorage.removeItem('pos_cart');
+      } catch {
+        // ignore
+      }
+      return {
+        cart: [],
+        selectedItemId: null,
+        selectedCustomer: '',
+        discount: 0,
+        discountType: 'percent',
+        paidAmount: 0,
+        paymentMethod: 'cash',
+        returnMode: false,
+      };
+    });
+  },
 }));

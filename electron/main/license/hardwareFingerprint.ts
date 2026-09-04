@@ -15,9 +15,9 @@ export function computeHardwareFingerprint(): string {
   if (cachedFingerprint) return cachedFingerprint;
 
   let rawIdentifier = '';
+  const platform = os.platform();
 
   try {
-    const platform = os.platform();
 
     if (platform === 'win32') {
       // قراءة MachineGuid من سجل Windows
@@ -75,4 +75,12 @@ export function computeHardwareFingerprint(): string {
   cachedFingerprint = hash.slice(0, 32).toUpperCase();
 
   return cachedFingerprint;
+}
+
+/**
+ * استخراج بصمة عتاد رقمية موجزة 32-بت (تُستخدم للربط المشفر بالترخيص)
+ */
+export function computeHardwareHashInt(): number {
+  const fp = computeHardwareFingerprint();
+  return Buffer.from(fp.slice(0, 8), 'hex').readUInt32LE(0);
 }

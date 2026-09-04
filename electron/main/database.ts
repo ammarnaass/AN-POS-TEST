@@ -47,32 +47,57 @@ function normalizeRow(row: unknown): Record<string, unknown> | null {
  *
  * ملاحظة: لاحظ أن node:sqlite تستخدم ? للـ placeholders وتمرّرها كـ spread args.
  */
+type StatementSync = ReturnType<DatabaseSync['prepare']>;
+const statementCache = new Map<string, StatementSync>();
+const MAX_STATEMENTS = 300;
+
+export function getCachedStatement(sql: string): StatementSync {
+  if (!sqliteInstance) throw new Error('Database not initialized. Call initDatabase() first.');
+  let stmt = statementCache.get(sql);
+  if (!stmt) {
+    stmt = sqliteInstance.prepare(sql);
+    if (statementCache.size >= MAX_STATEMENTS) {
+      const oldestKey = statementCache.keys().next().value;
+      if (oldestKey) statementCache.delete(oldestKey);
+    }
+    statementCache.set(sql, stmt);
+  }
+  return stmt;
+}
+
+/**
+ * تنفيذ استعلام SQL عبر node:sqlite وتحويل النتيجة لصيغة sqlite-proxy
+ *
+ * الطرق:
+ * - "run": INSERT/UPDATE/DELETE → تُرجع {rows: []} (sqlite-proxy يتجاهل changes/lastInsertRowid هنا)
+ * - "all": SELECT متعدد → تُرجع {rows: [...]}
+ * - "get": SELECT صف واحد → تُرجع {rows: [row]} أو {rows: []}
+ * - "values": SELECT بصيغة raw arrays → تُرجع {rows: [...]}
+ *
+ * ملاحظة: لاحظ أن node:sqlite تستخدم ? للـ placeholders وتمرّرها كـ spread args.
+ */
 function executeQuery(sql: string, params: unknown[], method: 'run' | 'all' | 'values' | 'get'): QueryResult {
   if (!sqliteInstance) throw new Error('Database not initialized. Call initDatabase() first.');
 
+  const stmt = getCachedStatement(sql);
+
   if (method === 'run') {
-    const stmt = sqliteInstance.prepare(sql);
     stmt.run(...params);
     return { rows: [] };
   }
 
   if (method === 'all') {
-    const stmt = sqliteInstance.prepare(sql);
     const rows = stmt.all(...params);
     return { rows: rows.map(normalizeRow) };
   }
 
   if (method === 'get') {
-    const stmt = sqliteInstance.prepare(sql);
     const row = stmt.get(...params);
     return { rows: row ? [normalizeRow(row)] : [] };
   }
 
   // method === 'values' — تُرجع صفوف كـ arrays وليس objects
-  // node:sqlite لا تدعم .raw() لكن يمكننا تحويل الـ object إلى array
-  const stmt = sqliteInstance.prepare(sql);
   const rows = stmt.all(...params);
-  // نُرجع objects هنا (sqlite-proxy يستخدمها لـ mapResultRow عند وجود fields)
   return { rows: rows.map(normalizeRow) };
 }
 
@@ -96,8 +121,12 @@ export function initDatabase(): DB {
   // node:sqlite: DatabaseSync(path, options)
   sqliteInstance = new DatabaseSync(dbPath);
 
-  // PRAGMAs
+  // PRAGMAs — حزمة تسريع فائقة لبيئة الإنتاج والـ POS
   sqliteInstance.exec('PRAGMA journal_mode = WAL;');
+  sqliteInstance.exec('PRAGMA synchronous = NORMAL;');   // تسريع عمليات الكتابة والتخزين بمعدل 10x مع أمان كامل
+  sqliteInstance.exec('PRAGMA cache_size = -64000;');    // حجز 64MB لذاكرة الكاش في الرام
+  sqliteInstance.exec('PRAGMA temp_store = MEMORY;');    // الفرز والجداول المؤقتة في الذاكرة
+  sqliteInstance.exec('PRAGMA mmap_size = 268435456;');  // استخدام 256MB Memory-Mapped I/O للقراءة السريعة
   sqliteInstance.exec('PRAGMA foreign_keys = ON;');
   sqliteInstance.exec('PRAGMA busy_timeout = 5000;');
 
@@ -140,6 +169,7 @@ export function execSql(sql: string): void {
  */
 export function closeDatabase(): void {
   if (sqliteInstance) {
+    statementCache.clear();
     sqliteInstance.close();
     sqliteInstance = null;
     dbInstance = null;

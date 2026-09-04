@@ -10,6 +10,11 @@ import {
   createRow,
   updateRow,
   removeRow,
+  countRows,
+  clearTable,
+  bulkCreateRows,
+  bulkUpdateRows,
+  bulkGetRows,
   type CrudConfig,
 } from '../handlers/crud';
 
@@ -28,8 +33,8 @@ export function registerCrudIpc(config: CrudConfig): void {
 }
 
 /**
- * تسجيل المعالجات العامة الخمسة (مرة واحدة):
- * db:list, db:get, db:create, db:update, db:remove
+ * تسجيل المعالجات العامة (مرة واحدة):
+ * db:list, db:count, db:clear, db:get, db:create, db:update, db:remove, db:bulkCreate, db:bulkUpdate, db:bulkGet
  * كل معالج يأخذ اسم الجدول كأول معامل ويتوجّه عبر tableConfigs
  */
 function registerGlobalCrudHandlers(): void {
@@ -37,8 +42,18 @@ function registerGlobalCrudHandlers(): void {
   handlersRegistered = true;
 
   // db:list
-  ipcMain.handle('db:list', async (_evt, tableName: string, opts?: { search?: string; from?: string; to?: string; limit?: number; offset?: number }) =>
+  ipcMain.handle('db:list', async (_evt, tableName: string, opts?: { search?: string; from?: string; to?: string; limit?: number; offset?: number; filter?: Record<string, unknown>; orderBy?: string; orderDir?: 'ASC' | 'DESC' | 'asc' | 'desc' }) =>
     listRows(tableName, opts)
+  );
+
+  // db:count
+  ipcMain.handle('db:count', async (_evt, tableName: string, filter?: Record<string, unknown>) =>
+    countRows(tableName, filter)
+  );
+
+  // db:clear
+  ipcMain.handle('db:clear', async (_evt, tableName: string) =>
+    clearTable(tableName)
   );
 
   // db:get
@@ -46,14 +61,29 @@ function registerGlobalCrudHandlers(): void {
     getRow(tableName, id)
   );
 
+  // db:bulkGet
+  ipcMain.handle('db:bulkGet', async (_evt, tableName: string, ids: string[]) =>
+    bulkGetRows(tableName, ids)
+  );
+
   // db:create
   ipcMain.handle('db:create', async (_evt, tableName: string, data: Record<string, unknown>) =>
     createRow(tableName, data)
   );
 
+  // db:bulkCreate
+  ipcMain.handle('db:bulkCreate', async (_evt, tableName: string, items: Record<string, unknown>[]) =>
+    bulkCreateRows(tableName, items)
+  );
+
   // db:update
   ipcMain.handle('db:update', async (_evt, tableName: string, id: string | undefined | null, data: Record<string, unknown>) =>
     updateRow(tableName, id, data)
+  );
+
+  // db:bulkUpdate
+  ipcMain.handle('db:bulkUpdate', async (_evt, tableName: string, items: Record<string, unknown>[]) =>
+    bulkUpdateRows(tableName, items)
   );
 
   // db:remove

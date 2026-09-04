@@ -1,6 +1,6 @@
 // مدير دورة حياة الترخيص — AN POS Desktop License Manager
 
-import { computeHardwareFingerprint } from './hardwareFingerprint';
+import { computeHardwareFingerprint, computeHardwareHashInt } from './hardwareFingerprint';
 import { parseAndVerifyKey, type ParsedLicense } from './verifyLicense';
 import { loadStoredLicense, saveStoredLicense, removeStoredLicense, type StoredLicenseData } from './licenseStorage';
 
@@ -64,8 +64,12 @@ class LicenseManager {
       };
     }
 
-    // 2. مطابقة بصمة العتاد
-    if (this.currentLicense.hardwareFingerprint !== hwFingerprint) {
+    // 2. مطابقة بصمة العتاد (المحلية + المشفرة في التوقيع الرقمي إن وُجدت)
+    const hwHashInt = computeHardwareHashInt();
+    const isCryptoBound = this.verifiedParsed.flags !== 0;
+    const isCryptoMatch = !isCryptoBound || this.verifiedParsed.flags === hwHashInt;
+
+    if (this.currentLicense.hardwareFingerprint !== hwFingerprint || !isCryptoMatch) {
       return {
         status: 'tampered',
         isLicensed: false,
@@ -127,6 +131,15 @@ class LicenseManager {
       return {
         success: false,
         error: 'انتهت فترة صلاحية هذا الترخيص.',
+      };
+    }
+
+    // التحقق التشفيري من مطابقة عتاد الجهاز (إذا كان المفتاح مقيداً بعتاد محدد)
+    const hwHashInt = computeHardwareHashInt();
+    if (parsed.flags !== 0 && parsed.flags !== hwHashInt) {
+      return {
+        success: false,
+        error: 'كود التفعيل هذا مشفر ومخصص لجهاز حاسوب آخر ولا يتطابق مع عتاد هذا الجهاز.',
       };
     }
 

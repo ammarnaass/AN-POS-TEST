@@ -14,7 +14,26 @@ let printWindow: Window | null = null;
  * @param copies عدد النسخ المطلوبة
  * @param _printerId معرّف الطابعة (احتياطي V1 — لا يغيّر السلوك؛ حُ solved in printService)
  */
-export function doPrint(html: string, copies: number, _printerId?: string): Promise<void> {
+export async function doPrint(html: string, copies: number, _printerId?: string): Promise<void> {
+  // 1. في بيئة Electron لسطح المكتب: طباعة صامتة فورية ومباشرة بدون نوافذ منبثقة
+  const electronPrint = (window as any).electronAPI?.print;
+  if (typeof electronPrint?.silent === 'function') {
+    try {
+      const res = await electronPrint.silent(html, {
+        silent: true,
+        copies: copies || 1,
+        deviceName: _printerId || undefined,
+      });
+      if (res?.success) {
+        return;
+      }
+      console.warn('[printEngine] فشلت الطباعة الصامتة، التراجع للطباعة العادية:', res?.error);
+    } catch (e) {
+      console.warn('[printEngine] استثناء أثناء الطباعة الصامتة:', e);
+    }
+  }
+
+  // 2. البديل (Fallback): فتح نافذة المتصفح في حال تشغيل الويب الصرف
   return new Promise((resolve, reject) => {
     // إغلاق أي نافذة طباعة سابقة
     if (printWindow && !printWindow.closed) {

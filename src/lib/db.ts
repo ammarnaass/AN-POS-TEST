@@ -11,10 +11,14 @@ function getElectronAPIDb(): any {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function waitForAPI(timeoutMs = 10000): Promise<any> {
+async function waitForAPI(timeoutMs?: number): Promise<any> {
   if (_apiCache) return _apiCache;
   const cached = getElectronAPIDb();
   if (cached) { _apiCache = cached; return cached; }
+
+  const isTest = (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test') ||
+    (typeof import.meta !== 'undefined' && (import.meta as any).env?.MODE === 'test');
+  const actualTimeout = timeoutMs ?? (isTest ? 100 : 10000);
 
   return new Promise<any>((resolve, reject) => {
     const start = Date.now();
@@ -28,7 +32,7 @@ async function waitForAPI(timeoutMs = 10000): Promise<any> {
 
     let cancelled = false;
     (async () => {
-      while (Date.now() - start < timeoutMs && !cancelled) {
+      while (Date.now() - start < actualTimeout && !cancelled) {
         const api = getElectronAPIDb();
         if (api) {
           cancelled = true;
@@ -48,6 +52,35 @@ async function waitForAPI(timeoutMs = 10000): Promise<any> {
   });
 }
 
+const snakeCache = new Map<string, string>();
+const camelCache = new Map<string, string>();
+
+export function getSnakeKey(k: string): string {
+  let res = snakeCache.get(k);
+  if (!res) {
+    if (k === 'companyRC') res = 'company_rc';
+    else if (k === 'companyNif' || k === 'companyNIF') res = 'company_nif';
+    else if (k === 'companyArt' || k === 'companyART') res = 'company_art';
+    else if (k === 'companyAI') res = 'company_ai';
+    else res = k.replace(/([A-Z])/g, '_$1').toLowerCase();
+    snakeCache.set(k, res);
+  }
+  return res;
+}
+
+export function getCamelKey(k: string): string {
+  let res = camelCache.get(k);
+  if (!res) {
+    if (k === 'company_rc') res = 'companyRC';
+    else if (k === 'company_nif') res = 'companyNif';
+    else if (k === 'company_art') res = 'companyArt';
+    else if (k === 'company_ai') res = 'companyAI';
+    else res = k.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+    camelCache.set(k, res);
+  }
+  return res;
+}
+
 /**
  * تحويل camelCase → snake_case لأسماء الأعمدة عند الإرسال
  * (الواجهة تستخدم camelCase، SQLite يستخدم snake_case)
@@ -55,13 +88,7 @@ async function waitForAPI(timeoutMs = 10000): Promise<any> {
 function toSnake(obj: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(obj)) {
-    let snakeKey: string;
-    if (k === 'companyRC') snakeKey = 'company_rc';
-    else if (k === 'companyNif' || k === 'companyNIF') snakeKey = 'company_nif';
-    else if (k === 'companyArt' || k === 'companyART') snakeKey = 'company_art';
-    else if (k === 'companyAI') snakeKey = 'company_ai';
-    else snakeKey = k.replace(/([A-Z])/g, '_$1').toLowerCase();
-    result[snakeKey] = v;
+    result[getSnakeKey(k)] = v;
   }
   return result;
 }
@@ -72,13 +99,7 @@ function toSnake(obj: Record<string, unknown>): Record<string, unknown> {
 function toCamel(obj: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(obj)) {
-    let camelKey: string;
-    if (k === 'company_rc') camelKey = 'companyRC';
-    else if (k === 'company_nif') camelKey = 'companyNif';
-    else if (k === 'company_art') camelKey = 'companyArt';
-    else if (k === 'company_ai') camelKey = 'companyAI';
-    else camelKey = k.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
-    result[camelKey] = v;
+    result[getCamelKey(k)] = v;
   }
   return result;
 }
@@ -118,12 +139,20 @@ function createTableProxy(table: string) {
 
     bulkAdd: async (items: Record<string, unknown>[]) => {
       const api = await waitForAPI();
-      await Promise.all(items.map((i) => api.create(table, toSnake(i))));
+      if (typeof api.bulkCreate === 'function') {
+        await api.bulkCreate(table, items.map(toSnake));
+      } else {
+        await Promise.all(items.map((i) => api.create(table, toSnake(i))));
+      }
     },
 
     bulkPut: async (items: Record<string, unknown>[]) => {
       const api = await waitForAPI();
-      await Promise.all(items.map((i) => api.update(table, i.id as string, toSnake(i))));
+      if (typeof api.bulkUpdate === 'function') {
+        await api.bulkUpdate(table, items.map(toSnake));
+      } else {
+        await Promise.all(items.map((i) => api.update(table, i.id as string, toSnake(i))));
+      }
     },
 
     update: async (id: string, patch: Record<string, unknown>) => {
@@ -139,6 +168,10 @@ function createTableProxy(table: string) {
 
     count: async () => {
       const api = await waitForAPI();
+      if (typeof api.count === 'function') {
+        const res = await api.count(table);
+        return typeof res?.count === 'number' ? res.count : 0;
+      }
       const res = await api.list(table);
       return res.data.length;
     },
@@ -147,91 +180,82 @@ function createTableProxy(table: string) {
       equals: (value: unknown) => ({
         first: async () => {
           const api = await waitForAPI();
-          const res = await api.list(table);
-          const snakeField = field.replace(/([A-Z])/g, '_$1').toLowerCase();
-          const row = res.data.find((r: Record<string, unknown>) => r[snakeField] === value);
-          return row ? toCamel(row) : undefined;
+          const snakeField = getSnakeKey(field);
+          const res = await api.list(table, { filter: { [snakeField]: value }, limit: 1 });
+          if (res?.data && res.data.length > 0) {
+            return toCamel(res.data[0]);
+          }
+          return undefined;
         },
         toArray: async () => {
           const api = await waitForAPI();
-          const res = await api.list(table);
-          const snakeField = field.replace(/([A-Z])/g, '_$1').toLowerCase();
-          return res.data
-            .filter((r: Record<string, unknown>) => r[snakeField] === value)
-            .map(toCamel);
+          const snakeField = getSnakeKey(field);
+          const res = await api.list(table, { filter: { [snakeField]: value } });
+          return res.data.map(toCamel);
         },
       }),
       notEqual: (value: unknown) => ({
         toArray: async () => {
           const api = await waitForAPI();
-          const res = await api.list(table);
-          const snakeField = field.replace(/([A-Z])/g, '_$1').toLowerCase();
-          return res.data
-            .filter((r: Record<string, unknown>) => r[snakeField] !== value)
-            .map(toCamel);
+          const snakeField = getSnakeKey(field);
+          const res = await api.list(table, { filter: { [snakeField]: { $ne: value } } });
+          return res.data.map(toCamel);
         },
       }),
       anyOf: (values: unknown[]) => ({
         toArray: async () => {
           const api = await waitForAPI();
-          const res = await api.list(table);
-          const snakeField = field.replace(/([A-Z])/g, '_$1').toLowerCase();
-          const set = new Set(values);
-          return res.data
-            .filter((r: Record<string, unknown>) => set.has(r[snakeField]))
-            .map(toCamel);
+          const snakeField = getSnakeKey(field);
+          const res = await api.list(table, { filter: { [snakeField]: values } });
+          return res.data.map(toCamel);
         },
       }),
     }),
 
     orderBy: (field: string) => {
-      const snakeField = field.replace(/([A-Z])/g, '_$1').toLowerCase();
-      const sortAsc = (rows: Record<string, unknown>[]) =>
-        [...rows].sort((a, b) => {
-          const av = a[snakeField] as string | number;
-          const bv = b[snakeField] as string | number;
-          if (av < bv) return -1;
-          if (av > bv) return 1;
-          return 0;
-        });
-      const sortDesc = (rows: Record<string, unknown>[]) => sortAsc(rows).reverse();
-
+      const snakeField = getSnakeKey(field);
       return {
         reverse: () => ({
           limit: (n: number) => ({
             toArray: async () => {
               const api = await waitForAPI();
-              const res = await api.list(table);
-              return sortDesc(res.data).slice(0, n).map(toCamel);
+              const res = await api.list(table, { orderBy: snakeField, orderDir: 'DESC', limit: n });
+              return res.data.map(toCamel);
             },
           }),
           toArray: async () => {
             const api = await waitForAPI();
-            const res = await api.list(table);
-            return sortDesc(res.data).map(toCamel);
+            const res = await api.list(table, { orderBy: snakeField, orderDir: 'DESC' });
+            return res.data.map(toCamel);
           },
         }),
         toArray: async () => {
           const api = await waitForAPI();
-          const res = await api.list(table);
-          return sortAsc(res.data).map(toCamel);
+          const res = await api.list(table, { orderBy: snakeField, orderDir: 'ASC' });
+          return res.data.map(toCamel);
         },
       };
     },
 
     bulkGet: async (ids: string[]) => {
+      if (!ids || ids.length === 0) return [];
       const api = await waitForAPI();
-      const res = await api.list(table);
-      const set = new Set(ids);
-      return res.data
-        .filter((r: Record<string, unknown>) => set.has(r.id))
-        .map(toCamel);
+      if (typeof api.bulkGet === 'function') {
+        const res = await api.bulkGet(table, ids);
+        return (res?.data || []).map(toCamel);
+      }
+      const res = await api.list(table, { filter: { id: ids } });
+      return (res?.data || []).map(toCamel);
     },
 
     clear: async () => {
       const api = await waitForAPI();
-      const res = await api.list(table);
-      await Promise.all(res.data.map((r: Record<string, unknown>) => api.remove(table, r.id)));
+      if (typeof api.clear === 'function') {
+        await api.clear(table);
+      } else {
+        const res = await api.list(table);
+        await Promise.all(res.data.map((r: Record<string, unknown>) => api.remove(table, r.id)));
+      }
     },
   };
 }
