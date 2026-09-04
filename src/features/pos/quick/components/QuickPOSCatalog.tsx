@@ -8,6 +8,7 @@ interface QuickPOSCatalogProps {
   onSearchChange: (val: string) => void;
   onSearchClear: () => void;
   searchInputRef: React.RefObject<HTMLInputElement | null>;
+  onSearchKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   suspendedOrdersCount: number;
   onOpenHeldSales: () => void;
   categories: string[] | readonly string[];
@@ -24,6 +25,7 @@ export const QuickPOSCatalog: React.FC<QuickPOSCatalogProps> = React.memo(({
   onSearchChange,
   onSearchClear,
   searchInputRef,
+  onSearchKeyDown,
   suspendedOrdersCount,
   onOpenHeldSales,
   categories,
@@ -46,7 +48,8 @@ export const QuickPOSCatalog: React.FC<QuickPOSCatalogProps> = React.memo(({
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="⚡ امسح الباركود بالكاشف أو اكتب اسم الصنف / الكود (F2)..."
+            onKeyDown={onSearchKeyDown}
+            placeholder="⚡ امسح الباركود بالكاشف أو اكتب اسم الصنف / الكود (F7)..."
             className="w-full h-11 pr-10 pl-4 bg-surface rounded-xl border-2 border-amber-500/40 focus:border-amber-500 text-sm font-bold text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none focus:ring-2 focus:ring-amber-500/20 transition-all shadow-inner"
             autoFocus
           />
@@ -68,9 +71,10 @@ export const QuickPOSCatalog: React.FC<QuickPOSCatalogProps> = React.memo(({
           <button
             onClick={onOpenHeldSales}
             className="h-11 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-700 dark:text-amber-400 text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 cursor-pointer"
+            title="الفواتير والمسودات المعلقة (F3)"
           >
             <PauseCircle className="w-4 h-4" />
-            <span>المعلقة ({suspendedOrdersCount})</span>
+            <span>المعلقة (F3) ({suspendedOrdersCount})</span>
           </button>
         )}
       </div>

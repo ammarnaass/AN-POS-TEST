@@ -521,21 +521,44 @@ export default function POSPage() {
 
   const handleSuspend = () => {
     if (cart.length === 0) return;
+    const subtotal = cart.reduce((acc, it) => acc + (it.lineTotal || (it.unitPrice * it.qty) || 0), 0);
+    const discountAmount = discountType === 'percent'
+      ? (subtotal * (discount || 0)) / 100
+      : (discount || 0);
+    const total = Math.max(0, subtotal - discountAmount);
+    const custObj = customers.find(c => c.id === selectedCustomer);
+
     const newOrder = {
       id: createId(),
       items: cart.map((it) => ({
-        productId: it.productId, name: it.name, qty: it.qty, unitPrice: it.unitPrice, lineTotal: it.lineTotal,
-        isCustom: it.isCustom, isPack: it.isPack, packId: it.packId, batchNumber: it.batchNumber,
+        productId: it.productId,
+        name: it.name,
+        qty: Number(it.qty || 1),
+        unitPrice: Number(it.unitPrice || 0),
+        lineTotal: Number(it.lineTotal || (Number(it.qty || 1) * Number(it.unitPrice || 0))),
+        isCustom: it.isCustom,
+        isPack: it.isPack,
+        packId: it.packId,
+        batchNumber: it.batchNumber,
       })),
-      customerId: selectedCustomer, discount, discountType, createdAt: new Date().toISOString(),
-      note: '', createdBy: currentUser?.name || '',
+      total,
+      subtotal,
+      customerId: selectedCustomer || '',
+      customerName: custObj?.name || '',
+      discount: discount || 0,
+      discountType: discountType || 'percent',
+      createdAt: new Date().toISOString(),
+      note: '',
+      createdBy: currentUser?.name || '',
     };
     db.suspended_orders.add(newOrder).then(() => {
       queryClient.invalidateQueries({ queryKey: ['suspendedOrders'] });
-      setSelectedCustomer(''); setDiscount(0); clearCart();
+      setSelectedCustomer('');
+      setDiscount(0);
+      clearCart();
       addNotification({
         title: 'تم تعليق الفاتورة',
-        message: `تم حفظ ${cart.length} أصناف في قائمة الفواتير المعلقة`,
+        message: `تم حفظ ${cart.length} أصناف بقيمة ${total.toLocaleString('ar-DZ')} د.ج في الفواتير المعلقة`,
         type: 'info',
       });
     });
@@ -544,10 +567,23 @@ export default function POSPage() {
   const handleResumeOrder = (orderId: string) => {
     const order = suspendedOrders.find(o => o.id === orderId);
     if (!order) return;
-    for (const item of order.items) {
+    clearCart();
+    const rawItems = order.items;
+    const items = Array.isArray(rawItems)
+      ? rawItems
+      : (typeof rawItems === 'string' ? (() => { try { return JSON.parse(rawItems); } catch { return []; } })() : []);
+
+    for (const item of items) {
       addItem({
-        productId: item.productId, name: item.name, qty: item.qty, unitPrice: item.unitPrice,
-        lineTotal: item.lineTotal, isCustom: item.isCustom, isPack: item.isPack, packId: item.packId, batchNumber: item.batchNumber,
+        productId: item.productId,
+        name: item.name,
+        qty: Number(item.qty || 1),
+        unitPrice: Number(item.unitPrice || 0),
+        lineTotal: Number(item.lineTotal || (Number(item.qty || 1) * Number(item.unitPrice || 0))),
+        isCustom: item.isCustom,
+        isPack: item.isPack,
+        packId: item.packId,
+        batchNumber: item.batchNumber,
       });
     }
     setSelectedCustomer(order.customerId || '');
@@ -557,7 +593,14 @@ export default function POSPage() {
       queryClient.invalidateQueries({ queryKey: ['suspendedOrders'] });
     });
     setShowSuspended(false);
-    addNotification({ title: 'تم استرجاع الفاتورة', message: 'تم تحميل الأصناف للسلة', type: 'success' });
+    addNotification({ title: 'تم استرجاع الفاتورة', message: 'تم تحميل الأصناف للسلة بنجاح', type: 'success' });
+  };
+
+  const handleDeleteSuspendedOrder = (orderId: string) => {
+    db.suspended_orders.delete(orderId).then(() => {
+      queryClient.invalidateQueries({ queryKey: ['suspendedOrders'] });
+      addNotification({ title: 'تم الحذف', message: 'تم حذف الفاتورة المعلقة بنجاح', type: 'info' });
+    });
   };
 
   const handleExecutePayment = () => {
@@ -663,6 +706,21 @@ export default function POSPage() {
     onOpenFreeProduct: () => setShowFreeProductModal(true),
     onOpenAddProduct: () => setShowAddProduct(true),
     onOpenAddCustomer: () => setShowAddCustomer(true),
+    onToggleAutoPrint: () => {
+      setAutoPrintReceipt((prev) => {
+        const next = !prev;
+        addNotification({
+          title: next ? 'الطباعة التلقائية: مفعلة (F5)' : 'الطباعة التلقائية: معطلة (F5)',
+          message: next ? 'سيتم طباعة الوصل تلقائياً عند إتمام الدفع' : 'تم إيقاف الطباعة التلقائية',
+          type: 'info',
+        });
+        return next;
+      });
+    },
+    onFocusSearch: () => {
+      barcodeInputRef.current?.focus();
+      barcodeInputRef.current?.select();
+    },
     onOpenOpenSession: () => setShowOpenSession(true),
     onOpenSessionWarning: () => setShowSessionWarning(true),
     onOpenCustomize: () => setShowCustomizeModal(true),
@@ -965,7 +1023,7 @@ export default function POSPage() {
             </button>
           )}
 
-          {/* 2. Star / Featured Filter (F6) */}
+          {/* 2. Star / Featured Filter */}
           <button
             type="button"
             onClick={() => setIsFeaturedOnly(!isFeaturedOnly)}
@@ -974,16 +1032,13 @@ export default function POSPage() {
                 ? 'bg-amber-500 text-white border-amber-500 shadow-amber-500/25'
                 : 'bg-surface-container hover:bg-surface-container-high text-on-surface border-outline-variant/20 hover:border-amber-500/40'
             }`}
-            title="عرض المنتجات المميزة فقط (F6)"
+            title="عرض المنتجات المميزة فقط"
           >
             <Star className={`w-4 h-4 ${isFeaturedOnly ? 'fill-current' : 'text-amber-500'}`} />
             <span>مميزة</span>
-            <span className="hidden sm:inline text-[10px] font-mono px-1.5 py-0.2 rounded bg-surface-container-high/90 border border-outline-variant/30 text-on-surface-variant font-bold shadow-2xs">F6</span>
           </button>
 
-
-
-          {/* Return Mode (F4) */}
+          {/* Return Mode (F9) */}
           <button
             onClick={() => {
               if (returnMode) { setReturnMode(false); clearCart(); }
@@ -1730,6 +1785,7 @@ export default function POSPage() {
         onClose={() => setShowSuspended(false)}
         orders={suspendedOrders}
         onResumeOrder={handleResumeOrder}
+        onDeleteOrder={handleDeleteSuspendedOrder}
       />
 
       {/* 7. Return Sale Selection Modal */}

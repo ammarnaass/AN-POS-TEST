@@ -396,8 +396,11 @@ CREATE TABLE IF NOT EXISTS suspended_orders (
   id TEXT PRIMARY KEY,
   items TEXT NOT NULL DEFAULT '[]',
   customer_id TEXT NOT NULL DEFAULT '',
+  customer_name TEXT NOT NULL DEFAULT '',
+  subtotal REAL NOT NULL DEFAULT 0,
   discount REAL NOT NULL DEFAULT 0,
   discount_type TEXT NOT NULL DEFAULT 'percent',
+  total REAL NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   note TEXT NOT NULL DEFAULT '',
   created_by TEXT DEFAULT ''
@@ -825,4 +828,8 @@ export function initSchema(): void {
     execSql("CREATE INDEX IF NOT EXISTS idx_device_sessions_token ON device_sessions(session_token);");
     execSql("CREATE INDEX IF NOT EXISTS idx_device_sessions_device ON device_sessions(device_id);");
   } catch { /* موجود */ }
+
+  try { execSql("ALTER TABLE suspended_orders ADD COLUMN customer_name TEXT DEFAULT '';"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE suspended_orders ADD COLUMN subtotal REAL DEFAULT 0;"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE suspended_orders ADD COLUMN total REAL DEFAULT 0;"); } catch { /* موجود */ }
 }

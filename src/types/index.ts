@@ -256,12 +256,16 @@ export interface CartItem {
 
 export interface SuspendedOrder {
   id: string;
-  items: CartItem[];
+  items: CartItem[] | string;
   customerId: string;
+  customerName?: string;
+  subtotal?: number;
   discount: number;
   discountType: 'percent' | 'amount';
+  total?: number;
   createdAt: string;
   note: string;
+  createdBy?: string;
 }
 
 export interface PackItem {

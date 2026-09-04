@@ -31,7 +31,7 @@ export const ClassicPOSSearchBar: React.FC<ClassicPOSSearchBarProps> = React.mem
             type="text"
             value={barcodeInput}
             onChange={(e) => setBarcodeInput(e.target.value)}
-            placeholder="امسح الباركود هنا أو اكتب الرمز واضغط Enter..."
+            placeholder="امسح الباركود (F7) أو اكتب الرمز واضغط Enter..."
             className="w-full bg-surface-container border border-outline-variant/30 rounded-xl pr-9 pl-3 py-2 text-xs sm:text-sm font-mono text-on-surface placeholder:text-on-surface-variant/50 focus:outline-hidden focus:border-primary focus:ring-1 focus:ring-primary transition-all shadow-inner"
           />
         </div>

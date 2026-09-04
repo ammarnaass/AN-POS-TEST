@@ -65,7 +65,7 @@ export function registerIpcHandlers(): void {
     { table: 'product_barcodes', searchFields: ['barcode'] },
     { table: 'connected_devices' },
     { table: 'network_settings' },
-    { table: 'suspended_orders', listOrder: 'created_at DESC' },
+    { table: 'suspended_orders', listOrder: 'created_at DESC', jsonFields: ['items'] },
     { table: 'cash_sessions', listOrder: 'opened_at DESC', jsonFields: ['deposits'] },
     { table: 'audit_logs', listOrder: 'timestamp DESC' },
   ];

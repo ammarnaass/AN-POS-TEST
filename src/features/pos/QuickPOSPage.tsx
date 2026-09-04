@@ -20,6 +20,7 @@ import { Zap, ShoppingCart } from 'lucide-react';
 import { QuickPOSHeader } from './quick/components/QuickPOSHeader';
 import { QuickPOSCatalog } from './quick/components/QuickPOSCatalog';
 import { QuickPOSCart } from './quick/components/QuickPOSCart';
+import { usePOSKeyboardShortcuts } from './hooks/usePOSKeyboardShortcuts';
 
 // Shared Modals
 import {
@@ -358,22 +359,32 @@ export default function QuickPOSPage() {
   // Hold Sale
   const handleHoldSale = useCallback(() => {
     if (cart.length === 0) return;
+    const subtotal = cart.reduce((acc, it) => acc + (it.lineTotal || (it.unitPrice * it.qty) || 0), 0);
+    const discountAmount = discountType === 'percent'
+      ? (subtotal * (discount || 0)) / 100
+      : (discount || 0);
+    const total = Math.max(0, subtotal - discountAmount);
+    const custObj = customers.find((c: any) => c.id === selectedCustomer);
+
     const newOrder = {
       id: generateId(),
       items: cart.map((it) => ({
         productId: it.productId,
         name: it.name,
-        qty: it.qty,
-        unitPrice: it.unitPrice,
-        lineTotal: it.lineTotal,
+        qty: Number(it.qty || 1),
+        unitPrice: Number(it.unitPrice || 0),
+        lineTotal: Number(it.lineTotal || (Number(it.qty || 1) * Number(it.unitPrice || 0))),
         isCustom: it.isCustom,
         isPack: it.isPack,
         packId: it.packId,
         batchNumber: it.batchNumber,
       })),
-      customerId: selectedCustomer,
-      discount,
-      discountType,
+      total,
+      subtotal,
+      customerId: selectedCustomer || '',
+      customerName: custObj?.name || '',
+      discount: discount || 0,
+      discountType: discountType || 'percent',
       createdAt: new Date().toISOString(),
       note: '',
       createdBy: currentUser?.name || '',
@@ -386,22 +397,27 @@ export default function QuickPOSPage() {
       setDiscount(0);
       addNotification({
         title: 'تم تعليق البيع',
-        message: `تم حفظ ${cart.length} أصناف في الفواتير المعلقة`,
+        message: `تم حفظ ${cart.length} أصناف بقيمة ${total.toLocaleString('ar-DZ')} د.ج في الفواتير المعلقة`,
         type: 'info',
       });
     });
-  }, [cart, selectedCustomer, discount, discountType, currentUser?.name, clearCart, setSelectedCustomer, setDiscount, queryClient, addNotification]);
+  }, [cart, selectedCustomer, discount, discountType, customers, currentUser?.name, clearCart, setSelectedCustomer, setDiscount, queryClient, addNotification]);
 
   // Restore Held Sale
   const handleRestoreHeldSale = useCallback((order: any) => {
     clearCart();
-    for (const item of order.items) {
+    const rawItems = order.items;
+    const items = Array.isArray(rawItems)
+      ? rawItems
+      : (typeof rawItems === 'string' ? (() => { try { return JSON.parse(rawItems); } catch { return []; } })() : []);
+
+    for (const item of items) {
       addItem({
         productId: item.productId,
         name: item.name,
-        qty: item.qty,
-        unitPrice: item.unitPrice,
-        lineTotal: item.lineTotal,
+        qty: Number(item.qty || 1),
+        unitPrice: Number(item.unitPrice || 0),
+        lineTotal: Number(item.lineTotal || (Number(item.qty || 1) * Number(item.unitPrice || 0))),
         isCustom: item.isCustom,
         isPack: item.isPack,
         packId: item.packId,
@@ -415,201 +431,91 @@ export default function QuickPOSPage() {
       queryClient.invalidateQueries({ queryKey: ['suspendedOrders'] });
     });
     setShowHeldSalesModal(false);
-    addNotification({ title: 'تم استرجاع الفاتورة', message: 'تم تحميل الأصناف للسلة', type: 'success' });
+    addNotification({ title: 'تم استرجاع الفاتورة', message: 'تم تحميل الأصناف للسلة بنجاح', type: 'success' });
   }, [clearCart, addItem, setSelectedCustomer, setDiscount, setDiscountType, queryClient, addNotification]);
 
-  // Keyboard Shortcuts Listener (F1 - F12)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        setShowSuccessModal(false);
-        setShowAddCustomerModal(false);
-        setShowHeldSalesModal(false);
-        setShowShortcutsModal(false);
-        setShowFreeProductModal(false);
-        setShowOpenSessionModal(false);
-        return;
+  // Delete Held Sale
+  const handleDeleteHeldSale = useCallback((orderId: string) => {
+    db.suspended_orders.delete(orderId).then(() => {
+      queryClient.invalidateQueries({ queryKey: ['suspendedOrders'] });
+      addNotification({ title: 'تم الحذف', message: 'تم حذف الفاتورة المعلقة بنجاح', type: 'info' });
+    });
+  }, [queryClient, addNotification]);
+
+  // Search input Enter key handler
+  const handleSearchKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && searchQuery.trim()) {
+      e.preventDefault();
+      if (filteredProducts.length === 1) {
+        handleAddProduct(filteredProducts[0]);
+        setSearchQuery('');
+      } else {
+        handleBarcodeScan(searchQuery);
       }
+    }
+  }, [searchQuery, filteredProducts, handleAddProduct, handleBarcodeScan]);
 
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        if (e.key === 'Enter' && e.target === searchInputRef.current && searchQuery.trim()) {
-          e.preventDefault();
-          if (filteredProducts.length === 1) {
-            handleAddProduct(filteredProducts[0]);
-            setSearchQuery('');
-          } else {
-            handleBarcodeScan(searchQuery);
-          }
-          return;
-        }
-      }
-
-      switch (e.key) {
-        case 'F1':
-          e.preventDefault();
-          if (cart.length > 0) {
-            clearCart();
-            setSelectedCustomer('');
-            setDiscount(0);
-            setCashTendered(0);
-            addNotification({
-              title: 'إفراغ السلة (F1)',
-              message: 'تم تفريغ سلة المبيعات بالكامل',
-              type: 'info',
-            });
-          }
-          break;
-
-        case 'F2':
-          e.preventDefault();
-          if (cart.length > 0) {
-            handleHoldSale();
-          } else {
-            addNotification({
-              title: 'السلة فارغة',
-              message: 'أضف منتجات أولاً لحفظ السلة كمسودة (F2)',
-              type: 'warning',
-            });
-          }
-          break;
-
-        case 'F3':
-          e.preventDefault();
-          setShowHeldSalesModal(true);
-          break;
-
-        case 'F4':
-          e.preventDefault();
-          navigate('/sales');
-          break;
-
-        case 'F5':
-          e.preventDefault();
-          setAutoPrintReceipt(!autoPrintReceipt);
-          addNotification({
-            title: !autoPrintReceipt ? 'الطباعة التلقائية: مفعلة (F5)' : 'الطباعة التلقائية: معطلة (F5)',
-            message: !autoPrintReceipt ? 'سيتم طباعة الوصل تلقائياً عند إتمام الدفع' : 'تم إيقاف الطباعة التلقائية',
-            type: 'info',
-          });
-          break;
-
-        case 'F6':
-          e.preventDefault();
-          if (categories.length > 0) {
-            setSelectedCategory((prev) => {
-              if (prev === 'all') return categories[0] || 'all';
-              const currIdx = categories.indexOf(prev);
-              if (currIdx === -1 || currIdx === categories.length - 1) return 'all';
-              return categories[currIdx + 1];
-            });
-          }
-          break;
-
-        case 'F7':
-          e.preventDefault();
-          searchInputRef.current?.focus();
-          searchInputRef.current?.select();
-          break;
-
-        case 'F8':
-          e.preventDefault();
-          setShowFreeProductModal(true);
-          break;
-
-        case 'F9':
-        case 'F10':
-          e.preventDefault();
-          navigate('/sales');
-          break;
-
-        case 'F12':
-          e.preventDefault();
-          if (cart.length > 0) {
-            const lastItem = cart[cart.length - 1];
-            const newQtyStr = prompt(`أدخل الكمية الجديدة لـ (${lastItem.name}):`, lastItem.qty.toString());
-            if (newQtyStr) {
-              const q = parseFloat(newQtyStr);
-              if (!isNaN(q) && q > 0) updateQty(lastItem.productId, q);
-            }
-          }
-          break;
-
-        case '?':
-          e.preventDefault();
-          setShowShortcutsModal(true);
-          break;
-
-        case 'Delete': {
-          e.preventDefault();
-          if (cart.length > 0) {
-            removeItem(cart[cart.length - 1].productId);
-          }
-          break;
-        }
-
-        case '+':
-        case '=': {
-          e.preventDefault();
-          if (cart.length > 0) {
-            const lastItem = cart[cart.length - 1];
-            updateQty(lastItem.productId, lastItem.qty + 1);
-          }
-          break;
-        }
-
-        case '-':
-        case '_': {
-          e.preventDefault();
-          if (cart.length > 0) {
-            const lastItem = cart[cart.length - 1];
-            updateQty(lastItem.productId, Math.max(1, lastItem.qty - 1));
-          }
-          break;
-        }
-
-        case 'Enter':
-          if (!showSuccessModal && !showAddCustomerModal && !showHeldSalesModal && !showFreeProductModal && !showOpenSessionModal && cart.length > 0) {
-            if (!(e.target instanceof HTMLInputElement) || e.target === searchInputRef.current) {
-              e.preventDefault();
-              handleQuickPay();
-            }
-          } else if (showSuccessModal) {
-            e.preventDefault();
-            setShowSuccessModal(false);
-            searchInputRef.current?.focus();
-          }
-          break;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [
+  // Unified Global Keyboard Shortcuts Listener (F1 - F12)
+  usePOSKeyboardShortcuts({
     cart,
-    searchQuery,
-    filteredProducts,
-    showSuccessModal,
-    showAddCustomerModal,
-    showHeldSalesModal,
-    showShortcutsModal,
-    showFreeProductModal,
-    showOpenSessionModal,
-    categories,
-    autoPrintReceipt,
-    setAutoPrintReceipt,
-    handleQuickPay,
-    handleHoldSale,
-    handleAddProduct,
-    handleBarcodeScan,
-    clearCart,
-    setSelectedCustomer,
-    setDiscount,
-    navigate,
+    selectedItemId: null,
+    isSessionOpen,
+    total: saleSummary.total,
+    isAnyModalOpen:
+      showSuccessModal ||
+      showAddCustomerModal ||
+      showHeldSalesModal ||
+      showShortcutsModal ||
+      showFreeProductModal ||
+      showOpenSessionModal,
+    isPaymentModalOpen: false,
+    isSuccessModalOpen: showSuccessModal,
+    onCloseAllModals: () => {
+      setShowSuccessModal(false);
+      setShowAddCustomerModal(false);
+      setShowHeldSalesModal(false);
+      setShowShortcutsModal(false);
+      setShowFreeProductModal(false);
+      setShowOpenSessionModal(false);
+    },
+    onCloseSuccessModal: () => {
+      setShowSuccessModal(false);
+      searchInputRef.current?.focus();
+    },
+    onOpenPayment: handleQuickPay,
+    onSuspendSale: handleHoldSale,
+    onOpenSuspended: () => setShowHeldSalesModal(true),
+    onClearCart: () => {
+      clearCart();
+      setSelectedCustomer('');
+      setDiscount(0);
+      setCashTendered(0);
+    },
+    onToggleAutoPrint: () => {
+      setAutoPrintReceipt((prev) => {
+        const next = !prev;
+        addNotification({
+          title: next ? 'الطباعة التلقائية: مفعلة (F5)' : 'الطباعة التلقائية: معطلة (F5)',
+          message: next ? 'سيتم طباعة الوصل تلقائياً عند إتمام الدفع' : 'تم إيقاف الطباعة التلقائية',
+          type: 'info',
+        });
+        return next;
+      });
+    },
+    onOpenAddCustomer: () => setShowAddCustomerModal(true),
+    onFocusSearch: () => {
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    },
+    onOpenFreeProduct: () => setShowFreeProductModal(true),
+    onOpenReturns: () => navigate('/sales'),
+    onOpenOpenSession: () => setShowOpenSessionModal(true),
+    onOpenSessionWarning: () => setShowOpenSessionModal(true),
+    onOpenShortcuts: () => setShowShortcutsModal(true),
+    onUpdateQty: (item, newQty) => updateQty(item.productId, newQty),
+    onRemoveItem: removeItem,
     addNotification,
-    updateQty,
-    removeItem,
-  ]);
+  });
 
   return (
     <div className="flex flex-col h-screen w-full bg-surface-container-lowest text-on-surface select-none overflow-hidden font-sans">
@@ -671,6 +577,7 @@ export default function QuickPOSPage() {
             searchInputRef.current?.focus();
           }}
           searchInputRef={searchInputRef}
+          onSearchKeyDown={handleSearchKeyDown}
           suspendedOrdersCount={suspendedOrders.length}
           onOpenHeldSales={() => setShowHeldSalesModal(true)}
           categories={categories}
@@ -725,6 +632,7 @@ export default function QuickPOSPage() {
           const order = suspendedOrders.find((o: any) => o.id === orderId);
           if (order) handleRestoreHeldSale(order);
         }}
+        onDeleteOrder={handleDeleteHeldSale}
       />
 
       <QuickCustomerModal

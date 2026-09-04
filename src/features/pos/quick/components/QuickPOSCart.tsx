@@ -119,19 +119,19 @@ export const QuickPOSCart: React.FC<QuickPOSCartProps> = React.memo(({
                 onClick={onHoldSale}
                 disabled={cart.length === 0}
                 className="px-2 py-1 rounded-lg text-[11px] font-bold text-amber-600 hover:bg-amber-500/10 disabled:opacity-40 transition-colors flex items-center gap-1 cursor-pointer"
-                title="تعليق البيع مؤقتاً (F5)"
+                title="تعليق البيع مؤقتاً (F2)"
               >
                 <PauseCircle className="w-3.5 h-3.5" />
-                <span>تعليق (F5)</span>
+                <span>تعليق (F2)</span>
               </button>
               <button
                 onClick={onClearCart}
                 disabled={cart.length === 0}
                 className="px-2 py-1 rounded-lg text-[11px] font-bold text-red-500 hover:bg-red-500/10 disabled:opacity-40 transition-colors flex items-center gap-1 cursor-pointer"
-                title="تفريغ السلة بالكامل"
+                title="تفريغ السلة بالكامل (F4)"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>تفريغ</span>
+                <span>تفريغ (F4)</span>
               </button>
             </div>
           </div>
@@ -153,7 +153,7 @@ export const QuickPOSCart: React.FC<QuickPOSCartProps> = React.memo(({
             <button
               onClick={onOpenAddCustomerModal}
               className="h-8 px-2 rounded-xl bg-surface hover:bg-surface-container-high border border-outline-variant/20 text-amber-600 text-xs font-bold flex items-center gap-1 cursor-pointer"
-              title="إضافة عميل جديد (F4)"
+              title="تحديد أو إضافة عميل (F6)"
             >
               <UserPlus className="w-3.5 h-3.5" />
             </button>
@@ -307,7 +307,7 @@ export const QuickPOSCart: React.FC<QuickPOSCartProps> = React.memo(({
           >
             <div className="flex items-center gap-2">
               <Zap className="w-5 h-5 fill-current" />
-              <span>{isSalePending ? 'جاري الحفظ...' : 'دفع فوري وحفظ (Enter)'}</span>
+              <span>{isSalePending ? 'جاري الحفظ...' : 'دفع فوري وحفظ (F1)'}</span>
             </div>
             <div className="flex items-baseline gap-1 font-mono text-lg">
               <span>{formatMoney(saleSummary.total)}</span>
