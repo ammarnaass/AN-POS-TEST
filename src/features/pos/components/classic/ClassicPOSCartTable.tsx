@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ScanLine, Minus, Plus, Trash2 } from 'lucide-react';
+import { ScanLine, Minus, Plus, Trash2, Calculator } from 'lucide-react';
 import type { CartItem } from '@/types';
 
 const POSLiveClock = React.memo(() => {
@@ -17,11 +17,15 @@ interface ClassicPOSCartTableProps {
   onSelectCartRow: (id: string) => void;
   onUpdateQty: (productId: string, qty: number) => void;
   onRemoveFromCart: (productId: string) => void;
+  onOpenKeypadForQty?: (item: CartItem) => void;
   productBarcodeMap: Map<string, string>;
   formatMoney: (amount?: number) => string;
   totalItemsCount: number;
   totalUnitsCount: number;
   selectedCustomerName: string;
+  subtotal?: number;
+  discountAmount?: number;
+  totalAmount?: number;
 }
 
 export const ClassicPOSCartTable: React.FC<ClassicPOSCartTableProps> = React.memo(({
@@ -30,37 +34,41 @@ export const ClassicPOSCartTable: React.FC<ClassicPOSCartTableProps> = React.mem
   onSelectCartRow,
   onUpdateQty,
   onRemoveFromCart,
+  onOpenKeypadForQty,
   productBarcodeMap,
   formatMoney,
   totalItemsCount,
   totalUnitsCount,
   selectedCustomerName,
+  subtotal,
+  discountAmount,
+  totalAmount,
 }) => {
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-surface border-b border-outline-variant/20 overflow-hidden">
       {/* Table Container with Custom Scrollbar */}
       <div className="flex-1 overflow-y-auto custom-scrollbar">
         <table className="w-full text-right border-collapse text-xs">
-          <thead className="sticky top-0 z-10 bg-surface-container text-on-surface-variant font-bold border-b border-outline-variant/20 shadow-xs">
+          <thead className="sticky top-0 z-10 bg-surface-container text-on-surface-variant font-extrabold border-b border-outline-variant/20 shadow-xs">
             <tr>
-              <th className="py-2 px-3 text-center w-10">#</th>
-              <th className="py-2 px-3">التعيين (اسم المنتج)</th>
-              <th className="py-2 px-3 font-mono">الباركود</th>
-              <th className="py-2 px-3 text-center w-28">الكمية</th>
-              <th className="py-2 px-3 text-left font-mono">سعر الوحدة</th>
-              <th className="py-2 px-3 text-left font-mono">التخفيض</th>
-              <th className="py-2 px-3 text-left font-mono font-black">المجموع</th>
-              <th className="py-2 px-2 text-center w-12">حذف</th>
+              <th className="py-2.5 px-3 text-center w-10">#</th>
+              <th className="py-2.5 px-3">التعيين (اسم المنتج)</th>
+              <th className="py-2.5 px-3 font-mono">الباركود</th>
+              <th className="py-2.5 px-3 text-center w-36">الكمية</th>
+              <th className="py-2.5 px-3 text-left font-mono">سعر الوحدة</th>
+              <th className="py-2.5 px-3 text-left font-mono">التخفيض</th>
+              <th className="py-2.5 px-3 text-left font-mono font-black">المجموع</th>
+              <th className="py-2.5 px-2 text-center w-14">حذف</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-outline-variant/10 font-sans">
             {cart.length === 0 ? (
               <tr>
-                <td colSpan={8} className="py-12 text-center text-on-surface-variant/60">
-                  <div className="flex flex-col items-center justify-center gap-2">
-                    <ScanLine className="w-8 h-8 text-primary/40 animate-pulse" />
-                    <p className="text-xs sm:text-sm font-bold">السلة فارغة</p>
-                    <p className="text-[11px] text-on-surface-variant/50 font-mono">
+                <td colSpan={8} className="py-14 text-center text-on-surface-variant/60">
+                  <div className="flex flex-col items-center justify-center gap-2.5">
+                    <ScanLine className="w-9 h-9 text-primary/40 animate-pulse" />
+                    <p className="text-sm font-black text-on-surface">السلة فارغة</p>
+                    <p className="text-xs text-on-surface-variant/60 font-mono">
                       امسح باركود المنتج بواسطة القارئ أو اضغط على أي منتج من القائمة بالأسفل
                     </p>
                   </div>
@@ -81,30 +89,31 @@ export const ClassicPOSCartTable: React.FC<ClassicPOSCartTableProps> = React.mem
                         : 'bg-surface-container-lowest/50 hover:bg-surface-container-low'
                     }`}
                   >
-                    <td className="py-2 px-3 text-center font-mono text-on-surface-variant/70">
+                    <td className="py-2.5 px-3 text-center font-mono text-on-surface-variant/70 text-xs">
                       {index + 1}
                     </td>
-                    <td className="py-2 px-3 font-medium text-on-surface">
+                    <td className="py-2.5 px-3 font-bold text-on-surface text-xs sm:text-[13px]">
                       <div className="flex items-center gap-1.5">
                         <span className="truncate">{item.name}</span>
                         {(item as any).variantName && (
-                          <span className="text-[10px] px-1.5 py-0.2 bg-primary/10 text-primary rounded font-mono">
+                          <span className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded font-mono font-bold">
                             {(item as any).variantName}
                           </span>
                         )}
                       </div>
                     </td>
-                    <td className="py-2 px-3 font-mono text-on-surface-variant text-[11px]">
+                    <td className="py-2.5 px-3 font-mono text-on-surface-variant text-[11px]">
                       {(item as any).barcode || productBarcodeMap.get(item.productId) || '—'}
                     </td>
-                    <td className="py-1.5 px-3">
-                      <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
+                    <td className="py-2 px-3">
+                      <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
                           onClick={() => onUpdateQty(item.productId, Math.max(1, item.qty - 1))}
-                          className="w-5 h-5 rounded bg-surface-container hover:bg-surface-container-high text-on-surface flex items-center justify-center transition-colors cursor-pointer"
+                          className="w-8 h-8 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 active:scale-90 text-on-surface flex items-center justify-center transition-all cursor-pointer shadow-2xs shrink-0"
+                          title="إنقاص الكمية (-)"
                         >
-                          <Minus className="w-3 h-3" />
+                          <Minus className="w-4 h-4" />
                         </button>
                         <input
                           type="number"
@@ -113,34 +122,45 @@ export const ClassicPOSCartTable: React.FC<ClassicPOSCartTableProps> = React.mem
                             const val = parseFloat(e.target.value);
                             if (!isNaN(val) && val > 0) onUpdateQty(item.productId, val);
                           }}
-                          className="w-11 text-center font-mono font-bold bg-surface-container border border-outline-variant/20 rounded py-0.5 text-xs focus:outline-hidden focus:border-primary"
+                          className="w-12 h-8 text-center font-mono font-black text-sm bg-surface-container border border-outline-variant/25 rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary shadow-inner"
                         />
                         <button
                           type="button"
                           onClick={() => onUpdateQty(item.productId, item.qty + 1)}
-                          className="w-5 h-5 rounded bg-surface-container hover:bg-surface-container-high text-on-surface flex items-center justify-center transition-colors cursor-pointer"
+                          className="w-8 h-8 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 active:scale-90 text-on-surface flex items-center justify-center transition-all cursor-pointer shadow-2xs shrink-0"
+                          title="زيادة الكمية (+)"
                         >
-                          <Plus className="w-3 h-3" />
+                          <Plus className="w-4 h-4" />
                         </button>
+                        {onOpenKeypadForQty && (
+                          <button
+                            type="button"
+                            onClick={() => onOpenKeypadForQty(item)}
+                            className="w-7 h-8 rounded-lg text-primary/70 hover:text-primary hover:bg-primary/10 flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                            title="لوحة أرقام لمسية"
+                          >
+                            <Calculator className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </td>
-                    <td className="py-2 px-3 text-left font-mono text-on-surface-variant">
+                    <td className="py-2.5 px-3 text-left font-mono text-on-surface-variant font-medium text-xs sm:text-[13px]">
                       {formatMoney((item as any).unitPrice ?? (item as any).price ?? 0)}
                     </td>
-                    <td className="py-2 px-3 text-left font-mono text-emerald-500">
+                    <td className="py-2.5 px-3 text-left font-mono text-emerald-500 font-bold text-xs sm:text-[13px]">
                       {(item as any).discount && (item as any).discount > 0 ? `-${formatMoney((item as any).discount)}` : '0.00'}
                     </td>
-                    <td className="py-2 px-3 text-left font-mono font-black text-on-surface text-sm">
+                    <td className="py-2.5 px-3 text-left font-mono font-black text-primary text-sm sm:text-base">
                       {formatMoney(item.lineTotal)}
                     </td>
                     <td className="py-2 px-2 text-center" onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
                         onClick={() => onRemoveFromCart(item.productId)}
-                        className="w-6 h-6 rounded-lg text-red-400 hover:text-red-500 hover:bg-red-500/10 flex items-center justify-center transition-colors cursor-pointer mx-auto"
-                        title="حذف هذا المنتج"
+                        className="w-8 h-8 rounded-xl text-red-500 hover:bg-red-500/15 border border-transparent hover:border-red-500/30 flex items-center justify-center transition-all active:scale-95 cursor-pointer mx-auto shadow-2xs"
+                        title="حذف هذا المنتج (Delete)"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </td>
                   </tr>
@@ -152,15 +172,26 @@ export const ClassicPOSCartTable: React.FC<ClassicPOSCartTableProps> = React.mem
       </div>
 
       {/* Table Footer Status Bar */}
-      <div className="bg-surface-container-low/90 border-t border-outline-variant/15 px-3 py-1.5 flex items-center justify-between text-[11px] text-on-surface-variant shrink-0 font-mono">
-        <div className="flex items-center gap-4">
+      <div className="bg-surface-container-low/90 border-t border-outline-variant/15 px-3 py-1.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-on-surface-variant shrink-0 font-mono">
+        <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
           <POSLiveClock />
           <span>عدد المواد: <strong className="text-on-surface">{totalItemsCount}</strong></span>
           <span>إجمالي القطع: <strong className="text-on-surface">{totalUnitsCount}</strong></span>
-        </div>
-        <div className="flex items-center gap-3">
           <span>الزبون: <strong className="text-primary font-sans">{selectedCustomerName || 'زبون عام'}</strong></span>
-          <span className="text-emerald-500 font-sans font-bold">تقبض فقط</span>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {subtotal !== undefined && (
+            <span>المجموع: <strong className="text-on-surface">{formatMoney(subtotal)} دج</strong></span>
+          )}
+          {discountAmount !== undefined && discountAmount > 0 && (
+            <span className="text-emerald-500 font-bold">تخفيض: -{formatMoney(discountAmount)} دج</span>
+          )}
+          {totalAmount !== undefined && (
+            <span className="px-2 py-0.5 rounded-lg bg-primary/10 border border-primary/20 text-primary font-black text-xs">
+              الإجمالي: {formatMoney(totalAmount)} دج
+            </span>
+          )}
         </div>
       </div>
     </div>

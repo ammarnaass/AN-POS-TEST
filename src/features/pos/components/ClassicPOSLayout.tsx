@@ -42,6 +42,10 @@ interface ClassicPOSLayoutProps {
   storeName?: string;
   isSessionOpen: boolean;
   isSalePending: boolean;
+  onOpenKeypad?: () => void;
+  onOpenKeypadForQty?: (item: CartItem) => void;
+  onSaveAsProforma?: () => void;
+  onSaveAsOrder?: () => void;
 }
 
 const MAX_QUICK_PRODUCTS = 60;
@@ -79,6 +83,10 @@ export const ClassicPOSLayout: React.FC<ClassicPOSLayoutProps> = ({
   storeName = 'AN POS',
   isSessionOpen,
   isSalePending,
+  onOpenKeypad,
+  onOpenKeypadForQty,
+  onSaveAsProforma,
+  onSaveAsOrder,
 }) => {
   const [selectedCartRowId, setSelectedCartRowId] = useState<string | null>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
@@ -159,6 +167,9 @@ export const ClassicPOSLayout: React.FC<ClassicPOSLayoutProps> = ({
         totalUnitsCount={totalUnitsCount}
         currency={currency}
         formatMoney={formatMoney}
+        onOpenKeypad={onOpenKeypad}
+        onSaveAsProforma={onSaveAsProforma}
+        onSaveAsOrder={onSaveAsOrder}
       />
 
       {/* 2. BARCODE & PRODUCT SEARCH BAR */}
@@ -178,11 +189,15 @@ export const ClassicPOSLayout: React.FC<ClassicPOSLayoutProps> = ({
         onSelectCartRow={setSelectedCartRowId}
         onUpdateQty={onUpdateQty}
         onRemoveFromCart={onRemoveFromCart}
+        onOpenKeypadForQty={onOpenKeypadForQty}
         productBarcodeMap={productBarcodeMap}
         formatMoney={formatMoney}
         totalItemsCount={totalItemsCount}
         totalUnitsCount={totalUnitsCount}
         selectedCustomerName={selectedCustomerName}
+        subtotal={saleSummary.subtotal}
+        discountAmount={saleSummary.discountAmount}
+        totalAmount={saleSummary.total}
       />
 
       {/* 4. BOTTOM SECTION: QUICK ITEMS GRID & CATEGORIES */}

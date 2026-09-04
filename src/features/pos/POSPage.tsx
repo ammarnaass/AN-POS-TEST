@@ -50,6 +50,7 @@ import {
   SaveAsOrderModal,
   QuickProductModal,
   CustomerSelectModal,
+  TouchKeypadModal,
 } from './modals';
 
 const PRODUCTS_PER_PAGE = 12;
@@ -1052,7 +1053,7 @@ export default function POSPage() {
           >
             <RotateCcw className="w-4 h-4 text-red-500" />
             <span>الإرجاع</span>
-            <span className="hidden sm:inline text-[10px] font-mono px-1.5 py-0.2 rounded bg-surface-container-high/90 border border-outline-variant/30 text-on-surface-variant font-bold shadow-2xs">F4</span>
+            <span className="hidden sm:inline text-[10px] font-mono px-1.5 py-0.2 rounded bg-surface-container-high/90 border border-outline-variant/30 text-on-surface-variant font-bold shadow-2xs">F9</span>
           </button>
 
           {/* Free Product (F8) */}
@@ -1171,12 +1172,31 @@ export default function POSPage() {
           }}
           onOpenDiscount={() => setShowDiscountModal(true)}
           onOpenReturns={() => setShowReturnSaleModal(true)}
+          onOpenKeypad={() => {
+            setKeypadTarget('paid');
+            setKeypadInput(String(saleSummary.total || ''));
+            setShowKeypad(true);
+          }}
+          onOpenKeypadForQty={(item) => {
+            setSelectedItemId(item.productId);
+            setKeypadTarget('qty');
+            setKeypadInput(String(item.qty || '1'));
+            setShowKeypad(true);
+          }}
           formatMoney={formatMoney}
           currency="دج"
           userName={currentUser?.name || 'Admin'}
           storeName={settingsOrDefault?.shopName || 'AN POS'}
           isSessionOpen={isSessionOpen}
           isSalePending={isSalePending}
+          onSaveAsProforma={() => {
+            if (cart.length === 0) return;
+            setShowSaveAsProformaModal(true);
+          }}
+          onSaveAsOrder={() => {
+            if (cart.length === 0) return;
+            setShowSaveAsOrderModal(true);
+          }}
         />
       ) : (
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
@@ -1388,6 +1408,7 @@ export default function POSPage() {
           {/* Bottom Financial & Action Bar for Design 2 */}
           {posLayout === 'bottom' && (
             <POSActionBar
+              layoutVariant="bottom"
               cartLength={cart.length}
               subtotal={saleSummary.subtotal}
               total={saleSummary.total}
@@ -1632,6 +1653,7 @@ export default function POSPage() {
           {/* Cart Summary & Action Buttons (VISIBLE IN SIDEBAR MODE OR MOBILE CART VIEW) */}
           {(posLayout === 'sidebar' || mobileTab === 'cart') && (
             <POSActionBar
+              layoutVariant="sidebar"
               cartLength={cart.length}
               subtotal={saleSummary.subtotal}
               total={saleSummary.total}
@@ -1676,6 +1698,55 @@ export default function POSPage() {
               }}
               showFinancialSummary={true}
             />
+          )}
+
+          {/* Design 2 Mini Cart Anchor Footer (VISIBLE IN BOTTOM LAYOUT ON DESKTOP) */}
+          {posLayout === 'bottom' && mobileTab !== 'cart' && (
+            <div className="p-3 bg-surface-container/95 border-t border-outline-variant/20 shrink-0 shadow-lg flex items-center justify-between gap-2.5 animate-in slide-in-from-bottom-2 duration-200">
+              <div className="min-w-0">
+                <div className="text-[11px] font-bold text-on-surface-variant flex items-center gap-1">
+                  <span>الإجمالي ({cart.length} أصناف):</span>
+                </div>
+                <div className="text-base sm:text-lg font-black font-mono text-primary truncate">
+                  {formatMoney(saleSummary.total)} <span className="text-xs font-extrabold">دج</span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearCart();
+                    setSelectedCustomer('');
+                    setDiscount(0);
+                  }}
+                  disabled={cart.length === 0}
+                  title="إلغاء وإفراغ السلة (F4)"
+                  className="p-2 rounded-xl bg-surface-container-low hover:bg-red-500/15 text-red-600 border border-outline-variant/20 hover:border-red-500/30 transition-all cursor-pointer disabled:opacity-40 shadow-2xs active:scale-95"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!isSessionOpen) {
+                      setShowSessionWarning(true);
+                      return;
+                    }
+                    if (cart.length === 0) return;
+                    setPaidAmount(saleSummary.total);
+                    setShowPaymentModal(true);
+                  }}
+                  disabled={cart.length === 0 || isSalePending}
+                  title="تسوية الفاتورة والدفع السريع (F1)"
+                  className="py-2 px-3 rounded-xl bg-gradient-to-r from-primary to-blue-600 hover:from-primary/95 text-on-primary font-black text-xs flex items-center gap-1.5 shadow-md shadow-primary/20 active:scale-95 transition-all cursor-pointer disabled:opacity-40"
+                >
+                  <Receipt className="w-4 h-4" />
+                  <span>دفع (F1)</span>
+                </button>
+              </div>
+            </div>
           )}
         </aside>
       </div>
@@ -1940,6 +2011,48 @@ export default function POSPage() {
         onClose={() => setShowAddProduct(false)}
         onProductCreatedAndAdded={(product) => {
           handleAddProduct(product);
+        }}
+      />
+
+      {/* 16. Touch Virtual Numpad / Keypad Modal */}
+      <TouchKeypadModal
+        isOpen={showKeypad}
+        onClose={() => setShowKeypad(false)}
+        inputVal={keypadInput}
+        target={keypadTarget}
+        onTargetChange={(t) => {
+          setKeypadTarget(t);
+          if (t === 'paid') setKeypadInput(String(paidAmount || saleSummary.total || ''));
+          else if (t === 'discount') setKeypadInput(String(discount || ''));
+          else if (t === 'qty') {
+            const it = cart.find((c) => c.productId === selectedItemId) || cart[cart.length - 1];
+            setKeypadInput(String(it?.qty || '1'));
+          }
+        }}
+        onKeyPress={handleKeypadPress}
+        targetItemName={
+          keypadTarget === 'qty'
+            ? (cart.find((c) => c.productId === selectedItemId) || cart[cart.length - 1])?.name
+            : undefined
+        }
+        totalAmount={saleSummary.total}
+        onApplyExactTotal={() => {
+          setPaidAmount(saleSummary.total);
+          setKeypadInput(String(saleSummary.total));
+        }}
+        onQuickIncrement={(inc) => {
+          const current = Number(keypadInput) || 0;
+          const next = current + inc;
+          setKeypadInput(String(next));
+          if (keypadTarget === 'qty') {
+            const targetId = selectedItemId ?? cart[cart.length - 1]?.productId;
+            if (targetId) {
+              const it = cart.find((c) => c.productId === targetId);
+              if (it && next > 0) handleUpdateQty(it, next);
+            }
+          } else if (keypadTarget === 'paid') {
+            setPaidAmount(next);
+          }
         }}
       />
     </div>

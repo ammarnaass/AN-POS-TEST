@@ -114,34 +114,34 @@ export const QuickPOSCart: React.FC<QuickPOSCartProps> = React.memo(({
               </span>
             </div>
 
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               <button
                 onClick={onHoldSale}
                 disabled={cart.length === 0}
-                className="px-2 py-1 rounded-lg text-[11px] font-bold text-amber-600 hover:bg-amber-500/10 disabled:opacity-40 transition-colors flex items-center gap-1 cursor-pointer"
+                className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-amber-600 hover:bg-amber-500/10 border border-transparent hover:border-amber-500/20 disabled:opacity-40 transition-all flex items-center gap-1 cursor-pointer active:scale-95"
                 title="تعليق البيع مؤقتاً (F2)"
               >
-                <PauseCircle className="w-3.5 h-3.5" />
+                <PauseCircle className="w-4 h-4" />
                 <span>تعليق (F2)</span>
               </button>
               <button
                 onClick={onClearCart}
                 disabled={cart.length === 0}
-                className="px-2 py-1 rounded-lg text-[11px] font-bold text-red-500 hover:bg-red-500/10 disabled:opacity-40 transition-colors flex items-center gap-1 cursor-pointer"
+                className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-red-500 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 disabled:opacity-40 transition-all flex items-center gap-1 cursor-pointer active:scale-95"
                 title="تفريغ السلة بالكامل (F4)"
               >
-                <Trash2 className="w-3.5 h-3.5" />
+                <Trash2 className="w-4 h-4" />
                 <span>تفريغ (F4)</span>
               </button>
             </div>
           </div>
 
           {/* Customer Quick Selector */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             <select
               value={selectedCustomer}
               onChange={(e) => onSelectCustomer(e.target.value)}
-              className="flex-1 h-8 px-2.5 bg-surface border border-outline-variant/20 rounded-xl text-xs text-on-surface font-bold focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
+              className="flex-1 h-10 px-3 bg-surface border border-outline-variant/20 rounded-xl text-xs sm:text-[13px] text-on-surface font-bold focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer shadow-inner"
             >
               <option value="">زبون نقدي (افتراضي)</option>
               {customers.map((c) => (
@@ -152,10 +152,10 @@ export const QuickPOSCart: React.FC<QuickPOSCartProps> = React.memo(({
             </select>
             <button
               onClick={onOpenAddCustomerModal}
-              className="h-8 px-2 rounded-xl bg-surface hover:bg-surface-container-high border border-outline-variant/20 text-amber-600 text-xs font-bold flex items-center gap-1 cursor-pointer"
+              className="w-10 h-10 rounded-xl bg-surface hover:bg-surface-container-high border border-outline-variant/20 text-amber-600 text-xs font-bold flex items-center justify-center transition-all active:scale-95 cursor-pointer shadow-2xs shrink-0"
               title="تحديد أو إضافة عميل (F6)"
             >
-              <UserPlus className="w-3.5 h-3.5" />
+              <UserPlus className="w-4 h-4" />
             </button>
           </div>
 

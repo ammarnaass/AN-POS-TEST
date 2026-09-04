@@ -30,7 +30,7 @@ export const ClassicPOSProductGrid: React.FC<ClassicPOSProductGridProps> = React
   return (
     <>
       {/* 4. BOTTOM SECTION: QUICK ITEMS GRID & CATEGORIES */}
-      <div className="h-[40vh] min-h-[220px] max-h-[380px] flex flex-row overflow-hidden bg-surface-container-lowest/60 shrink-0">
+      <div className="h-[28vh] sm:h-[30vh] min-h-[190px] max-h-[265px] flex flex-row overflow-hidden bg-surface-container-lowest/60 shrink-0">
         {/* Left / Center: Quick Product Buttons Grid */}
         <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
           {displayedProducts.length === 0 ? (
@@ -115,8 +115,8 @@ export const ClassicPOSProductGrid: React.FC<ClassicPOSProductGridProps> = React
                             {currency}
                           </span>
                         </div>
-                        <div className="w-5 h-5 rounded-md bg-primary/10 group-hover:bg-primary text-primary group-hover:text-on-primary border border-primary/20 group-hover:border-transparent flex items-center justify-center transition-colors shadow-2xs">
-                          <Plus className="w-3.5 h-3.5" />
+                        <div className="w-7 h-7 rounded-lg bg-primary/10 group-hover:bg-primary text-primary group-hover:text-on-primary border border-primary/20 group-hover:border-transparent flex items-center justify-center transition-colors shadow-2xs active:scale-90 shrink-0">
+                          <Plus className="w-4 h-4" />
                         </div>
                       </div>
                     </div>
@@ -132,14 +132,14 @@ export const ClassicPOSProductGrid: React.FC<ClassicPOSProductGridProps> = React
           <button
             type="button"
             onClick={() => onSelectCategory('')}
-            className={`px-3 py-2 text-right text-xs font-bold border-b border-outline-variant/10 flex items-center justify-between transition-all cursor-pointer ${
+            className={`px-3.5 py-3 text-right text-xs font-bold border-b border-outline-variant/10 flex items-center justify-between min-h-[44px] transition-all cursor-pointer active:scale-[0.98] ${
               !selectedCategory || selectedCategory === 'ALL'
-                ? 'bg-primary text-on-primary shadow-xs'
+                ? 'bg-primary text-on-primary shadow-xs font-black'
                 : 'hover:bg-surface-container text-on-surface'
             }`}
           >
             <span>جميع السلع</span>
-            <Layers className="w-3.5 h-3.5 opacity-70" />
+            <Layers className="w-4 h-4 opacity-80" />
           </button>
 
           {categories.map((cat, cIdx) => {
@@ -151,14 +151,14 @@ export const ClassicPOSProductGrid: React.FC<ClassicPOSProductGridProps> = React
                 key={catId || `cat-${cIdx}`}
                 type="button"
                 onClick={() => onSelectCategory(catName)}
-                className={`px-3 py-2 text-right text-xs font-bold border-b border-outline-variant/10 flex items-center justify-between transition-all cursor-pointer truncate ${
+                className={`px-3.5 py-3 text-right text-xs font-bold border-b border-outline-variant/10 flex items-center justify-between min-h-[44px] transition-all cursor-pointer truncate active:scale-[0.98] ${
                   isSelected
-                    ? 'bg-primary text-on-primary shadow-xs'
+                    ? 'bg-primary text-on-primary shadow-xs font-black'
                     : 'hover:bg-surface-container text-on-surface'
                 }`}
               >
                 <span className="truncate">{catName}</span>
-                {isSelected && <Check className="w-3 h-3 shrink-0" />}
+                {isSelected && <Check className="w-4 h-4 shrink-0" />}
               </button>
             );
           })}
