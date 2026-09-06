@@ -254,18 +254,31 @@ function renderText(b: TextBlock, ctx: DocumentContext, vars: Record<string, str
 }
 
 function renderImage(b: ImageBlock, ctx: DocumentContext): string {
-  const align = b.align ?? 'center';
+  const isRtl = ctx.lang === 'ar' || ctx.lang === 'ar-fr' || !ctx.lang;
+  let align = b.align ?? 'center';
+  if (align === 'right' && !isRtl) {
+    align = 'left';
+  } else if (align === 'left' && !isRtl) {
+    align = 'right';
+  }
+
   const w = b.width ?? 80;
   const h = b.height ?? 80;
-  const src = b.src || ctx.shopLegal.logo || '';
-  if (!src) return '';
-  const style = 'width:' + w + 'px;height:' + h + 'px;object-fit:contain;display:inline-block;';
+  let rawSrc = b.src || '';
+  if (!rawSrc || rawSrc === '{{shopLegal.logo}}' || rawSrc === '{{store_logo}}' || rawSrc === '{{logo}}') {
+    rawSrc = ctx.shopLegal?.logo || '';
+  } else if (rawSrc.includes('{{')) {
+    rawSrc = interpolate(rawSrc, ctx);
+  }
+  if (!rawSrc) return '';
+
+  const style = 'width:' + w + 'px;height:' + h + 'px;max-width:100%;object-fit:contain;display:inline-block;';
   return (
     '<div style="text-align:' +
     align +
     ';margin:6px 0;">' +
     '<img src="' +
-    esc(src) +
+    esc(rawSrc) +
     '" alt="logo" style="' +
     style +
     '" />' +

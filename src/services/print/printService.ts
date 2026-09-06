@@ -94,15 +94,16 @@ export async function buildDocumentContext(
 
   const shopLegal: ShopLegalInfo = {
     name: settings?.shopName ?? 'المحل',
-    phone: settings?.phone ?? '',
-    email: '',
-    address: '',
+    phone: settings?.phone ?? settings?.shopPhone2 ?? '',
+    email: settings?.email ?? settings?.shopEmail ?? '',
+    address: settings?.shopAddress ?? settings?.address ?? '',
     footer: settings?.receiptFooter ?? 'شكراً لزيارتكم',
     // المعلومات القانونية الجزائرية
-    taxNumber: settings?.taxId ?? '',
-    commercialRegister: '',
-    nif: '',
-    ai: '',
+    taxNumber: settings?.taxNumber ?? settings?.taxId ?? '',
+    commercialRegister: settings?.commercialRegister ?? settings?.companyRC ?? '',
+    nif: settings?.companyNif ?? settings?.taxNumber ?? settings?.taxId ?? '',
+    ai: settings?.companyAI ?? settings?.companyArt ?? settings?.taxArticle ?? '',
+    logo: (settings as any)?.shopLogo || (settings as any)?.logo || '',
   };
 
   // تحويل عناصر البيع — يدعم النماذج المختلفة (sale_items أو sale.items كمصفوفة أو كـ JSON نصي)

@@ -1,6 +1,6 @@
 // PrintTemplatesPage — POS-PRINT-001
 // إدارة وتخصيص قوالب الطباعة للمستندات التجارية
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -29,6 +29,18 @@ import {
   FileSpreadsheet,
   Check,
   RefreshCw,
+  Upload,
+  Image as ImageIcon,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  ExternalLink,
+  RotateCcw,
+  Sliders,
+  Store,
+  ChevronDown,
+  ChevronUp,
+  Globe,
 } from 'lucide-react';
 import {
   getAllTemplates,
@@ -61,6 +73,134 @@ import {
   type PrintLanguage,
 } from '@/types/invoicePrint';
 import { renderDocumentHTML, buildPrintPage } from '@/services/print/renderTemplate';
+import { db, type SettingsEntity } from '@/infrastructure/database/dexie/db';
+
+/**
+ * مجسم مصغر واقعي لطبيعة الورق (حراري 80mm/58mm مقابل فواتير A4/A5)
+ * مصمم وفق معايير UI/UX Pro Max لإعطاء انطباع بصري فوري ودقيق لنوع المستند
+ */
+function PaperMiniature({
+  paperSize,
+  primaryColor = '#0891b2',
+  headerColor = '#0e7490',
+}: {
+  paperSize: PaperSize;
+  primaryColor?: string;
+  headerColor?: string;
+}) {
+  const isThermal = paperSize === '80mm' || paperSize === '58mm' || paperSize === '76mm';
+  const isCompact = paperSize === '58mm';
+
+  if (isThermal) {
+    return (
+      <div
+        className={`relative ${isCompact ? 'w-20' : 'w-24'} h-32 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-t-lg shadow-sm flex flex-col justify-between overflow-hidden select-none shrink-0`}
+      >
+        {/* شق تلقيم الورق العلوي */}
+        <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 border-b border-slate-200/60 dark:border-slate-700/60" />
+
+        {/* رأس التذكرة مع أيقونة الطابعة */}
+        <div className="p-1.5 space-y-1 text-center">
+          <div
+            className="w-5 h-5 mx-auto rounded-full flex items-center justify-center shadow-xs"
+            style={{ backgroundColor: primaryColor }}
+          >
+            <Printer className="w-2.5 h-2.5 text-white" />
+          </div>
+          <div className="h-1 w-10 mx-auto rounded-full bg-slate-300 dark:bg-slate-700" />
+          <div className="h-1 w-6 mx-auto rounded-full bg-slate-200 dark:bg-slate-800" />
+          <div className="border-b border-dashed border-slate-300 dark:border-slate-700 my-0.5" />
+        </div>
+
+        {/* خطوط جدول التذكرة المحاكية */}
+        <div className="px-2 space-y-1 flex-1">
+          <div className="flex justify-between items-center">
+            <div className="h-1 w-5 rounded bg-slate-200 dark:bg-slate-800" />
+            <div className="h-1 w-3 rounded bg-slate-300 dark:bg-slate-700" />
+          </div>
+          <div className="flex justify-between items-center">
+            <div className="h-1 w-7 rounded bg-slate-200 dark:bg-slate-800" />
+            <div className="h-1 w-3 rounded bg-slate-300 dark:bg-slate-700" />
+          </div>
+          <div className="border-b border-dashed border-slate-300 dark:border-slate-700 my-0.5" />
+          <div className="flex justify-between items-center pt-0.5">
+            <div className="h-1 w-5 rounded bg-slate-400 dark:bg-slate-600 font-bold" />
+            <div
+              className="px-1 py-0.5 rounded text-[7px] font-black text-white leading-none"
+              style={{ backgroundColor: primaryColor }}
+            >
+              {isCompact ? '58mm' : '80mm'}
+            </div>
+          </div>
+        </div>
+
+        {/* الحافة المسننة السفلية المتعرجة للورق الحراري المقطوع */}
+        <div className="w-full h-2 overflow-hidden flex bg-surface-container-low">
+          {[...Array(10)].map((_, i) => (
+            <div
+              key={i}
+              className="w-2.5 h-2.5 bg-white dark:bg-slate-900 transform rotate-45 -mt-1.5 -mr-1 border-r border-b border-slate-200 dark:border-slate-800 shrink-0"
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // فواتير A4 / A5 القياسية
+  return (
+    <div
+      className={`relative ${paperSize === 'A5' ? 'w-22' : 'w-24'} h-32 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md shadow-sm flex flex-col justify-between overflow-hidden select-none shrink-0`}
+    >
+      {/* شريط الترويسة الرسمي للفاتورة */}
+      <div
+        className="h-2.5 w-full flex items-center justify-between px-1 text-white text-[7px] font-bold"
+        style={{ backgroundColor: headerColor }}
+      >
+        <span>FACTURE</span>
+        <div className="w-1 h-1 rounded-full bg-white/80" />
+      </div>
+
+      {/* هيكل الفاتورة والأعمدة */}
+      <div className="p-1.5 space-y-1 flex-1">
+        <div className="flex items-center gap-1">
+          <div
+            className="w-3.5 h-3.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center shrink-0"
+          >
+            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: primaryColor }} />
+          </div>
+          <div className="space-y-0.5 flex-1">
+            <div className="h-1 w-8 rounded bg-slate-300 dark:bg-slate-700" />
+            <div className="h-0.5 w-5 rounded bg-slate-200 dark:bg-slate-800" />
+          </div>
+        </div>
+
+        {/* مجسم جدول المنتجات */}
+        <div className="rounded border border-slate-100 dark:border-slate-800 overflow-hidden">
+          <div className="h-1.5 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700" />
+          <div className="h-1.5 border-b border-slate-100 dark:border-slate-800" />
+          <div className="h-1.5" />
+        </div>
+
+        {/* ختم مائي وشارة الإجمالي */}
+        <div className="flex justify-between items-end pt-0.5">
+          <div className="w-3.5 h-3.5 rounded-full border border-dashed border-emerald-500/60 flex items-center justify-center">
+            <Check className="w-2 h-2 text-emerald-500" />
+          </div>
+          <div
+            className="px-1 py-0.5 rounded text-[7px] font-bold text-white leading-none"
+            style={{ backgroundColor: primaryColor }}
+          >
+            {paperSize}
+          </div>
+        </div>
+      </div>
+
+      {/* حافة الورقة السفلية */}
+      <div className="h-1 w-full bg-slate-100 dark:bg-slate-800 border-t border-slate-200 dark:border-slate-800" />
+    </div>
+  );
+}
 
 export default function PrintTemplatesPage() {
   const navigate = useNavigate();
@@ -87,6 +227,100 @@ export default function PrintTemplatesPage() {
   const [previewLang, setPreviewLang] = useState<PrintLanguage>('ar');
   const [duplicateModal, setDuplicateModal] = useState<{ id: string; name: string } | null>(null);
   const [duplicateName, setDuplicateName] = useState('');
+  const [previewZoom, setPreviewZoom] = useState<number>(100);
+
+  // إعدادات المتجر العامة وهوية الطباعة والشعار
+  const { data: storeSettings } = useQuery({
+    queryKey: ['storeSettingsDefault'],
+    queryFn: async () => {
+      const s = await db.settings.get('default');
+      return s || null;
+    },
+  });
+
+  // حالة لوحة شعار المتجر للطباعة
+  const [isLogoHubOpen, setIsLogoHubOpen] = useState(false);
+  const [logoWidth, setLogoWidth] = useState<number>(80);
+  const [logoHeight, setLogoHeight] = useState<number>(80);
+  const [logoAlign, setLogoAlign] = useState<'right' | 'center' | 'left' | 'auto'>('auto');
+
+  // مزامنة أبعاد ومحاذاة الشعار عند تحميل الإعدادات
+  useEffect(() => {
+    if (storeSettings) {
+      if (storeSettings.printLogoWidth) setLogoWidth(storeSettings.printLogoWidth);
+      if (storeSettings.printLogoHeight) setLogoHeight(storeSettings.printLogoHeight);
+      if (storeSettings.printLogoAlign) setLogoAlign(storeSettings.printLogoAlign);
+    }
+  }, [storeSettings]);
+
+  // حفظ إعدادات الشعار في قاعدة البيانات
+  const saveLogoSettingsMutation = useMutation({
+    mutationFn: async (updates: Partial<SettingsEntity>) => {
+      const current = (await db.settings.get('default')) || { id: 'default', shopName: 'المحل' };
+      const next = { ...current, ...updates };
+      await db.settings.put(next as any);
+      return next;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['storeSettingsDefault'] });
+      addNotification({
+        title: 'تم تحديث هوية الطباعة',
+        message: 'تم حفظ إعدادات ومقاسات الشعار بنجاح لكافة الفواتير والإيصالات',
+        type: 'success',
+      });
+    },
+    onError: (err: unknown) => {
+      addNotification({
+        title: 'فشل الحفظ',
+        message: err instanceof Error ? err.message : 'تعذر حفظ إعدادات الشعار',
+        type: 'error',
+      });
+    },
+  });
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 3 * 1024 * 1024) {
+        addNotification({ title: 'حجم الملف كبير', message: 'يرجى اختيار صورة أقل من 3 ميغابايت', type: 'error' });
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = async (ev) => {
+        const dataUrl = ev.target?.result as string;
+        if (dataUrl) {
+          await saveLogoSettingsMutation.mutateAsync({
+            shopLogo: dataUrl,
+            logo: dataUrl,
+            printLogoWidth: logoWidth,
+            printLogoHeight: logoHeight,
+            printLogoAlign: logoAlign,
+          });
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveLogo = async () => {
+    if (confirm('هل أنت متأكد من حذف شعار الطباعة؟')) {
+      await saveLogoSettingsMutation.mutateAsync({
+        shopLogo: '',
+        logo: '',
+      });
+    }
+  };
+
+  const handleSaveLogoDimensions = async (w: number, h: number, a: 'right' | 'center' | 'left' | 'auto') => {
+    setLogoWidth(w);
+    setLogoHeight(h);
+    setLogoAlign(a);
+    await saveLogoSettingsMutation.mutateAsync({
+      printLogoWidth: w,
+      printLogoHeight: h,
+      printLogoAlign: a,
+    });
+  };
 
   // نموذج إنشاء قالب جديد
   const [newTplName, setNewTplName] = useState('');
@@ -335,10 +569,11 @@ export default function PrintTemplatesPage() {
     });
   }, [templates, searchQuery, selectedPaperFilter]);
 
-  // بناء محتوى المعاينة السريعة للقالب
+  // بناء محتوى المعاينة السريعة للقالب مع دعم اللغات وشعار المتجر الفعلي
   const previewHtml = useMemo(() => {
     if (!previewTemplate) return '';
     try {
+      const isRtl = previewLang === 'ar' || previewLang === 'ar-fr';
       const mockContext = {
         invoice: {
           number: 'INV-2026-0088',
@@ -347,31 +582,49 @@ export default function PrintTemplatesPage() {
           discount: 150,
           tvaAmount: 0,
           total: 4700,
-          paymentMethod: 'نقداً',
-          customerName: 'كريم بن علي',
+          paymentMethod: isRtl ? 'نقداً' : 'Espèces',
+          customerName: isRtl ? 'كريم بن علي' : 'Karim Benali',
           customerPhone: '0550 12 34 56',
-          customerAddress: 'الجزائر العاصمة',
+          customerAddress: isRtl ? 'الجزائر العاصمة' : 'Alger Centre',
           items: [
-            { name: 'زيت زيتون بكر 1 لتر', qty: 2, unitPrice: 950, lineTotal: 1900 },
-            { name: 'عسل جبلي طبيعي 500 غ', qty: 1, unitPrice: 1600, lineTotal: 1600 },
-            { name: 'تمور دقلة نور فاخرة 1 كغ', qty: 3, unitPrice: 450, lineTotal: 1350 },
+            {
+              name: isRtl ? 'زيت زيتون بكر 1 لتر' : "Huile d'Olive Vierge 1L",
+              qty: 2,
+              unitPrice: 950,
+              lineTotal: 1900,
+            },
+            {
+              name: isRtl ? 'عسل جبلي طبيعي 500 غ' : 'Miel Pur de Montagne 500g',
+              qty: 1,
+              unitPrice: 1600,
+              lineTotal: 1600,
+            },
+            {
+              name: isRtl ? 'تمور دقلة نور فاخرة 1 كغ' : 'Dattes Deglet Nour 1kg',
+              qty: 3,
+              unitPrice: 450,
+              lineTotal: 1350,
+            },
           ],
         },
-        settings: { shopName: 'سوبرماركت البركة', receiptFooter: 'شكراً لزيارتكم' },
+        settings: {
+          shopName: storeSettings?.shopName || 'سوبرماركت البركة',
+          receiptFooter: storeSettings?.receiptFooter || 'شكراً لزيارتكم',
+        },
         template: previewTemplate,
         shopLegal: {
-          name: 'سوبرماركت البركة',
-          phone: '023 45 67 89',
-          email: 'contact@elbaraka.dz',
-          address: 'شارع فلسطين، الجزائر',
-          footer: 'شكراً لزيارتكم ونتمنى عودتكم قريباً',
-          commercialRegister: '16/00-1234567B',
-          nif: '001616012345678',
-          ai: '16012345678',
-          taxNumber: '123456789',
-          logo: '',
+          name: storeSettings?.shopName || 'سوبرماركت البركة',
+          phone: storeSettings?.phone || storeSettings?.shopPhone2 || '023 45 67 89',
+          email: storeSettings?.email || storeSettings?.shopEmail || 'contact@elbaraka.dz',
+          address: storeSettings?.shopAddress || storeSettings?.address || 'شارع فلسطين، الجزائر',
+          footer: storeSettings?.receiptFooter || 'شكراً لزيارتكم ونتمنى عودتكم قريباً',
+          commercialRegister: storeSettings?.commercialRegister || storeSettings?.companyRC || '16/00-1234567B',
+          nif: storeSettings?.companyNif || storeSettings?.taxNumber || storeSettings?.taxId || '001616012345678',
+          ai: storeSettings?.companyAI || storeSettings?.companyArt || storeSettings?.taxArticle || '16012345678',
+          taxNumber: storeSettings?.taxNumber || storeSettings?.taxId || '123456789',
+          logo: storeSettings?.shopLogo || storeSettings?.logo || '',
         },
-        user: { id: 'usr-1', name: 'أحمد (الكاشير)', role: 'cashier' },
+        user: { id: 'usr-1', name: isRtl ? 'أحمد (الكاشير)' : 'Ahmed (Caissier)', role: 'cashier' },
         lang: previewLang,
       };
       const bodyHtml = renderDocumentHTML(mockContext as any);
@@ -379,7 +632,7 @@ export default function PrintTemplatesPage() {
     } catch (err) {
       return `<!doctype html><html dir="rtl"><body style="font-family:sans-serif;padding:2rem;text-align:center;color:#ef4444;"><p>تعذر تجهيز المعاينة: ${String(err)}</p></body></html>`;
     }
-  }, [previewTemplate, previewLang]);
+  }, [previewTemplate, previewLang, storeSettings]);
   // ====== شاشة محرر القوالب المرئي الكامل ======
   if (editingTemplateId && user) {
     return (
@@ -446,6 +699,198 @@ export default function PrintTemplatesPage() {
           )}
         </div>
       </header>
+
+      {/* قسم هوية وشعار المتجر للطباعة (Store Logo & Dimensions Branding Hub) */}
+      <section className="bg-surface-container-low rounded-3xl border border-outline-variant/20 p-5 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant/15">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shadow-inner">
+              <Store className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold font-cairo text-on-surface">هوية وشعار المتجر للطباعة</h2>
+                {storeSettings?.shopLogo ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 flex items-center gap-1">
+                    <Check className="w-3 h-3" />
+                    <span>شعار مضبوط ومفعّل</span>
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                    لم يُحدد شعار بعد
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-on-surface-variant">
+                يظهر الشعار في ترويسة الإيصالات الحرارية (80/58mm) والفواتير الرسمية (A4/A5) بدقة مع ضبط الأبعاد والمحاذاة التلقائية حسب اللغة
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="px-3.5 py-2 rounded-xl bg-primary hover:bg-primary/90 text-on-primary text-xs font-bold shadow-xs cursor-pointer flex items-center gap-1.5 transition-all active:scale-95">
+              <Upload className="w-4 h-4" />
+              <span>{storeSettings?.shopLogo ? 'تغيير الشعار' : 'رفع شعار المتجر'}</span>
+              <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
+            </label>
+            {storeSettings?.shopLogo && (
+              <button
+                type="button"
+                onClick={handleRemoveLogo}
+                className="p-2 rounded-xl bg-surface-container-high hover:bg-red-500/10 hover:text-red-600 text-on-surface-variant text-xs transition-all"
+                title="إزالة الشعار"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setIsLogoHubOpen(!isLogoHubOpen)}
+              className="p-2 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant transition-all flex items-center gap-1 text-xs font-semibold"
+              title="خيارات المقاس والمحاذاة"
+            >
+              <Sliders className="w-4 h-4" />
+              <span className="hidden sm:inline">خيارات المقاس</span>
+              {isLogoHubOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+        </div>
+
+        {/* محتوى لوحة الشعار: استعراض الشعار وأدوات الضبط والمحاذاة */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-center">
+          {/* بطاقة معاينة الشعار الحالية */}
+          <div className="md:col-span-4 flex items-center gap-3.5 p-3 rounded-2xl bg-surface-container/60 border border-outline-variant/15">
+            <div className="w-20 h-20 rounded-xl bg-white dark:bg-slate-900 border border-outline-variant/20 p-2 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
+              {storeSettings?.shopLogo ? (
+                <img
+                  src={storeSettings.shopLogo}
+                  alt="شعار المتجر"
+                  className="max-w-full max-h-full object-contain"
+                  style={{ width: `${Math.min(logoWidth, 80)}px`, height: `${Math.min(logoHeight, 80)}px` }}
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center text-on-surface-variant/40 text-center gap-1">
+                  <ImageIcon className="w-6 h-6" />
+                  <span className="text-[10px] font-bold">لا يوجد شعار</span>
+                </div>
+              )}
+            </div>
+            <div className="space-y-1 text-xs flex-1 min-w-0">
+              <div className="font-bold text-on-surface truncate font-cairo">
+                {storeSettings?.shopName || 'سوبرماركت المتجر'}
+              </div>
+              <div className="text-[11px] text-on-surface-variant flex flex-wrap items-center gap-1.5">
+                <span>المقاس: <strong className="font-mono text-primary font-black">{logoWidth}×{logoHeight}px</strong></span>
+                <span>•</span>
+                <span>المحاذاة: <strong className="text-on-surface font-bold">{logoAlign === 'auto' ? 'تلقائي' : logoAlign === 'center' ? 'وسط' : logoAlign === 'right' ? 'يمين' : 'يسار'}</strong></span>
+              </div>
+              <div className="text-[10px] text-on-surface-variant/70">
+                يتم تطبيق الشعار تلقائياً على كافة نماذج الفواتير والإيصالات
+              </div>
+            </div>
+          </div>
+
+          {/* لوحة ضبط المقاسات والمحاذاة السريعة */}
+          <div className="md:col-span-8 flex flex-col justify-between gap-3">
+            {/* أزرار المقاسات السريعة */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-on-surface">
+                <SlidersHorizontal className="w-3.5 h-3.5 text-primary" />
+                <span>المقاس الموصى به للشعار:</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {[
+                  { l: 'صغير 50px', w: 50, h: 50 },
+                  { l: 'متوسط 80px (مثالي)', w: 80, h: 80 },
+                  { l: 'كبير 120px', w: 120, h: 100 },
+                  { l: 'عريض 160×70px', w: 160, h: 70 },
+                ].map((p) => {
+                  const isCur = logoWidth === p.w && logoHeight === p.h;
+                  return (
+                    <button
+                      key={p.l}
+                      type="button"
+                      onClick={() => handleSaveLogoDimensions(p.w, p.h, logoAlign)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all ${
+                        isCur
+                          ? 'bg-primary text-on-primary border-primary shadow-xs'
+                          : 'bg-surface-container text-on-surface-variant border-outline-variant/20 hover:text-on-surface'
+                      }`}
+                    >
+                      {p.l}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* محاذاة الشعار حسب اتجاه اللغة */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-outline-variant/10 text-xs">
+              <div className="flex items-center gap-1.5 font-bold text-on-surface">
+                <Globe className="w-3.5 h-3.5 text-primary" />
+                <span>محاذاة الشعار بالترويسة:</span>
+              </div>
+              <div className="flex items-center gap-1 bg-surface-container p-1 rounded-xl border border-outline-variant/20">
+                {[
+                  { id: 'auto', label: 'تلقائي حسب اللغة (RTL/LTR)' },
+                  { id: 'center', label: 'وسط' },
+                  { id: 'right', label: 'يمين' },
+                  { id: 'left', label: 'يسار' },
+                ].map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => handleSaveLogoDimensions(logoWidth, logoHeight, a.id as any)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                      logoAlign === a.id
+                        ? 'bg-primary text-on-primary shadow-xs'
+                        : 'text-on-surface-variant hover:text-on-surface'
+                    }`}
+                  >
+                    {a.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* سلايدرات التحكم الموسع عند فتح التفاصيل */}
+        {isLogoHubOpen && (
+          <div className="pt-3 border-t border-outline-variant/15 grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in fade-in duration-200">
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-xs font-bold text-on-surface">
+                <span>عرض الشعار (Width)</span>
+                <span className="font-mono text-primary font-bold">{logoWidth}px</span>
+              </div>
+              <input
+                type="range"
+                min={40}
+                max={220}
+                step={5}
+                value={logoWidth}
+                onChange={(e) => handleSaveLogoDimensions(Number(e.target.value), logoHeight, logoAlign)}
+                className="w-full accent-primary"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-xs font-bold text-on-surface">
+                <span>ارتفاع الشعار (Height)</span>
+                <span className="font-mono text-primary font-bold">{logoHeight}px</span>
+              </div>
+              <input
+                type="range"
+                min={30}
+                max={160}
+                step={5}
+                value={logoHeight}
+                onChange={(e) => handleSaveLogoDimensions(logoWidth, Number(e.target.value), logoAlign)}
+                className="w-full accent-primary"
+              />
+            </div>
+          </div>
+        )}
+      </section>
 
       {/* شريط التبويبات الرئيسي المتقدم */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-container-low p-2 rounded-2xl border border-outline-variant/20 shadow-xs">
@@ -609,23 +1054,38 @@ export default function PrintTemplatesPage() {
                       </div>
                     </div>
 
-                    {/* الاسم والوصف */}
-                    <h3 className="text-base font-bold font-cairo text-on-surface mb-1 group-hover:text-primary transition-colors">
-                      {preset.nameAr || preset.name}
-                    </h3>
-                    <p className="text-xs text-on-surface-variant line-clamp-2 mb-4 leading-relaxed">
-                      {preset.description}
-                    </p>
+                    {/* المحتوى الرئيسي مع المجسم المصغر للورقة */}
+                    <div className="flex items-start gap-3.5 mb-3">
+                      <div className="shrink-0 p-1.5 rounded-2xl bg-surface-container/60 border border-outline-variant/15 shadow-2xs group-hover:scale-105 transition-transform duration-200">
+                        <PaperMiniature
+                          paperSize={preset.paperSize}
+                          primaryColor={buildData.styles?.primaryColor}
+                          headerColor={buildData.styles?.headerColor}
+                        />
+                      </div>
 
-                    {/* المستندات المدعومة */}
-                    <div className="mb-4">
-                      <div className="text-[11px] font-bold text-on-surface-variant mb-1.5">الوثائق المدعومة:</div>
-                      <div className="flex flex-wrap gap-1">
-                        {buildData.supportedDocuments?.map((dt) => (
-                          <span key={dt} className="px-2 py-0.5 rounded-md bg-surface-container-high text-[11px] font-semibold text-on-surface">
-                            {DOC_TYPE_LABELS_AR[dt] || dt}
-                          </span>
-                        ))}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-base font-bold font-cairo text-on-surface mb-1 group-hover:text-primary transition-colors">
+                          {preset.nameAr || preset.name}
+                        </h3>
+                        <p className="text-xs text-on-surface-variant line-clamp-2 mb-3 leading-relaxed">
+                          {preset.description}
+                        </p>
+
+                        {/* المستندات المدعومة */}
+                        <div>
+                          <div className="text-[11px] font-bold text-on-surface-variant mb-1">الوثائق المدعومة:</div>
+                          <div className="flex flex-wrap gap-1">
+                            {buildData.supportedDocuments?.map((dt) => (
+                              <span
+                                key={dt}
+                                className="px-2 py-0.5 rounded-md bg-surface-container-high text-[10px] font-semibold text-on-surface border border-outline-variant/10"
+                              >
+                                {DOC_TYPE_LABELS_AR[dt] || dt}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -842,32 +1302,47 @@ export default function PrintTemplatesPage() {
                       </div>
                     </div>
 
-                    {/* الاسم والوصف */}
-                    <h3 className="text-base font-bold font-cairo text-on-surface mb-1 group-hover:text-primary transition-colors">
-                      {tpl.name}
-                    </h3>
-                    <p className="text-xs text-on-surface-variant line-clamp-2 mb-4 leading-relaxed">
-                      {tpl.description || 'قالب طباعة مستندات تجارية'}
-                    </p>
+                    {/* المحتوى الرئيسي مع المجسم المصغر للورقة */}
+                    <div className="flex items-start gap-3.5 mb-3">
+                      <div className="shrink-0 p-1.5 rounded-2xl bg-surface-container/60 border border-outline-variant/15 shadow-2xs group-hover:scale-105 transition-transform duration-200">
+                        <PaperMiniature
+                          paperSize={tpl.paperSize}
+                          primaryColor={tpl.styles?.primaryColor}
+                          headerColor={tpl.styles?.headerColor}
+                        />
+                      </div>
 
-                    {/* المستندات المدعومة */}
-                    <div className="mb-4">
-                      <div className="text-[11px] font-bold text-on-surface-variant mb-1.5">الوثائق المدعومة:</div>
-                      <div className="flex flex-wrap gap-1">
-                        {!tpl.supportedDocuments || tpl.supportedDocuments.length === 0 ? (
-                          <span className="text-xs text-on-surface-variant/70 italic">عام لجميع الوثائق</span>
-                        ) : (
-                          tpl.supportedDocuments.slice(0, 3).map((dt) => (
-                            <span key={dt} className="px-2 py-0.5 rounded-md bg-surface-container-high text-[11px] font-semibold text-on-surface">
-                              {DOC_TYPE_LABELS_AR[dt] || dt}
-                            </span>
-                          ))
-                        )}
-                        {tpl.supportedDocuments && tpl.supportedDocuments.length > 3 && (
-                          <span className="px-1.5 py-0.5 rounded-md bg-surface-container-high text-[11px] font-semibold text-on-surface-variant">
-                            +{tpl.supportedDocuments.length - 3}
-                          </span>
-                        )}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-base font-bold font-cairo text-on-surface mb-1 group-hover:text-primary transition-colors">
+                          {tpl.name}
+                        </h3>
+                        <p className="text-xs text-on-surface-variant line-clamp-2 mb-3 leading-relaxed">
+                          {tpl.description || 'قالب طباعة مستندات تجارية مخصص'}
+                        </p>
+
+                        {/* المستندات المدعومة */}
+                        <div>
+                          <div className="text-[11px] font-bold text-on-surface-variant mb-1">الوثائق المدعومة:</div>
+                          <div className="flex flex-wrap gap-1">
+                            {!tpl.supportedDocuments || tpl.supportedDocuments.length === 0 ? (
+                              <span className="text-xs text-on-surface-variant/70 italic">عام لجميع الوثائق</span>
+                            ) : (
+                              tpl.supportedDocuments.slice(0, 3).map((dt) => (
+                                <span
+                                  key={dt}
+                                  className="px-2 py-0.5 rounded-md bg-surface-container-high text-[10px] font-semibold text-on-surface border border-outline-variant/10"
+                                >
+                                  {DOC_TYPE_LABELS_AR[dt] || dt}
+                                </span>
+                              ))
+                            )}
+                            {tpl.supportedDocuments && tpl.supportedDocuments.length > 3 && (
+                              <span className="px-1.5 py-0.5 rounded-md bg-surface-container-high text-[10px] font-semibold text-on-surface-variant">
+                                +{tpl.supportedDocuments.length - 3}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1164,69 +1639,134 @@ export default function PrintTemplatesPage() {
         </div>
       )}
 
-      {/* نافذة المعاينة السريعة (Instant Floating Preview Modal) */}
+      {/* نافذة المعاينة السريعة التفاعلية (Interactive Floating Preview Modal) */}
       {previewTemplate && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div
-            className="bg-surface-container-lowest w-full max-w-2xl max-h-[90vh] rounded-3xl border border-outline-variant/20 shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
+            className="bg-surface-container-lowest w-full max-w-3xl max-h-[92vh] rounded-3xl border border-outline-variant/20 shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
             {/* شريط رأس المعاينة */}
-            <div className="p-4 bg-surface-container-low border-b border-outline-variant/20 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Printer className="w-5 h-5 text-primary" />
+            <div className="p-4 bg-surface-container-low border-b border-outline-variant/20 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                  <Printer className="w-4 h-4" />
+                </div>
                 <div>
                   <h3 className="font-bold text-sm text-on-surface font-cairo">معاينة القالب: {previewTemplate.name}</h3>
-                  <p className="text-xs text-on-surface-variant">مقاس {PAPER_LABELS_AR[previewTemplate.paperSize]}</p>
+                  <div className="flex items-center gap-2 text-xs text-on-surface-variant">
+                    <span className="font-mono text-primary font-bold">{PAPER_LABELS_AR[previewTemplate.paperSize]}</span>
+                    <span>•</span>
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                      {previewLang === 'ar' ? 'اتجاه RTL تام' : previewLang === 'ar-fr' ? 'ثنائي اللغة RTL' : 'اتجاه LTR تام'}
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              {/* محدد لغة الفاتورة السريع */}
-              <div className="flex items-center gap-1.5 bg-surface-container-high rounded-xl p-1 border border-outline-variant/20">
-                {[
-                  { key: 'ar', label: '🇩🇿 العربية' },
-                  { key: 'ar-fr', label: '🌐 عربي/فرنسي' },
-                  { key: 'fr', label: '🇫🇷 Français' },
-                  { key: 'en', label: '🇬🇧 English' },
-                ].map((item) => (
-                  <button
-                    key={item.key}
-                    type="button"
-                    onClick={() => setPreviewLang(item.key as PrintLanguage)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                      previewLang === item.key
-                        ? 'bg-primary text-on-primary shadow-xs'
-                        : 'text-on-surface-variant hover:text-on-surface'
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
+              {/* أدوات التحكم باللغة والتكبير */}
+              <div className="flex flex-wrap items-center gap-2">
+                {/* محدد لغة الفاتورة السريع */}
+                <div className="flex items-center gap-1 bg-surface-container-high rounded-xl p-1 border border-outline-variant/20">
+                  {[
+                    { key: 'ar', label: '🇩🇿 العربية' },
+                    { key: 'ar-fr', label: '🌐 عربي/فرنسي' },
+                    { key: 'fr', label: '🇫🇷 Français' },
+                    { key: 'en', label: '🇬🇧 English' },
+                  ].map((item) => (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={() => setPreviewLang(item.key as PrintLanguage)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                        previewLang === item.key
+                          ? 'bg-primary text-on-primary shadow-xs'
+                          : 'text-on-surface-variant hover:text-on-surface'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
 
-              <button
-                onClick={() => setPreviewTemplate(null)}
-                className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-highest"
-              >
-                <X className="w-5 h-5" />
-              </button>
+                {/* التحكم بالتكبير */}
+                <div className="flex items-center bg-surface-container-high rounded-xl p-0.5 border border-outline-variant/20">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewZoom((z) => Math.max(70, z - 15))}
+                    className="p-1 rounded-lg hover:bg-surface-container-highest text-on-surface-variant"
+                    title="تصغير"
+                  >
+                    <ZoomOut className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="text-[11px] font-mono px-1.5 font-bold text-on-surface">{previewZoom}%</span>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewZoom((z) => Math.min(150, z + 15))}
+                    className="p-1 rounded-lg hover:bg-surface-container-highest text-on-surface-variant"
+                    title="تكبير"
+                  >
+                    <ZoomIn className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => setPreviewTemplate(null)}
+                  className="p-1.5 rounded-xl text-on-surface-variant hover:bg-surface-container-highest"
+                  title="إغلاق"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
-            {/* محتوى الـ iframe للمعاينة */}
-            <div className="flex-1 p-4 overflow-y-auto bg-slate-100 dark:bg-slate-900 flex items-center justify-center">
-              <iframe
-                title="Template Preview"
-                srcDoc={previewHtml}
-                className="w-full h-[550px] border-0 rounded-xl shadow-lg bg-white"
-              />
+            {/* محتوى الـ iframe للمعاينة داخل محاكي الورق */}
+            <div className="flex-1 p-6 overflow-y-auto bg-slate-200 dark:bg-slate-950 flex items-center justify-center min-h-[500px]">
+              <div
+                className="w-full flex items-center justify-center transition-transform duration-200"
+                style={{ transform: `scale(${previewZoom / 100})`, transformOrigin: 'top center' }}
+              >
+                <iframe
+                  id="template-preview-iframe"
+                  title="Template Preview"
+                  srcDoc={previewHtml}
+                  className={`border-0 rounded-2xl shadow-2xl bg-white transition-all ${
+                    previewTemplate.paperSize === '58mm'
+                      ? 'w-[320px] min-h-[520px]'
+                      : previewTemplate.paperSize === '80mm'
+                      ? 'w-[380px] min-h-[580px]'
+                      : previewTemplate.paperSize === 'A5'
+                      ? 'w-[520px] min-h-[640px]'
+                      : 'w-[680px] min-h-[750px]'
+                  }`}
+                />
+              </div>
             </div>
 
             {/* أزرار الإجراء في أسفل المعاينة */}
-            <div className="p-3.5 bg-surface-container-low border-t border-outline-variant/20 flex items-center justify-between gap-3">
-              <span className="text-xs text-on-surface-variant">
-                توليد Vector SVG فوري 0ms مع دعم RTL و LTR التام
-              </span>
+            <div className="p-3.5 bg-surface-container-low border-t border-outline-variant/20 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-xs text-on-surface-variant">
+                <Check className="w-4 h-4 text-emerald-500" />
+                <span>شعار المتجر مضمّن بدقة • يدعم الطباعة الحرارية والمكتبية</span>
+              </div>
+
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const iframe = document.getElementById('template-preview-iframe') as HTMLIFrameElement;
+                    if (iframe && iframe.contentWindow) {
+                      iframe.contentWindow.print();
+                    } else {
+                      window.print();
+                    }
+                  }}
+                  className="px-4 py-2 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs"
+                >
+                  <Printer className="w-3.5 h-3.5 text-primary" />
+                  <span>طباعة تجريبية</span>
+                </button>
+
                 {canEdit && (
                   <button
                     onClick={() => {
@@ -1234,12 +1774,13 @@ export default function PrintTemplatesPage() {
                       setPreviewTemplate(null);
                       setEditingTemplateId(id);
                     }}
-                    className="px-4 py-2 rounded-xl bg-primary text-on-primary text-xs font-bold hover:bg-primary/90 transition-all flex items-center gap-1.5"
+                    className="px-4 py-2 rounded-xl bg-primary text-on-primary text-xs font-bold hover:bg-primary/90 transition-all flex items-center gap-1.5 shadow-xs"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
                     <span>تعديل في المحرر</span>
                   </button>
                 )}
+
                 <button
                   onClick={() => setPreviewTemplate(null)}
                   className="px-4 py-2 rounded-xl bg-surface-container-high text-on-surface text-xs font-semibold hover:bg-surface-container-highest transition-all"

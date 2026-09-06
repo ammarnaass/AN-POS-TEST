@@ -294,8 +294,10 @@ export default function SettingsPage() {
 
   const deleteUserMutation = useMutation({
     mutationFn: async (id: string) => {
-      // BR-USR-001: لا يمكن حذف المدير الوحيد
       const user = await db.users.get(id);
+      if (user?.role === 'developer') {
+        throw new Error('لا يمكن حذف حساب مطور النظام');
+      }
       if (user?.role === 'admin') {
         const adminCount = await db.users.where('role').equals('admin').count();
         if (adminCount <= 1) {
@@ -322,8 +324,10 @@ export default function SettingsPage() {
 
   const toggleStatusMutation = useMutation({
     mutationFn: async ({ id, current }: { id: string; current: string }) => {
-      // BR-USR-001: لا يمكن تعطيل المدير الوحيد
       const user = await db.users.get(id);
+      if (user?.role === 'developer') {
+        throw new Error('لا يمكن تعطيل حساب مطور النظام');
+      }
       if (user?.role === 'admin' && current === 'active') {
         const adminCount = await db.users.where('role').equals('admin').count();
         if (adminCount <= 1) {
@@ -575,7 +579,14 @@ export default function SettingsPage() {
     setServerLoading(true);
     try {
       const api = (window as any).electronAPI?.server;
-      if (!api) return;
+      if (!api) {
+        addNotification({
+          title: 'تنبيه',
+          message: 'خادم ربط الهواتف متاح حصرياً داخل تطبيق سطح المكتب (Desktop App) وليس عبر المتصفح العادي.',
+          type: 'warning',
+        });
+        return;
+      }
       if (serverStatus?.running) {
         await api.disable();
       } else {
@@ -594,7 +605,11 @@ export default function SettingsPage() {
           : 'تم إلغاء تشغيل الخادم',
         type: 'success',
       });
-      if (status.running) saveNet({ lanEnabled: 1 });
+      if (status.running) {
+        saveNet({ lanEnabled: true, serverPort: status.port });
+      } else {
+        saveNet({ lanEnabled: false });
+      }
     } catch (e) {
       addNotification({ title: 'خطأ في الخادم', message: (e as Error).message || 'فشل', type: 'error' });
     } finally {
@@ -784,6 +799,8 @@ export default function SettingsPage() {
   };
 
   const filteredUsers = users.filter(u => {
+    // حساب المطور مخفي تماماً ولا يظهر في إدارة المستخدمين
+    if (u.role === 'developer') return false;
     if (userStatusFilter !== 'all' && u.status !== userStatusFilter) return false;
     if (!userSearch) return true;
     const q = userSearch.toLowerCase();

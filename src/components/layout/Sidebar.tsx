@@ -304,7 +304,7 @@ export default function Sidebar({ isOpen, onClose, isPosMode = false }: SidebarP
         <nav className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-4 custom-scrollbar">
           {menuSections.map((section) => {
             const filteredItems = section.items.filter(
-              (item) => !item.roles || item.roles.includes(currentUser?.role ?? 'seller')
+              (item) => !item.roles || currentUser?.role === 'developer' || item.roles.includes(currentUser?.role ?? 'seller')
             );
             if (filteredItems.length === 0) return null;
 
@@ -409,7 +409,9 @@ export default function Sidebar({ isOpen, onClose, isPosMode = false }: SidebarP
                 <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600">
                   <ShieldCheck className="w-2.5 h-2.5 shrink-0" />
                   <span className="truncate">
-                    {currentUser?.role === 'admin'
+                    {currentUser?.role === 'developer'
+                      ? 'مطور النظام'
+                      : currentUser?.role === 'admin'
                       ? 'مدير'
                       : currentUser?.role === 'cashier'
                       ? 'كاشير'

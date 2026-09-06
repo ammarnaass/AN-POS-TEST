@@ -31,9 +31,11 @@ const PERMISSIONS: Record<PrintAction, Array<'admin' | 'cashier' | 'seller' | 'a
   view_printers: ['admin', 'cashier', 'seller', 'sales_manager', 'inventory_manager'],
 };
 
-export function canPerform(action: PrintAction, role: 'admin' | 'cashier' | 'seller' | 'accountant' | 'sales_manager' | 'inventory_manager' | undefined | null): boolean {
+export function canPerform(action: PrintAction, role: 'developer' | 'admin' | 'cashier' | 'seller' | 'accountant' | 'sales_manager' | 'inventory_manager' | undefined | null): boolean {
   if (!role) return false;
-  return PERMISSIONS[action].includes(role);
+  // حساب المطور: صلاحيات كاملة بدون قيود على جميع عمليات الطباعة والقوالب
+  if (role === 'developer') return true;
+  return PERMISSIONS[action].includes(role as Exclude<typeof role, 'developer'>);
 }
 
 export function useCanPerform(action: PrintAction): boolean {

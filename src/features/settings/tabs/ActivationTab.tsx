@@ -1,6 +1,6 @@
-// Tab Component: ActivationTab (Refactored from SettingsPage.tsx)
 import React from 'react';
 import { Upload, Smartphone, RefreshCw, Zap, ShieldCheck, KeyRound, AlertCircle, CheckCircle2, Copy, Check } from 'lucide-react';
+import { formatTrialDate } from '@/services/trialService';
 
 interface ActivationTabProps {
   [key: string]: any;
@@ -103,13 +103,17 @@ export default function ActivationTab({
                       ? 'مدى الحياة (Lifetime)'
                       : licenseStatus?.expiresAt
                       ? new Date(licenseStatus.expiresAt * 1000).toLocaleDateString('ar-EG')
-                      : 'تجريبي'}
+                      : 'فترة تجريبية (7 أيام)'}
                   </p>
-                  {licenseStatus?.daysRemaining !== null && licenseStatus?.daysRemaining !== undefined && (
+                  {licenseStatus?.daysRemaining !== null && licenseStatus?.daysRemaining !== undefined ? (
                     <span className="text-[11px] text-amber-600 font-bold">
                       متبقي {licenseStatus.daysRemaining} يوم
                     </span>
-                  )}
+                  ) : trial?.isActive ? (
+                    <span className="text-[11px] text-amber-600 font-bold">
+                      متبقي {trial.remainingDays} يوم ({trial.remainingSales} فاتورة)
+                    </span>
+                  ) : null}
                 </div>
 
                 <div className="bg-surface-container/60 border border-outline-variant/10 rounded-xl p-4">
@@ -138,6 +142,25 @@ export default function ActivationTab({
                   </div>
                 </div>
               </div>
+
+              {trial?.isActive && (
+                <div className="mt-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/25 flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex items-center gap-2.5">
+                    <Zap className="w-5 h-5 text-amber-500 shrink-0" />
+                    <div>
+                      <p className="text-xs font-bold text-on-surface font-cairo">
+                        الفترة التجريبية المجانية محددة بـ 7 أيام
+                      </p>
+                      <p className="text-[11px] text-on-surface-variant font-tajawal mt-0.5">
+                        تاريخ البدء: <span className="font-bold font-mono text-on-surface">{formatTrialDate(trial.startedAt)}</span> — تاريخ الانتهاء الصارم: <span className="font-bold font-mono text-rose-500">{formatTrialDate(trial.endsAt)}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-xs font-mono font-bold text-amber-700 dark:text-amber-300 bg-surface-container px-3 py-1.5 rounded-lg border border-outline-variant/20">
+                    متبقي: {trial.remainingDays} يوم و {trial.remainingHours} ساعة
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* بطاقة إدخال المفتاح أو استيراد ملف الترخيص */}

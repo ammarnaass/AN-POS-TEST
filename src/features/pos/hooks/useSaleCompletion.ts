@@ -8,6 +8,8 @@ import { calculateSaleTotal, createSale } from '@/services';
 import { printDocument } from '@/services/print/printService';
 import type { CartItem, Sale, DocType } from '@/types';
 import { v4 as createId } from 'uuid';
+import { isTrialExpired, incrementTrialSales } from '@/services/trialService';
+import { isLicensed } from '@/services/licenseService';
 
 interface SaleSettings {
   tvaRate: number;
@@ -61,6 +63,10 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
         customers,
         note,
       } = params;
+
+      if (currentUser?.role !== 'developer' && !isLicensed() && isTrialExpired(currentUser?.role)) {
+        throw new Error('انتهت فترة التجربة المجانية (7 أيام). يرجى تفعيل النظام للمتابعة.');
+      }
 
       const saleSummary = calculateSaleTotal(cart, discount, discountType, settings.tvaRate);
       const saleType = isReturn ? 'return' : 'sale';
@@ -279,6 +285,11 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       queryClient.invalidateQueries({ queryKey: ['cashSessions'] });
       queryClient.invalidateQueries({ queryKey: ['stockMovements'] });
+
+      // زيادة عدّاد مبيعات التجربة إذا كانت سارية
+      if (currentUser?.role !== 'developer' && !isLicensed()) {
+        incrementTrialSales();
+      }
 
       // الطباعة التلقائية عبر محرك الطباعة (بدون تجميد أو نوافذ منبثقة معطلة)
       if (autoPrint && sale) {

@@ -834,6 +834,7 @@ export interface SeedSupplier {
 }
 
 export const DEFAULT_ROLES: SeedRole[] = [
+  { id: 'role-developer', name: 'developer', description: 'مطور النظام', permissions: { all: true, '*': true } },
   { id: 'role-admin', name: 'admin', description: 'مدير النظام', permissions: { all: true } },
   { id: 'role-accountant', name: 'accountant', description: 'محاسب', permissions: { sales: true, expenses: true, reports: true } },
   { id: 'role-sales-manager', name: 'sales_manager', description: 'مدير المبيعات', permissions: { sales: true, customers: true } },
@@ -843,6 +844,7 @@ export const DEFAULT_ROLES: SeedRole[] = [
 ];
 
 export const DEFAULT_USERS: SeedUser[] = [
+  { username: 'developer', name: 'مطور النظام', pin: 'dev1234', role: 'developer' as any },
   { username: 'admin@dante.com', name: 'مدير النظام', pin: 'admin1234', role: 'admin' },
   { username: 'seller', name: 'البائع', pin: 'seller1234', role: 'seller' },
   { username: 'cashier', name: 'الكاشير', pin: 'cashier1234', role: 'cashier' },

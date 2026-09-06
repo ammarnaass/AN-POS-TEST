@@ -297,6 +297,10 @@ export interface SettingsEntity {
   connectionCheckInterval?: number;
   allowSelfRegistration?: boolean;
   defaultRole?: string;
+  // POS-PRINT-001: إعدادات شعار الطباعة
+  printLogoWidth?: number;
+  printLogoHeight?: number;
+  printLogoAlign?: 'right' | 'center' | 'left' | 'auto';
 }
 
 export interface PrintTemplateEntity {

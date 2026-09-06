@@ -1,4 +1,14 @@
-@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Tajawal:wght@300;400;500;700;800;900&display=swap');
+@import "@fontsource/cairo/400.css";
+@import "@fontsource/cairo/500.css";
+@import "@fontsource/cairo/600.css";
+@import "@fontsource/cairo/700.css";
+@import "@fontsource/cairo/800.css";
+@import "@fontsource/cairo/900.css";
+@import "@fontsource/tajawal/400.css";
+@import "@fontsource/tajawal/500.css";
+@import "@fontsource/tajawal/700.css";
+@import "@fontsource/tajawal/800.css";
+@import "@fontsource/tajawal/900.css";
 @import "tailwindcss";
 @source "./**/*.{js,ts,jsx,tsx,html}";
 @source "../*.html";
@@ -66,8 +76,9 @@
   --color-cyan: #00cbe6;
 
   /* Fonts */
-  --font-cairo: 'Cairo', sans-serif;
-  --font-tajawal: 'Tajawal', sans-serif;
+  --font-sans: 'Cairo', 'Tajawal', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-cairo: 'Cairo', 'Tajawal', sans-serif;
+  --font-tajawal: 'Tajawal', 'Cairo', sans-serif;
 
   /* Typography Scale */
   --text-display-lg: 48px;
@@ -161,24 +172,78 @@
   --color-cyan: #22D3EE;
 }
 
-html {
-  direction: rtl;
+:root {
+  --default-font-family: 'Cairo', 'Tajawal', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: 'Cairo', 'Tajawal', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-cairo: 'Cairo', 'Tajawal', sans-serif;
+  --font-tajawal: 'Tajawal', 'Cairo', sans-serif;
 }
 
-body {
-  font-family: 'Cairo', 'Tajawal', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+html,
+body,
+#root {
+  direction: rtl;
+  font-family: 'Cairo', 'Tajawal', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
   margin: 0;
   padding: 0;
   background-color: var(--color-background);
   color: var(--color-on-surface);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   overflow: hidden;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
+  font-family: inherit;
+}
+
+button,
+input,
+optgroup,
+select,
+textarea,
+p,
+span,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+a,
+label,
+table,
+th,
+td {
+  font-family: inherit;
+}
+
+button, input, select, textarea, optgroup {
+  transition: all 0.2s ease;
+}
+
+.font-tajawal,
+[class*="font-tajawal"] {
+  font-family: 'Tajawal', 'Cairo', sans-serif !important;
+}
+
+.font-cairo,
+[class*="font-cairo"] {
+  font-family: 'Cairo', 'Tajawal', sans-serif !important;
+}
+
+code,
+kbd,
+samp,
+pre,
+.font-mono,
+[class*="font-mono"] {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
 }
 
 ::-webkit-scrollbar {
@@ -197,11 +262,6 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-primary);
-}
-
-input, select, textarea {
-  font-family: inherit;
-  transition: all 0.2s ease;
 }
 
 input:focus, select:focus, textarea:focus {

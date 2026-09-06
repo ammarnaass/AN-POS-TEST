@@ -76,6 +76,17 @@ export interface ElectronAPI {
     connectedDevices: () => Promise<{ data: Array<Record<string, unknown>> }>;
     disconnectDevice: (deviceId: string) => Promise<{ success: boolean }>;
   };
+  license?: {
+    getStatus: () => Promise<any>;
+    activate: (keyOrContent: string) => Promise<any>;
+    deactivate: () => Promise<any>;
+    getFingerprint: () => Promise<string>;
+  };
+  trial?: {
+    get: () => Promise<any>;
+    start: (existingStart?: string, existingEnd?: string, existingSales?: number) => Promise<any>;
+    incrementSales: () => Promise<number>;
+  };
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

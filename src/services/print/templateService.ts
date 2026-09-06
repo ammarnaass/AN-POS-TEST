@@ -20,7 +20,7 @@ const isTextBlock = (b: { type: string }): b is TextBlock => b.type === 'text';
 const isColumnBlock = (b: { type: string }): b is ColumnBlock => b.type === 'column';
 
 // BR-PRINT-006: المدير فقط يمكنه إنشاء/تعديل/حذف/تعيين القوالب
-function assertPermission(action: PrintAction, role: 'admin' | 'cashier' | 'seller' | 'accountant' | undefined): void {
+function assertPermission(action: PrintAction, role: 'developer' | 'admin' | 'cashier' | 'seller' | 'accountant' | undefined): void {
   if (!canPerform(action, role)) {
     throw new Error(`صلاحية غير كافية: ${action} يتطلب صلاحية المدير`);
   }
@@ -54,7 +54,7 @@ export async function getDefaultTemplate(): Promise<PrintTemplate | undefined> {
 export async function createTemplate(
   data: Omit<PrintTemplate, 'id' | 'createdAt' | 'updatedAt'>,
   createdBy: string,
-  creatorRole: 'admin' | 'cashier' | 'seller' | 'accountant' = 'admin',
+  creatorRole: 'developer' | 'admin' | 'cashier' | 'seller' | 'accountant' = 'admin',
 ): Promise<PrintTemplate> {
   assertPermission('create_template', creatorRole);
   const now = new Date().toISOString();
@@ -78,7 +78,7 @@ export async function createTemplate(
 export async function updateTemplate(
   id: string,
   updates: Partial<Omit<PrintTemplate, 'id' | 'createdAt' | 'createdBy'>>,
-  updaterRole: 'admin' | 'cashier' | 'seller' | 'accountant' = 'admin',
+  updaterRole: 'developer' | 'admin' | 'cashier' | 'seller' | 'accountant' = 'admin',
 ): Promise<void> {
   assertPermission('edit_template', updaterRole);
   const existing = await db.print_templates.get(id);
@@ -97,7 +97,7 @@ export async function updateTemplate(
  */
 export async function deleteTemplate(
   id: string,
-  deleterRole: 'admin' | 'cashier' | 'seller' | 'accountant' = 'admin',
+  deleterRole: 'developer' | 'admin' | 'cashier' | 'seller' | 'accountant' = 'admin',
 ): Promise<{ success: boolean; error?: string; softDeleted?: boolean }> {
   assertPermission('delete_template', deleterRole);
   const template = await db.print_templates.get(id);
@@ -152,7 +152,7 @@ export async function deleteTemplate(
  */
 export async function setTemplateAsDefault(
   id: string,
-  assignerRole: 'admin' | 'cashier' | 'seller' | 'accountant' = 'admin',
+  assignerRole: 'developer' | 'admin' | 'cashier' | 'seller' | 'accountant' = 'admin',
 ): Promise<void> {
   assertPermission('set_default_template', assignerRole);
   // إلغاء التعيين السابق + تعيين الجديد في عملية واحدة
@@ -207,7 +207,7 @@ export async function getDocTypeAssignment(docType: DocTypeKey): Promise<Templat
 export async function assignTemplateToDocType(
   docType: DocTypeKey,
   templateId: string,
-  assignerRole: 'admin' | 'cashier' | 'seller' | 'accountant' = 'admin',
+  assignerRole: 'developer' | 'admin' | 'cashier' | 'seller' | 'accountant' = 'admin',
 ): Promise<void> {
   assertPermission('assign_template', assignerRole);
   await db.template_assignments.put({ docType, templateId });

@@ -191,14 +191,33 @@ export async function startHttpServer(config: ServerConfig = {}): Promise<{ url:
     });
   });
 
-  // ===== بدء الاستماع =====
-  await server.listen({ port, host });
-  serverInstance = server;
+  // ===== بدء الاستماع مع معالجة تعارض المنافذ تلقائياً =====
+  let activePort = port;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    try {
+      await server.listen({ port: activePort, host });
+      serverInstance = server;
+      break;
+    } catch (err: any) {
+      if (err.code === 'EADDRINUSE' && attempt < 9) {
+        console.warn(`[http] المنفذ ${activePort} مشغول، تجربة المنفذ ${activePort + 1}...`);
+        activePort++;
+      } else {
+        throw err;
+      }
+    }
+  }
 
-  console.log(`[http] 🚀 خادم AN-POS يعمل على http://${host}:${port}`);
-  console.log(`[http] عناوين الوصول: ${getLocalIpAddresses().map((ip) => `http://${ip}:${port}`).join(', ')}`);
+  if (activePort !== port) {
+    try {
+      execute("UPDATE network_settings SET server_port = ? WHERE id = 'default'", [activePort]);
+    } catch {}
+  }
 
-  return { url: `http://${host}:${port}`, port, host };
+  console.log(`[http] 🚀 خادم AN-POS يعمل على http://${host}:${activePort}`);
+  console.log(`[http] عناوين الوصول: ${getLocalIpAddresses().map((ip) => `http://${ip}:${activePort}`).join(', ')}`);
+
+  return { url: `http://${host}:${activePort}`, port: activePort, host };
 }
 
 /**

@@ -1,6 +1,20 @@
-// BlockPropertiesPanel — POS-PRINT-001 / FR-001
-// لوحة الخصائص للبلوك المحدد — تُظهر حقول التحرير حسب نوع الـ block.
-import { AlignRight, AlignCenter, AlignLeft, Sparkles, Plus, Trash2, Tag, QrCode as QrIcon, Barcode as BarcodeIcon, Table as TableIcon } from 'lucide-react';
+import {
+  AlignRight,
+  AlignCenter,
+  AlignLeft,
+  Sparkles,
+  Plus,
+  Trash2,
+  Tag,
+  QrCode as QrIcon,
+  Barcode as BarcodeIcon,
+  Table as TableIcon,
+  Upload,
+  Image as ImageIcon,
+  Store,
+  Check,
+  RotateCcw,
+} from 'lucide-react';
 import type { Block, TableBlock, TextBlock, ImageBlock, QrBlock, BarcodeBlock, SeparatorBlock } from '@/types/invoicePrint';
 import type { Section } from '@/store/templateEditorStore';
 
@@ -244,36 +258,174 @@ function TextProps({ block, update }: { block: TextBlock; update: (u: Partial<Bl
 }
 
 function ImageProps({ block, update }: { block: ImageBlock; update: (u: Partial<Block>) => void }) {
+  const isDefaultLogo = !block.src || block.src === '{{shopLegal.logo}}';
+  const width = block.width ?? 80;
+  const height = block.height ?? 80;
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const result = ev.target?.result as string;
+        if (result) {
+          update({ src: result });
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const applySizePreset = (w: number, h: number) => {
+    update({ width: w, height: h });
+  };
+
   return (
     <div className="space-y-4">
-      <Field label="رابط الصورة (URL أو Base64)">
-        <input
-          value={block.src}
-          onChange={(e) => update({ src: e.target.value })}
-          className={inputCls}
-          placeholder="اترك فارغاً لاستخدام شعار المتجر الافتراضي"
-        />
+      {/* اختيار مصدر الشعار */}
+      <Field label="مصدر الشعار">
+        <div className="grid grid-cols-2 gap-2 bg-surface-container p-1 rounded-xl border border-outline-variant/20">
+          <button
+            type="button"
+            onClick={() => update({ src: '' })}
+            className={`py-2 px-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+              isDefaultLogo
+                ? 'bg-primary text-white shadow-xs'
+                : 'text-on-surface-variant hover:text-on-surface'
+            }`}
+          >
+            <Store className="w-3.5 h-3.5" />
+            <span>شعار المتجر</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (isDefaultLogo) {
+                update({ src: 'https://' });
+              }
+            }}
+            className={`py-2 px-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+              !isDefaultLogo
+                ? 'bg-primary text-white shadow-xs'
+                : 'text-on-surface-variant hover:text-on-surface'
+            }`}
+          >
+            <ImageIcon className="w-3.5 h-3.5" />
+            <span>صورة مخصصة</span>
+          </button>
+        </div>
       </Field>
 
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="العرض (px)">
-          <input
-            type="number"
-            value={block.width ?? 80}
-            onChange={(e) => update({ width: Number(e.target.value) })}
-            className={inputCls}
-          />
-        </Field>
-        <Field label="الارتفاع (px)">
-          <input
-            type="number"
-            value={block.height ?? 80}
-            onChange={(e) => update({ height: Number(e.target.value) })}
-            className={inputCls}
-          />
-        </Field>
+      {/* تفاصيل المصدر المخصص أو تنبيه شعار المتجر */}
+      {isDefaultLogo ? (
+        <div className="p-3 bg-primary/5 rounded-xl border border-primary/20 text-xs text-on-surface-variant space-y-1.5">
+          <div className="flex items-center gap-1.5 font-bold text-primary">
+            <Check className="w-3.5 h-3.5" />
+            <span>يستخدم شعار المتجر الفعلي</span>
+          </div>
+          <p className="text-[11px] leading-relaxed text-on-surface-variant/80">
+            يتم جلب الشعار تلقائياً من إعدادات المؤسسة أو من قسم هوية الطباعة بأعلى الصفحة.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <Field label="رابط الصورة أو رفع ملف">
+            <div className="flex gap-2">
+              <input
+                value={block.src}
+                onChange={(e) => update({ src: e.target.value })}
+                className={inputCls + ' flex-1'}
+                placeholder="أدخل رابط صورة (URL أو Data URL)..."
+                dir="ltr"
+              />
+              <label className="px-3 py-2 rounded-xl bg-surface-container-high hover:bg-primary/10 hover:text-primary hover:border-primary/40 border border-outline-variant/30 text-xs font-bold cursor-pointer flex items-center gap-1.5 shrink-0 transition-all">
+                <Upload className="w-3.5 h-3.5" />
+                <span>رفع</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+              </label>
+            </div>
+          </Field>
+          <button
+            type="button"
+            onClick={() => update({ src: '' })}
+            className="text-[11px] text-primary hover:underline flex items-center gap-1 font-medium"
+          >
+            <RotateCcw className="w-3 h-3" />
+            <span>العودة لاستخدام شعار المتجر الافتراضي</span>
+          </button>
+        </div>
+      )}
+
+      {/* أحجام سريعة جاهزة */}
+      <div>
+        <div className="text-xs font-bold text-on-surface mb-2">مقاسات سريعة للشعار:</div>
+        <div className="grid grid-cols-4 gap-1.5">
+          {[
+            { l: 'صغير', w: 50, h: 50 },
+            { l: 'متوسط', w: 80, h: 80 },
+            { l: 'كبير', w: 120, h: 120 },
+            { l: 'عريض', w: 160, h: 80 },
+          ].map((preset) => {
+            const isMatch = width === preset.w && height === preset.h;
+            return (
+              <button
+                key={preset.l}
+                type="button"
+                onClick={() => applySizePreset(preset.w, preset.h)}
+                className={`py-1.5 px-1 rounded-lg text-[11px] font-bold border transition-all ${
+                  isMatch
+                    ? 'bg-primary/10 border-primary text-primary shadow-xs'
+                    : 'bg-surface-container border-outline-variant/20 text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                {preset.l} ({preset.w}px)
+              </button>
+            );
+          })}
+        </div>
       </div>
 
+      {/* أبعاد العرض والارتفاع الدقيقة */}
+      <div className="space-y-3 bg-surface-container/50 p-3 rounded-2xl border border-outline-variant/15">
+        <div>
+          <div className="flex items-center justify-between text-xs font-bold text-on-surface mb-1">
+            <span>العرض (Width)</span>
+            <span className="font-mono text-primary font-black">{width}px</span>
+          </div>
+          <input
+            type="range"
+            min={30}
+            max={250}
+            step={5}
+            value={width}
+            onChange={(e) => update({ width: Number(e.target.value) })}
+            className="w-full accent-primary"
+          />
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between text-xs font-bold text-on-surface mb-1">
+            <span>الارتفاع (Height)</span>
+            <span className="font-mono text-primary font-black">{height}px</span>
+          </div>
+          <input
+            type="range"
+            min={20}
+            max={200}
+            step={5}
+            value={height}
+            onChange={(e) => update({ height: Number(e.target.value) })}
+            className="w-full accent-primary"
+          />
+        </div>
+      </div>
+
+      {/* المحاذاة */}
       <Field label="المحاذاة">
         <div className="grid grid-cols-3 gap-2 bg-surface-container p-1 rounded-xl border border-outline-variant/20">
           {ALIGNS.map((a) => {

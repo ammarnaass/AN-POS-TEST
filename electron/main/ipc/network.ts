@@ -34,10 +34,12 @@ export function registerNetworkIpc(): void {
     // تأكد من وجود connection_key
     getOrCreateConnectionKey();
     // تشغيل الخادم إن لم يعمل
+    let finalPort = port;
     if (!isHttpServerRunning()) {
-      await startHttpServer({ port });
+      const res = await startHttpServer({ port });
+      finalPort = res.port;
     }
-    return { success: true, port, running: isHttpServerRunning() };
+    return { success: true, port: finalPort, running: isHttpServerRunning() };
   });
 
   // server:disable — إيقاف الخادم + تحديث lan_enabled = 0

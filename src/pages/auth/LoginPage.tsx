@@ -24,7 +24,6 @@ import {
 } from 'lucide-react';
 import { db } from '@/infrastructure/database/dexie/db';
 import { generateId } from '@/utils';
-import { startTrial } from '@/services/trialService';
 import { validatePasswordStrength, PasswordStrengthBar } from '@/utils/passwordStrength';
 
 type View = 'login' | 'register' | 'success';
@@ -185,22 +184,6 @@ export default function LoginPage() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleSkipTrial = () => {
-    startTrial();
-    completeFirstRun();
-    useAuthStore.setState({
-      user: {
-        id: 'trial-user',
-        username: 'trial',
-        name: 'مستخدم تجريبي',
-        role: 'seller',
-        status: 'active',
-      },
-      isAuthenticated: true,
-    });
-    navigate('/', { replace: true });
   };
 
   // ===== Left Side Hero Showcase (Desktop & Large screens >= 1024px) =====
@@ -570,19 +553,18 @@ export default function LoginPage() {
                   )}
                 </button>
 
-                {/* Divider */}
-                <div className="relative py-1">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-outline-variant/20 dark:border-white/10" />
-                  </div>
-                  <div className="relative flex justify-center">
-                    <span className="bg-surface-container px-3 text-[11px] text-on-surface-variant font-tajawal">أو</span>
-                  </div>
-                </div>
+                {/* Secondary Action Buttons (Register Only if Allowed) */}
+                {allowSelfRegistration && (
+                  <>
+                    <div className="relative py-1">
+                      <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-outline-variant/20 dark:border-white/10" />
+                      </div>
+                      <div className="relative flex justify-center">
+                        <span className="bg-surface-container px-3 text-[11px] text-on-surface-variant font-tajawal">أو</span>
+                      </div>
+                    </div>
 
-                {/* Secondary Action Buttons (Register & Trial) */}
-                <div className={`grid ${allowSelfRegistration ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'} gap-2`}>
-                  {allowSelfRegistration && (
                     <button
                       type="button"
                       onClick={() => {
@@ -594,17 +576,8 @@ export default function LoginPage() {
                       <UserPlus className="w-3.5 h-3.5 text-primary" />
                       <span>إنشاء حساب جديد</span>
                     </button>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={handleSkipTrial}
-                    className="w-full h-9 sm:h-10 border border-dashed border-tertiary/40 bg-tertiary/5 rounded-xl text-tertiary text-xs font-cairo font-semibold hover:bg-tertiary/10 hover:border-tertiary/70 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-tertiary" />
-                    <span>تجربة مجانية (7 أيام)</span>
-                  </button>
-                </div>
+                  </>
+                )}
               </div>
             )}
 

@@ -22,6 +22,8 @@ import { POSActionBar } from './components/POSActionBar';
 import { ClassicPOSLayout } from './components/ClassicPOSLayout';
 import { useOpenCashSession } from '@/features/cash/useOpenCashSession';
 import { usePOSSessionStore } from './store/usePOSSessionStore';
+import { getTrialState } from '@/services/trialService';
+import { isLicensed } from '@/services/licenseService';
 import {
   Search, Plus, Minus, Trash2, ShoppingCart, Banknote, User, UserPlus, Clock, X, Package, RotateCcw,
   FileText, File, Truck, AlertTriangle, Receipt, ChevronLeft, ChevronRight, Wallet,
@@ -81,6 +83,7 @@ export default function POSPage() {
   const queryClient = useQueryClient();
   const { items: cart, addItem, removeItem, updateQty, updatePrice, clear: clearCart } = useCartStore();
   const { user: currentUser } = useAuthStore();
+  const trial = getTrialState(currentUser?.role);
   const { open: openSidebar } = useSidebarStore();
   const { theme, toggleTheme } = useThemeStore();
   const notifications = useNotificationStore((s) => s.notifications);
@@ -864,10 +867,12 @@ export default function POSPage() {
           </div>
 
           {/* Trial / License info pill */}
-          <div className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs font-bold shrink-0 shadow-2xs">
-            <Info className="w-4 h-4 text-amber-500 shrink-0" />
-            <span>متبقي 97 مبيعات</span>
-          </div>
+          {!isLicensed() && currentUser?.role !== 'developer' && trial.isActive && (
+            <div className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs font-bold shrink-0 shadow-2xs">
+              <Zap className="w-4 h-4 text-amber-500 shrink-0" />
+              <span>تجربة مجانية: متبقي {trial.remainingDays} أيام ({trial.remainingSales} مبيعات)</span>
+            </div>
+          )}
         </div>
 
         {/* Left Side (RTL End): Uniform-Sized Animated Action Icons */}

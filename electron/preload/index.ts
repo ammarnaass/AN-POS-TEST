@@ -187,6 +187,16 @@ const electronAPI = {
       ipcRenderer.invoke('license:fingerprint'),
   },
 
+  // ===== إدارة التجربة المجانية 7 أيام =====
+  trial: {
+    get: () =>
+      ipcRenderer.invoke('trial:get'),
+    start: (existingStart?: string, existingEnd?: string, existingSales?: number) =>
+      ipcRenderer.invoke('trial:start', existingStart, existingEnd, existingSales),
+    incrementSales: () =>
+      ipcRenderer.invoke('trial:incrementSales'),
+  },
+
   // ===== محرك الطباعة الصامتة لسطح المكتب =====
   print: {
     silent: (html: string, options?: { silent?: boolean; deviceName?: string; copies?: number; color?: boolean }) =>

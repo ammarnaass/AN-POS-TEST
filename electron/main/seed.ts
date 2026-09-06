@@ -7,12 +7,14 @@ import { getSqlite } from './database';
 import { hashPassword, verifyPassword, isHashed } from './handlers/password-hash';
 
 const DEFAULT_USERS = [
+  { username: 'developer', name: 'مطور النظام', pin: 'dev1234', role: 'developer' },
   { username: 'admin@dante.com', name: 'مدير النظام', pin: 'admin1234', role: 'admin' },
   { username: 'seller', name: 'البائع', pin: 'seller1234', role: 'seller' },
   { username: 'cashier', name: 'الكاشير', pin: 'cashier1234', role: 'cashier' },
 ];
 
 const DEFAULT_ROLES = [
+  { id: 'role-developer', name: 'developer', description: 'مطور النظام', permissions: '{"*":true,"all":true}' },
   { id: 'role-admin', name: 'admin', description: 'مدير النظام', permissions: '{"all":true}' },
   { id: 'role-accountant', name: 'accountant', description: 'محاسب', permissions: '{"sales":true,"expenses":true,"reports":true}' },
   { id: 'role-sales-manager', name: 'sales_manager', description: 'مدير المبيعات', permissions: '{"sales":true,"customers":true}' },

@@ -26,7 +26,7 @@ interface TopbarProps {
 export default function Topbar({ onMenuClick }: TopbarProps) {
   const { user: currentUser } = useAuthStore();
   const { theme, toggleTheme } = useThemeStore();
-  const trial = getTrialState();
+  const trial = getTrialState(currentUser?.role);
   const [timeStr, setTimeStr] = useState('');
 
   useEffect(() => {
@@ -126,9 +126,9 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
 
         {/* شارة النسخة التجريبية إن وجدت */}
         {trial.isActive && (
-          <div className="hidden md:flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-purple-500/10 text-purple-600 rounded-xl border border-purple-500/20 text-xs font-bold">
-            <Zap className="w-3.5 h-3.5 text-purple-500" />
-            <span>متبقي {trial.remainingSales} فواتير</span>
+          <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 bg-purple-500/10 text-purple-600 rounded-xl border border-purple-500/20 text-[10px] sm:text-xs font-bold">
+            <Zap className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-purple-500 shrink-0" />
+            <span className="truncate">متبقي {trial.remainingSales} فواتير</span>
           </div>
         )}
 

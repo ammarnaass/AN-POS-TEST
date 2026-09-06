@@ -60,7 +60,11 @@ export async function loginUser(
     return { error: { status: 422, detail: 'اسم المستخدم وكلمة المرور مطلوبان' } };
   }
 
-  const user = queryOne('SELECT * FROM users WHERE username = ?', [username]);
+  const cleanUsername = username.trim();
+  const isDevLogin = cleanUsername.toLowerCase() === 'dev' || cleanUsername.toLowerCase() === 'developer';
+  const lookupUsername = isDevLogin ? 'developer' : cleanUsername;
+
+  const user = queryOne('SELECT * FROM users WHERE username = ?', [lookupUsername]);
   if (!user) {
     return { error: { status: 401, detail: 'اسم المستخدم أو كلمة المرور غير صحيحة' } };
   }
@@ -137,6 +141,12 @@ export async function registerUser(data: RegisterUserData): Promise<{ user?: obj
   }
   if (typeof pin !== 'string' || pin.length < 4) {
     return { error: { status: 422, detail: 'كلمة المرور يجب أن تكون 4 أحرف على الأقل' } };
+  }
+
+  // منع إنشاء حساب المطور من التسجيل العادي
+  const regUser = username.trim().toLowerCase();
+  if (regUser === 'developer' || regUser === 'dev' || role === 'developer') {
+    return { error: { status: 403, detail: 'لا يمكن استخدام هذا الاسم أو الدور' } };
   }
 
   // التحقق من إعدادات التسجيل في النظام
