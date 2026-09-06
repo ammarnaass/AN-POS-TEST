@@ -11,6 +11,7 @@ import PricingSection from './sections/PricingSection';
 import StockSection from './sections/StockSection';
 import SaleSettingsSection from './sections/SaleSettingsSection';
 import BarcodeSection from './sections/BarcodeSection';
+import PackagingSection from './sections/PackagingSection';
 import {
   Save, LogOut, Tag as TagIcon, Printer, RefreshCw, Tag, Plus,
 } from 'lucide-react';
@@ -216,6 +217,11 @@ export default function ProductFormPage() {
 
         <div className="bg-surface rounded-lg border border-outline-variant/20 p-5">
           <BarcodeSection form={form} setForm={setField} />
+        </div>
+
+        {/* قسم عبوات الجملة — يظهر فقط عند التعديل */}
+        <div className="bg-surface rounded-lg border border-outline-variant/20 p-5">
+          <PackagingSection form={form} />
         </div>
 
         <div className="flex justify-end gap-2 pb-4">
