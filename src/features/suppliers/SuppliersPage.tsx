@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/infrastructure/database/dexie/db';
 import { generateId } from '@/utils';
+import { syncProductUpdate } from '@/lib/products-sync';
 import type { Supplier, SupplierEntry, SaleItem } from '@/types';
 import {
   Plus, Search, Edit2, Trash2, X, Truck, ShoppingCart,
@@ -338,11 +339,14 @@ export default function SuppliersPage() {
 
         const product = await db.products.get(item.productId);
         if (product) {
-          await db.products.update(item.productId, {
+          const changes = {
             quantity: product.quantity + item.qty,
-            costPrice: item.unitPrice, // update cost price to latest purchase
+            costPrice: item.unitPrice,
             updatedAt: now,
-          });
+          };
+          await db.products.update(item.productId, changes);
+          // Write-Through → SQLite (for mobile sync)
+          await syncProductUpdate(item.productId, changes);
         }
 
         await db.stock_movements.add({

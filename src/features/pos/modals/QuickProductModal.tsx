@@ -5,6 +5,7 @@ import { v4 as createId } from 'uuid';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNotificationStore } from '@/store/notificationStore';
 import type { Product } from '@/types';
+import { syncProductCreate } from '@/lib/products-sync';
 
 interface QuickProductModalProps {
   isOpen: boolean;
@@ -51,6 +52,8 @@ export const QuickProductModal: React.FC<QuickProductModalProps> = ({
 
     try {
       await db.products.add(newProduct);
+      // Write-Through → SQLite (for mobile sync)
+      await syncProductCreate(newProduct);
       queryClient.invalidateQueries({ queryKey: ['products'] });
       onProductCreatedAndAdded(newProduct);
       setForm({ name: '', barcode: '', category: '', retailPrice: 0, quantity: 10 });

@@ -4,6 +4,12 @@ import { db } from '@/infrastructure/database/dexie/db';
 import { useNavigate } from 'react-router-dom';
 import type { Product } from '@/types';
 import { generateId } from '@/utils';
+import {
+  syncProductCreate,
+  syncProductUpdate,
+  syncProductDelete,
+  syncProductBulkCreate,
+} from '@/lib/products-sync';
 import { findDuplicateBarcodes, findMissingBarcodes } from '@/services/barcode';
 import BulkAssignBarcodesModal from '@/features/barcode/BulkAssignBarcodesModal';
 import { useBarcodeScanner } from '@/features/barcode/useBarcodeScanner';
@@ -70,39 +76,52 @@ export default function InventoryPage() {
   });
 
   const addMutation = useMutation({
-    mutationFn: (data: Omit<Product, 'id'>) =>
-      db.products.add({
+    mutationFn: async (data: Omit<Product, 'id'>) => {
+      const newProduct = {
         id: generateId(),
         ...data,
         status: 'active',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-      } as any),
+      };
+      await db.products.add(newProduct as any);
+      // Write-Through → SQLite (for mobile sync)
+      await syncProductCreate(newProduct);
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['products'] }),
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<Product> }) =>
-      db.products.update(id, { ...data, updatedAt: new Date().toISOString() } as any),
+    mutationFn: async ({ id, data }: { id: string; data: Partial<Product> }) => {
+      const changes = { ...data, updatedAt: new Date().toISOString() };
+      await db.products.update(id, changes as any);
+      // Write-Through → SQLite (for mobile sync)
+      await syncProductUpdate(id, changes);
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['products'] }),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => db.products.delete(id),
+    mutationFn: async (id: string) => {
+      await db.products.delete(id);
+      // Write-Through → SQLite (for mobile sync)
+      await syncProductDelete(id);
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['products'] }),
   });
 
   const importMutation = useMutation({
-    mutationFn: (importedProducts: Product[]) => {
+    mutationFn: async (importedProducts: Product[]) => {
       const now = new Date().toISOString();
-      return db.products.bulkAdd(
-        importedProducts.map(p => ({
-          ...p,
-          id: p.id || generateId(),
-          createdAt: p.createdAt || now,
-          updatedAt: now,
-        })) as any
-      );
+      const prepared = importedProducts.map(p => ({
+        ...p,
+        id: p.id || generateId(),
+        createdAt: p.createdAt || now,
+        updatedAt: now,
+      }));
+      await db.products.bulkAdd(prepared as any);
+      // Write-Through → SQLite (for mobile sync)
+      await syncProductBulkCreate(prepared);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['products'] }),
   });
