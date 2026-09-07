@@ -17,6 +17,7 @@ export const TRANSLATIONS: Record<TemplateLanguage, TranslationDict> = {
     docTypes: {
       'thermal-receipt': 'وصل بيع',
       'sale-invoice': 'فاتورة بيع',
+      'wholesale-invoice': 'فاتورة مبيعات جملة (Gros)',
       'proforma': 'فاتورة شكلية (Proforma)',
       'devis': 'عرض أسعار (Devis)',
       'bl': 'سند تسليم (BL)',
@@ -72,6 +73,7 @@ export const TRANSLATIONS: Record<TemplateLanguage, TranslationDict> = {
     docTypes: {
       'thermal-receipt': 'TICKET DE CAISSE',
       'sale-invoice': 'FACTURE DE VENTE',
+      'wholesale-invoice': 'FACTURE DE VENTE EN GROS',
       'proforma': 'FACTURE PROFORMA',
       'devis': 'DEVIS ESTIMATIF',
       'bl': 'BON DE LIVRAISON',
@@ -127,6 +129,7 @@ export const TRANSLATIONS: Record<TemplateLanguage, TranslationDict> = {
     docTypes: {
       'thermal-receipt': 'وصل بيع / TICKET',
       'sale-invoice': 'فاتورة بيع / FACTURE',
+      'wholesale-invoice': 'فاتورة جملة / FACTURE GROS',
       'proforma': 'فاتورة شكلية / PROFORMA',
       'devis': 'عرض أسعار / DEVIS',
       'bl': 'سند تسليم / BON DE LIVRAISON',
@@ -182,6 +185,7 @@ export const TRANSLATIONS: Record<TemplateLanguage, TranslationDict> = {
     docTypes: {
       'thermal-receipt': 'RECEIPT',
       'sale-invoice': 'SALES INVOICE',
+      'wholesale-invoice': 'WHOLESALE INVOICE',
       'proforma': 'PROFORMA INVOICE',
       'devis': 'PRICE QUOTATION',
       'bl': 'DELIVERY NOTE',

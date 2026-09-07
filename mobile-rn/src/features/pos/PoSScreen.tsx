@@ -46,6 +46,8 @@ import {
   ArrowUpRight,
   ScanLine,
   Sparkles,
+  Boxes,
+  ShoppingBag,
 } from 'lucide-react-native';
 import { db, ensureInit } from '@/lib/db';
 import { generateId } from '@shared/utils';
@@ -58,6 +60,7 @@ import { syncEngine } from '@/lib/syncEngine';
 import { getStoreSettings, fetchStoreSettingsFromDesktop, StoreSettings, DEFAULT_STORE_SETTINGS } from '@/lib/settingService';
 import CameraScanner from '@/features/barcode/CameraScanner';
 import InvoicePrintPreviewModal from '@/features/print/InvoicePrintPreviewModal';
+import type { DocTypeKey } from '@shared/types/invoicePrint';
 import type { Product, Customer } from '@/lib/apiClient';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuthStore } from '@/store/authStore';
@@ -94,6 +97,7 @@ export const POSScreen = ({ route, navigation }: any) => {
   const [storeSettings, setStoreSettings] = useState<StoreSettings>(DEFAULT_STORE_SETTINGS);
   const [search, setSearch] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [saleMode, setSaleMode] = useState<'retail' | 'wholesale'>('retail');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
@@ -324,6 +328,77 @@ export const POSScreen = ({ route, navigation }: any) => {
     );
   };
 
+  // Dynamic Cart Recalculation for Wholesale vs Retail Mode
+  const recalculateCartForMode = useCallback(
+    (mode: 'retail' | 'wholesale', currentCart: CartItem[]) => {
+      return currentCart.map((item) => {
+        if (item.isPack || item.isCustom) return item;
+        const prod = products.find((p) => p.id === item.productId);
+        if (!prod) return item;
+
+        let newUnitPrice = item.unitPrice;
+        let newPromoName = item.promoName;
+
+        if (mode === 'wholesale') {
+          const wsPrice =
+            prod.wholesalePrice && prod.wholesalePrice > 0
+              ? prod.wholesalePrice
+              : (prod as any).sale_price3 && (prod as any).sale_price3 > 0
+              ? (prod as any).sale_price3
+              : (prod as any).salePrice3 && (prod as any).salePrice3 > 0
+              ? (prod as any).salePrice3
+              : prod.retailPrice;
+          newUnitPrice = wsPrice;
+          newPromoName = 'سعر الجملة';
+        } else {
+          // Retail mode: check tiered volume threshold
+          if (
+            prod.wholesaleMinQty &&
+            prod.wholesaleMinQty > 0 &&
+            item.qty >= prod.wholesaleMinQty &&
+            prod.wholesalePrice &&
+            prod.wholesalePrice > 0
+          ) {
+            newUnitPrice = prod.wholesalePrice;
+            newPromoName = 'تخفيض كمية جملة';
+          } else {
+            newUnitPrice = prod.retailPrice;
+            newPromoName = '';
+          }
+        }
+
+        return {
+          ...item,
+          unitPrice: newUnitPrice,
+          lineTotal: newUnitPrice * item.qty,
+          promoName: newPromoName,
+        };
+      });
+    },
+    [products]
+  );
+
+  const toggleSaleMode = (newMode: 'retail' | 'wholesale') => {
+    setSaleMode(newMode);
+    setCart((prev) => recalculateCartForMode(newMode, prev));
+  };
+
+  const handleSelectCustomer = (cust: Customer | null) => {
+    setSelectedCustomer(cust);
+    setShowCustomerPicker(false);
+    if (cust) {
+      const cType = (cust as any).customerType || (cust as any).customer_type || '';
+      if (cType === 'wholesale' || cType === 'semi_wholesale') {
+        setSaleMode('wholesale');
+        setCart((prev) => recalculateCartForMode('wholesale', prev));
+        Alert.alert(
+          'وضع الجملة (GROS)',
+          `تم تفعيل وضع الجملة تلقائياً للعميل "${cust.name}" وتحديث أسعار السلة.`
+        );
+      }
+    }
+  };
+
   const addToCart = useCallback(
     (
       product: Product,
@@ -347,7 +422,18 @@ export const POSScreen = ({ route, navigation }: any) => {
         let promoTag = customPriceOption?.label || '';
 
         if (!customPriceOption) {
-          if (
+          if (saleMode === 'wholesale') {
+            const wsPrice =
+              product.wholesalePrice && product.wholesalePrice > 0
+                ? product.wholesalePrice
+                : (product as any).sale_price3 && (product as any).sale_price3 > 0
+                ? (product as any).sale_price3
+                : (product as any).salePrice3 && (product as any).salePrice3 > 0
+                ? (product as any).salePrice3
+                : product.retailPrice;
+            basePrice = wsPrice;
+            promoTag = 'سعر الجملة';
+          } else if (
             product.wholesalePrice &&
             product.wholesalePrice > 0 &&
             product.wholesaleMinQty &&
@@ -355,7 +441,7 @@ export const POSScreen = ({ route, navigation }: any) => {
             newQty >= product.wholesaleMinQty
           ) {
             basePrice = product.wholesalePrice;
-            promoTag = 'سعر الجملة';
+            promoTag = 'تخفيض كمية جملة';
           } else if (promo) {
             const discType = promo.discountType || promo.discount_type || promo.type;
             const discVal = promo.discountValue || promo.discount_value || promo.value || 0;
@@ -404,10 +490,14 @@ export const POSScreen = ({ route, navigation }: any) => {
         ];
       });
     },
-    [products, promotions]
+    [products, promotions, saleMode]
   );
 
   const handleProductPress = (product: Product) => {
+    if (saleMode === 'wholesale') {
+      addToCart(product, 1);
+      return;
+    }
     const rawCP = (product as any).customPrices ?? (product as any).custom_prices;
     let cPrices: any[] = [];
     if (rawCP) {
@@ -718,20 +808,30 @@ export const POSScreen = ({ route, navigation }: any) => {
           let unitPrice = c.unitPrice;
           let promoName = c.promoName;
 
-          // Re-evaluate wholesale tier on quantity change
-          if (
-            prod &&
-            prod.wholesalePrice &&
-            prod.wholesalePrice > 0 &&
-            prod.wholesaleMinQty &&
-            prod.wholesaleMinQty > 0
-          ) {
-            if (newQty >= prod.wholesaleMinQty) {
-              unitPrice = prod.wholesalePrice;
-              promoName = t('pos.wholesalePrice');
-            } else {
-              unitPrice = prod.retailPrice;
-              promoName = '';
+          if (prod && !c.isPack && !c.isCustom) {
+            if (saleMode === 'wholesale') {
+              unitPrice =
+                prod.wholesalePrice && prod.wholesalePrice > 0
+                  ? prod.wholesalePrice
+                  : (prod as any).sale_price3 && (prod as any).sale_price3 > 0
+                  ? (prod as any).sale_price3
+                  : (prod as any).salePrice3 && (prod as any).salePrice3 > 0
+                  ? (prod as any).salePrice3
+                  : prod.retailPrice;
+              promoName = 'سعر الجملة';
+            } else if (
+              prod.wholesalePrice &&
+              prod.wholesalePrice > 0 &&
+              prod.wholesaleMinQty &&
+              prod.wholesaleMinQty > 0
+            ) {
+              if (newQty >= prod.wholesaleMinQty) {
+                unitPrice = prod.wholesalePrice;
+                promoName = 'تخفيض كمية جملة';
+              } else {
+                unitPrice = prod.retailPrice;
+                promoName = '';
+              }
             }
           }
 
@@ -941,7 +1041,10 @@ export const POSScreen = ({ route, navigation }: any) => {
     try {
       await ensureInit();
       const nowIso = new Date().toISOString();
-      const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
+      const datePart = nowIso.slice(0, 10).replace(/-/g, '');
+      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+      const invoicePrefix = saleMode === 'wholesale' ? 'MOB-WS' : 'MOB';
+      const invoiceNumber = `${invoicePrefix}-${datePart}-${randomSuffix}`;
       const saleId = generateId();
 
       const enteredPaid = parseFloat(paidInput) || 0;
@@ -1215,7 +1318,18 @@ export const POSScreen = ({ route, navigation }: any) => {
       }
 
       // 5. Print invoice safely without blocking checkout completion
+      const formerBal = selectedCustomer ? (selectedCustomer.balance || 0) : 0;
+      const paidAmt = finalMethod === 'credit' ? 0 : effectivePaid;
+      const newBal = formerBal + total - paidAmt;
+      const docType: DocTypeKey =
+        saleMode === 'wholesale'
+          ? 'wholesale-invoice'
+          : selectedDocType === 'bl'
+          ? 'bl'
+          : 'sale-invoice';
+
       const invoiceData: PrintInvoiceData = {
+        id: saleId,
         number: invoiceNumber,
         date: nowIso,
         items: cart.map((c) => ({
@@ -1230,7 +1344,18 @@ export const POSScreen = ({ route, navigation }: any) => {
         total,
         paymentMethod: finalMethod,
         customerName: selectedCustomer?.name || '',
+        customerPhone: selectedCustomer?.phone || '',
+        customerAddress: (selectedCustomer as any)?.address || '',
+        customerRc: (selectedCustomer as any)?.rc || '',
+        customerNif: (selectedCustomer as any)?.nif || '',
+        customerNis: (selectedCustomer as any)?.nis || '',
+        customerArt: (selectedCustomer as any)?.art || '',
+        formerBalance: formerBal,
+        paidAmount: paidAmt,
+        newBalance: newBal,
         soldBy: user?.name || '',
+        cashierName: user?.name || '',
+        docType,
       };
 
       try {
@@ -1304,6 +1429,87 @@ export const POSScreen = ({ route, navigation }: any) => {
         </View>
         <View style={[styles.licenseFlaskIcon, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : colors.primary[100] }]}>
           <FlaskConical size={18} color={isDark ? '#60a5fa' : colors.primary[600]} />
+        </View>
+      </View>
+
+      {/* Wholesale vs Retail Mode Toggle Bar */}
+      <View style={styles.saleModeBarWrapper}>
+        <View
+          style={[
+            styles.saleModeBar,
+            {
+              backgroundColor:
+                saleMode === 'wholesale'
+                  ? isDark
+                    ? '#1e1b4b'
+                    : '#eff6ff'
+                  : isDark
+                  ? '#0f172a'
+                  : '#f8fafc',
+              borderColor:
+                saleMode === 'wholesale'
+                  ? '#4f46e5'
+                  : isDark
+                  ? '#334155'
+                  : colors.border.default,
+              flexDirection: isRTL ? 'row-reverse' : 'row',
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={[
+              styles.saleModeBtn,
+              saleMode === 'retail' && styles.saleModeBtnActiveRetail,
+              { flexDirection: isRTL ? 'row-reverse' : 'row' },
+            ]}
+            onPress={() => toggleSaleMode('retail')}
+            activeOpacity={0.8}
+          >
+            <ShoppingBag
+              size={14}
+              color={saleMode === 'retail' ? '#ffffff' : colors.text.secondary}
+            />
+            <Text
+              style={[
+                styles.saleModeBtnText,
+                saleMode === 'retail'
+                  ? styles.saleModeBtnTextActive
+                  : { color: colors.text.secondary },
+              ]}
+            >
+              {isRTL ? 'تجزئة (DÉTAIL)' : 'Retail (DÉTAIL)'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.saleModeBtn,
+              saleMode === 'wholesale' && styles.saleModeBtnActiveWholesale,
+              { flexDirection: isRTL ? 'row-reverse' : 'row' },
+            ]}
+            onPress={() => toggleSaleMode('wholesale')}
+            activeOpacity={0.8}
+          >
+            <Boxes
+              size={14}
+              color={saleMode === 'wholesale' ? '#ffffff' : colors.text.secondary}
+            />
+            <Text
+              style={[
+                styles.saleModeBtnText,
+                saleMode === 'wholesale'
+                  ? styles.saleModeBtnTextActive
+                  : { color: colors.text.secondary },
+              ]}
+            >
+              {isRTL ? 'جملة (GROS)' : 'Wholesale (GROS)'}
+            </Text>
+            {saleMode === 'wholesale' && (
+              <View style={styles.wholesaleBadgeActive}>
+                <Text style={styles.wholesaleBadgeActiveText}>مفعل</Text>
+              </View>
+            )}
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -1795,6 +2001,8 @@ export const POSScreen = ({ route, navigation }: any) => {
 
               {filteredCustomers.map((cust) => {
                 const isSelected = selectedCustomer?.id === cust.id;
+                const cType = (cust as any).customerType || (cust as any).customer_type || 'retail';
+                const isWholesale = cType === 'wholesale' || cType === 'semi_wholesale';
                 return (
                   <TouchableOpacity
                     key={cust.id}
@@ -1803,18 +2011,21 @@ export const POSScreen = ({ route, navigation }: any) => {
                       { borderBottomColor: colors.border.subtle, flexDirection: isRTL ? 'row-reverse' : 'row' },
                       isSelected && { backgroundColor: colors.primary[50] },
                     ]}
-                    onPress={() => {
-                      setSelectedCustomer(cust);
-                      setShowCustomerPicker(false);
-                    }}
+                    onPress={() => handleSelectCustomer(cust)}
                   >
                     {isSelected ? (
                       <Check size={16} color={colors.primary[600]} />
                     ) : null}
                     <View style={{ alignItems: isRTL ? 'flex-start' : 'flex-end', flex: 1 }}>
-                      <Text style={[styles.customerOptionName, { color: colors.text.primary }]}>{cust.name}</Text>
+                      <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={[styles.customerOptionName, { color: colors.text.primary }]}>{cust.name}</Text>
+                        <Badge variant={isWholesale ? 'purple' : 'neutral'} size="xs">
+                          {cType === 'wholesale' ? 'جملة' : cType === 'semi_wholesale' ? 'نصف جملة' : 'تجزئة'}
+                        </Badge>
+                      </View>
                       <Text style={[styles.customerOptionSub, { color: colors.text.tertiary }]}>
                         {cust.phone || '-'} • {t('customers.debt')}: {cust.balance || 0} {currency}
+                        {(cust as any).rc ? ` • RC: ${(cust as any).rc}` : ''}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -2630,6 +2841,60 @@ const makeStyles = (colors: any, isDark: boolean) =>
       borderRadius: radii.lg,
       alignItems: 'center',
       justifyContent: 'center',
+    },
+
+    // Wholesale vs Retail Bar
+    saleModeBarWrapper: {
+      paddingHorizontal: spacing.md,
+      marginTop: 4,
+      marginBottom: 2,
+    },
+    saleModeBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderRadius: radii.xl,
+      borderWidth: 1,
+      padding: 3,
+      gap: 4,
+    },
+    saleModeBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      paddingVertical: 7,
+      borderRadius: radii.lg,
+    },
+    saleModeBtnActiveRetail: {
+      backgroundColor: colors.primary[600],
+      ...shadows.xs,
+    },
+    saleModeBtnActiveWholesale: {
+      backgroundColor: '#4338ca',
+      ...shadows.xs,
+    },
+    saleModeBtnText: {
+      fontSize: 12,
+      fontWeight: '700',
+      fontFamily: 'Cairo',
+    },
+    saleModeBtnTextActive: {
+      color: '#ffffff',
+      fontWeight: '800',
+    },
+    wholesaleBadgeActive: {
+      backgroundColor: '#312e81',
+      paddingHorizontal: 6,
+      paddingVertical: 1,
+      borderRadius: radii.pill,
+      marginLeft: 4,
+    },
+    wholesaleBadgeActiveText: {
+      color: '#c7d2fe',
+      fontSize: 9.5,
+      fontWeight: '800',
+      fontFamily: 'Cairo',
     },
 
     // Top Actions Row (+ عميل, فتح مناوبة)

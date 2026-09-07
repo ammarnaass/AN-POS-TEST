@@ -30,9 +30,12 @@ import {
   TrendingUp,
   MapPin,
   ChevronLeft,
+  FileText,
+  Building2,
 } from 'lucide-react-native';
 import { db, ensureInit } from '@/lib/db';
 import { generateId } from '@shared/utils';
+import { syncEngine } from '@/lib/syncEngine';
 import { useTheme } from '@/theme';
 import { useI18n } from '@/store/i18nStore';
 import { radii, spacing, typography, shadows } from '@/theme/tokens';
@@ -49,6 +52,10 @@ interface Customer {
   customerType: string;
   notes?: string;
   status: string;
+  rc?: string;
+  nif?: string;
+  nis?: string;
+  art?: string;
 }
 
 type ModalMode = 'add' | 'edit' | 'view';
@@ -63,6 +70,10 @@ const emptyForm = (): Partial<Customer> => ({
   customerType: 'retail',
   notes: '',
   status: 'active',
+  rc: '',
+  nif: '',
+  nis: '',
+  art: '',
 });
 
 export const CustomersScreen = () => {
@@ -97,6 +108,10 @@ export const CustomersScreen = () => {
         customerType: c.customerType || c.customer_type || 'retail',
         notes: c.notes || '',
         status: c.status || 'active',
+        rc: c.rc || '',
+        nif: c.nif || '',
+        nis: c.nis || '',
+        art: c.art || '',
       }));
       setCustomers(mapped);
       setFiltered(mapped);
@@ -174,8 +189,9 @@ export const CustomersScreen = () => {
       await ensureInit();
       const nowIso = new Date().toISOString();
       if (modalMode === 'add') {
+        const customerId = generateId();
         const newCustomer: Customer = {
-          id: generateId(),
+          id: customerId,
           name: form.name.trim(),
           email: form.email?.trim() || '',
           phone: form.phone?.trim() || '',
@@ -185,10 +201,32 @@ export const CustomersScreen = () => {
           customerType: form.customerType || 'retail',
           notes: form.notes?.trim() || '',
           status: form.status || 'active',
+          rc: form.rc?.trim() || '',
+          nif: form.nif?.trim() || '',
+          nis: form.nis?.trim() || '',
+          art: form.art?.trim() || '',
         };
         await db.customers.add(newCustomer);
+        await db.syncQueue.put({
+          id: generateId(),
+          tableName: 'customers',
+          recordId: customerId,
+          operation: 'create',
+          payload: JSON.stringify({
+            ...newCustomer,
+            credit_limit: newCustomer.creditLimit,
+            customer_type: newCustomer.customerType,
+            created_at: nowIso,
+            updated_at: nowIso,
+          }),
+          status: 'pending',
+          retries: 0,
+          maxRetries: 5,
+          createdAt: nowIso,
+          updatedAt: nowIso,
+        });
       } else if (modalMode === 'edit' && selected) {
-        await db.customers.update(selected.id, {
+        const updatedData = {
           name: form.name.trim(),
           email: form.email?.trim() || '',
           phone: form.phone?.trim() || '',
@@ -198,11 +236,35 @@ export const CustomersScreen = () => {
           customerType: form.customerType || 'retail',
           notes: form.notes?.trim() || '',
           status: form.status || 'active',
+          rc: form.rc?.trim() || '',
+          nif: form.nif?.trim() || '',
+          nis: form.nis?.trim() || '',
+          art: form.art?.trim() || '',
+          updatedAt: nowIso,
+        };
+        await db.customers.update(selected.id, updatedData);
+        await db.syncQueue.put({
+          id: generateId(),
+          tableName: 'customers',
+          recordId: selected.id,
+          operation: 'update',
+          payload: JSON.stringify({
+            id: selected.id,
+            ...updatedData,
+            credit_limit: updatedData.creditLimit,
+            customer_type: updatedData.customerType,
+            updated_at: nowIso,
+          }),
+          status: 'pending',
+          retries: 0,
+          maxRetries: 5,
+          createdAt: nowIso,
           updatedAt: nowIso,
         });
       }
       setModalVisible(false);
       await loadData();
+      syncEngine.processQueue().catch(() => {});
     } catch (err) {
       Alert.alert(t('common.error'), t('customers.customerSaveFailed'));
     }
@@ -218,7 +280,20 @@ export const CustomersScreen = () => {
         onPress: async () => {
           try {
             await db.customers.delete(c.id);
+            await db.syncQueue.put({
+              id: generateId(),
+              tableName: 'customers',
+              recordId: c.id,
+              operation: 'delete',
+              payload: JSON.stringify({ id: c.id }),
+              status: 'pending',
+              retries: 0,
+              maxRetries: 5,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            });
             await loadData();
+            syncEngine.processQueue().catch(() => {});
           } catch {
             Alert.alert(t('common.error'), t('customers.deleteFailed'));
           }
@@ -392,11 +467,18 @@ export const CustomersScreen = () => {
                 </View>
 
                 <View style={[styles.cardInfo, { alignItems: isRTL ? 'flex-start' : 'flex-end', marginRight: isRTL ? 0 : spacing.sm, marginLeft: isRTL ? spacing.sm : 0 }]}>
-                  <Text
-                    style={[styles.cardName, { color: colors.text.primary, textAlign }]}
-                  >
-                    {c.name}
-                  </Text>
+                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }}>
+                    <Text
+                      style={[styles.cardName, { color: colors.text.primary, textAlign }]}
+                    >
+                      {c.name}
+                    </Text>
+                    {c.customerType === 'wholesale' ? (
+                      <Badge variant="purple" size="xs">جملة</Badge>
+                    ) : c.customerType === 'semi_wholesale' ? (
+                      <Badge variant="neutral" size="xs">نصف جملة</Badge>
+                    ) : null}
+                  </View>
                   {c.phone ? (
                     <View style={[styles.cardRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                       <Phone size={11} color={colors.text.tertiary} />
@@ -404,6 +486,7 @@ export const CustomersScreen = () => {
                         style={[styles.cardSub, { color: colors.text.secondary }]}
                       >
                         {c.phone}
+                        {c.rc ? ` • RC: ${c.rc}` : ''}
                       </Text>
                     </View>
                   ) : null}
@@ -466,6 +549,47 @@ export const CustomersScreen = () => {
               style={styles.modalBody}
               showsVerticalScrollIndicator={false}
             >
+              {/* Customer Type Selector */}
+              <View style={{ marginBottom: spacing.md }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', fontFamily: 'Cairo', color: colors.text.secondary, textAlign, marginBottom: 6 }}>
+                  {isRTL ? 'نوع العميل / النشاط' : 'Customer Type'}
+                </Text>
+                <View style={[styles.custTypeRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                  {[
+                    { id: 'retail', label: isRTL ? 'تجزئة (Détail)' : 'Retail' },
+                    { id: 'semi_wholesale', label: isRTL ? 'نصف جملة' : 'Semi-Gros' },
+                    { id: 'wholesale', label: isRTL ? 'جملة (Gros)' : 'Wholesale' },
+                  ].map((tOpt) => {
+                    const isSelected = (form.customerType || 'retail') === tOpt.id;
+                    return (
+                      <TouchableOpacity
+                        key={tOpt.id}
+                        style={[
+                          styles.custTypeBtn,
+                          {
+                            backgroundColor: isSelected
+                              ? (tOpt.id === 'wholesale' ? '#4338ca' : colors.primary[600])
+                              : colors.surfaceSubtle,
+                            borderColor: isSelected ? 'transparent' : colors.border.default,
+                          },
+                        ]}
+                        onPress={() => setForm((f) => ({ ...f, customerType: tOpt.id }))}
+                        activeOpacity={0.8}
+                      >
+                        <Text
+                          style={[
+                            styles.custTypeBtnText,
+                            { color: isSelected ? '#ffffff' : colors.text.secondary },
+                          ]}
+                        >
+                          {tOpt.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
               <Input
                 label={t('customers.name')}
                 value={form.name || ''}
@@ -501,6 +625,41 @@ export const CustomersScreen = () => {
                 placeholder="0"
                 keyboardType="numeric"
               />
+
+              {/* Algerian Tax Identifiers */}
+              <View style={[styles.taxSectionCard, { backgroundColor: colors.surfaceSubtle, borderColor: colors.border.default }]}>
+                <Text style={{ fontSize: 12.5, fontWeight: '800', fontFamily: 'Cairo', color: colors.text.primary, textAlign, marginBottom: 8 }}>
+                  {isRTL ? 'البيانات الجبائية والتجارية (الجزائر)' : 'Algerian Tax & Legal Info'}
+                </Text>
+                <Input
+                  label="رقم السجل التجاري (RC)"
+                  value={form.rc || ''}
+                  onChangeText={(v) => setForm((f) => ({ ...f, rc: v }))}
+                  placeholder="مثال: 16/00-1234567B19"
+                />
+                <Input
+                  label="رقم التعريف الجبائي (NIF)"
+                  value={form.nif || ''}
+                  onChangeText={(v) => setForm((f) => ({ ...f, nif: v }))}
+                  placeholder="مثال: 001916012345678"
+                  keyboardType="numeric"
+                />
+                <Input
+                  label="رقم التعريف الإحصائي (NIS)"
+                  value={form.nis || ''}
+                  onChangeText={(v) => setForm((f) => ({ ...f, nis: v }))}
+                  placeholder="مثال: 199016010012345"
+                  keyboardType="numeric"
+                />
+                <Input
+                  label="رقم المادة الضريبية (Article d'Imposition)"
+                  value={form.art || ''}
+                  onChangeText={(v) => setForm((f) => ({ ...f, art: v }))}
+                  placeholder="مثال: 16012345678"
+                  keyboardType="numeric"
+                />
+              </View>
+
               <Input
                 label={t('customers.notes')}
                 value={form.notes || ''}
@@ -641,6 +800,38 @@ export const CustomersScreen = () => {
                       <MapPin size={16} color={colors.primary[600]} />
                     </View>
                   </View>
+
+                  <View style={[styles.infoRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                    <Badge variant={selected.customerType === 'wholesale' ? 'purple' : selected.customerType === 'semi_wholesale' ? 'neutral' : 'success'} size="xs">
+                      {selected.customerType === 'wholesale' ? 'تاجر جملة (Gros)' : selected.customerType === 'semi_wholesale' ? 'نصف جملة (Semi-Gros)' : 'تجزئة (Détail)'}
+                    </Badge>
+                    <View style={[styles.infoLabelGroup, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                      <Text style={[styles.infoLabel, { color: colors.text.secondary }]}>
+                        نوع العميل
+                      </Text>
+                      <Building2 size={16} color={colors.primary[600]} />
+                    </View>
+                  </View>
+
+                  {selected.rc ? (
+                    <View style={[styles.infoRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                      <Text style={[styles.infoVal, { color: colors.text.primary }]}>{selected.rc}</Text>
+                      <View style={[styles.infoLabelGroup, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                        <Text style={[styles.infoLabel, { color: colors.text.secondary }]}>السجل التجاري (RC)</Text>
+                        <FileText size={16} color={colors.primary[600]} />
+                      </View>
+                    </View>
+                  ) : null}
+
+                  {selected.nif ? (
+                    <View style={[styles.infoRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                      <Text style={[styles.infoVal, { color: colors.text.primary }]}>{selected.nif}</Text>
+                      <View style={[styles.infoLabelGroup, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                        <Text style={[styles.infoLabel, { color: colors.text.secondary }]}>التعريف الجبائي (NIF)</Text>
+                        <FileText size={16} color={colors.primary[600]} />
+                      </View>
+                    </View>
+                  ) : null}
 
                   <View style={[styles.infoRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                     <Text
@@ -945,6 +1136,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.sm,
     marginBottom: spacing.xl,
+  },
+  custTypeRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  custTypeBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  custTypeBtnText: {
+    fontSize: 11.5,
+    fontFamily: 'Cairo',
+    fontWeight: '700',
+  },
+  taxSectionCard: {
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    padding: spacing.sm + 2,
+    marginVertical: spacing.xs,
+    gap: 4,
   },
 });
 

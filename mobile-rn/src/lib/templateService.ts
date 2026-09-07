@@ -25,6 +25,7 @@ import {
   DEFAULT_THERMAL_80,
   DEFAULT_INVOICE_A4,
   DEFAULT_INVOICE_A5,
+  DEFAULT_WHOLESALE_INVOICE_A4,
   ALL_DEFAULT_TEMPLATES,
 } from '@shared/services/defaultTemplates';
 import { TEMPLATE_PRESETS, getPresetById, getPresetTemplateData, type PresetDef } from '@shared/services/templatePresets';
@@ -34,6 +35,7 @@ export {
   DEFAULT_THERMAL_80,
   DEFAULT_INVOICE_A4,
   DEFAULT_INVOICE_A5,
+  DEFAULT_WHOLESALE_INVOICE_A4,
   ALL_DEFAULT_TEMPLATES,
   TEMPLATE_PRESETS,
   getPresetById,
@@ -143,12 +145,13 @@ export async function seedDefaultTemplates(): Promise<void> {
           { id: 'asgn-1', docType: 'thermal-receipt', templateId: 'default-thermal-80' },
           { id: 'asgn-2', docType: 'return-invoice', templateId: 'default-thermal-80' },
           { id: 'asgn-3', docType: 'sale-invoice', templateId: 'default-invoice-a4' },
-          { id: 'asgn-4', docType: 'proforma', templateId: 'default-invoice-a4' },
-          { id: 'asgn-5', docType: 'devis', templateId: 'default-invoice-a4' },
-          { id: 'asgn-6', docType: 'purchase-invoice', templateId: 'default-invoice-a4' },
-          { id: 'asgn-7', docType: 'bl', templateId: 'default-invoice-a5' },
-          { id: 'asgn-8', docType: 'customer-statement', templateId: 'default-invoice-a5' },
-          { id: 'asgn-9', docType: 'supplier-statement', templateId: 'default-invoice-a5' },
+          { id: 'asgn-4', docType: 'wholesale-invoice', templateId: 'default-wholesale-invoice-a4' },
+          { id: 'asgn-5', docType: 'proforma', templateId: 'default-invoice-a4' },
+          { id: 'asgn-6', docType: 'devis', templateId: 'default-invoice-a4' },
+          { id: 'asgn-7', docType: 'purchase-invoice', templateId: 'default-invoice-a4' },
+          { id: 'asgn-8', docType: 'bl', templateId: 'default-invoice-a5' },
+          { id: 'asgn-9', docType: 'customer-statement', templateId: 'default-invoice-a5' },
+          { id: 'asgn-10', docType: 'supplier-statement', templateId: 'default-invoice-a5' },
         ];
 
         for (const assign of defaultAssignments) {

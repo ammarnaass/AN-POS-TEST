@@ -15,6 +15,24 @@ export interface ElectronAPI {
     getCurrentUser: (userId: string) => Promise<{ user?: unknown; error?: { status: number; detail: string } }>;
     logout: (userId: string) => Promise<{ success: boolean }>;
   };
+  products: {
+    list: (opts?: { search?: string; categoryId?: string; status?: string; limit?: number; offset?: number; orderBy?: string; orderDir?: 'ASC' | 'DESC' | 'asc' | 'desc' }) => Promise<{ data: Record<string, unknown>[] }>;
+    get: (id: string) => Promise<{ data: Record<string, unknown> | null }>;
+    getByBarcode: (barcode: string) => Promise<{ data: Record<string, unknown> | null }>;
+    create: (data: Record<string, unknown>) => Promise<{ data: Record<string, unknown> | null; error?: { status: number; detail: string } }>;
+    update: (id: string, data: Record<string, unknown>) => Promise<{ data: Record<string, unknown> | null; error?: { status: number; detail: string } }>;
+    remove: (id: string) => Promise<{ success: boolean; error?: { status: number; detail: string } }>;
+    delete?: (id: string) => Promise<{ success: boolean; error?: { status: number; detail: string } }>;
+  };
+  packs: {
+    list: (opts?: { search?: string; status?: string; limit?: number; offset?: number }) => Promise<{ data: Record<string, unknown>[] }>;
+    get: (id: string) => Promise<{ data: Record<string, unknown> | null }>;
+    getByBarcode: (barcode: string) => Promise<{ data: Record<string, unknown> | null }>;
+    create: (data: Record<string, unknown>) => Promise<{ data: Record<string, unknown> | null; error?: { status: number; detail: string } }>;
+    update: (id: string, data: Record<string, unknown>) => Promise<{ data: Record<string, unknown> | null; error?: { status: number; detail: string } }>;
+    remove: (id: string) => Promise<{ success: boolean; error?: { status: number; detail: string } }>;
+    delete?: (id: string) => Promise<{ success: boolean; error?: { status: number; detail: string } }>;
+  };
   sales: {
     list: (opts?: { type?: string; docType?: string; customerId?: string; status?: string; search?: string; from?: string; to?: string; limit?: number; offset?: number }) => Promise<{ data: Record<string, unknown>[] }>;
     get: (id: string) => Promise<{ data: Record<string, unknown> | null }>;

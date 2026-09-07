@@ -39,6 +39,13 @@ export interface PrintInvoiceData {
   customerName?: string;
   customerPhone?: string;
   customerAddress?: string;
+  customerRc?: string;
+  customerNif?: string;
+  customerNis?: string;
+  customerArt?: string;
+  formerBalance?: number;
+  paidAmount?: number;
+  newBalance?: number;
   soldBy?: string;
   cashierName?: string;
   docType?: DocTypeKey;

@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, type ReactNode } from "react";
+import { initSyncBridge } from "@/lib/syncBridge";
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -16,10 +17,15 @@ export default function QueryProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
+    // تشغيل جسر المزامنة الحي (SQLite ↔ Dexie)
+    const cleanupSyncBridge = initSyncBridge();
+
     // الاستماع الفوري لتعديلات قاعدة البيانات المنبعثة من Electron Main عبر IPC
     const api = (window as any).electronAPI;
+    let unsubscribe: (() => void) | undefined;
+
     if (api?.db?.onTableUpdated) {
-      const unsubscribe = api.db.onTableUpdated((payload: { table?: string; action?: string; id?: string }) => {
+      unsubscribe = api.db.onTableUpdated((payload: { table?: string; action?: string; id?: string }) => {
         const table = payload?.table;
         if (table) {
           // تحديث فوري لكافة الكويريز المرتبطة بالجدول المعدل
@@ -31,6 +37,8 @@ export default function QueryProvider({ children }: { children: ReactNode }) {
           } else if (table === "products" || table === "categories") {
             queryClient.invalidateQueries({ queryKey: ["products"] });
             queryClient.invalidateQueries({ queryKey: ["categories"] });
+          } else if (table === "packs") {
+            queryClient.invalidateQueries({ queryKey: ["packs"] });
           } else if (table === "sales" || table === "sales_items") {
             queryClient.invalidateQueries({ queryKey: ["sales"] });
             queryClient.invalidateQueries({ queryKey: ["products"] });
@@ -47,11 +55,12 @@ export default function QueryProvider({ children }: { children: ReactNode }) {
           queryClient.invalidateQueries();
         }
       });
-
-      return () => {
-        if (typeof unsubscribe === "function") unsubscribe();
-      };
     }
+
+    return () => {
+      if (typeof unsubscribe === "function") unsubscribe();
+      if (typeof cleanupSyncBridge === "function") cleanupSyncBridge();
+    };
   }, []);
 
   return (

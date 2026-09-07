@@ -14,6 +14,24 @@ const patches = [
   {
     file: path.join(
       __dirname,
+      "node_modules/@react-native-community/cli-server-api/build/statusPageMiddleware.js"
+    ),
+    find: "res.setHeader('X-React-Native-Project-Root', process.cwd());",
+    replace: "res.setHeader('X-React-Native-Project-Root', encodeURI(process.cwd()));",
+    description: "cli-server-api: encodeURI for non-ASCII path support in header",
+  },
+  {
+    file: path.join(
+      __dirname,
+      "node_modules/@react-native-community/cli-tools/build/isPackagerRunning.js"
+    ),
+    find: "root: headers.get('X-React-Native-Project-Root') ?? ''",
+    replace: "root: decodeURI(headers.get('X-React-Native-Project-Root') ?? '')",
+    description: "cli-tools: decodeURI for non-ASCII path support in header",
+  },
+  {
+    file: path.join(
+      __dirname,
       'node_modules/react-native-svg/common/cpp/react/renderer/components/rnsvg/RNSVGLayoutableShadowNode.cpp'
     ),
     find: 'yoga::StyleSizeLength::percent(100)',

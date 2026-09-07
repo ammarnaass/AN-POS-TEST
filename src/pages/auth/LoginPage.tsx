@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
-import { completeFirstRun } from '@/app/guards/FirstRunGuard';
 import {
   Lock,
   User,
@@ -11,14 +10,12 @@ import {
   Phone,
   Shield,
   Check,
-  Sparkles,
   LogIn,
   ArrowRight,
   Zap,
   Printer,
   Wifi,
   Database,
-  CheckCircle2,
   AlertCircle,
   Loader2,
 } from 'lucide-react';

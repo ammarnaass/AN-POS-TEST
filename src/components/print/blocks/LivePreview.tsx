@@ -2,9 +2,11 @@
 // معاينة مباشرة تفاعلية للقالب أثناء التحرير مع دعم اللغات، الشعار الفعلي، والاتجاه اللغوي. Debounce 300ms.
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ExternalLink, Globe, ZoomIn, ZoomOut, Check } from 'lucide-react';
-import type { PrintTemplate, DocumentContext, ShopLegalInfo, PrintLanguage } from '@/types/invoicePrint';
+import { ExternalLink, Globe, ZoomIn, ZoomOut, Check, FileCheck } from 'lucide-react';
+import type { PrintTemplate, DocumentContext, ShopLegalInfo, PrintLanguage, DocTypeKey } from '@/types/invoicePrint';
+import { DOC_TYPE_LABELS_AR } from '@/types/invoicePrint';
 import { renderDocumentHTML, buildPrintPage } from '@/services/print/renderTemplate';
+import { buildMockDocumentContext } from '@/services/print/mockPreviewContext';
 import { useTemplateEditorStore } from '@/store/templateEditorStore';
 import { db } from '@/infrastructure/database/dexie/db';
 
@@ -17,57 +19,6 @@ function now(): string {
   return new Date().toISOString();
 }
 
-/**
- * بناء سياق المعاينة اعتماداً على إعدادات المتجر الفعلية واللغة المختارة
- */
-function buildMockContext(
-  template: PrintTemplate,
-  settings: any,
-  lang: PrintLanguage = 'ar',
-): DocumentContext {
-  const isRtl = lang === 'ar' || lang === 'ar-fr';
-
-  const mockInvoice = {
-    number: 'INV-2026-0001',
-    date: new Date().toISOString().split('T')[0],
-    subtotal: 5000,
-    discount: 250,
-    tvaAmount: 902.5,
-    total: 5652.5,
-    paymentMethod: isRtl ? 'نقداً' : 'Espèces',
-    customerName: isRtl ? 'أحمد محمد' : 'Ahmed Mohamed',
-    customerPhone: '0555 12 34 56',
-    customerAddress: isRtl ? 'الجزائر العاصمة' : 'Alger Centre',
-    items: [
-      { name: isRtl ? 'حليب كامل الدسم' : 'Lait Entier 1L', qty: 10, unitPrice: 100, lineTotal: 1000, discount: 0, batchNumber: '' },
-      { name: isRtl ? 'خبز فرنسي (Baguette)' : 'Baguette Tradition', qty: 20, unitPrice: 30, lineTotal: 600, discount: 0, batchNumber: '' },
-      { name: isRtl ? 'زيت زيتون بكر 1ل' : 'Huile d\'Olive Vierge 1L', qty: 5, unitPrice: 400, lineTotal: 2000, discount: 100, batchNumber: '' },
-      { name: isRtl ? 'سكر أبيض 1كغ' : 'Sucre Blanc 1kg', qty: 15, unitPrice: 90, lineTotal: 1350, discount: 150, batchNumber: '' },
-    ],
-  };
-
-  const mockShopLegal: ShopLegalInfo = {
-    name: settings?.shopName || 'سوبرماركت الأمل',
-    phone: settings?.phone || settings?.shopPhone2 || '023 45 67 89',
-    email: settings?.email || settings?.shopEmail || 'contact@example.dz',
-    address: settings?.shopAddress || settings?.address || 'شارع العربي بن مهيدي، الجزائر',
-    footer: settings?.receiptFooter || 'شكراً لزيارتكم · البضاعة المباعة لا ترد ولا تستبدل إلا بالفاتورة',
-    commercialRegister: settings?.commercialRegister || settings?.companyRC || '16/B/0012345',
-    nif: settings?.companyNif || settings?.taxNumber || settings?.taxId || '001616012345678',
-    ai: settings?.companyAI || settings?.companyArt || settings?.taxArticle || '16012345678',
-    logo: settings?.shopLogo || settings?.logo || '',
-  };
-
-  return {
-    invoice: mockInvoice as unknown as Record<string, unknown>,
-    settings: { shopName: mockShopLegal.name },
-    template,
-    shopLegal: mockShopLegal,
-    user: { id: 'preview', name: isRtl ? 'الكاشير' : 'Caissier', role: 'cashier' },
-    lang,
-  };
-}
-
 export default function LivePreview({ templateName, templateId }: Props) {
   const layout = useTemplateEditorStore((s) => s.layout);
   const styles = useTemplateEditorStore((s) => s.styles);
@@ -77,11 +28,21 @@ export default function LivePreview({ templateName, templateId }: Props) {
   const description = useTemplateEditorStore((s) => s.description);
   const supportedDocuments = useTemplateEditorStore((s) => s.supportedDocuments);
 
+  const [previewDocType, setPreviewDocType] = useState<DocTypeKey>(
+    supportedDocuments && supportedDocuments.length > 0 ? supportedDocuments[0] : 'wholesale-invoice'
+  );
   const [previewLang, setPreviewLang] = useState<PrintLanguage>('ar');
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [html, setHtml] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // تحديث نوع الوثيقة إذا تغيرت قائمة الوثائق المدعومة للقالب
+  useEffect(() => {
+    if (supportedDocuments && supportedDocuments.length > 0 && !supportedDocuments.includes(previewDocType)) {
+      setPreviewDocType(supportedDocuments[0]);
+    }
+  }, [supportedDocuments]);
 
   // جلب إعدادات المتجر والشعار الحقيقي
   const { data: storeSettings } = useQuery({
@@ -115,7 +76,7 @@ export default function LivePreview({ templateName, templateId }: Props) {
           createdAt: now(),
           updatedAt: now(),
         };
-        const ctx = buildMockContext(template, storeSettings, previewLang);
+        const ctx = buildMockDocumentContext(template, storeSettings, previewDocType, previewLang);
         const body = renderDocumentHTML(ctx);
         const page = buildPrintPage(template, body, `معاينة: ${templateName}`, previewLang);
         setHtml(page);
@@ -129,7 +90,8 @@ export default function LivePreview({ templateName, templateId }: Props) {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [layout, styles, visibility, paperSize, orientation, templateName, storeSettings, previewLang]);
+  }, [layout, styles, visibility, paperSize, orientation, templateName, storeSettings, previewLang, previewDocType, supportedDocuments]);
+
 
   const openInWindow = () => {
     if (!html) return;
@@ -145,7 +107,7 @@ export default function LivePreview({ templateName, templateId }: Props) {
       {/* شريط أدوات المعاينة التفاعلية المتقدمة */}
       <div className="flex flex-wrap items-center justify-between gap-2 p-2 rounded-xl bg-surface-container border border-outline-variant/20 text-xs">
         <div className="flex items-center gap-1.5">
-          <span className="font-bold text-on-surface font-cairo">المعاينة الحية:</span>
+          <span className="font-bold text-on-surface font-cairo">معاينة مباشرة</span>
           <span className="px-2 py-0.5 rounded-md bg-primary/10 text-primary font-bold text-[11px]">
             {paperSize}
           </span>
@@ -156,6 +118,27 @@ export default function LivePreview({ templateName, templateId }: Props) {
             </span>
           )}
         </div>
+
+        {/* محدد نوع الوثيقة المدعومة في المعاينة */}
+        {supportedDocuments && supportedDocuments.length > 1 && (
+          <div className="flex items-center gap-1 bg-surface-container-high rounded-lg p-0.5 border border-outline-variant/20">
+            {supportedDocuments.map((dt) => (
+              <button
+                key={dt}
+                type="button"
+                onClick={() => setPreviewDocType(dt)}
+                className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                  previewDocType === dt
+                    ? 'bg-primary text-white shadow-xs'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+                title={`معاينة كـ ${DOC_TYPE_LABELS_AR[dt] || dt}`}
+              >
+                {DOC_TYPE_LABELS_AR[dt] || dt}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* محدد لغة المعاينة والاتجاه */}
         <div className="flex items-center gap-1 bg-surface-container-high rounded-lg p-0.5 border border-outline-variant/20">

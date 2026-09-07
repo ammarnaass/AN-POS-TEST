@@ -293,7 +293,9 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
 
       // الطباعة التلقائية عبر محرك الطباعة (بدون تجميد أو نوافذ منبثقة معطلة)
       if (autoPrint && sale) {
-        const printDocType = sale.type === 'return' ? 'return-invoice' : 'thermal-receipt';
+        const printDocType = sale.type === 'return'
+          ? 'return-invoice'
+          : (sale.docType === 'wholesale' ? 'wholesale-invoice' : 'thermal-receipt');
         printDocument(sale.id, printDocType, {
           userId: currentUser?.id ?? '',
           userName: currentUser?.name ?? '',

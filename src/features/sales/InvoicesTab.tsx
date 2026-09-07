@@ -29,6 +29,7 @@ const DOC_TYPES: { value: DocType; label: string }[] = [
   { value: 'devis', label: 'ديفي' },
   { value: 'bl', label: 'بي ل (BL)' },
   { value: 'facture', label: 'فاتورة رسمية' },
+  { value: 'wholesale', label: 'فاتورة بيع بالجملة (Gros)' },
 ];
 
 const QUICK_PERIODS = [
@@ -211,14 +212,18 @@ export default function InvoicesTab() {
       proforma: 'proforma',
       devis: 'devis',
       bl: 'bl',
+      wholesale: 'wholesale-invoice',
       return: 'return-invoice',
     };
     return docTypeMap[sale.docType] ?? docTypeMap[sale.type] ?? 'sale-invoice';
   };
 
-  const handlePrint = async (sale: typeof sales[0], opts?: { templateId?: string; printerId?: string }) => {
+  const handlePrint = async (
+    sale: typeof sales[0],
+    opts?: { templateId?: string; printerId?: string; docTypeOverride?: DocTypeKey }
+  ) => {
     setIsPrinting(true);
-    const docType = docTypeForSale(sale);
+    const docType = opts?.docTypeOverride || docTypeForSale(sale);
 
     const fallbackPrint = () => {
       const html = generateReceiptHTML(sale, {
@@ -708,13 +713,22 @@ export default function InvoicesTab() {
                           <Eye className="w-4 h-4" />
                         </button>
                         {canReprint && (
-                          <button
-                            onClick={() => handlePrint(sale)}
-                            className="p-2 rounded-xl text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-all"
-                            title="طباعة سريعة"
-                          >
-                            <PrinterIcon className="w-4 h-4" />
-                          </button>
+                          <>
+                            <button
+                              onClick={() => handlePrint(sale)}
+                              className="p-2 rounded-xl text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-all"
+                              title="طباعة سريعة"
+                            >
+                              <PrinterIcon className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handlePrint(sale, { docTypeOverride: 'wholesale-invoice' })}
+                              className="p-2 rounded-xl text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 transition-all"
+                              title="طباعة فاتورة جملة (A4 Gros)"
+                            >
+                              <FileText className="w-4 h-4" />
+                            </button>
+                          </>
                         )}
                         {canDelete && (
                           <button

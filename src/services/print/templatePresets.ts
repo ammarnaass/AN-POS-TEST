@@ -4,6 +4,7 @@ import type {
   TextBlock, ImageBlock, RowBlock, ColumnBlock,
   TableBlock, SeparatorBlock, QrBlock, BarcodeBlock,
 } from '@/types/invoicePrint';
+import { wholesaleA4Layout } from './defaultTemplates';
 
 export interface PresetDef {
   id: string;
@@ -260,7 +261,42 @@ export const TEMPLATE_PRESETS: PresetDef[] = [
     }),
   },
 
-  // ─── 4. A5 Proforma ───
+  // ─── 4. A4 Wholesale Invoice (فاتورة بيع بالجملة والطرود) ───
+  {
+    id: 'preset-wholesale-invoice',
+    name: 'Facture de Vente en Gros A4',
+    nameAr: 'فاتورة بيع بالجملة A4 (Gros)',
+    description: 'قالب رسمي مخصص لتجارة الجملة والطرود — يتضمن التعبئة والأرصدة السابقة والسجل التجاري',
+    paperSize: 'A4',
+    category: 'invoice',
+    build: () => ({
+      name: 'فاتورة بيع بالجملة A4',
+      description: 'قالب رسمي لتجارة الجملة والطرود مع تفاصيل التعبئة والأرصدة السابقة والديون',
+      paperSize: 'A4',
+      orientation: 'portrait',
+      widthMm: 210,
+      heightMm: 297,
+      supportedDocuments: ['wholesale-invoice', 'sale-invoice', 'bl'],
+      visibility: {
+        logo: true, shopName: true, invoiceNumber: true,
+        customerName: true, customerPhone: true, customerAddress: true,
+        barcode: false, unitPrice: true, discount: true,
+        tva: true, sellerName: true, cashierName: true,
+        paymentMethod: true, qr: true, signature: true, stamp: true,
+      },
+      layout: wholesaleA4Layout,
+      styles: {
+        primaryColor: '#0369a1', headerColor: '#075985',
+        footerColor: '#475569', tableColor: '#cbd5e1', logoColor: '#0369a1',
+        font: { family: 'Cairo', size: 12, weight: 400 },
+      },
+      qr: { enabled: true, payload: 'invoiceNumber:date:total' },
+      barcode: { enabled: false, source: 'invoiceNumber' },
+      isDefault: false, isSystem: false, createdBy: 'preset',
+    }),
+  },
+
+  // ─── 5. A5 Proforma ───
   {
     id: 'preset-a5-proforma',
     name: 'Facture proforma A5',

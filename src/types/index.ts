@@ -127,6 +127,11 @@ export interface Customer {
   phone: string;
   creditLimit: number;
   balance: number;
+  customerType?: 'retail' | 'wholesale' | 'semi_wholesale';
+  rc?: string;
+  nif?: string;
+  nis?: string;
+  address?: string;
 }
 
 export interface Supplier {
@@ -142,10 +147,15 @@ export interface SaleItem {
   qty: number;
   unitPrice: number;
   lineTotal: number;
+  isPack?: boolean;
+  packId?: string;
+  packQty?: number;
+  packUnit?: string;
+  pricingType?: 'retail' | 'wholesale' | 'pack';
 }
 
 export type SaleType = 'sale' | 'return';
-export type DocType = 'proforma' | 'devis' | 'bl' | 'facture';
+export type DocType = 'proforma' | 'devis' | 'bl' | 'facture' | 'wholesale';
 export type PaymentMethod = 'cash' | 'credit';
 export type SaleStatus = 'paid' | 'partial' | 'unpaid';
 

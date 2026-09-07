@@ -46,6 +46,20 @@ export const PRINT_TRANSLATIONS: Record<string, Record<PrintLanguage, string>> =
   cash: { ar: 'نقداً', fr: 'Espèces', en: 'Cash', 'ar-fr': 'نقداً / Espèces' },
   credit: { ar: 'آجل (دين)', fr: 'À terme (Crédit)', en: 'Credit', 'ar-fr': 'آجل / Crédit' },
   currency: { ar: 'دج', fr: 'DA', en: 'DZD', 'ar-fr': 'دج / DA' },
+  wholesaleInvoice: { ar: 'فاتورة بيع بالجملة', fr: 'Facture de Vente en Gros', en: 'Wholesale Invoice', 'ar-fr': 'فاتورة بيع بالجملة / Facture Gros' },
+  colisage: { ar: 'التعبئة / الطرود', fr: 'Colisage', en: 'Packaging', 'ar-fr': 'التعبئة / Colisage' },
+  packCount: { ar: 'عدد العبوات', fr: 'Nbre Colis', en: 'Packs Qty', 'ar-fr': 'العبوات / Colis' },
+  piecesCount: { ar: 'إجمالي القطع', fr: 'Total Pièces', en: 'Total Pieces', 'ar-fr': 'القطع / Pièces' },
+  formerBalance: { ar: 'الرصيد السابق', fr: 'Ancien Solde', en: 'Previous Balance', 'ar-fr': 'الرصيد السابق / Ancien Solde' },
+  newBalance: { ar: 'الرصيد الجديد', fr: 'Nouveau Solde', en: 'New Balance', 'ar-fr': 'الرصيد الجديد / Nouveau Solde' },
+  paymentReceived: { ar: 'المسدد', fr: 'Versement Reçu', en: 'Payment Received', 'ar-fr': 'المسدد / Versement' },
+  commercialRegister: { ar: 'السجل التجاري', fr: 'R.C', en: 'Commercial Reg.', 'ar-fr': 'السجل التجاري / R.C' },
+  nif: { ar: 'الرقم الجبائي', fr: 'N.I.F', en: 'Tax ID (NIF)', 'ar-fr': 'N.I.F' },
+  nis: { ar: 'رقم التعريف الإحصائي', fr: 'N.I.S', en: 'Statistical ID (NIS)', 'ar-fr': 'N.I.S' },
+  articleImposition: { ar: 'رقم المادة', fr: 'Art. Imp.', en: 'Tax Article', 'ar-fr': 'المادة / Art' },
+  grossTotal: { ar: 'المجموع الخام', fr: 'Total Brut HT', en: 'Gross Total', 'ar-fr': 'المجموع الخام / Brut HT' },
+  totalDiscount: { ar: 'إجمالي التخفيضات', fr: 'Total Remises', en: 'Total Discounts', 'ar-fr': 'التخفيضات / Remises' },
+  netHt: { ar: 'الصافي التجاري (HT)', fr: 'Net Commercial HT', en: 'Commercial Net (HT)', 'ar-fr': 'الصافي / Net HT' },
 };
 
 export function t(key: string, lang: PrintLanguage = 'ar'): string {
@@ -156,6 +170,15 @@ function interpolate(text: string, ctx: DocumentContext): string {
       tax_amount: 'invoice.tvaAmount',
       cashier_name: 'user.name',
       cashier: 'user.name',
+      customer_rc: 'invoice.customerRc',
+      customer_nif: 'invoice.customerNif',
+      customer_nis: 'invoice.customerNis',
+      customer_ai: 'invoice.customerAi',
+      customer_address: 'invoice.customerAddress',
+      former_balance: 'invoice.formerBalance',
+      new_balance: 'invoice.newBalance',
+      versement: 'invoice.paidAmount',
+      paid_amount: 'invoice.paidAmount',
     };
     const resolvedPath = aliasMap[path] ?? path;
     let value: unknown;

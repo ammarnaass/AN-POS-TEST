@@ -53,6 +53,42 @@ const electronAPI = {
       ipcRenderer.invoke('auth:check-registration-allowed'),
   },
 
+  // ===== المنتجات (مسارات مخصصة) =====
+  products: {
+    list: (opts?: { search?: string; categoryId?: string; status?: string; limit?: number; offset?: number; orderBy?: string; orderDir?: 'ASC' | 'DESC' | 'asc' | 'desc' }) =>
+      ipcRenderer.invoke('products:list', opts),
+    get: (id: string) =>
+      ipcRenderer.invoke('products:get', id),
+    getByBarcode: (barcode: string) =>
+      ipcRenderer.invoke('products:getByBarcode', barcode),
+    create: (data: Record<string, unknown>) =>
+      ipcRenderer.invoke('products:create', data),
+    update: (id: string, data: Record<string, unknown>) =>
+      ipcRenderer.invoke('products:update', id, data),
+    remove: (id: string) =>
+      ipcRenderer.invoke('products:delete', id),
+    delete: (id: string) =>
+      ipcRenderer.invoke('products:delete', id),
+  },
+
+  // ===== العبوات والباقات (مسارات مخصصة) =====
+  packs: {
+    list: (opts?: { search?: string; status?: string; limit?: number; offset?: number }) =>
+      ipcRenderer.invoke('packs:list', opts),
+    get: (id: string) =>
+      ipcRenderer.invoke('packs:get', id),
+    getByBarcode: (barcode: string) =>
+      ipcRenderer.invoke('packs:getByBarcode', barcode),
+    create: (data: Record<string, unknown>) =>
+      ipcRenderer.invoke('packs:create', data),
+    update: (id: string, data: Record<string, unknown>) =>
+      ipcRenderer.invoke('packs:update', id, data),
+    remove: (id: string) =>
+      ipcRenderer.invoke('packs:delete', id),
+    delete: (id: string) =>
+      ipcRenderer.invoke('packs:delete', id),
+  },
+
   // ===== المبيعات (مسارات مخصصة) =====
   sales: {
     list: (opts?: { type?: string; docType?: string; customerId?: string; status?: string; search?: string; from?: string; to?: string; limit?: number; offset?: number }) =>

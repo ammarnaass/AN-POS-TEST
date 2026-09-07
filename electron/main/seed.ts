@@ -402,12 +402,207 @@ export async function seedDatabase(): Promise<void> {
       is_default: false,
       is_system: true,
     },
+    {
+      id: 'default-wholesale-invoice-a4',
+      name: 'فاتورة بيع بالجملة A4',
+      description: 'قالب رسمي مخصص لتجارة الجملة والعبوات — يتضمن تفاصيل التعبئة (Colisage)، الطرود، بيانات التاجر، ووضعية حساب العميل',
+      paper_size: 'A4',
+      orientation: 'portrait',
+      width_mm: 210,
+      height_mm: 297,
+      supported_documents: ['wholesale-invoice', 'sale-invoice', 'bl'],
+      visibility: {
+        logo: true, shopName: true, invoiceNumber: true, customerName: true,
+        customerPhone: true, customerAddress: true, barcode: false,
+        unitPrice: true, discount: true, tva: true, sellerName: true,
+        cashierName: true, paymentMethod: true, qr: true, signature: true, stamp: true,
+      },
+      layout: {
+        header: [
+          {
+            id: 'h-logo-wrap',
+            type: 'row',
+            align: 'space-between',
+            gap: 16,
+            children: [
+              { id: 'h-logo', type: 'image', src: '', width: 80, height: 80, align: 'right' },
+              {
+                id: 'h-title-box',
+                type: 'column',
+                gap: 2,
+                children: [
+                  { id: 'h-wholesale-title', type: 'text', text: 'فاتورة بيع بالجملة', size: 'xl', weight: 800, colorVar: 'primary', align: 'center' },
+                  { id: 'h-wholesale-subtitle', type: 'text', text: 'Facture de Vente en Gros & Colisage', size: 'sm', weight: 600, colorVar: 'footer', align: 'center' },
+                ],
+              },
+              { id: 'h-qr', type: 'qr', source: 'custom', size: 75, align: 'left' },
+            ],
+          },
+          {
+            id: 'h-company-details-row',
+            type: 'row',
+            align: 'space-between',
+            gap: 16,
+            children: [
+              {
+                id: 'h-company-col',
+                type: 'column',
+                gap: 3,
+                children: [
+                  { id: 'h-name', type: 'text', text: '{{shopLegal.name}}', size: 'lg', weight: 800, colorVar: 'primary' },
+                  { id: 'h-address', type: 'text', text: 'العنوان: {{shopLegal.address}}', size: 'sm', colorVar: 'footer' },
+                  { id: 'h-phone', type: 'text', text: 'الهاتف: {{shopLegal.phone}}', size: 'sm', colorVar: 'footer' },
+                  { id: 'h-email', type: 'text', text: 'البريد: {{shopLegal.email}}', size: 'sm', colorVar: 'footer' },
+                  { id: 'h-tax-info', type: 'text', text: ['RC: {{shopLegal.commercialRegister}} · NIF: {{shopLegal.nif}}', 'NIS: {{shopLegal.nis}} · AI: {{shopLegal.ai}}'], size: 'sm', colorVar: 'footer' },
+                ],
+              },
+              {
+                id: 'h-doc-meta-col',
+                type: 'column',
+                gap: 3,
+                children: [
+                  { id: 'h-inv-num', type: 'text', text: 'رقم الفاتورة: {{invoice.number}}', size: 'md', weight: 700, align: 'left' },
+                  { id: 'h-inv-date', type: 'text', text: 'تاريخ التحرير: {{invoice.date}}', size: 'sm', colorVar: 'footer', align: 'left' },
+                  { id: 'h-seller-name', type: 'text', text: 'المندوب / البائع: {{user.name}}', size: 'sm', colorVar: 'footer', align: 'left' },
+                  { id: 'h-pay-method', type: 'text', text: 'طريقة الدفع: {{invoice.paymentMethod}}', size: 'sm', weight: 600, align: 'left' },
+                ],
+              },
+            ],
+          },
+          { id: 'h-sep-client', type: 'separator', style: 'solid' },
+          {
+            id: 'h-client-block',
+            type: 'row',
+            align: 'space-between',
+            gap: 16,
+            children: [
+              {
+                id: 'h-client-main',
+                type: 'column',
+                gap: 2,
+                children: [
+                  { id: 'h-client-title', type: 'text', text: 'السيد(ة) / العميل (Client):', size: 'sm', weight: 700, colorVar: 'footer' },
+                  { id: 'h-client-name', type: 'text', text: '{{invoice.customerName}}', size: 'md', weight: 800, colorVar: 'header' },
+                  { id: 'h-client-phone', type: 'text', text: 'الهاتف: {{invoice.customerPhone}}', size: 'sm', colorVar: 'footer' },
+                  { id: 'h-client-address', type: 'text', text: 'العنوان: {{invoice.customerAddress}}', size: 'sm', colorVar: 'footer' },
+                ],
+              },
+              {
+                id: 'h-client-tax',
+                type: 'column',
+                gap: 2,
+                children: [
+                  { id: 'h-client-tax-title', type: 'text', text: 'البيانات الجبائية والتجارية للزبون:', size: 'sm', weight: 700, colorVar: 'footer' },
+                  { id: 'h-client-rc', type: 'text', text: 'السجل التجاري (RC): {{invoice.customerRc}}', size: 'sm' },
+                  { id: 'h-client-nif', type: 'text', text: 'الرقم الجبائي (NIF): {{invoice.customerNif}}', size: 'sm' },
+                  { id: 'h-client-nis', type: 'text', text: 'التعريف الإحصائي (NIS): {{invoice.customerNis}}', size: 'sm' },
+                ],
+              },
+            ],
+          },
+          { id: 'h-sep-table', type: 'separator', style: 'solid' },
+        ],
+        body: [
+          {
+            id: 'b-wholesale-table',
+            type: 'table',
+            columns: [
+              { key: 'sku', label: 'الرمز / Réf', align: 'center' },
+              { key: 'name', label: 'التعيين والبيان (Désignation)', align: 'right' },
+              { key: 'packUnit', label: 'نوع الطرد', align: 'center' },
+              { key: 'packQty', label: 'عدد الطرود', align: 'center', format: 'number' },
+              { key: 'qty', label: 'إجمالي القطع', align: 'center', format: 'number' },
+              { key: 'unitPrice', label: 'سعر الوحدة', align: 'left', format: 'currency' },
+              { key: 'discount', label: 'تخفيض', align: 'center', format: 'currency' },
+              { key: 'lineTotal', label: 'المبلغ الإجمالي', align: 'left', format: 'currency' },
+            ],
+            source: 'items',
+            showSubtotal: true,
+            showDiscount: true,
+            showTva: true,
+            showTotal: true,
+          },
+        ],
+        footer: [
+          { id: 'f-sep', type: 'separator', style: 'solid' },
+          {
+            id: 'f-summary-row',
+            type: 'row',
+            align: 'space-between',
+            gap: 16,
+            children: [
+              {
+                id: 'f-financial-situation-box',
+                type: 'column',
+                gap: 3,
+                children: [
+                  { id: 'f-fin-title', type: 'text', text: 'وضعية الحساب المالي للعميل (Situation Financière):', size: 'sm', weight: 700, colorVar: 'primary' },
+                  { id: 'f-former-bal', type: 'text', text: 'الرصيد السابق (Ancien Solde): {{invoice.formerBalance}} دج', size: 'sm', weight: 600 },
+                  { id: 'f-current-total', type: 'text', text: 'مبلغ هذه الفاتورة: {{invoice.total}} دج', size: 'sm', weight: 600 },
+                  { id: 'f-paid-amount', type: 'text', text: 'المبلغ المسدد نقداً / شيك: {{invoice.paidAmount}} دج', size: 'sm', weight: 600 },
+                  { id: 'f-new-bal', type: 'text', text: 'الرصيد الإجمالي المتبقي: {{invoice.newBalance}} دج', size: 'md', weight: 800, colorVar: 'header' },
+                ],
+              },
+              {
+                id: 'f-totals-box',
+                type: 'column',
+                gap: 3,
+                children: [
+                  { id: 'f-tot-gross', type: 'row', align: 'space-between', children: [{ id: 'g1', type: 'text', text: 'المجموع الخام (Brut HT):', size: 'sm' }, { id: 'g2', type: 'text', text: '{{invoice.subtotal}}', size: 'sm', weight: 600 }] },
+                  { id: 'f-tot-remise', type: 'row', align: 'space-between', children: [{ id: 'r1', type: 'text', text: 'إجمالي التخفيضات:', size: 'sm' }, { id: 'r2', type: 'text', text: '{{invoice.discount}}', size: 'sm' }] },
+                  { id: 'f-tot-tva', type: 'row', align: 'space-between', children: [{ id: 't1', type: 'text', text: 'الرسم على القيمة المضافة (TVA):', size: 'sm' }, { id: 't2', type: 'text', text: '{{invoice.tvaAmount}}', size: 'sm' }] },
+                  { id: 'f-tot-net', type: 'row', align: 'space-between', children: [{ id: 'n1', type: 'text', text: 'الصافي للدفع (Total TTC):', size: 'lg', weight: 800, colorVar: 'primary' }, { id: 'n2', type: 'text', text: '{{invoice.total}}', size: 'lg', weight: 800, colorVar: 'primary' }] },
+                ],
+              },
+            ],
+          },
+          { id: 'f-sep-signs', type: 'separator', style: 'dashed' },
+          {
+            id: 'f-signatures-row',
+            type: 'row',
+            align: 'space-between',
+            gap: 20,
+            children: [
+              {
+                id: 'f-sig-seller',
+                type: 'column',
+                gap: 2,
+                children: [
+                  { id: 'f-sig-seller-title', type: 'text', text: 'ختم وتوقيع البائع (Cachet et Signature)', size: 'sm', weight: 700, align: 'center' },
+                  { id: 'f-sig-seller-space', type: 'text', text: ['\n\n\n'], size: 'md' },
+                ],
+              },
+              {
+                id: 'f-sig-client',
+                type: 'column',
+                gap: 2,
+                children: [
+                  { id: 'f-sig-client-title', type: 'text', text: 'توقيع واستلام المشتري (Accusé de Réception / Décharge)', size: 'sm', weight: 700, align: 'center' },
+                  { id: 'f-sig-client-space', type: 'text', text: ['\n\n\n'], size: 'md' },
+                ],
+              },
+            ],
+          },
+          { id: 'f-text-legal', type: 'text', text: '{{shopLegal.footer}}', align: 'center', size: 'sm', colorVar: 'footer' },
+        ],
+      },
+      styles: {
+        primaryColor: '#0369a1', headerColor: '#075985', footerColor: '#475569',
+        tableColor: '#cbd5e1', logoColor: '#0369a1',
+        font: { family: 'Cairo', size: 12, weight: 400 },
+      },
+      qr: { enabled: true, payload: 'invoiceNumber:date:total' },
+      barcode: { enabled: false, source: 'invoiceNumber' },
+      is_default: false,
+      is_system: true,
+    },
   ];
 
   const DEFAULT_ASSIGNMENTS_SEED: Array<{ doc_type: string; template_id: string }> = [
     { doc_type: 'thermal-receipt', template_id: 'default-thermal-80' },
     { doc_type: 'return-invoice', template_id: 'default-thermal-80' },
     { doc_type: 'sale-invoice', template_id: 'default-invoice-a4' },
+    { doc_type: 'wholesale-invoice', template_id: 'default-wholesale-invoice-a4' },
     { doc_type: 'proforma', template_id: 'default-invoice-a4' },
     { doc_type: 'devis', template_id: 'default-invoice-a4' },
     { doc_type: 'purchase-invoice', template_id: 'default-invoice-a4' },

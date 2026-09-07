@@ -568,11 +568,276 @@ export const DEFAULT_INVOICE_A5: PrintTemplate = {
   updatedAt: '2024-01-01T00:00:00.000Z',
 };
 
+// ======= 4. قالب فاتورة جملة وطرود A4 — تجارة الجملة والموزعين والتجار =======
+export const wholesaleA4Layout: TemplateLayout = {
+  header: [
+    {
+      id: 'h-logo-wrap',
+      type: 'row',
+      align: 'space-between',
+      gap: 16,
+      children: [
+        {
+          id: 'h-logo',
+          type: 'image',
+          src: '',
+          width: 80,
+          height: 80,
+          align: 'right',
+        },
+        {
+          id: 'h-title-box',
+          type: 'column',
+          gap: 2,
+          children: [
+            { id: 'h-wholesale-title', type: 'text', text: 'فاتورة بيع بالجملة', size: 'xl', weight: 800, colorVar: 'primary', align: 'center' },
+            { id: 'h-wholesale-subtitle', type: 'text', text: 'Facture de Vente en Gros & Colisage', size: 'sm', weight: 600, colorVar: 'footer', align: 'center' },
+          ],
+        },
+        {
+          id: 'h-qr',
+          type: 'qr',
+          source: 'custom',
+          size: 75,
+          align: 'left',
+        },
+      ],
+    },
+    {
+      id: 'h-company-details-row',
+      type: 'row',
+      align: 'space-between',
+      gap: 16,
+      children: [
+        {
+          id: 'h-company-col',
+          type: 'column',
+          gap: 3,
+          children: [
+            { id: 'h-name', type: 'text', text: '{{shopLegal.name}}', size: 'lg', weight: 800, colorVar: 'primary' },
+            { id: 'h-address', type: 'text', text: 'العنوان: {{shopLegal.address}}', size: 'sm', colorVar: 'footer' },
+            { id: 'h-phone', type: 'text', text: 'الهاتف: {{shopLegal.phone}}', size: 'sm', colorVar: 'footer' },
+            { id: 'h-email', type: 'text', text: 'البريد: {{shopLegal.email}}', size: 'sm', colorVar: 'footer' },
+          ],
+        },
+        {
+          id: 'h-legal-col',
+          type: 'column',
+          gap: 3,
+          children: [
+            { id: 'h-rc', type: 'text', text: 'السجل التجاري (RC): {{shopLegal.commercialRegister}}', size: 'sm', colorVar: 'footer' },
+            { id: 'h-nif', type: 'text', text: 'الرقم الجبائي (NIF): {{shopLegal.nif}}', size: 'sm', colorVar: 'footer' },
+            { id: 'h-nis', type: 'text', text: 'رقم التعريف الإحصائي (NIS): {{shopLegal.nis}}', size: 'sm', colorVar: 'footer' },
+            { id: 'h-ai', type: 'text', text: 'رقم المادة (AI): {{shopLegal.ai}}', size: 'sm', colorVar: 'footer' },
+          ],
+        },
+      ],
+    },
+    {
+      id: 'h-sep-main',
+      type: 'separator',
+      style: 'solid',
+      thickness: 2,
+      colorVar: 'primary',
+    },
+  ],
+  body: [
+    {
+      id: 'b-meta-cards',
+      type: 'row',
+      align: 'space-between',
+      gap: 16,
+      children: [
+        {
+          id: 'b-doc-meta',
+          type: 'column',
+          gap: 4,
+          children: [
+            { id: 'b-inv-num', type: 'text', text: 'رقم الفاتورة: {{invoice.number}}', size: 'md', weight: 700 },
+            { id: 'b-inv-date', type: 'text', text: 'تاريخ الفاتورة: {{invoice.date}}', size: 'sm' },
+            { id: 'b-pay-mode', type: 'text', text: 'طريقة الدفع: {{invoice.paymentMethod}}', size: 'sm' },
+            { id: 'b-seller', type: 'text', text: 'مسؤول المبيعات: {{user.name}}', size: 'sm', colorVar: 'footer' },
+          ],
+        },
+        {
+          id: 'b-cust-meta',
+          type: 'column',
+          gap: 4,
+          children: [
+            { id: 'b-cust-title', type: 'text', text: 'بيانات التاجر / العميل (Client Gros)', size: 'md', weight: 700, colorVar: 'header' },
+            { id: 'b-cust-name', type: 'text', text: 'الاسم / الشركة: {{invoice.customerName}}', size: 'sm', weight: 600 },
+            { id: 'b-cust-rc', type: 'text', text: 'السجل التجاري (RC): {{invoice.customerRc}}', size: 'sm', colorVar: 'footer' },
+            { id: 'b-cust-nif', type: 'text', text: 'الرقم الجبائي (NIF): {{invoice.customerNif}}', size: 'sm', colorVar: 'footer' },
+            { id: 'b-cust-phone', type: 'text', text: 'الهاتف: {{invoice.customerPhone}}', size: 'sm' },
+            { id: 'b-cust-addr', type: 'text', text: 'العنوان: {{invoice.customerAddress}}', size: 'sm', colorVar: 'footer' },
+          ],
+        },
+      ],
+    },
+    {
+      id: 'b-sep-pre-table',
+      type: 'separator',
+      style: 'solid',
+    },
+    {
+      id: 'b-table',
+      type: 'table',
+      columns: [
+        { key: 'sku', label: 'الرمز (Réf)', align: 'center' },
+        { key: 'name', label: 'تعيين الصنف والعبوة (Désignation)', align: 'right' },
+        { key: 'packUnit', label: 'التعبئة (Colisage)', align: 'center' },
+        { key: 'packQty', label: 'عدد العبوات (Colis)', align: 'center', format: 'number' },
+        { key: 'qty', label: 'إجمالي القطع (Total Pièces)', align: 'center', format: 'number' },
+        { key: 'unitPrice', label: 'سعر الوحدة بالجملة (P.U Gros)', align: 'left', format: 'currency' },
+        { key: 'discount', label: 'الخصم (Remise)', align: 'left', format: 'currency' },
+        { key: 'lineTotal', label: 'الإجمالي (Montant HT)', align: 'left', format: 'currency' },
+      ],
+      source: 'items',
+      showSubtotal: true,
+      showDiscount: true,
+      showTva: true,
+      showTotal: true,
+    },
+    {
+      id: 'b-sep-post-table',
+      type: 'separator',
+      style: 'solid',
+    },
+    {
+      id: 'b-situation-box',
+      type: 'row',
+      align: 'space-between',
+      gap: 16,
+      children: [
+        {
+          id: 'b-client-situation',
+          type: 'column',
+          gap: 3,
+          children: [
+            { id: 'b-sit-title', type: 'text', text: 'كشف وضعية حساب العميل (Situation Solde Client)', size: 'sm', weight: 700, colorVar: 'header' },
+            { id: 'b-sit-prev', type: 'text', text: 'الرصيد السابق (Ancien Solde): {{invoice.formerBalance:currency}}', size: 'sm' },
+            { id: 'b-sit-cur', type: 'text', text: 'قيمة هذه الفاتورة (Montant Facture): {{invoice.total:currency}}', size: 'sm' },
+            { id: 'b-sit-paid', type: 'text', text: 'المبلغ المسدد نقداً/شيك (Versement): {{invoice.paidAmount:currency}}', size: 'sm', weight: 600 },
+            { id: 'b-sit-new', type: 'text', text: 'الرصيد الإجمالي المتبقي (Nouveau Solde): {{invoice.newBalance:currency}}', size: 'md', weight: 800, colorVar: 'primary' },
+          ],
+        },
+        {
+          id: 'b-wholesale-notes',
+          type: 'column',
+          gap: 3,
+          children: [
+            { id: 'b-notes-title', type: 'text', text: 'شروط وملاحظات التسليم بالجملة', size: 'sm', weight: 700, colorVar: 'footer' },
+            { id: 'b-note-1', type: 'text', text: '• يرجى مراقبة عدد الطرود وسلامة التعبئة عند الاستلام.', size: 'sm', colorVar: 'footer' },
+            { id: 'b-note-2', type: 'text', text: '• البضاعة المباعة لا ترد ولا تستبدل بعد خروجها من المخزن.', size: 'sm', colorVar: 'footer' },
+          ],
+        },
+      ],
+    },
+  ],
+  footer: [
+    {
+      id: 'f-sep-foot',
+      type: 'separator',
+      style: 'solid',
+    },
+    {
+      id: 'f-signatures-row',
+      type: 'row',
+      align: 'space-between',
+      gap: 20,
+      children: [
+        {
+          id: 'f-sig-seller',
+          type: 'column',
+          gap: 2,
+          children: [
+            { id: 'f-sig-seller-title', type: 'text', text: 'ختم وتوقيع البائع (Cachet et Signature)', size: 'sm', weight: 700, align: 'center' },
+            { id: 'f-sig-seller-space', type: 'text', text: ['\n\n\n'], size: 'md' },
+          ],
+        },
+        {
+          id: 'f-sig-client',
+          type: 'column',
+          gap: 2,
+          children: [
+            { id: 'f-sig-client-title', type: 'text', text: 'توقيع واستلام المشتري (Accusé de Réception / Décharge)', size: 'sm', weight: 700, align: 'center' },
+            { id: 'f-sig-client-space', type: 'text', text: ['\n\n\n'], size: 'md' },
+          ],
+        },
+      ],
+    },
+    {
+      id: 'f-text-legal',
+      type: 'text',
+      text: '{{shopLegal.footer}}',
+      align: 'center',
+      size: 'sm',
+      colorVar: 'footer',
+    },
+  ],
+};
+
+export const DEFAULT_WHOLESALE_INVOICE_A4: PrintTemplate = {
+  id: 'default-wholesale-invoice-a4',
+  name: 'فاتورة بيع بالجملة A4',
+  description: 'قالب رسمي مخصص لتجارة الجملة والعبوات — يتضمن تفاصيل التعبئة (Colisage)، الطرود، بيانات التاجر، ووضعية حساب العميل',
+  paperSize: 'A4',
+  orientation: 'portrait',
+  widthMm: 210,
+  heightMm: 297,
+  supportedDocuments: ['wholesale-invoice', 'sale-invoice', 'bl'],
+  visibility: {
+    logo: true,
+    shopName: true,
+    invoiceNumber: true,
+    customerName: true,
+    customerPhone: true,
+    customerAddress: true,
+    barcode: false,
+    unitPrice: true,
+    discount: true,
+    tva: true,
+    sellerName: true,
+    cashierName: true,
+    paymentMethod: true,
+    qr: true,
+    signature: true,
+    stamp: true,
+  },
+  layout: wholesaleA4Layout,
+  styles: {
+    primaryColor: '#0369a1',
+    headerColor: '#075985',
+    footerColor: '#475569',
+    tableColor: '#cbd5e1',
+    logoColor: '#0369a1',
+    font: {
+      family: 'Cairo',
+      size: 12,
+      weight: 400,
+    },
+  },
+  barcode: {
+    enabled: false,
+    source: 'invoiceNumber',
+  },
+  qr: {
+    enabled: true,
+    payload: 'invoiceNumber:date:total',
+  },
+  isDefault: false,
+  isSystem: true,
+  createdBy: 'system',
+  createdAt: '2024-01-01T00:00:00.000Z',
+  updatedAt: '2024-01-01T00:00:00.000Z',
+};
+
 /** جميع القوالب الافتراضية */
 export const ALL_DEFAULT_TEMPLATES: PrintTemplate[] = [
   DEFAULT_THERMAL_80,
   DEFAULT_INVOICE_A4,
   DEFAULT_INVOICE_A5,
+  DEFAULT_WHOLESALE_INVOICE_A4,
 ];
 
 /** تهيئة وتحديث القوالب الافتراضية في قاعدة البيانات */
@@ -580,21 +845,33 @@ export async function seedDefaultTemplates(): Promise<void> {
   const { db } = await import('@/infrastructure/database/dexie/db');
   
   // نضمن وجود أو تحديث القوالب النظامية دائماً بأحدث التصاميم
-  await db.print_templates.bulkPut(ALL_DEFAULT_TEMPLATES);
+  for (const tpl of ALL_DEFAULT_TEMPLATES) {
+    const existing = await db.print_templates.get(tpl.id);
+    if (!existing) {
+      await db.print_templates.add(tpl);
+    } else {
+      await db.print_templates.put(tpl);
+    }
+  }
 
-  // تعيين القوالب الافتراضية لأنواع الوثائق إذا لم تكن موجودة
-  const existingAssignments = await db.template_assignments.count();
-  if (existingAssignments === 0) {
-    await db.template_assignments.bulkPut([
-      { docType: 'thermal-receipt', templateId: 'default-thermal-80' },
-      { docType: 'return-invoice', templateId: 'default-thermal-80' },
-      { docType: 'sale-invoice', templateId: 'default-invoice-a4' },
-      { docType: 'proforma', templateId: 'default-invoice-a4' },
-      { docType: 'devis', templateId: 'default-invoice-a4' },
-      { docType: 'purchase-invoice', templateId: 'default-invoice-a4' },
-      { docType: 'bl', templateId: 'default-invoice-a5' },
-      { docType: 'customer-statement', templateId: 'default-invoice-a5' },
-      { docType: 'supplier-statement', templateId: 'default-invoice-a5' },
-    ]);
+  // تعيين القوالب الافتراضية لجميع أنواع الوثائق العشرة
+  const defaultAssignments: { docType: DocTypeKey; templateId: string }[] = [
+    { docType: 'thermal-receipt', templateId: 'default-thermal-80' },
+    { docType: 'return-invoice', templateId: 'default-thermal-80' },
+    { docType: 'sale-invoice', templateId: 'default-invoice-a4' },
+    { docType: 'wholesale-invoice', templateId: 'default-wholesale-invoice-a4' },
+    { docType: 'proforma', templateId: 'default-invoice-a4' },
+    { docType: 'devis', templateId: 'default-invoice-a4' },
+    { docType: 'purchase-invoice', templateId: 'default-invoice-a4' },
+    { docType: 'bl', templateId: 'default-invoice-a5' },
+    { docType: 'customer-statement', templateId: 'default-invoice-a5' },
+    { docType: 'supplier-statement', templateId: 'default-invoice-a5' },
+  ];
+
+  for (const a of defaultAssignments) {
+    const existing = await db.template_assignments.get(a.docType);
+    if (!existing) {
+      await db.template_assignments.add(a);
+    }
   }
 }

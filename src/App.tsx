@@ -17,6 +17,7 @@ const SalesPage = lazy(() => import('@/features/sales/SalesPage'));
 const CashPage = lazy(() => import('@/features/cash/CashPage'));
 const ExpensesPage = lazy(() => import('@/features/expenses/ExpensesPage'));
 const PromotionsPage = lazy(() => import('@/features/promotions/PromotionsPage'));
+const PacksPage = lazy(() => import('@/features/promotions/PacksPage'));
 const SettingsPage = lazy(() => import('@/features/settings/SettingsPage'));
 const Dashboard = lazy(() => import('@/pages/dashboard/DashboardPage'));
 const DeliveryOrders = lazy(() => import('@/features/orders/DeliveryOrdersPage'));
@@ -41,12 +42,26 @@ class RouteErrorBoundary extends Component<{ children: ReactNode }, EBState> {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ padding: 20, direction: 'rtl', fontFamily: 'monospace', background: '#fff', minHeight: '100vh' }}>
-          <h1 style={{ color: 'red' }}>خطأ في الصفحة</h1>
-          <pre style={{ background: '#f5f5f5', padding: 10, whiteSpace: 'pre-wrap' }}>{this.state.error?.message}</pre>
-          <button onClick={() => { localStorage.clear(); window.location.reload() }} style={{ marginTop: 20, padding: '10px 20px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
-            مسح البيانات وإعادة المحاولة
-          </button>
+        <div style={{ padding: 30, direction: 'rtl', fontFamily: 'Cairo, sans-serif', background: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', borderRadius: 24, padding: 32, maxWidth: 520, width: '100%', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+            <h2 style={{ color: '#0f172a', fontWeight: 900, marginBottom: 8, fontSize: 20 }}>تعذر تحميل الصفحة</h2>
+            <p style={{ color: '#64748b', fontSize: 13, marginBottom: 20 }}>حدث خطأ مؤقت أثناء استدعاء محتوى الصفحة. يرجى إعادة التحميل.</p>
+            <pre style={{ background: '#f1f5f9', color: '#dc2626', padding: 12, borderRadius: 12, fontSize: 11, textAlign: 'left', whiteSpace: 'pre-wrap', maxHeight: 120, overflow: 'auto', marginBottom: 24 }}>{this.state.error?.message}</pre>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <button
+                onClick={() => window.location.reload()}
+                style={{ padding: '10px 24px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 'bold', fontSize: 13, cursor: 'pointer' }}
+              >
+                إعادة تحميل الصفحة (F5)
+              </button>
+              <button
+                onClick={() => { window.location.hash = '#/'; window.location.reload(); }}
+                style={{ padding: '10px 20px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 12, fontWeight: 'bold', fontSize: 13, cursor: 'pointer' }}
+              >
+                الرئيسية
+              </button>
+            </div>
+          </div>
         </div>
       );
     }
@@ -83,6 +98,7 @@ export default function App() {
               <Route path="cash" element={<CashPage />} />
               <Route path="expenses" element={<ExpensesPage />} />
               <Route path="promotions" element={<PromotionsPage />} />
+              <Route path="packs" element={<PacksPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="settings/print-templates" element={<PrintTemplatesPage />} />
               <Route path="delivery-orders" element={<DeliveryOrders />} />

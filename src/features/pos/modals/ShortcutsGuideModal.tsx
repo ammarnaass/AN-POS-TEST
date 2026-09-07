@@ -84,6 +84,7 @@ export const ShortcutsGuideModal: React.FC<ShortcutsGuideModalProps> = ({
                 { key: 'F12', label: 'دليل الاختصارات', desc: 'عرض نافذة المساعدة هذه' },
                 { key: '+ / -', label: 'زيادة / إنقاص الكمية', desc: 'تعديل مباشر على كمية الصنف المحدد' },
                 { key: 'Del / Ctrl+D', label: 'حذف الصنف المحدد', desc: 'إزالة الصنف المختار من السلة' },
+                { key: 'Alt + W', label: 'تبديل وضع بيع الجملة', desc: 'التحويل الفوري بين أسعار وفاتورة الجملة والتجزئة' },
               ].map((s) => (
                 <div
                   key={s.key}

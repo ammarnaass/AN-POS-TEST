@@ -61,8 +61,12 @@ export const applyPromotionPrice = (
 export const resolveUnitPrice = (
   product: Product,
   qty: number,
-  promotions: Parameters<typeof applyPromotionPrice>[1]
+  promotions: Parameters<typeof applyPromotionPrice>[1],
+  forceWholesale: boolean = false
 ): number => {
+  if (forceWholesale && product.wholesalePrice > 0) {
+    return product.wholesalePrice;
+  }
   const promoPrice = applyPromotionPrice(product, promotions);
   if (promoPrice !== null) return promoPrice;
   return applyWholesalePrice(product, qty);

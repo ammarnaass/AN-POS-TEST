@@ -651,14 +651,26 @@ export const MoreScreen = ({ navigation }: any) => {
 
         <TouchableOpacity
           style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+          onPress={() => navigation.navigate('Packs')}
+          activeOpacity={0.75}
+        >
+          <View style={[styles.hubIconBox, { backgroundColor: colors.primary[50] }]}>
+            <Layers size={20} color={colors.primary[700]} />
+          </View>
+          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('nav.packs') || 'عبوات الجملة والباقات'}</Text>
+          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>إدارة العبوات وتصوير الباركود</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
           onPress={() => navigation.navigate('Promotions')}
           activeOpacity={0.75}
         >
           <View style={[styles.hubIconBox, { backgroundColor: colors.purple[50] }]}>
-            <Layers size={20} color={colors.purple[700]} />
+            <Sparkles size={20} color={colors.purple[700]} />
           </View>
           <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('nav.promotions')}</Text>
-          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('promotions.packsTitle')}</Text>
+          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('promotions.title') || 'العروض والتخفيضات'}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity

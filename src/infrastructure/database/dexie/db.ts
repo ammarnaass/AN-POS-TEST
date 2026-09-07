@@ -175,6 +175,11 @@ export interface PackEntity {
   name: string;
   barcode: string;
   packPrice: number;
+  pack_price?: number;
+  packType?: 'wholesale' | 'bundle' | 'half_wholesale';
+  unitName?: string;
+  piecesCount?: number;
+  minWholesaleQty?: number;
   items: { productId: string; qty: number; name?: string }[];
   status: 'active' | 'inactive';
   createdAt: string;

@@ -18,12 +18,12 @@
  *   await syncProductDelete(id);
  */
 
-import type { Product } from '@/types/product';
+import type { Product } from '@/types';
 
 /** الحصول على electronAPI بأمان — يعيد null في بيئة الاختبار أو المتصفح المستقل */
-function getElectronDB() {
+function getElectronAPI() {
   if (typeof window === 'undefined') return null;
-  return (window as any).electronAPI?.db ?? null;
+  return (window as any).electronAPI ?? null;
 }
 
 /**
@@ -92,11 +92,15 @@ function toSQLiteProduct(product: Partial<Product>): Record<string, unknown> {
  * تُستدعى بعد `db.products.add(...)`.
  */
 export async function syncProductCreate(product: Partial<Product>): Promise<void> {
-  const api = getElectronDB();
+  const api = getElectronAPI();
   if (!api) return;
   try {
-    const data = toSQLiteProduct(product);
-    await api.create('products', data);
+    if (api.products?.create) {
+      await api.products.create(product as Record<string, unknown>);
+    } else if (api.db?.create) {
+      const data = toSQLiteProduct(product);
+      await api.db.create('products', data);
+    }
   } catch (err) {
     // لا نوقف العملية — Dexie تمت بنجاح، SQLite فشل (سجّل فقط)
     console.warn('[products-sync] syncProductCreate failed:', err);
@@ -111,11 +115,15 @@ export async function syncProductUpdate(
   id: string,
   changes: Partial<Product>
 ): Promise<void> {
-  const api = getElectronDB();
+  const api = getElectronAPI();
   if (!api) return;
   try {
-    const data = toSQLiteProduct(changes);
-    await api.update('products', id, data);
+    if (api.products?.update) {
+      await api.products.update(id, changes as Record<string, unknown>);
+    } else if (api.db?.update) {
+      const data = toSQLiteProduct(changes);
+      await api.db.update('products', id, data);
+    }
   } catch (err) {
     console.warn('[products-sync] syncProductUpdate failed:', err);
   }
@@ -126,10 +134,15 @@ export async function syncProductUpdate(
  * تُستدعى بعد `db.products.delete(id)`.
  */
 export async function syncProductDelete(id: string): Promise<void> {
-  const api = getElectronDB();
+  const api = getElectronAPI();
   if (!api) return;
   try {
-    await api.remove('products', id);
+    if (api.products?.delete || api.products?.remove) {
+      const fn = api.products.delete ?? api.products.remove;
+      await fn(id);
+    } else if (api.db?.remove) {
+      await api.db.remove('products', id);
+    }
   } catch (err) {
     console.warn('[products-sync] syncProductDelete failed:', err);
   }
@@ -140,11 +153,13 @@ export async function syncProductDelete(id: string): Promise<void> {
  * تُستدعى بعد `db.products.bulkAdd(...)`.
  */
 export async function syncProductBulkCreate(products: Partial<Product>[]): Promise<void> {
-  const api = getElectronDB();
+  const api = getElectronAPI();
   if (!api) return;
   try {
     const rows = products.map(toSQLiteProduct);
-    await api.bulkCreate('products', rows);
+    if (api.db?.bulkCreate) {
+      await api.db.bulkCreate('products', rows);
+    }
   } catch (err) {
     console.warn('[products-sync] syncProductBulkCreate failed:', err);
   }

@@ -26,6 +26,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   TrendingUp,
+  Layers,
 } from 'lucide-react-native';
 import { db, ensureInit } from '@/lib/db';
 import type { Product, Category, Warehouse as WarehouseType } from '@shared/types';
@@ -46,15 +47,18 @@ export const InventoryScreen = ({ navigation }: any) => {
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [stockFilter, setStockFilter] = useState<'all' | 'low' | 'out'>('all');
+  const [packsCount, setPacksCount] = useState<number>(0);
 
   const loadData = useCallback(async () => {
     try {
       await ensureInit();
-      const [allProducts, allCategories, allWarehouses] = await Promise.all([
+      const [allProducts, allCategories, allWarehouses, allPacks] = await Promise.all([
         db.products.toArray(),
         db.categories.toArray().catch(() => []),
         db.warehouses.toArray().catch(() => []),
+        db.packs.toArray().catch(() => []),
       ]);
+      setPacksCount(allPacks.length);
 
       const mappedProducts: Product[] = allProducts.map((p: any) => {
         const retailPrice = Number(p.retailPrice ?? p.retail_price ?? p.price ?? p.selling_price ?? p.sale_price ?? p.sale_price1 ?? 0);
@@ -378,6 +382,29 @@ export const InventoryScreen = ({ navigation }: any) => {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={dynamicStyles.shortcutsStrip}
         >
+          <TouchableOpacity
+            style={[
+              dynamicStyles.shortcutPill,
+              {
+                backgroundColor: isDark ? colors.surfaceElevated : colors.primary[50],
+                borderColor: colors.primary[300],
+              },
+            ]}
+            onPress={() => navigation.navigate('Packs')}
+            activeOpacity={0.7}
+          >
+            <Layers size={14} color={colors.primary[600]} />
+            <Text
+              style={[
+                dynamicStyles.shortcutText,
+                { color: colors.primary[700], fontWeight: '800' },
+              ]}
+            >
+              {t('promotions.packsTitle') || 'عبوات الجملة والباقات'}
+              {packsCount > 0 ? ` (${packsCount})` : ''}
+            </Text>
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={dynamicStyles.shortcutPill}
             onPress={() => navigation.navigate('Warehouses')}

@@ -32,6 +32,7 @@ export interface UsePOSKeyboardShortcutsProps {
   onOpenAddProduct?: () => void;
   onOpenCustomize?: () => void;
   onOpenDiscount?: () => void;
+  onToggleWholesale?: () => void;
   addNotification: (notif: { title: string; message: string; type: 'success' | 'error' | 'warning' | 'info' }) => void;
 }
 
@@ -60,6 +61,7 @@ export function usePOSKeyboardShortcuts({
   onOpenSessionWarning,
   onOpenCustomize,
   onOpenDiscount,
+  onToggleWholesale,
   onToggleFullscreen,
   onOpenShortcuts,
   onUpdateQty,
@@ -110,6 +112,15 @@ export function usePOSKeyboardShortcuts({
               type: 'info',
             });
           }
+        }
+        return;
+      }
+
+      // Alt + W: تبديل وضع بيع الجملة
+      if (e.altKey && (e.key === 'w' || e.key === 'W')) {
+        e.preventDefault();
+        if (onToggleWholesale) {
+          onToggleWholesale();
         }
         return;
       }
@@ -311,6 +322,7 @@ export function usePOSKeyboardShortcuts({
     onOpenSessionWarning,
     onOpenCustomize,
     onOpenDiscount,
+    onToggleWholesale,
     onToggleFullscreen,
     onOpenShortcuts,
     onUpdateQty,

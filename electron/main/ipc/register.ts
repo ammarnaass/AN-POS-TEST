@@ -4,6 +4,8 @@
 
 import { registerCrudIpc } from './crud';
 import { registerAuthIpc } from './auth';
+import { registerProductsIpc } from './products';
+import { registerPacksIpc } from './packs';
 import { registerSalesIpc } from './sales';
 import { registerCashIpc } from './cash';
 import { registerCategoriesIpc } from './categories';
@@ -77,6 +79,8 @@ export function registerIpcHandlers(): void {
 
   // ===== المسارات المخصصة =====
   registerAuthIpc();
+  registerProductsIpc();
+  registerPacksIpc();
   registerSalesIpc();
   registerCashIpc();
   registerCategoriesIpc();

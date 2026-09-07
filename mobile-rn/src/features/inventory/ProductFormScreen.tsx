@@ -38,6 +38,11 @@ import {
   Layers,
   FlaskConical,
   ArrowUpRight,
+  Package,
+  Percent,
+  Calculator,
+  Hash,
+  Boxes,
 } from 'lucide-react-native';
 import { db, ensureInit } from '@/lib/db';
 import { generateId } from '@shared/utils';
@@ -75,15 +80,17 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
 
-  // Accordion Sections State
+  // Accordion Sections State (6 Sections PRD-MOB-WS-PROD-2026)
   const [expandedSections, setExpandedSections] = useState({
     basic: true,
-    details: false,
-    wholesale: false,
+    pricing: true,
+    barcodes: false,
+    colisage: false,
+    inventory: false,
     advanced: false,
   });
 
-  const toggleSection = (section: 'basic' | 'details' | 'wholesale' | 'advanced') => {
+  const toggleSection = (section: keyof typeof expandedSections) => {
     setExpandedSections((prev) => ({
       ...prev,
       [section]: !prev[section],
@@ -95,10 +102,17 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
   const [form, setForm] = useState({
     name: '',
     barcode: initialBarcode,
+    sku: '',
     category: '',
     categoryId: '',
     retailPrice: '',
+    salePrice2: '', // semi-wholesale
+    salePrice3: '', // wholesale
+    invoicePrice: '', // prix facturé
     costPrice: '0',
+    averagePrice: '0',
+    taxRate: '0',
+    discount: '0',
     quantity: '0',
     unit: 'قطعة',
     description: '',
@@ -107,14 +121,24 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
     lowStockThreshold: '0',
     color: '',
     sizeOrWeight: '',
+    weight: '0',
+    packageSize: '',
     expiryDate: '',
     location: '',
     wholesalePrice: '',
     wholesaleMinQty: '0',
     wholesaleUnitName: 'كرتون',
     quickSale: true, // "منتج مميز"
+    allowNegativeStock: false, // "السماح بالبيع بدون رصيد"
     hasVariants: false, // "يملك متغيرات"
     image: '',
+    // Colisage (تعبئة الجملة بالعبوة / الكرتون)
+    enableColisage: false,
+    colisageName: '',
+    colisageCount: '12',
+    colisagePrice: '',
+    colisageBarcode: '',
+    colisagePackId: '',
   });
 
   // Advanced sub-lists
@@ -131,7 +155,7 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
 
   // Modals & Scanner
   const [showScanner, setShowScanner] = useState(false);
-  const [scannerTarget, setScannerTarget] = useState<'main' | 'secondary' | 'customPrice'>('main');
+  const [scannerTarget, setScannerTarget] = useState<'main' | 'secondary' | 'colisage' | 'customPrice'>('main');
   const [activeBarcodeIndex, setActiveBarcodeIndex] = useState<number | null>(null);
   const [activePriceIndex, setActivePriceIndex] = useState<number | null>(null);
 
@@ -175,13 +199,37 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
             if (found) catId = found.id;
           }
 
+          // Check for linked pack in db.packs
+          let linkedPack: any = null;
+          try {
+            const allPacks = await db.packs.toArray();
+            linkedPack = allPacks.find((pk: any) => {
+              try {
+                const itms = typeof pk.items === 'string' ? JSON.parse(pk.items) : pk.items;
+                return Array.isArray(itms) && itms.some((i: any) => (i.productId === productId || i.product_id === productId));
+              } catch {
+                return false;
+              }
+            });
+          } catch {}
+
+          const rawPieces = linkedPack ? (linkedPack.pieces_count || linkedPack.piecesCount || 12) : 12;
+          const rawPackPrice = linkedPack ? (linkedPack.pack_price || linkedPack.packPrice || linkedPack.price || '') : '';
+
           setForm({
             name: prod.name || '',
             barcode: prod.barcode || '',
+            sku: (prod as any).sku || '',
             category: catName,
             categoryId: catId,
             retailPrice: prod.retailPrice ? String(prod.retailPrice) : (prod as any).retail_price ? String((prod as any).retail_price) : '',
+            salePrice2: (prod as any).salePrice2 ? String((prod as any).salePrice2) : (prod as any).sale_price2 ? String((prod as any).sale_price2) : '',
+            salePrice3: (prod as any).salePrice3 ? String((prod as any).salePrice3) : (prod as any).sale_price3 ? String((prod as any).sale_price3) : ((prod as any).wholesalePrice ? String((prod as any).wholesalePrice) : (prod as any).wholesale_price ? String((prod as any).wholesale_price) : ''),
+            invoicePrice: (prod as any).invoicePrice ? String((prod as any).invoicePrice) : (prod as any).invoice_price ? String((prod as any).invoice_price) : '',
             costPrice: String(prod.costPrice || (prod as any).purchase_price || (prod as any).cost_price || 0),
+            averagePrice: String((prod as any).averagePrice || (prod as any).average_price || prod.costPrice || (prod as any).purchase_price || (prod as any).cost_price || 0),
+            taxRate: String((prod as any).taxRate ?? (prod as any).tax_rate ?? 0),
+            discount: String((prod as any).discount ?? 0),
             quantity: String(prod.quantity || 0),
             unit: prod.unit || 'قطعة',
             description: prod.description || '',
@@ -190,14 +238,24 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
             lowStockThreshold: String(prod.lowStockThreshold || (prod as any).low_stock_threshold || 0),
             color: (prod as any).color || '',
             sizeOrWeight: (prod as any).sizeOrWeight || (prod as any).size_or_weight || '',
+            weight: String((prod as any).weight || 0),
+            packageSize: (prod as any).packageSize || (prod as any).package_size || '',
             expiryDate: prod.expiryDate || (prod as any).expiry_date || '',
             location: (prod as any).location || '',
             wholesalePrice: (prod as any).wholesalePrice ? String((prod as any).wholesalePrice) : (prod as any).wholesale_price ? String((prod as any).wholesale_price) : '',
             wholesaleMinQty: String((prod as any).wholesaleMinQty || (prod as any).wholesale_min_qty || 0),
             wholesaleUnitName: (prod as any).wholesaleUnitName || 'كرتون',
             quickSale: prod.quickSale !== false && (prod as any).quick_sale !== 0,
+            allowNegativeStock: Boolean((prod as any).allowNegativeStock || (prod as any).allow_negative_stock),
             hasVariants: Boolean((prod as any).hasVariants || (prod as any).has_variants),
             image: prod.image || (prod as any).image_url || '',
+            // Colisage
+            enableColisage: Boolean(linkedPack),
+            colisageName: linkedPack ? (linkedPack.name || '') : '',
+            colisageCount: String(rawPieces),
+            colisagePrice: String(rawPackPrice),
+            colisageBarcode: linkedPack ? (linkedPack.barcode || '') : '',
+            colisagePackId: linkedPack ? linkedPack.id : '',
           });
 
           // Load secondary barcodes
@@ -285,11 +343,56 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
     validateFields();
   };
 
-  // Barcode Auto-generation
+  // SKU & Barcode Generators
   const handleGenerateBarcode = () => {
     const randomBarcode = '252' + Math.floor(1000000000 + Math.random() * 9000000000).toString();
     handleFieldChange('barcode', randomBarcode);
   };
+
+  const handleGenerateSku = () => {
+    const randomSku = 'ART-' + Math.floor(10000 + Math.random() * 90000).toString();
+    handleFieldChange('sku', randomSku);
+  };
+
+  const handleGenerateColisageBarcode = () => {
+    const randomBarcode = '613' + Math.floor(1000000000 + Math.random() * 9000000000).toString();
+    handleFieldChange('colisageBarcode', randomBarcode);
+  };
+
+  // Live margin computations
+  const costNum = parseFloat(form.costPrice) || 0;
+  const retailNum = parseFloat(form.retailPrice) || 0;
+  const netProfit = retailNum - costNum;
+  const marginPercent = costNum > 0 ? ((retailNum - costNum) / costNum) * 100 : 0;
+
+  const getMarginBadge = () => {
+    if (marginPercent < 0) {
+      return { bg: '#fee2e2', text: '#dc2626', label: 'خسارة 🔴' };
+    }
+    if (marginPercent < 10) {
+      return { bg: '#ffedd5', text: '#ea580c', label: 'هامش ضعيف 🟠' };
+    }
+    if (marginPercent <= 30) {
+      return { bg: '#dbeafe', text: '#2563eb', label: 'هامش جيد 🔵' };
+    }
+    return { bg: '#dcfce7', text: '#16a34a', label: 'ممتاز 🟢' };
+  };
+
+  const applyQuickMargin = (percent: number) => {
+    if (costNum <= 0) {
+      notify.warning('يرجى تحديد سعر الشراء أولاً لتطبيق نسبة الهامش');
+      return;
+    }
+    const newRetail = (costNum * (1 + percent / 100)).toFixed(2);
+    handleFieldChange('retailPrice', newRetail);
+  };
+
+  // Colisage live calculations
+  const packPriceNum = parseFloat(form.colisagePrice) || 0;
+  const packPiecesNum = parseInt(form.colisageCount, 10) || 1;
+  const piecePriceInsidePack = packPiecesNum > 0 && packPriceNum > 0
+    ? (packPriceNum / packPiecesNum).toFixed(2)
+    : '0.00';
 
   // Barcode Scanner Handler
   const handleBarcodeScanned = (code: string) => {
@@ -299,6 +402,8 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
 
     if (scannerTarget === 'main') {
       handleFieldChange('barcode', trimmed);
+    } else if (scannerTarget === 'colisage') {
+      handleFieldChange('colisageBarcode', trimmed);
     } else if (scannerTarget === 'secondary' && activeBarcodeIndex !== null) {
       if (trimmed === form.barcode.trim()) {
         notify.warning('هذا الباركود مسجل كباركود أساسي للمنتج');
@@ -456,10 +561,17 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
       const nowIso = new Date().toISOString();
       const retailVal = parseFloat(form.retailPrice) || 0;
       const costVal = parseFloat(form.costPrice) || 0;
-      const wholesaleVal = parseFloat(form.wholesalePrice) || 0;
+      const sale2Val = parseFloat(form.salePrice2) || 0;
+      const sale3Val = parseFloat(form.salePrice3) || parseFloat(form.wholesalePrice) || 0;
+      const invoiceVal = parseFloat(form.invoicePrice) || 0;
+      const averageVal = parseFloat(form.averagePrice) || costVal;
+      const marginVal = costVal > 0 ? ((retailVal - costVal) / costVal) * 100 : 0;
+      const taxVal = parseFloat(form.taxRate) || 0;
+      const maxDiscountVal = parseFloat(form.discount) || 0;
       const wholesaleMinVal = parseFloat(form.wholesaleMinQty) || 0;
       const qtyVal = parseFloat(form.quantity) || 0;
       const lowStockVal = parseFloat(form.lowStockThreshold) || 0;
+      const weightVal = parseFloat(form.weight) || 0;
 
       // Generate barcode if left blank
       let finalBarcode = form.barcode.trim();
@@ -467,11 +579,13 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
         finalBarcode = '252' + Math.floor(1000000000 + Math.random() * 9000000000).toString();
       }
 
+      const finalProductId = productId || generateId();
+
       const productPayload: any = {
         name: form.name.trim(),
         productName: form.name.trim(),
         barcode: finalBarcode,
-        sku: form.barcode.trim() || `PRD-${Math.floor(1000 + Math.random() * 9000)}`,
+        sku: form.sku.trim() || form.barcode.trim() || `PRD-${Math.floor(1000 + Math.random() * 9000)}`,
         category: form.category.trim() || 'عام',
         category_id: form.categoryId || '',
         categoryId: form.categoryId || '',
@@ -479,14 +593,29 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
         retail_price: retailVal,
         retailPrice: retailVal,
         price: retailVal,
+        sale_price2: sale2Val,
+        salePrice2: sale2Val,
+        sale_price3: sale3Val,
+        salePrice3: sale3Val,
+        wholesale_price: sale3Val,
+        wholesalePrice: sale3Val,
+        invoice_price: invoiceVal,
+        invoicePrice: invoiceVal,
         cost_price: costVal,
         costPrice: costVal,
         purchase_price: costVal,
         purchasePrice: costVal,
-        wholesale_price: wholesaleVal,
-        wholesalePrice: wholesaleVal,
+        average_price: averageVal,
+        averagePrice: averageVal,
+        profit_margin: marginVal,
+        profitMargin: marginVal,
+        tax_rate: taxVal,
+        taxRate: taxVal,
+        discount: maxDiscountVal,
         wholesale_min_qty: wholesaleMinVal,
         wholesaleMinQty: wholesaleMinVal,
+        wholesale_unit_name: form.wholesaleUnitName.trim() || 'كرتون',
+        wholesaleUnitName: form.wholesaleUnitName.trim() || 'كرتون',
         quantity: qtyVal,
         qty: qtyVal,
         stock: qtyVal,
@@ -494,6 +623,10 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
         lowStockThreshold: lowStockVal,
         min_quantity: lowStockVal,
         minQuantity: lowStockVal,
+        weight: weightVal,
+        package_size: form.packageSize.trim(),
+        packageSize: form.packageSize.trim(),
+        location: form.location.trim(),
         description: form.description.trim() || '',
         supplier: form.supplier.trim() || '',
         supplier_id: form.supplierId || '',
@@ -504,10 +637,10 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
         size_or_weight: form.sizeOrWeight.trim() || '',
         expiry_date: form.expiryDate.trim() || '',
         expiryDate: form.expiryDate.trim() || '',
-        location: form.location.trim() || '',
-        wholesale_unit_name: form.wholesaleUnitName.trim() || 'كرتون',
         quick_sale: form.quickSale ? 1 : 0,
         quickSale: form.quickSale,
+        allow_negative_stock: form.allowNegativeStock ? 1 : 0,
+        allowNegativeStock: form.allowNegativeStock,
         has_variants: form.hasVariants ? 1 : 0,
         hasVariants: form.hasVariants,
         image: form.image || '',
@@ -539,13 +672,9 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
               barcode: cp.barcode?.trim() || undefined,
             };
           }),
-        tax_rate: Number((form as any).taxRate ?? (form as any).tax_rate ?? 0),
-        taxRate: Number((form as any).taxRate ?? (form as any).tax_rate ?? 0),
         status: 'active',
         updated_at: nowIso,
       };
-
-      const finalProductId = productId || generateId();
 
       if (isEdit) {
         await db.products.update(productId, productPayload);
@@ -559,6 +688,47 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
         };
         await db.products.add(fullProduct);
         await syncEngine.enqueue('create', 'products', finalProductId, fullProduct);
+      }
+
+      // ── Handle Colisage Pack ──
+      if (form.enableColisage) {
+        const pPieces = parseInt(form.colisageCount, 10) || 12;
+        const pPrice = parseFloat(form.colisagePrice) || (sale3Val > 0 ? sale3Val * pPieces : retailVal * pPieces);
+        const pName = form.colisageName.trim() || `كرتونة ${form.name.trim()} (${pPieces} ${form.unit})`;
+        const pBarcode = form.colisageBarcode.trim();
+        const packId = form.colisagePackId || generateId();
+
+        const packRecord: any = {
+          id: packId,
+          name: pName,
+          description: `عبوة جملة لصنف ${form.name.trim()} تحتوي على ${pPieces} ${form.unit}`,
+          barcode: pBarcode,
+          price: pPrice,
+          pack_price: pPrice,
+          packPrice: pPrice,
+          pack_type: 'colisage',
+          packType: 'colisage',
+          unit_name: 'كرتون',
+          pieces_count: pPieces,
+          piecesCount: pPieces,
+          min_wholesale_qty: 1,
+          items: JSON.stringify([
+            { productId: finalProductId, name: form.name.trim(), qty: pPieces }
+          ]),
+          status: 'active',
+          is_active: 1,
+          created_at: nowIso,
+          updated_at: nowIso,
+        };
+
+        const existingPack = await db.packs.get(packId).catch(() => null);
+        if (existingPack) {
+          await db.packs.update(packId, packRecord);
+          await syncEngine.enqueue('update', 'packs', packId, packRecord);
+        } else {
+          await db.packs.add(packRecord);
+          await syncEngine.enqueue('create', 'packs', packId, packRecord);
+        }
       }
 
       // Trigger background sync in connected mode
@@ -718,7 +888,7 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
         </TouchableOpacity>
 
         {/* ═══════════════════════════════════════════════════════
-            SECTION 1: الأساسيات * (Mandatory & Core Fields)
+            SECTION 1: معلومات الصنف والأساسيات (Identity)
         ═══════════════════════════════════════════════════════ */}
         <View style={styles.accordionCard}>
           <TouchableOpacity
@@ -734,13 +904,16 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
               )}
             </View>
 
-            <View style={[styles.accordionTitleRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-              <Text style={styles.accordionTitle}>
-                {t('inventory.basicInfoSection')} <Text style={{ color: colors.danger.main }}>*</Text>
-              </Text>
-              <View style={styles.infoBadge}>
-                <Info size={16} color={isDark ? '#60a5fa' : '#2563eb'} />
+            <View style={[styles.accordionTitleBox, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+              <View style={[styles.accordionTitleRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <Text style={styles.accordionTitle}>
+                  1. معلومات الصنف والهوية <Text style={{ color: colors.danger.main }}>*</Text>
+                </Text>
+                <View style={styles.infoBadge}>
+                  <Tag size={16} color={isDark ? '#60a5fa' : '#2563eb'} />
+                </View>
               </View>
+              <Text style={styles.accordionSubtitle}>الاسم التجاري، رمز الصنف، الفئة ووحدة القياس</Text>
             </View>
           </TouchableOpacity>
 
@@ -760,7 +933,7 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
                   value={form.name}
                   onChangeText={(val) => handleFieldChange('name', val)}
                   onBlur={() => handleFieldBlur('name')}
-                  placeholder={t('inventory.productName')}
+                  placeholder="مثال: شاحن سامسونج أصلي 25W"
                   placeholderTextColor={colors.text.tertiary}
                 />
                 {touched.name && errors.name ? (
@@ -768,34 +941,25 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
                 ) : null}
               </View>
 
-              {/* 2. Barcode Field */}
+              {/* 2. SKU Field */}
               <View style={styles.fieldGroup}>
-                <Text style={[styles.fieldLabel, { textAlign }]}>{t('inventory.barcode')}</Text>
+                <Text style={[styles.fieldLabel, { textAlign }]}>رمز الصنف (SKU / Ref)</Text>
                 <View style={[styles.barcodeInputRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                   <TouchableOpacity
                     style={styles.scanBarcodeBtn}
-                    onPress={() => {
-                      setScannerTarget('main');
-                      setShowScanner(true);
-                    }}
+                    onPress={handleGenerateSku}
                     activeOpacity={0.8}
+                    title="توليد تلقائي"
                   >
-                    <ScanLine size={18} color={isDark ? '#60a5fa' : '#2563eb'} />
+                    <Sparkles size={18} color={isDark ? '#60a5fa' : '#2563eb'} />
                   </TouchableOpacity>
-
                   <TextInput
                     style={[styles.textInput, { flex: 1, textAlign: 'left', fontFamily: 'Courier', letterSpacing: 1 }]}
-                    value={form.barcode}
-                    onChangeText={(val) => handleFieldChange('barcode', val)}
-                    placeholder="2521389122476"
+                    value={form.sku}
+                    onChangeText={(val) => handleFieldChange('sku', val)}
+                    placeholder="ART-00025"
                     placeholderTextColor={colors.text.tertiary}
-                    keyboardType="default"
                   />
-                </View>
-                <View style={[styles.helperRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                  <TouchableOpacity onPress={handleGenerateBarcode}>
-                    <Text style={styles.generateLinkText}>{t('pos.scanBarcode')}</Text>
-                  </TouchableOpacity>
                 </View>
               </View>
 
@@ -819,10 +983,147 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
                 </TouchableOpacity>
               </View>
 
-              {/* 4. Retail Price Field */}
+              {/* 4. Unit Field */}
               <View style={styles.fieldGroup}>
                 <Text style={[styles.fieldLabel, { textAlign }]}>
-                  {t('inventory.sellingPrice')} <Text style={{ color: colors.danger.main }}>*</Text>
+                  {t('inventory.unit')} <Text style={{ color: colors.danger.main }}>*</Text>
+                </Text>
+                <TouchableOpacity
+                  style={[styles.textInput, styles.selectInputBtn, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
+                  onPress={() => setUnitModalVisible(true)}
+                  activeOpacity={0.7}
+                >
+                  <ChevronDown size={16} color={colors.text.secondary} />
+                  <Text style={[styles.selectInputText, { color: colors.text.primary, fontWeight: '700', textAlign }]}>
+                    {form.unit}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </View>
+
+        {/* ═══════════════════════════════════════════════════════
+            SECTION 2: الأسعار ومستويات البيع والربحية (Pricing & Margins)
+        ═══════════════════════════════════════════════════════ */}
+        <View style={styles.accordionCard}>
+          <TouchableOpacity
+            style={[styles.accordionHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
+            onPress={() => toggleSection('pricing')}
+            activeOpacity={0.7}
+          >
+            <View style={styles.accordionChevron}>
+              {expandedSections.pricing ? (
+                <ChevronUp size={18} color={colors.text.secondary} />
+              ) : (
+                <ChevronDown size={18} color={colors.text.secondary} />
+              )}
+            </View>
+
+            <View style={[styles.accordionTitleBox, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+              <View style={[styles.accordionTitleRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <Text style={styles.accordionTitle}>
+                  2. الأسعار ومستويات البيع والربحية <Text style={{ color: colors.danger.main }}>*</Text>
+                </Text>
+                <View style={styles.infoBadge}>
+                  <Percent size={16} color={isDark ? '#60a5fa' : '#2563eb'} />
+                </View>
+              </View>
+              <Text style={styles.accordionSubtitle}>تجزئة، نصف جملة، جملة وحاسبة الهامش اللحظية</Text>
+            </View>
+          </TouchableOpacity>
+
+          {expandedSections.pricing && (
+            <View style={styles.accordionBody}>
+              {/* ── Real-Time Profitability KPI Card ── */}
+              <View style={styles.kpiContainer}>
+                <View style={[styles.kpiRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                  <View style={styles.kpiItem}>
+                    <Text style={styles.kpiLabel}>سعر الشراء</Text>
+                    <Text style={styles.kpiValue}>{costNum.toFixed(2)} {currency}</Text>
+                  </View>
+                  <View style={styles.kpiDivider} />
+                  <View style={styles.kpiItem}>
+                    <Text style={styles.kpiLabel}>سعر التجزئة</Text>
+                    <Text style={styles.kpiValue}>{retailNum.toFixed(2)} {currency}</Text>
+                  </View>
+                  <View style={styles.kpiDivider} />
+                  <View style={styles.kpiItem}>
+                    <Text style={styles.kpiLabel}>صافي الربح</Text>
+                    <Text style={[styles.kpiValue, { color: netProfit >= 0 ? '#10b981' : '#ef4444' }]}>
+                      {netProfit >= 0 ? '+' : ''}{netProfit.toFixed(2)} {currency}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Margin Badge */}
+                {costNum > 0 && retailNum > 0 ? (
+                  <View style={[styles.marginPill, { backgroundColor: getMarginBadge().bg }]}>
+                    <Text style={[styles.marginPillText, { color: getMarginBadge().text }]}>
+                      هامش الربح: {marginPercent >= 0 ? '+' : ''}{marginPercent.toFixed(1)}% ({getMarginBadge().label})
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+
+              {/* ── Quick Margin Buttons ── */}
+              <View>
+                <Text style={[styles.fieldLabel, { textAlign, marginBottom: 4 }]}>تطبيق هامش ربح سريع على سعر الشراء:</Text>
+                <View style={[styles.quickMarginRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                  {[15, 25, 35, 50].map((pct) => (
+                    <TouchableOpacity
+                      key={pct}
+                      style={styles.quickMarginBtn}
+                      onPress={() => applyQuickMargin(pct)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.quickMarginBtnText}>+{pct}%</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* 1. Last Cost Price & PAMP */}
+              <View style={[styles.twoColumnRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <View style={[styles.fieldGroup, { flex: 1 }]}>
+                  <Text style={[styles.fieldLabel, { textAlign }]}>آخر سعر شراء</Text>
+                  <View style={[styles.currencyInputRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                    <View style={styles.currencyBadge}>
+                      <Text style={styles.currencyBadgeText}>{currency}</Text>
+                    </View>
+                    <TextInput
+                      style={[styles.textInput, styles.currencyTextInput, { textAlign }]}
+                      value={form.costPrice}
+                      onChangeText={(val) => handleFieldChange('costPrice', val)}
+                      placeholder="0.00"
+                      placeholderTextColor={colors.text.tertiary}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                </View>
+
+                <View style={[styles.fieldGroup, { flex: 1 }]}>
+                  <Text style={[styles.fieldLabel, { textAlign }]}>متوسط التكلفة (PAMP)</Text>
+                  <View style={[styles.currencyInputRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                    <View style={styles.currencyBadge}>
+                      <Text style={styles.currencyBadgeText}>{currency}</Text>
+                    </View>
+                    <TextInput
+                      style={[styles.textInput, styles.currencyTextInput, { textAlign }]}
+                      value={form.averagePrice}
+                      onChangeText={(val) => handleFieldChange('averagePrice', val)}
+                      placeholder="0.00"
+                      placeholderTextColor={colors.text.tertiary}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                </View>
+              </View>
+
+              {/* 2. Retail Price (سعر البيع 1 - تجزئة) */}
+              <View style={styles.fieldGroup}>
+                <Text style={[styles.fieldLabel, { textAlign }]}>
+                  سعر البيع 1: تجزئة (Détail) <Text style={{ color: colors.danger.main }}>*</Text>
                 </Text>
                 <View style={[styles.currencyInputRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                   <View style={styles.currencyBadge}>
@@ -848,183 +1149,57 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
                 ) : null}
               </View>
 
-              {/* 5. Initial Quantity Field */}
-              <View style={styles.fieldGroup}>
-                <Text style={[styles.fieldLabel, { textAlign }]}>{t('inventory.stockQuantity')}</Text>
-                <TextInput
-                  style={[styles.textInput, { textAlign }]}
-                  value={form.quantity}
-                  onChangeText={(val) => handleFieldChange('quantity', val)}
-                  placeholder="0"
-                  placeholderTextColor={colors.text.tertiary}
-                  keyboardType="numeric"
-                />
-              </View>
-
-              {/* 6. Unit Field */}
-              <View style={styles.fieldGroup}>
-                <Text style={[styles.fieldLabel, { textAlign }]}>
-                  {t('inventory.unit')} <Text style={{ color: colors.danger.main }}>*</Text>
-                </Text>
-                <TouchableOpacity
-                  style={[styles.textInput, styles.selectInputBtn, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
-                  onPress={() => setUnitModalVisible(true)}
-                  activeOpacity={0.7}
-                >
-                  <ChevronDown size={16} color={colors.text.secondary} />
-                  <Text style={[styles.selectInputText, { color: colors.text.primary, fontWeight: '700', textAlign }]}>
-                    {form.unit}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-        </View>
-
-        {/* ═══════════════════════════════════════════════════════
-            SECTION 2: تفاصيل إضافية (Secondary Details)
-        ═══════════════════════════════════════════════════════ */}
-        <View style={styles.accordionCard}>
-          <TouchableOpacity
-            style={[styles.accordionHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
-            onPress={() => toggleSection('details')}
-            activeOpacity={0.7}
-          >
-            <View style={styles.accordionChevron}>
-              {expandedSections.details ? (
-                <ChevronUp size={18} color={colors.text.secondary} />
-              ) : (
-                <ChevronDown size={18} color={colors.text.secondary} />
-              )}
-            </View>
-
-            <View style={[styles.accordionTitleRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-              <Text style={styles.accordionTitle}>{t('inventory.detailsSection')}</Text>
-              <View style={styles.infoBadge}>
-                <MoreHorizontal size={16} color={isDark ? '#60a5fa' : '#2563eb'} />
-              </View>
-            </View>
-          </TouchableOpacity>
-
-          {expandedSections.details && (
-            <View style={styles.accordionBody}>
-              {/* Description */}
-              <View style={styles.fieldGroup}>
-                <Text style={[styles.fieldLabel, { textAlign }]}>{t('inventory.description')}</Text>
-                <TextInput
-                  style={[styles.textInput, styles.multilineInput, { textAlign }]}
-                  value={form.description}
-                  onChangeText={(val) => handleFieldChange('description', val)}
-                  placeholder={t('inventory.description')}
-                  placeholderTextColor={colors.text.tertiary}
-                  multiline
-                  numberOfLines={3}
-                />
-              </View>
-
-              {/* Supplier */}
-              <View style={styles.fieldGroup}>
-                <Text style={[styles.fieldLabel, { textAlign }]}>{t('inventory.supplier')}</Text>
-                <TextInput
-                  style={[styles.textInput, { textAlign }]}
-                  value={form.supplier}
-                  onChangeText={(val) => handleFieldChange('supplier', val)}
-                  placeholder={t('inventory.supplier')}
-                  placeholderTextColor={colors.text.tertiary}
-                />
-              </View>
-
-              {/* Low Stock Threshold */}
-              <View style={styles.fieldGroup}>
-                <Text style={[styles.fieldLabel, { textAlign }]}>{t('inventory.minStockAlert')}</Text>
-                <TextInput
-                  style={[styles.textInput, { textAlign }]}
-                  value={form.lowStockThreshold}
-                  onChangeText={(val) => handleFieldChange('lowStockThreshold', val)}
-                  placeholder="0"
-                  placeholderTextColor={colors.text.tertiary}
-                  keyboardType="numeric"
-                />
-              </View>
-
-              {/* Two Column: Color & Size/Weight */}
+              {/* 3. Semi-Wholesale & Wholesale (سعر 2 وسعر 3) */}
               <View style={[styles.twoColumnRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                 <View style={[styles.fieldGroup, { flex: 1 }]}>
-                  <Text style={[styles.fieldLabel, { textAlign }]}>{t('inventory.color')}</Text>
-                  <TextInput
-                    style={[styles.textInput, { textAlign }]}
-                    value={form.color}
-                    onChangeText={(val) => handleFieldChange('color', val)}
-                    placeholder={t('inventory.color')}
-                    placeholderTextColor={colors.text.tertiary}
-                  />
+                  <Text style={[styles.fieldLabel, { textAlign }]}>سعر 2: نصف جملة</Text>
+                  <View style={[styles.currencyInputRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                    <View style={styles.currencyBadge}>
+                      <Text style={styles.currencyBadgeText}>{currency}</Text>
+                    </View>
+                    <TextInput
+                      style={[styles.textInput, styles.currencyTextInput, { textAlign }]}
+                      value={form.salePrice2}
+                      onChangeText={(val) => handleFieldChange('salePrice2', val)}
+                      placeholder="0.00"
+                      placeholderTextColor={colors.text.tertiary}
+                      keyboardType="numeric"
+                    />
+                  </View>
                 </View>
 
                 <View style={[styles.fieldGroup, { flex: 1 }]}>
-                  <Text style={[styles.fieldLabel, { textAlign }]}>{t('inventory.sizeOrWeight')}</Text>
-                  <TextInput
-                    style={[styles.textInput, { textAlign }]}
-                    value={form.sizeOrWeight}
-                    onChangeText={(val) => handleFieldChange('sizeOrWeight', val)}
-                    placeholder={t('inventory.sizeOrWeight')}
-                    placeholderTextColor={colors.text.tertiary}
-                  />
+                  <Text style={[styles.fieldLabel, { textAlign }]}>سعر 3: جملة (Gros)</Text>
+                  <View style={[styles.currencyInputRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                    <View style={styles.currencyBadge}>
+                      <Text style={styles.currencyBadgeText}>{currency}</Text>
+                    </View>
+                    <TextInput
+                      style={[styles.textInput, styles.currencyTextInput, { textAlign }]}
+                      value={form.salePrice3 || form.wholesalePrice}
+                      onChangeText={(val) => {
+                        handleFieldChange('salePrice3', val);
+                        handleFieldChange('wholesalePrice', val);
+                      }}
+                      placeholder="0.00"
+                      placeholderTextColor={colors.text.tertiary}
+                      keyboardType="numeric"
+                    />
+                  </View>
                 </View>
               </View>
 
-              {/* Storage Location */}
+              {/* 4. Invoice Price (سعر البيع بالفاتورة الرسمية) */}
               <View style={styles.fieldGroup}>
-                <Text style={[styles.fieldLabel, { textAlign }]}>{t('inventory.warehouse')}</Text>
-                <TextInput
-                  style={[styles.textInput, { textAlign }]}
-                  value={form.location}
-                  onChangeText={(val) => handleFieldChange('location', val)}
-                  placeholder={t('inventory.warehouse')}
-                  placeholderTextColor={colors.text.tertiary}
-                />
-              </View>
-            </View>
-          )}
-        </View>
-
-        {/* ═══════════════════════════════════════════════════════
-            SECTION 3: الجملة (Wholesale Pricing & Tiers)
-        ═══════════════════════════════════════════════════════ */}
-        <View style={styles.accordionCard}>
-          <TouchableOpacity
-            style={[styles.accordionHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
-            onPress={() => toggleSection('wholesale')}
-            activeOpacity={0.7}
-          >
-            <View style={styles.accordionChevron}>
-              {expandedSections.wholesale ? (
-                <ChevronUp size={18} color={colors.text.secondary} />
-              ) : (
-                <ChevronDown size={18} color={colors.text.secondary} />
-              )}
-            </View>
-
-            <View style={[styles.accordionTitleRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-              <Text style={styles.accordionTitle}>{t('inventory.wholesaleSection')}</Text>
-              <View style={styles.infoBadge}>
-                <Truck size={16} color={isDark ? '#60a5fa' : '#2563eb'} />
-              </View>
-            </View>
-          </TouchableOpacity>
-
-          {expandedSections.wholesale && (
-            <View style={styles.accordionBody}>
-              {/* Wholesale Price */}
-              <View style={styles.fieldGroup}>
-                <Text style={[styles.fieldLabel, { textAlign }]}>{t('inventory.wholesalePrice')}</Text>
+                <Text style={[styles.fieldLabel, { textAlign }]}>سعر البيع بالفاتورة (Prix Facturé)</Text>
                 <View style={[styles.currencyInputRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                   <View style={styles.currencyBadge}>
                     <Text style={styles.currencyBadgeText}>{currency}</Text>
                   </View>
                   <TextInput
                     style={[styles.textInput, styles.currencyTextInput, { textAlign }]}
-                    value={form.wholesalePrice}
-                    onChangeText={(val) => handleFieldChange('wholesalePrice', val)}
+                    value={form.invoicePrice}
+                    onChangeText={(val) => handleFieldChange('invoicePrice', val)}
                     placeholder="0.00"
                     placeholderTextColor={colors.text.tertiary}
                     keyboardType="numeric"
@@ -1032,14 +1207,52 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
                 </View>
               </View>
 
-              {/* Two Column: Min Qty & Unit Name */}
+              {/* 5. Wholesale Min Qty & Unit Name */}
               <View style={[styles.twoColumnRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                 <View style={[styles.fieldGroup, { flex: 1 }]}>
-                  <Text style={[styles.fieldLabel, { textAlign }]}>{t('inventory.wholesaleMinQty')}</Text>
+                  <Text style={[styles.fieldLabel, { textAlign }]}>حد كمية الجملة (تلقائي)</Text>
                   <TextInput
                     style={[styles.textInput, { textAlign }]}
                     value={form.wholesaleMinQty}
                     onChangeText={(val) => handleFieldChange('wholesaleMinQty', val)}
+                    placeholder="0"
+                    placeholderTextColor={colors.text.tertiary}
+                    keyboardType="numeric"
+                  />
+                </View>
+
+                <View style={[styles.fieldGroup, { flex: 1 }]}>
+                  <Text style={[styles.fieldLabel, { textAlign }]}>تسمية وحدة الجملة</Text>
+                  <TextInput
+                    style={[styles.textInput, { textAlign }]}
+                    value={form.wholesaleUnitName}
+                    onChangeText={(val) => handleFieldChange('wholesaleUnitName', val)}
+                    placeholder="كرتون"
+                    placeholderTextColor={colors.text.tertiary}
+                  />
+                </View>
+              </View>
+
+              {/* 6. Tax TVA & Max Discount */}
+              <View style={[styles.twoColumnRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <View style={[styles.fieldGroup, { flex: 1 }]}>
+                  <Text style={[styles.fieldLabel, { textAlign }]}>نسبة الضريبة (TVA %)</Text>
+                  <TextInput
+                    style={[styles.textInput, { textAlign }]}
+                    value={form.taxRate}
+                    onChangeText={(val) => handleFieldChange('taxRate', val)}
+                    placeholder="0"
+                    placeholderTextColor={colors.text.tertiary}
+                    keyboardType="numeric"
+                  />
+                </View>
+
+                <View style={[styles.fieldGroup, { flex: 1 }]}>
+                  <Text style={[styles.fieldLabel, { textAlign }]}>أقصى خصم مسموح (%)</Text>
+                  <TextInput
+                    style={[styles.textInput, { textAlign }]}
+                    value={form.discount}
+                    onChangeText={(val) => handleFieldChange('discount', val)}
                     placeholder="0"
                     placeholderTextColor={colors.text.tertiary}
                     keyboardType="numeric"
@@ -1051,19 +1264,16 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
         </View>
 
         {/* ═══════════════════════════════════════════════════════
-            SECTION 4: مُتقدّم (Advanced Barcodes & Custom Prices)
-        ═══════════════════════════════════════════════════════ */}
-        {/* ═══════════════════════════════════════════════════════
-            SECTION 4: مُتَقَدِّم (Advanced Barcodes & Custom Prices)
+            SECTION 3: الباركود والترميز المتعدد (Barcodes & Coding)
         ═══════════════════════════════════════════════════════ */}
         <View style={styles.accordionCard}>
           <TouchableOpacity
             style={[styles.accordionHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
-            onPress={() => toggleSection('advanced')}
+            onPress={() => toggleSection('barcodes')}
             activeOpacity={0.7}
           >
             <View style={styles.accordionChevron}>
-              {expandedSections.advanced ? (
+              {expandedSections.barcodes ? (
                 <ChevronUp size={18} color={colors.text.secondary} />
               ) : (
                 <ChevronDown size={18} color={colors.text.secondary} />
@@ -1072,28 +1282,56 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
 
             <View style={[styles.accordionTitleBox, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
               <View style={[styles.accordionTitleRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                <Text style={styles.accordionTitle}>مُتَقَدِّم</Text>
+                <Text style={styles.accordionTitle}>3. الباركود والترميز المتعدد</Text>
                 <View style={styles.infoBadge}>
-                  <SlidersHorizontal size={16} color={isDark ? '#60a5fa' : '#2563eb'} />
+                  <Barcode size={16} color={isDark ? '#60a5fa' : '#2563eb'} />
                 </View>
               </View>
-              <Text style={styles.accordionSubtitle}>
-                باركودات وأسعار إضافية، خصائص أخرى.
-              </Text>
+              <Text style={styles.accordionSubtitle}>الباركود الرئيسي، المسح بالكاميرا والرموز البديلة</Text>
             </View>
           </TouchableOpacity>
 
-          {expandedSections.advanced && (
+          {expandedSections.barcodes && (
             <View style={styles.accordionBody}>
-              {/* ── 1. Secondary Barcodes Subsection ── */}
-              <View style={styles.subsectionBox}>
+              {/* Primary Barcode */}
+              <View style={styles.fieldGroup}>
+                <Text style={[styles.fieldLabel, { textAlign }]}>الباركود الرئيسي</Text>
+                <View style={[styles.barcodeInputRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                  <TouchableOpacity
+                    style={styles.scanBarcodeBtn}
+                    onPress={() => {
+                      setScannerTarget('main');
+                      setShowScanner(true);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <ScanLine size={18} color={isDark ? '#60a5fa' : '#2563eb'} />
+                  </TouchableOpacity>
+
+                  <TextInput
+                    style={[styles.textInput, { flex: 1, textAlign: 'left', fontFamily: 'Courier', letterSpacing: 1 }]}
+                    value={form.barcode}
+                    onChangeText={(val) => handleFieldChange('barcode', val)}
+                    placeholder="6131234567890"
+                    placeholderTextColor={colors.text.tertiary}
+                    keyboardType="default"
+                  />
+                </View>
+                <View style={[styles.helperRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                  <TouchableOpacity onPress={handleGenerateBarcode}>
+                    <Text style={styles.generateLinkText}>⚡ توليد باركود آلي</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Secondary Barcodes Subsection */}
+              <View style={[styles.subsectionBox, { marginTop: spacing.sm }]}>
                 <Text style={[styles.subsectionHintText, { textAlign }]}>
-                  باركودات إضافية لنفس المنتج (مثلاً: كرتون مقابل علبة فردية).
+                  باركودات إضافية لنفس الصنف (مثلاً باركود قديم أو مستورد):
                 </Text>
 
                 {secondaryBarcodes.map((item, idx) => (
                   <View key={item.id || idx} style={styles.advancedItemCard}>
-                    {/* Top Row: Delete Btn + Scan & Barcode Input */}
                     <View style={[styles.advancedCardRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                       <TouchableOpacity
                         onPress={() => handleRemoveSecondaryBarcode(idx)}
@@ -1120,19 +1358,18 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
                           style={[styles.advancedInput, { flex: 1, textAlign: 'left', fontFamily: 'Courier' }]}
                           value={item.barcode}
                           onChangeText={(val) => handleUpdateSecondaryBarcode(idx, 'barcode', val)}
-                          placeholder="الباركود"
+                          placeholder="الباركود الإضافي"
                           placeholderTextColor={colors.text.tertiary}
                           keyboardType="default"
                         />
                       </View>
                     </View>
 
-                    {/* Bottom Row: Price / Unit Label */}
                     <TextInput
-                      style={[styles.advancedInput, { textAlign }]}
+                      style={[styles.advancedInput, { textAlign, marginTop: spacing.xs }]}
                       value={item.priceLabel}
                       onChangeText={(val) => handleUpdateSecondaryBarcode(idx, 'priceLabel', val)}
-                      placeholder="تسمية السعر (اختياري - تربطه بـ...)"
+                      placeholder="تسمية الباركود (مثلاً: علبة صغيرة)"
                       placeholderTextColor={colors.text.tertiary}
                     />
                   </View>
@@ -1144,28 +1381,357 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
                   activeOpacity={0.7}
                 >
                   <Plus size={16} color={isDark ? '#60a5fa' : '#2563eb'} />
-                  <Text style={styles.dashedActionBtnText}>إضافة باركود</Text>
+                  <Text style={styles.dashedActionBtnText}>+ إضافة باركود بديل</Text>
                 </TouchableOpacity>
               </View>
+            </View>
+          )}
+        </View>
 
-              {/* ── 2. Custom Prices Subsection ── */}
+        {/* ═══════════════════════════════════════════════════════
+            SECTION 4: عبوات وتعبئة الجملة (Colisage & Packaging)
+        ═══════════════════════════════════════════════════════ */}
+        <View style={styles.accordionCard}>
+          <TouchableOpacity
+            style={[styles.accordionHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
+            onPress={() => toggleSection('colisage')}
+            activeOpacity={0.7}
+          >
+            <View style={styles.accordionChevron}>
+              {expandedSections.colisage ? (
+                <ChevronUp size={18} color={colors.text.secondary} />
+              ) : (
+                <ChevronDown size={18} color={colors.text.secondary} />
+              )}
+            </View>
+
+            <View style={[styles.accordionTitleBox, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+              <View style={[styles.accordionTitleRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <Text style={styles.accordionTitle}>4. عبوات وتعبئة الجملة (Colisage)</Text>
+                <View style={styles.infoBadge}>
+                  <Boxes size={16} color={isDark ? '#60a5fa' : '#2563eb'} />
+                </View>
+              </View>
+              <Text style={styles.accordionSubtitle}>البيع بالكرتون والطرود مع خصم المخزون الحقيقي</Text>
+            </View>
+          </TouchableOpacity>
+
+          {expandedSections.colisage && (
+            <View style={styles.accordionBody}>
+              {/* Toggle Enable Colisage */}
+              <View style={[styles.toggleCard, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <View style={[styles.toggleTextBox, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+                  <Text style={styles.toggleTitle}>تفعيل البيع بالعبوة / الكرتون لهذا الصنف</Text>
+                  <Text style={styles.toggleSubtitle}>إنشاء عبوة جملة مرتبطة تخصم تلقائياً من مخزون القطع الفردية</Text>
+                </View>
+                <Switch
+                  value={form.enableColisage}
+                  onValueChange={(val) => handleFieldChange('enableColisage', val)}
+                  trackColor={{ false: colors.slate[300], true: colors.primary[600] }}
+                  thumbColor="#ffffff"
+                />
+              </View>
+
+              {form.enableColisage && (
+                <View style={styles.colisageCard}>
+                  {/* Pack Name */}
+                  <View style={styles.fieldGroup}>
+                    <Text style={[styles.fieldLabel, { textAlign }]}>اسم العبوة (Colis / Carton)</Text>
+                    <TextInput
+                      style={[styles.textInput, { textAlign }]}
+                      value={form.colisageName}
+                      onChangeText={(val) => handleFieldChange('colisageName', val)}
+                      placeholder={`كرتونة ${form.name || 'المنتج'} (24 قطعة)`}
+                      placeholderTextColor={colors.text.tertiary}
+                    />
+                  </View>
+
+                  {/* Pieces Count & Pack Price */}
+                  <View style={[styles.twoColumnRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                    <View style={[styles.fieldGroup, { flex: 1 }]}>
+                      <Text style={[styles.fieldLabel, { textAlign }]}>عدد القطع بالعبوة</Text>
+                      <TextInput
+                        style={[styles.textInput, { textAlign }]}
+                        value={form.colisageCount}
+                        onChangeText={(val) => handleFieldChange('colisageCount', val)}
+                        placeholder="12"
+                        placeholderTextColor={colors.text.tertiary}
+                        keyboardType="numeric"
+                      />
+                    </View>
+
+                    <View style={[styles.fieldGroup, { flex: 1 }]}>
+                      <Text style={[styles.fieldLabel, { textAlign }]}>سعر بيع العبوة بالجملة</Text>
+                      <View style={[styles.currencyInputRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                        <View style={styles.currencyBadge}>
+                          <Text style={styles.currencyBadgeText}>{currency}</Text>
+                        </View>
+                        <TextInput
+                          style={[styles.textInput, styles.currencyTextInput, { textAlign }]}
+                          value={form.colisagePrice}
+                          onChangeText={(val) => handleFieldChange('colisagePrice', val)}
+                          placeholder="0.00"
+                          placeholderTextColor={colors.text.tertiary}
+                          keyboardType="numeric"
+                        />
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Calculated Piece Price Badge */}
+                  <View style={styles.pieceCalcBox}>
+                    <Text style={[styles.pieceCalcText, { textAlign }]}>
+                      📦 سعر القطعة الفردية داخل هذه العبوة: {piecePriceInsidePack} {currency}
+                    </Text>
+                  </View>
+
+                  {/* Pack Barcode */}
+                  <View style={styles.fieldGroup}>
+                    <Text style={[styles.fieldLabel, { textAlign }]}>باركود العبوة الخارجي (باركود الكرتون)</Text>
+                    <View style={[styles.barcodeInputRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                      <TouchableOpacity
+                        style={styles.scanBarcodeBtn}
+                        onPress={() => {
+                          setScannerTarget('colisage');
+                          setShowScanner(true);
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <ScanLine size={18} color={isDark ? '#60a5fa' : '#2563eb'} />
+                      </TouchableOpacity>
+
+                      <TextInput
+                        style={[styles.textInput, { flex: 1, textAlign: 'left', fontFamily: 'Courier', letterSpacing: 1 }]}
+                        value={form.colisageBarcode}
+                        onChangeText={(val) => handleFieldChange('colisageBarcode', val)}
+                        placeholder="6139998881112"
+                        placeholderTextColor={colors.text.tertiary}
+                        keyboardType="default"
+                      />
+                    </View>
+                    <View style={[styles.helperRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                      <TouchableOpacity onPress={handleGenerateColisageBarcode}>
+                        <Text style={styles.generateLinkText}>⚡ توليد باركود للكرتون</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              )}
+            </View>
+          )}
+        </View>
+
+        {/* ═══════════════════════════════════════════════════════
+            SECTION 5: المخزون والموقع والتنبيهات (Inventory & Stock)
+        ═══════════════════════════════════════════════════════ */}
+        <View style={styles.accordionCard}>
+          <TouchableOpacity
+            style={[styles.accordionHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
+            onPress={() => toggleSection('inventory')}
+            activeOpacity={0.7}
+          >
+            <View style={styles.accordionChevron}>
+              {expandedSections.inventory ? (
+                <ChevronUp size={18} color={colors.text.secondary} />
+              ) : (
+                <ChevronDown size={18} color={colors.text.secondary} />
+              )}
+            </View>
+
+            <View style={[styles.accordionTitleBox, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+              <View style={[styles.accordionTitleRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <Text style={styles.accordionTitle}>5. المخزون والموقع والتنبيهات</Text>
+                <View style={styles.infoBadge}>
+                  <Truck size={16} color={isDark ? '#60a5fa' : '#2563eb'} />
+                </View>
+              </View>
+              <Text style={styles.accordionSubtitle}>الرصيد الفعلي، حد التنبيه، الوزن والرف</Text>
+            </View>
+          </TouchableOpacity>
+
+          {expandedSections.inventory && (
+            <View style={styles.accordionBody}>
+              {/* Initial Quantity & Low Stock Alert */}
+              <View style={[styles.twoColumnRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <View style={[styles.fieldGroup, { flex: 1 }]}>
+                  <Text style={[styles.fieldLabel, { textAlign }]}>{t('inventory.stockQuantity')}</Text>
+                  <TextInput
+                    style={[styles.textInput, { textAlign }]}
+                    value={form.quantity}
+                    onChangeText={(val) => handleFieldChange('quantity', val)}
+                    placeholder="0"
+                    placeholderTextColor={colors.text.tertiary}
+                    keyboardType="numeric"
+                  />
+                </View>
+
+                <View style={[styles.fieldGroup, { flex: 1 }]}>
+                  <Text style={[styles.fieldLabel, { textAlign }]}>{t('inventory.minStockAlert')}</Text>
+                  <TextInput
+                    style={[styles.textInput, { textAlign }]}
+                    value={form.lowStockThreshold}
+                    onChangeText={(val) => handleFieldChange('lowStockThreshold', val)}
+                    placeholder="5"
+                    placeholderTextColor={colors.text.tertiary}
+                    keyboardType="numeric"
+                  />
+                </View>
+              </View>
+
+              {/* Net Weight (kg) & Package Size */}
+              <View style={[styles.twoColumnRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <View style={[styles.fieldGroup, { flex: 1 }]}>
+                  <Text style={[styles.fieldLabel, { textAlign }]}>الوزن الصافي (كغ)</Text>
+                  <TextInput
+                    style={[styles.textInput, { textAlign }]}
+                    value={form.weight}
+                    onChangeText={(val) => handleFieldChange('weight', val)}
+                    placeholder="0.00"
+                    placeholderTextColor={colors.text.tertiary}
+                    keyboardType="numeric"
+                  />
+                </View>
+
+                <View style={[styles.fieldGroup, { flex: 1 }]}>
+                  <Text style={[styles.fieldLabel, { textAlign }]}>حجم / نمط العبوة</Text>
+                  <TextInput
+                    style={[styles.textInput, { textAlign }]}
+                    value={form.packageSize}
+                    onChangeText={(val) => handleFieldChange('packageSize', val)}
+                    placeholder="مثال: 24×330مل"
+                    placeholderTextColor={colors.text.tertiary}
+                  />
+                </View>
+              </View>
+
+              {/* Storage Location & Supplier */}
+              <View style={[styles.twoColumnRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <View style={[styles.fieldGroup, { flex: 1 }]}>
+                  <Text style={[styles.fieldLabel, { textAlign }]}>مكان التواجد (الرف / المخزن)</Text>
+                  <TextInput
+                    style={[styles.textInput, { textAlign }]}
+                    value={form.location}
+                    onChangeText={(val) => handleFieldChange('location', val)}
+                    placeholder="رف A-3"
+                    placeholderTextColor={colors.text.tertiary}
+                  />
+                </View>
+
+                <View style={[styles.fieldGroup, { flex: 1 }]}>
+                  <Text style={[styles.fieldLabel, { textAlign }]}>{t('inventory.supplier')}</Text>
+                  <TextInput
+                    style={[styles.textInput, { textAlign }]}
+                    value={form.supplier}
+                    onChangeText={(val) => handleFieldChange('supplier', val)}
+                    placeholder={t('inventory.supplier')}
+                    placeholderTextColor={colors.text.tertiary}
+                  />
+                </View>
+              </View>
+
+              {/* Expiry Date */}
+              <View style={styles.fieldGroup}>
+                <Text style={[styles.fieldLabel, { textAlign }]}>{isRTL ? 'تاريخ انتهاء الصلاحية' : 'Expiry Date'}</Text>
+                <TextInput
+                  style={[styles.textInput, { textAlign }]}
+                  value={form.expiryDate}
+                  onChangeText={(val) => handleFieldChange('expiryDate', val)}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={colors.text.tertiary}
+                />
+              </View>
+
+              {/* Description */}
+              <View style={styles.fieldGroup}>
+                <Text style={[styles.fieldLabel, { textAlign }]}>{t('inventory.description')}</Text>
+                <TextInput
+                  style={[styles.textInput, styles.multilineInput, { textAlign }]}
+                  value={form.description}
+                  onChangeText={(val) => handleFieldChange('description', val)}
+                  placeholder={t('inventory.description')}
+                  placeholderTextColor={colors.text.tertiary}
+                  multiline
+                  numberOfLines={3}
+                />
+              </View>
+            </View>
+          )}
+        </View>
+
+        {/* ═══════════════════════════════════════════════════════
+            SECTION 6: خيارات متقدمة (Advanced Toggles & Custom Prices)
+        ═══════════════════════════════════════════════════════ */}
+        <View style={styles.accordionCard}>
+          <TouchableOpacity
+            style={[styles.accordionHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
+            onPress={() => toggleSection('advanced')}
+            activeOpacity={0.7}
+          >
+            <View style={styles.accordionChevron}>
+              {expandedSections.advanced ? (
+                <ChevronUp size={18} color={colors.text.secondary} />
+              ) : (
+                <ChevronDown size={18} color={colors.text.secondary} />
+              )}
+            </View>
+
+            <View style={[styles.accordionTitleBox, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+              <View style={[styles.accordionTitleRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <Text style={styles.accordionTitle}>6. خيارات متقدمة</Text>
+                <View style={styles.infoBadge}>
+                  <SlidersHorizontal size={16} color={isDark ? '#60a5fa' : '#2563eb'} />
+                </View>
+              </View>
+              <Text style={styles.accordionSubtitle}>البيع السريع، البيع بالسالب والأسعار المخصصة</Text>
+            </View>
+          </TouchableOpacity>
+
+          {expandedSections.advanced && (
+            <View style={styles.accordionBody}>
+              {/* Quick Sale Toggle */}
+              <View style={[styles.toggleCard, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <View style={[styles.toggleTextBox, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+                  <Text style={styles.toggleTitle}>الظهور في البيع السريع المميز</Text>
+                  <Text style={styles.toggleSubtitle}>عرض الصنف في شريط البنود الأكثر مبيعاً في واجهة الكاشير</Text>
+                </View>
+                <Switch
+                  value={form.quickSale}
+                  onValueChange={(val) => handleFieldChange('quickSale', val)}
+                  trackColor={{ false: colors.slate[300], true: colors.primary[600] }}
+                  thumbColor="#ffffff"
+                />
+              </View>
+
+              {/* Allow Negative Stock Toggle */}
+              <View style={[styles.toggleCard, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <View style={[styles.toggleTextBox, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+                  <Text style={styles.toggleTitle}>السماح بالبيع بدون رصيد مخزني</Text>
+                  <Text style={styles.toggleSubtitle}>إمكانية إضافة الصنف وإتمام البيع حتى لو كان المخزون 0 أو سالباً</Text>
+                </View>
+                <Switch
+                  value={form.allowNegativeStock}
+                  onValueChange={(val) => handleFieldChange('allowNegativeStock', val)}
+                  trackColor={{ false: colors.slate[300], true: colors.primary[600] }}
+                  thumbColor="#ffffff"
+                />
+              </View>
+
+              {/* Custom Prices Subsection */}
               <View style={[styles.subsectionBox, { marginTop: spacing.md }]}>
                 <Text style={[styles.subsectionHintText, { textAlign }]}>
-                  أسعار إضافية بأسماء مخصصة (سعر طالب، سعر مُوظف، إلخ). لكل سعر يُمكِن إضافة باركود يختاره تلقائياً عند المسح.
+                  أسعار إضافية مخصصة (مثلاً سعر خاص للموظفين، المعارض):
                 </Text>
 
                 {customPrices.map((cp, idx) => (
                   <View key={cp.id || idx} style={styles.advancedItemCard}>
-                    {/* Row 1: Label / Name */}
                     <TextInput
                       style={[styles.advancedInput, { textAlign }]}
                       value={cp.name}
                       onChangeText={(val) => handleUpdateCustomPrice(idx, 'name', val)}
-                      placeholder="التسمية (مثلاً: سعر طالب)"
+                      placeholder="التسمية (مثلاً: سعر خاص)"
                       placeholderTextColor={colors.text.tertiary}
                     />
 
-                    {/* Row 2: Price + Delete Button */}
                     <View style={[styles.advancedCardRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                       <TouchableOpacity
                         onPress={() => handleRemoveCustomPrice(idx)}
@@ -1190,7 +1756,6 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
                       </View>
                     </View>
 
-                    {/* Row 3: Specific Barcode (Optional) + Scan Button */}
                     <View style={[styles.inputWithIconWrapper, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                       <TouchableOpacity
                         style={styles.inlineScanBtn}
@@ -1222,7 +1787,7 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
                   activeOpacity={0.7}
                 >
                   <Plus size={16} color={isDark ? '#60a5fa' : '#2563eb'} />
-                  <Text style={styles.dashedActionBtnText}>إضافة سعر</Text>
+                  <Text style={styles.dashedActionBtnText}>+ إضافة سعر مخصص</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -2420,6 +2985,123 @@ const makeStyles = (colors: any, isDark: boolean) =>
       fontSize: 14,
       fontWeight: '800',
       fontFamily: 'Cairo',
+    },
+
+    // ── Wholesale & KPI Styles (PRD-MOB-WS-PROD-2026) ──
+    kpiContainer: {
+      backgroundColor: isDark ? '#111827' : '#f8fafc',
+      borderRadius: radii.xl,
+      padding: spacing.md,
+      borderWidth: 1,
+      borderColor: isDark ? '#1f2937' : '#e2e8f0',
+      marginBottom: spacing.md,
+      gap: spacing.sm,
+    },
+    kpiRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    kpiItem: {
+      alignItems: 'center',
+      flex: 1,
+    },
+    kpiDivider: {
+      width: 1,
+      height: 28,
+      backgroundColor: isDark ? '#374151' : '#e2e8f0',
+    },
+    kpiLabel: {
+      fontSize: 10.5,
+      fontFamily: 'Cairo',
+      color: colors.text.tertiary,
+      marginBottom: 2,
+    },
+    kpiValue: {
+      fontSize: 13,
+      fontWeight: '800',
+      fontFamily: 'Cairo',
+      color: colors.text.primary,
+    },
+    marginPill: {
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: radii.md,
+      alignSelf: 'center',
+    },
+    marginPillText: {
+      fontSize: 11,
+      fontWeight: '800',
+      fontFamily: 'Cairo',
+    },
+    quickMarginRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+      marginBottom: spacing.sm,
+      flexWrap: 'wrap',
+    },
+    quickMarginBtn: {
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: radii.lg,
+      backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#eff6ff',
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(59, 130, 246, 0.3)' : '#bfdbfe',
+    },
+    quickMarginBtnText: {
+      fontSize: 11.5,
+      fontWeight: '700',
+      fontFamily: 'Cairo',
+      color: isDark ? '#60a5fa' : '#2563eb',
+    },
+    colisageCard: {
+      backgroundColor: isDark ? '#0f172a' : '#f0f9ff',
+      borderRadius: radii.xl,
+      padding: spacing.md,
+      borderWidth: 1,
+      borderColor: isDark ? '#1e293b' : '#bae6fd',
+      gap: spacing.sm,
+      marginTop: spacing.sm,
+    },
+    pieceCalcBox: {
+      backgroundColor: isDark ? 'rgba(3, 105, 161, 0.2)' : '#e0f2fe',
+      borderRadius: radii.lg,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(3, 105, 161, 0.4)' : '#7dd3fc',
+    },
+    pieceCalcText: {
+      fontSize: 12,
+      fontWeight: '700',
+      fontFamily: 'Cairo',
+      color: isDark ? '#38bdf8' : '#0369a1',
+    },
+    toggleCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: spacing.sm + 2,
+      paddingHorizontal: spacing.sm,
+      borderRadius: radii.lg,
+      backgroundColor: isDark ? colors.surfaceSubtle : colors.slate[50],
+      marginBottom: spacing.xs,
+    },
+    toggleTextBox: {
+      flex: 1,
+      marginRight: spacing.sm,
+    },
+    toggleTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      fontFamily: 'Cairo',
+      color: colors.text.primary,
+    },
+    toggleSubtitle: {
+      fontSize: 10.5,
+      fontFamily: 'Cairo',
+      color: colors.text.tertiary,
     },
   });
 

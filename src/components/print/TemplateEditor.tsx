@@ -6,7 +6,7 @@
 // يعتمد على useTemplateEditorStore (Zustand) كمصدر واحد للحقيقة. عند الحفظ
 // يجمّع layout/visibility/styles/meta من الـ store ويرسلها لـ updateTemplate.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Save, Eye, Settings as SettingsIcon, Palette, PanelsTopLeft, Type, Image as ImageIcon, Grid3x3, SeparatorHorizontal, QrCode, Barcode, Columns2, Rows3, Undo2, Redo2, RotateCcw, RectangleHorizontal, RectangleVertical, Check, Search } from 'lucide-react';
+import { Save, Eye, Settings as SettingsIcon, Palette, PanelsTopLeft, Type, Image as ImageIcon, Grid3x3, SeparatorHorizontal, QrCode, Barcode, Columns2, Rows3, Undo2, Redo2, RotateCcw, RectangleHorizontal, RectangleVertical, Check, Search, Sparkles, Edit2 } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   DragDropProvider,
@@ -25,7 +25,7 @@ import type {
   DocTypeKey,
   Block,
 } from '@/types/invoicePrint';
-import { getTemplateById, updateTemplate } from '@/services/print/templateService';
+import { getTemplateById, updateTemplate, duplicateTemplate, assignTemplateToDocType } from '@/services/print/templateService';
 import {
   PAPER_LABELS_AR,
   DOC_TYPE_LABELS_AR,
@@ -228,10 +228,13 @@ export default function TemplateEditor({ templateId, userId, userName, onClose }
   const [confirmRevert, setConfirmRevert] = useState(false);
 
   // ====== Load template into store once ======
+  const [activeTemplateId, setActiveTemplateId] = useState(templateId);
+  const [isCustomizing, setIsCustomizing] = useState(false);
+
   const { data: template, isLoading } = useQuery({
-    queryKey: ['printTemplate', templateId],
-    queryFn: () => getTemplateById(templateId),
-    enabled: !!templateId,
+    queryKey: ['printTemplate', activeTemplateId],
+    queryFn: () => getTemplateById(activeTemplateId),
+    enabled: !!activeTemplateId,
   });
 
   const loadedRef = useRef<string | null>(null);
@@ -241,6 +244,40 @@ export default function TemplateEditor({ templateId, userId, userName, onClose }
       loadedRef.current = template.id;
     }
   }, [template, load]);
+
+  // دالة تحويل قالب النظام إلى نسخة مخصصة قابلة للتعديل والتحرير فوراً
+  const handleCustomizeSystemTemplate = async () => {
+    try {
+      setIsCustomizing(true);
+      const customName = `${template?.name || name} (مخصص)`;
+      const newTpl = await duplicateTemplate(activeTemplateId, customName, userId, 'admin');
+
+      // ربط القالب المخصص الجديد تلقائياً بجميع أنواع الوثائق التي يدعمها
+      for (const doc of newTpl.supportedDocuments) {
+        await assignTemplateToDocType(doc, newTpl.id);
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ['printTemplates'] });
+      await queryClient.invalidateQueries({ queryKey: ['templateAssignments'] });
+
+      addNotification({
+        title: 'تم تفعيل وضع التعديل',
+        message: `تم إنشاء النسخة المخصصة "${newTpl.name}" بنجاح وتعيينها للاستخدام. القالب الآن مفتوح للتعديل والتحرير الكامل بالسحب والإفلات.`,
+        type: 'success',
+      });
+
+      loadedRef.current = null;
+      setActiveTemplateId(newTpl.id);
+    } catch (err) {
+      addNotification({
+        title: 'فشل التخصيص',
+        message: err instanceof Error ? err.message : 'حدث خطأ أثناء نسخ القالب',
+        type: 'error',
+      });
+    } finally {
+      setIsCustomizing(false);
+    }
+  };
 
   // Cleanup: reset store عند مغادرة المحرر (مرة واحدة عند unmount)
   useEffect(() => {
@@ -270,10 +307,10 @@ export default function TemplateEditor({ templateId, userId, userName, onClose }
   // ====== Save (B4) ======
   const saveMutation = useMutation({
     mutationFn: async (updates: Partial<PrintTemplate>) => {
-      await updateTemplate(templateId, updates);
+      await updateTemplate(activeTemplateId, updates);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['printTemplate', templateId] });
+      queryClient.invalidateQueries({ queryKey: ['printTemplate', activeTemplateId] });
       queryClient.invalidateQueries({ queryKey: ['printTemplates'] });
       markSaved();
       addNotification({
@@ -498,6 +535,18 @@ export default function TemplateEditor({ templateId, userId, userName, onClose }
               </button>
             </div>
           )}
+          {isSystem && (
+            <button
+              type="button"
+              onClick={handleCustomizeSystemTemplate}
+              disabled={isCustomizing}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-xl shadow-sm text-xs font-bold transition-all disabled:opacity-50 cursor-pointer"
+              title="إنشاء نسخة مخصصة والبدء بالتعديل"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>{isCustomizing ? 'جاري تجهيز النسخة...' : 'تخصيص القالب للتعديل'}</span>
+            </button>
+          )}
           <button
             onClick={handleSave}
             disabled={saveMutation.isPending || !dirty || isSystem}
@@ -579,6 +628,8 @@ export default function TemplateEditor({ templateId, userId, userName, onClose }
                 isSystem={isSystem}
                 onSelect={(id) => selectBlock(id)}
                 onRemove={(id) => removeBlock(activeSection, id)}
+                onCustomize={handleCustomizeSystemTemplate}
+                isCustomizing={isCustomizing}
               />
             </div>
 
@@ -684,11 +735,13 @@ interface SectionCanvasProps {
   isSystem: boolean;
   onSelect: (id: string) => void;
   onRemove: (id: string) => void;
+  onCustomize?: () => void;
+  isCustomizing?: boolean;
 }
 
 function SectionCanvas({
   section, blocks, selectedBlockId, isSystem,
-  onSelect, onRemove,
+  onSelect, onRemove, onCustomize, isCustomizing,
 }: SectionCanvasProps) {
   // Drop target for the section container (للإسقاط على فراغ القسم)
   const { ref: sectionDropRef, isDropTarget: isSectionTarget } = useDroppable({
@@ -698,11 +751,24 @@ function SectionCanvas({
 
   if (isSystem) {
     return (
-      <div className="flex items-center justify-center h-full text-center p-8">
-        <div className="bg-surface-container/60 p-6 rounded-xl max-w-md">
-          <p className="text-on-surface-variant text-sm leading-relaxed">
-            قوالب النظام محمية. انسخ القالب (من صفحة القوالب) لإنشاء نسخة قابلة للتحرير بالسحب والإفلات.
+      <div className="flex flex-col items-center justify-center min-h-[360px] text-center p-8 gap-4">
+        <div className="bg-surface-container/80 border border-primary/25 p-6 rounded-2xl max-w-md shadow-sm space-y-3.5">
+          <div className="w-12 h-12 mx-auto rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-xs">
+            <Edit2 className="w-6 h-6" />
+          </div>
+          <h4 className="text-base font-bold text-on-surface">هذا قالب نظامي مسبق الإعداد</h4>
+          <p className="text-on-surface-variant text-xs leading-relaxed">
+            لتعديل النصوص، الحقول، الألوان، الشعار، أو التخطيط بالسحب والإفلات، اضغط على الزر أدناه لتفعيل التعديل فوراً على نسختك المخصصة.
           </p>
+          <button
+            type="button"
+            onClick={onCustomize}
+            disabled={isCustomizing}
+            className="w-full py-2.5 px-4 bg-primary text-on-primary hover:bg-primary/90 rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>{isCustomizing ? 'جاري تجهيز النسخة المخصصة...' : 'تخصيص وتعديل هذا القالب الآن'}</span>
+          </button>
         </div>
       </div>
     );

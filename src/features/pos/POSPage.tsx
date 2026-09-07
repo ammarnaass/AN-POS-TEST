@@ -33,6 +33,7 @@ import {
   Info, Smartphone, Cloud, CloudCheck, Keyboard, Star, SlidersHorizontal, PlusCircle,
   Edit3, Sliders, History, FileCheck, ChevronDown, ShoppingBag, Save, FileSpreadsheet,
   Minimize, Image as ImageIcon, Columns, Rows, PanelBottom, PanelRight, LayoutDashboard,
+  Layers,
 } from 'lucide-react';
 import { v4 as createId } from 'uuid';
 import {
@@ -192,6 +193,9 @@ export default function POSPage() {
     setShowProductImages,
     uiZoom,
     setUiZoom,
+    wholesaleMode,
+    setWholesaleMode,
+    toggleWholesaleMode,
   } = usePOSSessionStore();
 
   // Local UI Modals & Temporary Form States (حالات النوافذ المحلية والنماذج المؤقتة)
@@ -378,12 +382,28 @@ export default function POSPage() {
       baseProducts = baseProducts.filter((p) => Boolean(p.highlighted || (p as any).isFeatured || (p as any).featured));
     }
 
+    // دالة استخراج صورة العبوة تلقائياً من الصنف الأساسي
+    const resolvePackImage = (pack: any) => {
+      if (pack.image) return pack.image;
+      const items = Array.isArray(pack.items)
+        ? pack.items
+        : (() => { try { return JSON.parse(pack.items) ?? []; } catch { return []; } })();
+      const firstId = items[0]?.productId;
+      if (!firstId) return '';
+      const prod = products.find((pr) => pr.id === firstId);
+      return prod?.image || '';
+    };
+
     // 5. Search Query
     const hasStrictFilter = Boolean(filterSupplier || filterStockStatus !== 'all' || (filterCategory && filterCategory !== 'ALL') || isFeaturedOnly);
     if (!searchQuery) {
       const stockProducts = baseProducts.filter((p) => p.status === 'active' && !('items' in p));
       const mappedPacks = hasStrictFilter ? [] : activePacks.map((p) => ({
-        ...p, id: `pack-${p.id}`, retailPrice: p.packPrice, quantity: 9999,
+        ...p,
+        id: `pack-${p.id}`,
+        retailPrice: p.packPrice,
+        quantity: 9999,
+        image: resolvePackImage(p),
       }));
       return [...stockProducts, ...mappedPacks];
     }
@@ -398,7 +418,13 @@ export default function POSPage() {
       )
     );
     const mappedPacks = hasStrictFilter ? [] : activePacks.filter((p) => p.name.toLowerCase().includes(q) || (p.barcode && p.barcode.toLowerCase().includes(q)))
-      .map((p) => ({ ...p, id: `pack-${p.id}`, retailPrice: p.packPrice, quantity: 9999 }));
+      .map((p) => ({
+        ...p,
+        id: `pack-${p.id}`,
+        retailPrice: p.packPrice,
+        quantity: 9999,
+        image: resolvePackImage(p),
+      }));
     return [...matchedProducts, ...mappedPacks];
   }, [products, packs, searchQuery, filterCategory, filterSupplier, filterStockStatus, isFeaturedOnly, supplierProductIds]);
 
@@ -429,6 +455,41 @@ export default function POSPage() {
     return customers.find(c => c.id === selectedCustomer) || null;
   }, [customers, selectedCustomer]);
 
+  const isWholesaleActive = wholesaleMode || selectedCustomerObj?.customerType === 'wholesale';
+
+  // Auto-activate wholesale mode when a wholesale customer is selected
+  useEffect(() => {
+    if (selectedCustomerObj?.customerType === 'wholesale' && !wholesaleMode) {
+      setWholesaleMode(true);
+      addNotification({
+        title: 'وضع بيع الجملة مفعّل تلقائياً',
+        message: `تم اختيار تاجر الجملة "${selectedCustomerObj.name}" وتطبيق تسعيرة الجملة.`,
+        type: 'info',
+      });
+    }
+  }, [selectedCustomerObj, wholesaleMode, setWholesaleMode, addNotification]);
+
+  // Recalculate cart item prices when wholesale mode toggles
+  const prevWholesaleRef = useRef(isWholesaleActive);
+  useEffect(() => {
+    if (prevWholesaleRef.current !== isWholesaleActive) {
+      prevWholesaleRef.current = isWholesaleActive;
+      if (cart.length > 0) {
+        cart.forEach((item) => {
+          if (!item.isPack && !item.isCustom) {
+            const prod = products.find((p) => p.id === item.productId);
+            if (prod) {
+              const newPrice = resolveUnitPrice(prod, item.qty, promotions, isWholesaleActive);
+              if (newPrice !== item.unitPrice) {
+                updatePrice(item.productId, newPrice);
+              }
+            }
+          }
+        });
+      }
+    }
+  }, [isWholesaleActive, cart, products, promotions, updatePrice]);
+
   const isSessionOpen = currentSession !== null;
 
   // Sale Completion Hook
@@ -451,7 +512,11 @@ export default function POSPage() {
     setSearchQuery('');
     const productsArr = products as any[];
     const result = await parseAndAddScannedCode(code, {
-      products: productsArr, packs: packs as any, promotions: promotions as any, addItem,
+      products: productsArr,
+      packs: packs as any,
+      promotions: promotions as any,
+      addItem,
+      forceWholesale: isWholesaleActive,
     });
     if (result.added) {
       playAdded(0.08);
@@ -465,7 +530,7 @@ export default function POSPage() {
         type: 'error',
       });
     }
-  }, [products, packs, promotions, addItem, addNotification, quickMode]);
+  }, [products, packs, promotions, addItem, addNotification, quickMode, isWholesaleActive]);
 
   useBarcodeScanner({
     onScan: handleExternalScan,
@@ -482,17 +547,31 @@ export default function POSPage() {
         const packId = product.id.replace('pack-', '');
         const pack = packs.find((p) => p.id === packId);
         if (!pack) return;
+        const pQty = pack.piecesCount || pack.items?.reduce((sum: number, it: any) => sum + (it.quantity || 0), 0) || 1;
         addItem({
-          productId: `pack-${packId}`, name: pack.name, qty: 1, unitPrice: pack.packPrice,
-          lineTotal: pack.packPrice, isPack: true, packId: packId,
+          productId: `pack-${packId}`,
+          name: pack.name,
+          qty: 1,
+          unitPrice: pack.packPrice,
+          lineTotal: pack.packPrice,
+          isPack: true,
+          packId: packId,
+          packQty: pQty,
+          packUnit: pack.unitName || 'طرد',
+          pricingType: 'pack',
         });
       } else {
         const existing = cart.find((item) => item.productId === product.id && !item.isCustom);
         const newQty = existing ? existing.qty + 1 : 1;
-        const price = resolveUnitPrice(product, newQty, promotions);
+        const price = resolveUnitPrice(product, newQty, promotions, isWholesaleActive);
         addItem({
-          productId: product.id, name: product.name, qty: 1, unitPrice: price, lineTotal: price,
+          productId: product.id,
+          name: product.name,
+          qty: 1,
+          unitPrice: price,
+          lineTotal: price,
           batchNumber: product.batchNumber,
+          pricingType: isWholesaleActive ? 'wholesale' : 'retail',
         });
       }
       playAdded(0.05);
@@ -502,7 +581,7 @@ export default function POSPage() {
         setTimeout(() => scanInputRef.current?.focus(), 100);
       }
     },
-    [addItem, promotions, cart, packs, quickMode]
+    [addItem, promotions, cart, packs, quickMode, isWholesaleActive]
   );
 
   const handleUpdateQty = useCallback(
@@ -514,13 +593,13 @@ export default function POSPage() {
       }
       const product = products.find((p) => p.id === item.productId);
       if (product && !item.isCustom) {
-        const finalPrice = resolveUnitPrice(product, newQty, promotions);
+        const finalPrice = resolveUnitPrice(product, newQty, promotions, isWholesaleActive);
         updateQty(item.productId, newQty, finalPrice);
       } else {
         updateQty(item.productId, newQty);
       }
     },
-    [removeItem, updateQty, products, promotions]
+    [removeItem, updateQty, products, promotions, isWholesaleActive]
   );
 
   const handleSuspend = () => {
@@ -616,6 +695,7 @@ export default function POSPage() {
       cart, discount, discountType, selectedCustomer, paymentMethod: dbPaymentMethod,
       isReturn: returnMode, currentSession, settings: settingsOrDefault,
       products: products as any[], packs: packs as any[], customers: customers as any[],
+      docType: isWholesaleActive ? 'wholesale' : 'facture',
     });
   };
 
@@ -729,6 +809,7 @@ export default function POSPage() {
     onOpenSessionWarning: () => setShowSessionWarning(true),
     onOpenCustomize: () => setShowCustomizeModal(true),
     onOpenDiscount: () => setShowDiscountModal(true),
+    onToggleWholesale: toggleWholesaleMode,
     onUpdateQty: handleUpdateQty,
     onRemoveItem: removeItem,
     addNotification,
@@ -806,6 +887,34 @@ export default function POSPage() {
             <Zap className="w-4 h-4 fill-amber-500 text-amber-500" />
             <span className="font-cairo font-extrabold hidden md:inline">كاشير سريع</span>
             <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-500 text-white shadow-2xs">⚡ FAST</span>
+          </button>
+
+          {/* Wholesale Mode Toggle Button (زر تبديل وضع بيع الجملة) */}
+          <button
+            onClick={() => {
+              toggleWholesaleMode();
+              addNotification({
+                title: !wholesaleMode ? 'وضع الجملة مفعّل (Gros)' : 'وضع التجزئة مفعّل (Détail)',
+                message: !wholesaleMode ? 'تم تفعيل أسعار وفواتير الجملة تلقائياً (Alt+W)' : 'تم العودة إلى أسعار التجزئة العادية (Alt+W)',
+                type: !wholesaleMode ? 'success' : 'info',
+              });
+            }}
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-2xs hover:shadow-xs active:scale-95 cursor-pointer shrink-0 ${
+              isWholesaleActive
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-blue-500 shadow-md ring-2 ring-blue-500/30'
+                : 'bg-surface-container/70 hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface border-outline-variant/30'
+            }`}
+            title="تبديل وضع بيع الجملة (Alt+W)"
+          >
+            <Layers className={`w-4 h-4 ${isWholesaleActive ? 'text-white' : 'text-blue-500'}`} />
+            <span className="font-cairo font-extrabold hidden md:inline">
+              {isWholesaleActive ? 'بيع بالجملة' : 'بيع تجزئة'}
+            </span>
+            <span className={`px-1.5 py-0.5 rounded text-[9px] font-black ${
+              isWholesaleActive ? 'bg-white/20 text-white' : 'bg-surface-container-highest text-on-surface-variant'
+            }`}>
+              {isWholesaleActive ? 'GROS' : 'DÉTAIL'}
+            </span>
           </button>
 
           {/* Search by Name */}
@@ -1497,7 +1606,9 @@ export default function POSPage() {
                     <User className="w-3.5 h-3.5 text-primary shrink-0" />
                     <span className="truncate">
                       {selectedCustomer
-                        ? customers.find((c) => c.id === selectedCustomer)?.name
+                        ? `${customers.find((c) => c.id === selectedCustomer)?.name}${
+                            selectedCustomerObj?.customerType === 'wholesale' ? ' (تاجر جملة)' : ''
+                          }`
                         : 'زبون عام (افتراضي)'}
                     </span>
                   </div>
@@ -1525,6 +1636,18 @@ export default function POSPage() {
                 <UserPlus className="w-3.5 h-3.5" />
               </button>
             </div>
+
+            {isWholesaleActive && (
+              <div className="mt-2 px-2.5 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/25 flex items-center justify-between text-[11px] font-bold text-blue-600 dark:text-blue-400 animate-in fade-in duration-150">
+                <div className="flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>وضع بيع الجملة نشط (Gros)</span>
+                </div>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 font-mono font-black">
+                  فاتورة A4
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Cart Items List */}

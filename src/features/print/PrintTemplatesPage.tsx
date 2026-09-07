@@ -1,6 +1,6 @@
 // PrintTemplatesPage — POS-PRINT-001
 // إدارة وتخصيص قوالب الطباعة للمستندات التجارية
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -34,6 +34,7 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
+  Minimize2,
   ExternalLink,
   RotateCcw,
   Sliders,
@@ -74,6 +75,8 @@ import {
 } from '@/types/invoicePrint';
 import { renderDocumentHTML, buildPrintPage } from '@/services/print/renderTemplate';
 import { db, type SettingsEntity } from '@/infrastructure/database/dexie/db';
+import { seedDefaultTemplates } from '@/services/print/defaultTemplates';
+import { buildMockDocumentContext } from '@/services/print/mockPreviewContext';
 
 /**
  * مجسم مصغر واقعي لطبيعة الورق (حراري 80mm/58mm مقابل فواتير A4/A5)
@@ -224,10 +227,28 @@ export default function PrintTemplatesPage() {
   // نوافذ الحوار
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [previewTemplate, setPreviewTemplate] = useState<PrintTemplate | null>(null);
+  const [previewDocType, setPreviewDocType] = useState<DocTypeKey>('wholesale-invoice');
   const [previewLang, setPreviewLang] = useState<PrintLanguage>('ar');
   const [duplicateModal, setDuplicateModal] = useState<{ id: string; name: string } | null>(null);
   const [duplicateName, setDuplicateName] = useState('');
   const [previewZoom, setPreviewZoom] = useState<number>(100);
+  const [previewFitMode, setPreviewFitMode] = useState<'fit-page' | 'fit-width' | 'custom'>('fit-page');
+  const [previewFullscreen, setPreviewFullscreen] = useState<boolean>(false);
+  const previewContainerRef = useRef<HTMLDivElement>(null);
+  const [calculatedFitZoom, setCalculatedFitZoom] = useState<number>(65);
+
+  const openPreview = (tpl: PrintTemplate, preferredDocType?: DocTypeKey) => {
+    const initialDocType =
+      preferredDocType ||
+      (tpl.supportedDocuments && tpl.supportedDocuments.length > 0
+        ? tpl.supportedDocuments[0]
+        : 'wholesale-invoice');
+    setPreviewDocType(initialDocType);
+    setPreviewTemplate(tpl);
+    setPreviewLang('ar');
+    setPreviewFitMode('fit-page');
+    setPreviewFullscreen(false);
+  };
 
   // إعدادات المتجر العامة وهوية الطباعة والشعار
   const { data: storeSettings } = useQuery({
@@ -252,6 +273,16 @@ export default function PrintTemplatesPage() {
       if (storeSettings.printLogoAlign) setLogoAlign(storeSettings.printLogoAlign);
     }
   }, [storeSettings]);
+
+  // ضمان وجود وتحديث القوالب النظامية دائماً (خاصة فاتورة بيع بالجملة)
+  useEffect(() => {
+    seedDefaultTemplates()
+      .then(() => {
+        queryClient.invalidateQueries({ queryKey: ['printTemplates'] });
+        queryClient.invalidateQueries({ queryKey: ['templateAssignments'] });
+      })
+      .catch((err) => console.warn('Failed to seed templates in PrintTemplatesPage:', err));
+  }, [queryClient]);
 
   // حفظ إعدادات الشعار في قاعدة البيانات
   const saveLogoSettingsMutation = useMutation({
@@ -328,10 +359,15 @@ export default function PrintTemplatesPage() {
   const [newTplPaperSize, setNewTplPaperSize] = useState<PaperSize>('80mm');
   const [newTplTheme, setNewTplTheme] = useState<'cyan' | 'blue' | 'emerald' | 'crimson' | 'amber' | 'slate'>('cyan');
 
-  // جلب القوالب من قاعدة البيانات
+  // جلب القوالب من قاعدة البيانات مع ضمان حقن القوالب الافتراضية (بما فيها فاتورة بيع بالجملة)
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ['printTemplates'],
-    queryFn: getAllTemplates,
+    queryFn: async () => {
+      await seedDefaultTemplates().catch((err) => {
+        console.warn('seedDefaultTemplates error:', err);
+      });
+      return getAllTemplates();
+    },
   });
 
   // استيراد كافة القوالب الجاهزة دفعة واحدة
@@ -569,70 +605,134 @@ export default function PrintTemplatesPage() {
     });
   }, [templates, searchQuery, selectedPaperFilter]);
 
-  // بناء محتوى المعاينة السريعة للقالب مع دعم اللغات وشعار المتجر الفعلي
+  // بناء محتوى المعاينة السريعة للقالب مع دعم اللغات وشعار المتجر الفعلي وسياق الوثيقة الكامل
   const previewHtml = useMemo(() => {
     if (!previewTemplate) return '';
     try {
-      const isRtl = previewLang === 'ar' || previewLang === 'ar-fr';
-      const mockContext = {
-        invoice: {
-          number: 'INV-2026-0088',
-          date: new Date().toISOString().split('T')[0],
-          subtotal: 4850,
-          discount: 150,
-          tvaAmount: 0,
-          total: 4700,
-          paymentMethod: isRtl ? 'نقداً' : 'Espèces',
-          customerName: isRtl ? 'كريم بن علي' : 'Karim Benali',
-          customerPhone: '0550 12 34 56',
-          customerAddress: isRtl ? 'الجزائر العاصمة' : 'Alger Centre',
-          items: [
-            {
-              name: isRtl ? 'زيت زيتون بكر 1 لتر' : "Huile d'Olive Vierge 1L",
-              qty: 2,
-              unitPrice: 950,
-              lineTotal: 1900,
-            },
-            {
-              name: isRtl ? 'عسل جبلي طبيعي 500 غ' : 'Miel Pur de Montagne 500g',
-              qty: 1,
-              unitPrice: 1600,
-              lineTotal: 1600,
-            },
-            {
-              name: isRtl ? 'تمور دقلة نور فاخرة 1 كغ' : 'Dattes Deglet Nour 1kg',
-              qty: 3,
-              unitPrice: 450,
-              lineTotal: 1350,
-            },
-          ],
-        },
-        settings: {
-          shopName: storeSettings?.shopName || 'سوبرماركت البركة',
-          receiptFooter: storeSettings?.receiptFooter || 'شكراً لزيارتكم',
-        },
-        template: previewTemplate,
-        shopLegal: {
-          name: storeSettings?.shopName || 'سوبرماركت البركة',
-          phone: storeSettings?.phone || storeSettings?.shopPhone2 || '023 45 67 89',
-          email: storeSettings?.email || storeSettings?.shopEmail || 'contact@elbaraka.dz',
-          address: storeSettings?.shopAddress || storeSettings?.address || 'شارع فلسطين، الجزائر',
-          footer: storeSettings?.receiptFooter || 'شكراً لزيارتكم ونتمنى عودتكم قريباً',
-          commercialRegister: storeSettings?.commercialRegister || storeSettings?.companyRC || '16/00-1234567B',
-          nif: storeSettings?.companyNif || storeSettings?.taxNumber || storeSettings?.taxId || '001616012345678',
-          ai: storeSettings?.companyAI || storeSettings?.companyArt || storeSettings?.taxArticle || '16012345678',
-          taxNumber: storeSettings?.taxNumber || storeSettings?.taxId || '123456789',
-          logo: storeSettings?.shopLogo || storeSettings?.logo || '',
-        },
-        user: { id: 'usr-1', name: isRtl ? 'أحمد (الكاشير)' : 'Ahmed (Caissier)', role: 'cashier' },
-        lang: previewLang,
-      };
-      const bodyHtml = renderDocumentHTML(mockContext as any);
+      const mockContext = buildMockDocumentContext(
+        previewTemplate,
+        storeSettings,
+        previewDocType,
+        previewLang,
+      );
+      const bodyHtml = renderDocumentHTML(mockContext);
       return buildPrintPage(previewTemplate, bodyHtml, `معاينة: ${previewTemplate.name}`, previewLang);
     } catch (err) {
       return `<!doctype html><html dir="rtl"><body style="font-family:sans-serif;padding:2rem;text-align:center;color:#ef4444;"><p>تعذر تجهيز المعاينة: ${String(err)}</p></body></html>`;
     }
-  }, [previewTemplate, previewLang, storeSettings]);
+  }, [previewTemplate, previewLang, storeSettings, previewDocType]);
+
+  // حساب الملاءمة التلقائية لورقة المعاينة بناءً على أبعاد الحاوية الفعلية لمختلف الشاشات (Responsive Fit)
+  useEffect(() => {
+    if (!previewContainerRef.current || !previewTemplate) return;
+    const updateFit = () => {
+      const el = previewContainerRef.current;
+      if (!el) return;
+      const { clientWidth, clientHeight } = el;
+      const isLandscape = previewTemplate.orientation === 'landscape';
+      let sheetW = 820;
+      let sheetH = 1160;
+      if (previewTemplate.paperSize === 'A4') {
+        sheetW = isLandscape ? 1160 : 820;
+        sheetH = isLandscape ? 820 : 1160;
+      } else if (previewTemplate.paperSize === 'A5') {
+        sheetW = isLandscape ? 820 : 580;
+        sheetH = isLandscape ? 580 : 820;
+      } else if (previewTemplate.paperSize === '80mm') {
+        sheetW = 380;
+        sheetH = 700;
+      } else {
+        sheetW = 320;
+        sheetH = 620;
+      }
+
+      // أبعاد الحواشي التكيفية بحسب عرض وارتفاع الشاشة
+      const padX = clientWidth < 640 ? 16 : clientWidth < 1024 ? 28 : 48;
+      const padY = clientHeight < 500 ? 12 : clientHeight < 800 ? 24 : 48;
+      const scaleW = Math.max(0.2, (clientWidth - padX) / sheetW);
+      const scaleH = Math.max(0.2, (clientHeight - padY) / sheetH);
+
+      const bestFitPage = Math.max(25, Math.min(130, Math.round(Math.min(scaleW, scaleH) * 100)));
+      setCalculatedFitZoom(bestFitPage);
+    };
+
+    updateFit();
+    const observer = new ResizeObserver(updateFit);
+    observer.observe(previewContainerRef.current);
+    return () => observer.disconnect();
+  }, [previewTemplate, previewFullscreen]);
+
+  // دعم اختصارات لوحة المفاتيح لتسهيل المعاينة السريعة على شاشات نقاط البيع والحواسيب
+  useEffect(() => {
+    if (!previewTemplate) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) return;
+
+      if (e.key === 'Escape') {
+        setPreviewTemplate(null);
+      } else if (e.key === 'f' || e.key === 'F') {
+        setPreviewFullscreen((prev) => !prev);
+      } else if (e.key === '+' || e.key === '=') {
+        setPreviewFitMode('custom');
+        setPreviewZoom((z) => Math.min(160, z + 10));
+      } else if (e.key === '-' || e.key === '_') {
+        setPreviewFitMode('custom');
+        setPreviewZoom((z) => Math.max(25, z - 10));
+      } else if (e.key === '0') {
+        setPreviewFitMode('fit-page');
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        const iframe = document.getElementById('template-preview-iframe') as HTMLIFrameElement;
+        if (iframe && iframe.contentWindow) {
+          iframe.contentWindow.print();
+        } else {
+          window.print();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [previewTemplate]);
+
+  const effectiveZoom = useMemo(() => {
+    if (previewFitMode === 'fit-page') {
+      return calculatedFitZoom;
+    }
+    if (previewFitMode === 'fit-width') {
+      if (!previewContainerRef.current || !previewTemplate) return 100;
+      const isLandscape = previewTemplate.orientation === 'landscape';
+      const sheetW =
+        previewTemplate.paperSize === 'A4'
+          ? isLandscape
+            ? 1160
+            : 820
+          : previewTemplate.paperSize === 'A5'
+          ? isLandscape
+            ? 820
+            : 580
+          : 380;
+      const padX = previewContainerRef.current.clientWidth < 640 ? 20 : 48;
+      const scaleW = (previewContainerRef.current.clientWidth - padX) / sheetW;
+      return Math.max(30, Math.min(150, Math.round(scaleW * 100)));
+    }
+    return previewZoom;
+  }, [previewFitMode, calculatedFitZoom, previewZoom, previewTemplate]);
+
+  const isLandscape = previewTemplate?.orientation === 'landscape';
+  const sheetDimensions = useMemo(() => {
+    if (!previewTemplate) return { w: 820, h: 1160 };
+    if (previewTemplate.paperSize === 'A4') {
+      return { w: isLandscape ? 1160 : 820, h: isLandscape ? 820 : 1160 };
+    }
+    if (previewTemplate.paperSize === 'A5') {
+      return { w: isLandscape ? 820 : 580, h: isLandscape ? 580 : 820 };
+    }
+    if (previewTemplate.paperSize === '80mm') {
+      return { w: 380, h: 720 };
+    }
+    return { w: 320, h: 650 };
+  }, [previewTemplate, isLandscape]);
   // ====== شاشة محرر القوالب المرئي الكامل ======
   if (editingTemplateId && user) {
     return (
@@ -945,17 +1045,40 @@ export default function PrintTemplatesPage() {
           </button>
         </div>
 
-        {activeTopTab === 'presets' && canEdit && (
-          <button
-            type="button"
-            onClick={() => importAllMutation.mutate()}
-            disabled={importAllMutation.isPending}
-            className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm flex items-center gap-2 transition-all active:scale-95"
-          >
-            <Download className="w-4 h-4" />
-            <span>{importAllMutation.isPending ? 'جاري الاستيراد...' : 'استيراد كافة النماذج (10 قوالب)'}</span>
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {activeTopTab === 'my-templates' && (
+            <button
+              type="button"
+              onClick={async () => {
+                await seedDefaultTemplates();
+                await queryClient.invalidateQueries({ queryKey: ['printTemplates'] });
+                await queryClient.invalidateQueries({ queryKey: ['templateAssignments'] });
+                addNotification({
+                  title: 'تم تحديث القوالب',
+                  message: 'تمت مزامنة القوالب الافتراضية وفاتورة بيع بالجملة بنجاح',
+                  type: 'success',
+                });
+              }}
+              className="px-3.5 py-2 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/30 text-on-surface text-xs font-bold shadow-xs flex items-center gap-1.5 transition-all"
+              title="مزامنة وتثبيت القوالب الافتراضية النظامية"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-primary" />
+              <span>مزامنة القوالب الافتراضية</span>
+            </button>
+          )}
+
+          {activeTopTab === 'presets' && canEdit && (
+            <button
+              type="button"
+              onClick={() => importAllMutation.mutate()}
+              disabled={importAllMutation.isPending}
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm flex items-center gap-2 transition-all active:scale-95"
+            >
+              <Download className="w-4 h-4" />
+              <span>{importAllMutation.isPending ? 'جاري الاستيراد...' : 'استيراد كافة النماذج (10 قوالب)'}</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* تبويب: ربط القوالب بالوثائق */}
@@ -1102,8 +1225,7 @@ export default function PrintTemplatesPage() {
                           createdAt: new Date().toISOString(),
                           updatedAt: new Date().toISOString(),
                         };
-                        setPreviewTemplate(mockTpl);
-                        setPreviewLang('ar');
+                        openPreview(mockTpl);
                       }}
                       className="px-3 py-1.5 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-xs font-bold transition-all flex items-center gap-1.5"
                     >
@@ -1351,10 +1473,7 @@ export default function PrintTemplatesPage() {
                   <div className="pt-3.5 border-t border-outline-variant/15 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5">
                       <button
-                        onClick={() => {
-                          setPreviewTemplate(tpl);
-                          setPreviewLang('ar');
-                        }}
+                        onClick={() => openPreview(tpl)}
                         className="px-3 py-1.5 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-xs font-bold transition-all flex items-center gap-1.5"
                         title="معاينة حية"
                       >
@@ -1467,10 +1586,7 @@ export default function PrintTemplatesPage() {
                       <td className="px-5 py-3.5 text-left">
                         <div className="flex items-center justify-end gap-1.5">
                           <button
-                            onClick={() => {
-                              setPreviewTemplate(tpl);
-                              setPreviewLang('ar');
-                            }}
+                            onClick={() => openPreview(tpl)}
                             className="p-2 rounded-lg hover:bg-surface-container-highest text-primary transition-all"
                             title="معاينة"
                           >
@@ -1639,46 +1755,89 @@ export default function PrintTemplatesPage() {
         </div>
       )}
 
-      {/* نافذة المعاينة السريعة التفاعلية (Interactive Floating Preview Modal) */}
+      {/* نافذة المعاينة التفاعلية المتقدمة لجميع مقاسات الشاشات (Interactive Responsive Preview Modal — UI/UX Pro Max) */}
       {previewTemplate && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div
+          className={`fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center ${
+            previewFullscreen ? 'p-0' : 'p-0 sm:p-2 md:p-4 lg:p-6'
+          }`}
+        >
           <div
-            className="bg-surface-container-lowest w-full max-w-3xl max-h-[92vh] rounded-3xl border border-outline-variant/20 shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
+            className={`bg-surface-container-lowest w-full ${
+              previewFullscreen
+                ? 'h-full rounded-none border-0'
+                : 'h-full sm:h-[96vh] sm:max-w-xl md:max-w-4xl lg:max-w-6xl sm:rounded-3xl border-0 sm:border border-outline-variant/25'
+            } shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-150`}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* شريط رأس المعاينة */}
-            <div className="p-4 bg-surface-container-low border-b border-outline-variant/20 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                  <Printer className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm text-on-surface font-cairo">معاينة القالب: {previewTemplate.name}</h3>
-                  <div className="flex items-center gap-2 text-xs text-on-surface-variant">
-                    <span className="font-mono text-primary font-bold">{PAPER_LABELS_AR[previewTemplate.paperSize]}</span>
-                    <span>•</span>
-                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                      {previewLang === 'ar' ? 'اتجاه RTL تام' : previewLang === 'ar-fr' ? 'ثنائي اللغة RTL' : 'اتجاه LTR تام'}
-                    </span>
+            {/* 1. شريط رأس المعاينة الرئيسي المتجاوب */}
+            <div className="p-2.5 sm:p-3.5 md:p-4 bg-surface-container-low border-b border-outline-variant/20 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+              {/* اسم القالب والمعلومات الرئيسية */}
+              <div className="flex items-center justify-between sm:justify-start gap-2.5">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                    <Printer className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-xs sm:text-sm md:text-base text-on-surface font-cairo truncate">
+                        معاينة: {previewTemplate.name}
+                      </h3>
+                      {previewTemplate.isDefault && (
+                        <span className="px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold text-[10px] shrink-0">
+                          افتراضي
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[11px] text-on-surface-variant mt-0.5">
+                      <span className="font-mono text-primary font-bold">{PAPER_LABELS_AR[previewTemplate.paperSize]}</span>
+                      <span>•</span>
+                      <span className="hidden sm:inline font-medium">
+                        {isLandscape ? 'أفقي' : 'عمودي'}
+                      </span>
+                      <span className="hidden sm:inline">•</span>
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400 truncate">
+                        {DOC_TYPE_LABELS_AR[previewDocType] || previewDocType}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* أزرار ملء الشاشة والإغلاق السريع لشاشات الهواتف */}
+                <div className="flex items-center gap-1 sm:hidden">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewFullscreen((f) => !f)}
+                    className="p-1.5 rounded-lg bg-surface-container-high text-on-surface-variant"
+                    title={previewFullscreen ? 'إنهاء ملء الشاشة' : 'ملء الشاشة'}
+                  >
+                    {previewFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                  </button>
+                  <button
+                    onClick={() => setPreviewTemplate(null)}
+                    className="p-1.5 rounded-lg bg-surface-container-high text-on-surface-variant hover:text-rose-600"
+                    title="إغلاق"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
 
-              {/* أدوات التحكم باللغة والتكبير */}
-              <div className="flex flex-wrap items-center gap-2">
-                {/* محدد لغة الفاتورة السريع */}
-                <div className="flex items-center gap-1 bg-surface-container-high rounded-xl p-1 border border-outline-variant/20">
+              {/* أدوات التحكم باللغة والملاءمة والتكبير */}
+              <div className="flex flex-wrap items-center justify-between sm:justify-end gap-1.5">
+                {/* محدد لغة المعاينة */}
+                <div className="flex items-center gap-0.5 bg-surface-container-high rounded-xl p-0.5 border border-outline-variant/20">
                   {[
-                    { key: 'ar', label: '🇩🇿 العربية' },
-                    { key: 'ar-fr', label: '🌐 عربي/فرنسي' },
-                    { key: 'fr', label: '🇫🇷 Français' },
-                    { key: 'en', label: '🇬🇧 English' },
+                    { key: 'ar', label: 'العربية' },
+                    { key: 'ar-fr', label: 'ع/ف' },
+                    { key: 'fr', label: 'FR' },
+                    { key: 'en', label: 'EN' },
                   ].map((item) => (
                     <button
                       key={item.key}
                       type="button"
                       onClick={() => setPreviewLang(item.key as PrintLanguage)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                      className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
                         previewLang === item.key
                           ? 'bg-primary text-on-primary shadow-xs'
                           : 'text-on-surface-variant hover:text-on-surface'
@@ -1689,68 +1848,197 @@ export default function PrintTemplatesPage() {
                   ))}
                 </div>
 
-                {/* التحكم بالتكبير */}
-                <div className="flex items-center bg-surface-container-high rounded-xl p-0.5 border border-outline-variant/20">
+                {/* خيارات الملاءمة والتكبير */}
+                <div className="flex items-center gap-0.5 bg-surface-container-high rounded-xl p-0.5 border border-outline-variant/20">
                   <button
                     type="button"
-                    onClick={() => setPreviewZoom((z) => Math.max(70, z - 15))}
+                    onClick={() => setPreviewFitMode('fit-page')}
+                    className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                      previewFitMode === 'fit-page'
+                        ? 'bg-primary text-on-primary shadow-xs'
+                        : 'text-on-surface-variant hover:text-on-surface'
+                    }`}
+                    title="ملاءمة كامل الصفحة في الشاشة بدون تمرير (0)"
+                  >
+                    الورقة
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPreviewFitMode('fit-width')}
+                    className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                      previewFitMode === 'fit-width'
+                        ? 'bg-primary text-on-primary shadow-xs'
+                        : 'text-on-surface-variant hover:text-on-surface'
+                    }`}
+                    title="ملاءمة عرض الورقة للقراءة السريعة"
+                  >
+                    العرض
+                  </button>
+
+                  <div className="h-3.5 w-px bg-outline-variant/30 mx-0.5" />
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPreviewFitMode('custom');
+                      setPreviewZoom((z) => Math.max(25, z - 10));
+                    }}
                     className="p-1 rounded-lg hover:bg-surface-container-highest text-on-surface-variant"
-                    title="تصغير"
+                    title="تصغير (-)"
                   >
                     <ZoomOut className="w-3.5 h-3.5" />
                   </button>
-                  <span className="text-[11px] font-mono px-1.5 font-bold text-on-surface">{previewZoom}%</span>
+                  <span className="text-[11px] font-mono px-0.5 font-bold text-on-surface min-w-[34px] text-center">
+                    {effectiveZoom}%
+                  </span>
                   <button
                     type="button"
-                    onClick={() => setPreviewZoom((z) => Math.min(150, z + 15))}
+                    onClick={() => {
+                      setPreviewFitMode('custom');
+                      setPreviewZoom((z) => Math.min(160, z + 10));
+                    }}
                     className="p-1 rounded-lg hover:bg-surface-container-highest text-on-surface-variant"
-                    title="تكبير"
+                    title="تكبير (+)"
                   >
                     <ZoomIn className="w-3.5 h-3.5" />
                   </button>
                 </div>
 
+                {/* زر ملء الشاشة على الشاشات الكبيرة */}
+                <button
+                  type="button"
+                  onClick={() => setPreviewFullscreen((f) => !f)}
+                  className="hidden sm:flex p-1.5 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant hover:text-on-surface transition-all border border-outline-variant/20"
+                  title={previewFullscreen ? 'إنهاء ملء الشاشة (F)' : 'ملء الشاشة (F)'}
+                >
+                  {previewFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                </button>
+
+                {/* زر الإغلاق على الشاشات الكبيرة */}
                 <button
                   onClick={() => setPreviewTemplate(null)}
-                  className="p-1.5 rounded-xl text-on-surface-variant hover:bg-surface-container-highest"
-                  title="إغلاق"
+                  className="hidden sm:flex p-1.5 rounded-xl bg-surface-container-high hover:bg-rose-500/10 hover:text-rose-600 text-on-surface-variant transition-all border border-outline-variant/20"
+                  title="إغلاق المعاينة (Esc)"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
             </div>
 
-            {/* محتوى الـ iframe للمعاينة داخل محاكي الورق */}
-            <div className="flex-1 p-6 overflow-y-auto bg-slate-200 dark:bg-slate-950 flex items-center justify-center min-h-[500px]">
-              <div
-                className="w-full flex items-center justify-center transition-transform duration-200"
-                style={{ transform: `scale(${previewZoom / 100})`, transformOrigin: 'top center' }}
-              >
-                <iframe
-                  id="template-preview-iframe"
-                  title="Template Preview"
-                  srcDoc={previewHtml}
-                  className={`border-0 rounded-2xl shadow-2xl bg-white transition-all ${
-                    previewTemplate.paperSize === '58mm'
-                      ? 'w-[320px] min-h-[520px]'
-                      : previewTemplate.paperSize === '80mm'
-                      ? 'w-[380px] min-h-[580px]'
-                      : previewTemplate.paperSize === 'A5'
-                      ? 'w-[520px] min-h-[640px]'
-                      : 'w-[680px] min-h-[750px]'
-                  }`}
-                />
+            {/* 2. شريط اختيار أنواع الوثائق المدعومة المتجاوب */}
+            <div className="px-3 md:px-4 py-2 bg-surface-container-highest/60 border-b border-outline-variant/15 flex items-center justify-between gap-2 overflow-x-auto">
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-xs font-bold text-on-surface-variant font-cairo shrink-0 flex items-center gap-1">
+                  <Layers className="w-3.5 h-3.5 text-primary" />
+                  <span className="hidden sm:inline">الوثيقة:</span>
+                </span>
+
+                {/* أزرار الوثائق المدعومة الأساسية للقالب */}
+                {previewTemplate.supportedDocuments.map((docKey) => {
+                  const isSelected = previewDocType === docKey;
+                  return (
+                    <button
+                      key={docKey}
+                      type="button"
+                      onClick={() => setPreviewDocType(docKey)}
+                      className={`px-2.5 sm:px-3 py-1 rounded-xl text-xs font-bold transition-all flex items-center gap-1 shrink-0 ${
+                        isSelected
+                          ? 'bg-primary text-on-primary shadow-xs ring-2 ring-primary/20'
+                          : 'bg-surface-container-low hover:bg-surface-container text-on-surface border border-outline-variant/20'
+                      }`}
+                    >
+                      <FileCheck className={`w-3.5 h-3.5 ${isSelected ? 'text-on-primary' : 'text-primary'}`} />
+                      <span>{DOC_TYPE_LABELS_AR[docKey] || docKey}</span>
+                    </button>
+                  );
+                })}
+
+                {/* قائمة لاختبار أي وثيقة أخرى في النظام */}
+                {ALL_DOC_TYPES.filter((dt) => !previewTemplate.supportedDocuments.includes(dt)).length > 0 && (
+                  <div className="relative shrink-0">
+                    <select
+                      value={previewTemplate.supportedDocuments.includes(previewDocType) ? '' : previewDocType}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          setPreviewDocType(e.target.value as DocTypeKey);
+                        }
+                      }}
+                      className={`text-xs font-bold rounded-xl px-2.5 py-1 transition-all border cursor-pointer outline-hidden ${
+                        !previewTemplate.supportedDocuments.includes(previewDocType)
+                          ? 'bg-amber-500 text-white border-amber-600'
+                          : 'bg-surface-container-low text-on-surface-variant border-outline-variant/20 hover:text-on-surface'
+                      }`}
+                    >
+                      <option value="" disabled>
+                        وثائق أخرى (+)...
+                      </option>
+                      {ALL_DOC_TYPES.filter((dt) => !previewTemplate.supportedDocuments.includes(dt)).map((dt) => (
+                        <option key={dt} value={dt}>
+                          {DOC_TYPE_LABELS_AR[dt] || dt} (تجريبي)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {/* شارة إيضاح حالة البيانات (تظهر على الشاشات الواسعة) */}
+              <div className="hidden lg:flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-1 rounded-lg shrink-0">
+                <Check className="w-3.5 h-3.5" />
+                <span>بيانات كاملة واقعية (Colisage + الرصيد + التوقيعات)</span>
               </div>
             </div>
 
-            {/* أزرار الإجراء في أسفل المعاينة */}
-            <div className="p-3.5 bg-surface-container-low border-t border-outline-variant/20 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-xs text-on-surface-variant">
-                <Check className="w-4 h-4 text-emerald-500" />
-                <span>شعار المتجر مضمّن بدقة • يدعم الطباعة الحرارية والمكتبية</span>
+            {/* 3. حاوية محاكاة الورق الواقعية (Paper Canvas) المتجاوبة */}
+            <div
+              ref={previewContainerRef}
+              className="flex-1 overflow-auto bg-slate-900/90 dark:bg-slate-950 p-2 sm:p-4 md:p-6 flex items-start justify-center relative select-none"
+            >
+              <div
+                style={{
+                  width: `${sheetDimensions.w * (effectiveZoom / 100)}px`,
+                  height: `${sheetDimensions.h * (effectiveZoom / 100)}px`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'width 0.15s ease-out, height 0.15s ease-out',
+                }}
+                className="shrink-0 my-auto"
+              >
+                <div
+                  style={{
+                    transform: `scale(${effectiveZoom / 100})`,
+                    transformOrigin: 'top center',
+                    width: `${sheetDimensions.w}px`,
+                    height: `${sheetDimensions.h}px`,
+                  }}
+                  className="shadow-2xl rounded-2xl bg-white overflow-hidden ring-1 ring-white/10"
+                >
+                  <iframe
+                    id="template-preview-iframe"
+                    title="Template Preview"
+                    srcDoc={previewHtml}
+                    className="w-full h-full border-0 bg-white"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 4. شريط الإجراءات السفلي المتجاوب */}
+            <div className="p-2.5 sm:p-3.5 bg-surface-container-low border-t border-outline-variant/20 flex flex-wrap items-center justify-between gap-2">
+              <div className="hidden sm:flex items-center gap-2 text-xs text-on-surface-variant font-cairo">
+                <Printer className="w-4 h-4 text-primary" />
+                <span>
+                  معاينة لـ{' '}
+                  <strong className="text-on-surface font-bold">
+                    {DOC_TYPE_LABELS_AR[previewDocType] || previewDocType}
+                  </strong>{' '}
+                  • ورقة <strong className="text-primary font-bold">{PAPER_LABELS_AR[previewTemplate.paperSize]}</strong>
+                </span>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 w-full sm:w-auto justify-end">
                 <button
                   type="button"
                   onClick={() => {
@@ -1761,10 +2049,27 @@ export default function PrintTemplatesPage() {
                       window.print();
                     }
                   }}
-                  className="px-4 py-2 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs"
+                  className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-xs"
                 >
                   <Printer className="w-3.5 h-3.5 text-primary" />
                   <span>طباعة تجريبية</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!previewHtml) return;
+                    const win = window.open('', '_blank', 'width=840,height=980');
+                    if (win) {
+                      win.document.write(previewHtml);
+                      win.document.close();
+                    }
+                  }}
+                  className="px-3 py-2 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-xs"
+                  title="فتح في نافذة مستقلة للطباعة الفورية"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span className="hidden md:inline">نافذة مستقلة</span>
                 </button>
 
                 {canEdit && (
@@ -1774,16 +2079,16 @@ export default function PrintTemplatesPage() {
                       setPreviewTemplate(null);
                       setEditingTemplateId(id);
                     }}
-                    className="px-4 py-2 rounded-xl bg-primary text-on-primary text-xs font-bold hover:bg-primary/90 transition-all flex items-center gap-1.5 shadow-xs"
+                    className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl bg-primary text-on-primary text-xs font-bold hover:bg-primary/90 transition-all flex items-center justify-center gap-1.5 shadow-xs"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
-                    <span>تعديل في المحرر</span>
+                    <span>تعديل</span>
                   </button>
                 )}
 
                 <button
                   onClick={() => setPreviewTemplate(null)}
-                  className="px-4 py-2 rounded-xl bg-surface-container-high text-on-surface text-xs font-semibold hover:bg-surface-container-highest transition-all"
+                  className="px-3.5 py-2 rounded-xl bg-surface-container-high text-on-surface text-xs font-semibold hover:bg-surface-container-highest transition-all"
                 >
                   إغلاق
                 </button>

@@ -4,7 +4,7 @@ import { db } from '@/infrastructure/database/dexie/db';
 import type { Customer } from '@/types';
 import { generateId } from '@/utils';
 import {
-  Plus, Search, Edit2, Trash2, Upload, X, Users, CreditCard,
+  Plus, Search, Edit2, Trash2, Upload, X, Users,
   AlertTriangle, FileText, ChevronLeft, ChevronRight, Phone,
   DollarSign, Download, Printer, MessageSquare,
   CheckCircle2, Wallet, RefreshCw,
@@ -52,7 +52,17 @@ export default function CustomersPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
-  const [formData, setFormData] = useState({ name: '', phone: '', creditLimit: 0, balance: 0 });
+  const [formData, setFormData] = useState({
+    name: '',
+    phone: '',
+    creditLimit: 0,
+    balance: 0,
+    customerType: 'retail' as 'retail' | 'wholesale' | 'semi_wholesale',
+    rc: '',
+    nif: '',
+    nis: '',
+    address: '',
+  });
 
   // Payment Modal State
   const [showPayment, setShowPayment] = useState<string | null>(null);
@@ -72,13 +82,18 @@ export default function CustomersPage() {
 
   // Mutations
   const addCustomerMutation = useMutation({
-    mutationFn: (data: { name: string; phone: string; creditLimit: number; balance: number }) =>
+    mutationFn: (data: typeof formData) =>
       db.customers.add({
         id: generateId(),
         name: data.name.trim(),
         phone: data.phone.trim(),
         creditLimit: Number(data.creditLimit) || 0,
         balance: Number(data.balance) || 0,
+        customerType: data.customerType || 'retail',
+        rc: data.rc?.trim() || undefined,
+        nif: data.nif?.trim() || undefined,
+        nis: data.nis?.trim() || undefined,
+        address: data.address?.trim() || undefined,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       }),
@@ -94,6 +109,11 @@ export default function CustomersPage() {
         phone: data.phone.trim(),
         creditLimit: Number(data.creditLimit) || 0,
         balance: Number(data.balance) || 0,
+        customerType: data.customerType || 'retail',
+        rc: data.rc?.trim() || undefined,
+        nif: data.nif?.trim() || undefined,
+        nis: data.nis?.trim() || undefined,
+        address: data.address?.trim() || undefined,
         updatedAt: new Date().toISOString(),
       }),
     onSuccess: () => {
@@ -587,12 +607,27 @@ export default function CustomersPage() {
         phone: formData.phone,
         creditLimit: formData.creditLimit,
         balance: formData.balance,
+        customerType: formData.customerType,
+        rc: formData.rc,
+        nif: formData.nif,
+        nis: formData.nis,
+        address: formData.address,
       });
     } else {
       addCustomerMutation.mutate(formData);
     }
 
-    setFormData({ name: '', phone: '', creditLimit: 0, balance: 0 });
+    setFormData({
+      name: '',
+      phone: '',
+      creditLimit: 0,
+      balance: 0,
+      customerType: 'retail',
+      rc: '',
+      nif: '',
+      nis: '',
+      address: '',
+    });
     setEditingCustomer(null);
     setShowForm(false);
   };
@@ -948,7 +983,22 @@ export default function CustomersPage() {
                           </div>
                           <div className="min-w-0">
                             <h4 className="font-bold text-on-surface truncate">{customer.name}</h4>
-                            <div className="flex items-center gap-1.5 mt-0.5">
+                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                              {customer.customerType === 'wholesale' && (
+                                <span className="px-2 py-0.5 rounded-md bg-blue-500/15 text-blue-600 dark:text-blue-400 text-[10px] font-black border border-blue-500/30">
+                                  تاجر جملة (Gros)
+                                </span>
+                              )}
+                              {customer.customerType === 'semi_wholesale' && (
+                                <span className="px-2 py-0.5 rounded-md bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold border border-indigo-500/30">
+                                  نصف جملة
+                                </span>
+                              )}
+                              {customer.rc && (
+                                <span className="text-[10px] text-on-surface-variant font-mono">
+                                  س.ت: {customer.rc}
+                                </span>
+                              )}
                               {creditStatus === 'settled' && (
                                 <span className="px-2 py-0.2 rounded-md bg-emerald-500/10 text-emerald-600 text-[10px] font-bold">
                                   خالص (لا يوجد دين)
@@ -1079,6 +1129,11 @@ export default function CustomersPage() {
                                 phone: customer.phone,
                                 creditLimit: customer.creditLimit,
                                 balance: customer.balance,
+                                customerType: customer.customerType || 'retail',
+                                rc: customer.rc || '',
+                                nif: customer.nif || '',
+                                nis: customer.nis || '',
+                                address: customer.address || '',
                               });
                               setShowForm(true);
                             }}
@@ -1646,6 +1701,90 @@ export default function CustomersPage() {
               />
               <p className="text-[10px] text-on-surface-variant mt-1">الحد الأقصى للديون المسموح بها لهذا العميل قبل التنبيه</p>
             </div>
+
+            {/* Customer Type Selector */}
+            <div>
+              <label className="text-xs font-bold text-on-surface-variant mb-1.5 block">تصنيف العميل ونوع التسعير</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: 'retail', label: 'تجزئة (عادي)' },
+                  { id: 'wholesale', label: 'تاجر جملة (Gros)' },
+                  { id: 'semi_wholesale', label: 'نصف جملة' },
+                ].map((type) => (
+                  <button
+                    key={type.id}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, customerType: type.id as any })}
+                    className={`py-2 px-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                      formData.customerType === type.id
+                        ? 'bg-primary text-on-primary border-primary shadow-xs'
+                        : 'bg-surface-container hover:bg-surface-container-high text-on-surface-variant border-outline-variant/20'
+                    }`}
+                  >
+                    {type.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Wholesale Trade & Tax Details (RC, NIF, NIS, Address) */}
+            {(formData.customerType === 'wholesale' || formData.customerType === 'semi_wholesale') && (
+              <div className="p-3.5 rounded-2xl bg-surface-container/70 border border-blue-500/20 space-y-3 animate-in fade-in duration-200">
+                <div className="flex items-center gap-2 text-xs font-black text-blue-600 dark:text-blue-400">
+                  <span className="w-2 h-2 rounded-full bg-blue-500" />
+                  <span>البيانات التجارية والضريبية (لفاتورة الجملة A4)</span>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="text-[11px] font-bold text-on-surface-variant mb-1 block">السجل التجاري (RC)</label>
+                    <input
+                      type="text"
+                      value={formData.rc}
+                      onChange={(e) => setFormData({ ...formData, rc: e.target.value })}
+                      placeholder="رقم السجل التجاري"
+                      className="w-full px-3 py-2 rounded-xl bg-surface border border-outline-variant/25 text-xs font-mono text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      dir="ltr"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-on-surface-variant mb-1 block">التعريف الجبائي (NIF)</label>
+                    <input
+                      type="text"
+                      value={formData.nif}
+                      onChange={(e) => setFormData({ ...formData, nif: e.target.value })}
+                      placeholder="NIF 15 رقم"
+                      className="w-full px-3 py-2 rounded-xl bg-surface border border-outline-variant/25 text-xs font-mono text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      dir="ltr"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="text-[11px] font-bold text-on-surface-variant mb-1 block">التعريف الإحصائي (NIS)</label>
+                    <input
+                      type="text"
+                      value={formData.nis}
+                      onChange={(e) => setFormData({ ...formData, nis: e.target.value })}
+                      placeholder="رقم NIS"
+                      className="w-full px-3 py-2 rounded-xl bg-surface border border-outline-variant/25 text-xs font-mono text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      dir="ltr"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-on-surface-variant mb-1 block">المقر / العنوان التجاري</label>
+                    <input
+                      type="text"
+                      value={formData.address}
+                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                      placeholder="المدينة أو العنوان"
+                      className="w-full px-3 py-2 rounded-xl bg-surface border border-outline-variant/25 text-xs text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             {editingCustomer && (
               <div>

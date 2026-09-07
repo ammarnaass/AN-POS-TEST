@@ -53,7 +53,9 @@ interface POSSessionState {
   setPosLayout: (layout: 'sidebar' | 'bottom' | 'classic' | ((prev: 'sidebar' | 'bottom' | 'classic') => 'sidebar' | 'bottom' | 'classic')) => void;
   setShowProductImages: (show: boolean | ((prev: boolean) => boolean)) => void;
   setUiZoom: (zoom: number | ((prev: number) => number)) => void;
-  setQuickMode: (val: boolean | ((prev: boolean) => boolean)) => void;
+  wholesaleMode: boolean;
+  setWholesaleMode: (val: boolean | ((prev: boolean) => boolean)) => void;
+  toggleWholesaleMode: () => void;
   setSuspendedOrders: (orders: SuspendedOrder[] | ((prev: SuspendedOrder[]) => SuspendedOrder[])) => void;
   resetCheckout: () => void;
   resetSession: () => void;
@@ -105,7 +107,13 @@ export const usePOSSessionStore = create<POSSessionState>((set) => ({
       return 100;
     }
   })(),
-  quickMode: false,
+  wholesaleMode: (() => {
+    try {
+      return localStorage.getItem('pos_wholesale_mode') === 'true';
+    } catch {
+      return false;
+    }
+  })(),
   suspendedOrders: (() => {
     try {
       const saved = localStorage.getItem('pos_suspended');
@@ -279,10 +287,27 @@ export const usePOSSessionStore = create<POSSessionState>((set) => ({
       return { uiZoom: next };
     }),
 
-  setQuickMode: (val) =>
-    set((state) => ({
-      quickMode: typeof val === 'function' ? val(state.quickMode) : val,
-    })),
+  setWholesaleMode: (val) =>
+    set((state) => {
+      const next = typeof val === 'function' ? val(state.wholesaleMode) : val;
+      try {
+        localStorage.setItem('pos_wholesale_mode', String(next));
+      } catch {
+        // ignore
+      }
+      return { wholesaleMode: next };
+    }),
+
+  toggleWholesaleMode: () =>
+    set((state) => {
+      const next = !state.wholesaleMode;
+      try {
+        localStorage.setItem('pos_wholesale_mode', String(next));
+      } catch {
+        // ignore
+      }
+      return { wholesaleMode: next };
+    }),
 
   setSuspendedOrders: (orders) =>
     set((state) => {

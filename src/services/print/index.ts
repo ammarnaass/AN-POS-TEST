@@ -16,3 +16,4 @@ export * from './detectDevices';
 export * from './testPrinter';
 export * from './printerStatus';
 export * from './permissions';
+export * from './mockPreviewContext';

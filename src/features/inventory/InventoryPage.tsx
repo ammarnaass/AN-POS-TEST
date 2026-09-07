@@ -17,11 +17,12 @@ import { categoriesApi, type Category } from '@/services/api/categoriesApi';
 import ImageUpload from '@/components/products/ImageUpload';
 import {
   Plus, Search, Trash2, Upload, Download, X, Package,
-  ToggleLeft, ToggleRight, Filter, DollarSign, Barcode, AlertTriangle, Zap,
+  ToggleLeft, ToggleRight, DollarSign, Barcode, AlertTriangle, Zap,
   Box, ChevronLeft, ChevronRight, ScanLine, Tag, Settings,
   LayoutGrid, List as ListIcon, TrendingUp,
-  Clock, ArrowUpDown, Sparkles, CheckCircle2, ShieldAlert,
-  Edit2 as EditIcon, Printer as PrintIcon, RefreshCw
+  ArrowUpDown, ShieldAlert,
+  Edit2 as EditIcon, Printer as PrintIcon, RefreshCw, ExternalLink,
+  Layers
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -143,6 +144,8 @@ export default function InventoryPage() {
   const [showBulkGenerate, setShowBulkGenerate] = useState(false);
   const [barcodeScanMode, setBarcodeScanMode] = useState(false);
   const [formErrors, setFormErrors] = useState<FormErrors>({});
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
   const [barcodeDuplicate, setBarcodeDuplicate] = useState<string | null>(null);
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [newCategory, setNewCategory] = useState('');
@@ -282,46 +285,73 @@ export default function InventoryPage() {
     }
   }, [formData.barcode, products, editingProduct]);
 
+  const closeFormModal = useCallback(() => {
+    setShowForm(false);
+    setEditingProduct(null);
+    setFormData(emptyProduct);
+    setFormErrors({});
+    setBarcodeDuplicate(null);
+    setIsSubmitted(false);
+    setTouchedFields({});
+    setActiveFormSection('basic');
+  }, []);
+
+  const openCreateForm = useCallback(() => {
+    setEditingProduct(null);
+    setFormData(emptyProduct);
+    setFormErrors({});
+    setBarcodeDuplicate(null);
+    setIsSubmitted(false);
+    setTouchedFields({});
+    setActiveFormSection('basic');
+    setShowForm(true);
+  }, []);
+
   // Form validation
   const validateForm = useCallback((): FormErrors => {
     const errors: FormErrors = {};
-    if (!formData.name.trim()) errors.name = 'اسم المنتج مطلوب';
-    if (formData.retailPrice <= 0) errors.retailPrice = 'سعر البيع يجب أن يكون أكبر من 0';
+    if (!formData.name?.trim()) errors.name = 'اسم المنتج مطلوب';
+    if (!formData.retailPrice || Number(formData.retailPrice) <= 0) {
+      errors.retailPrice = 'سعر البيع يجب أن يكون أكبر من 0';
+    }
     if (barcodeDuplicate) errors.barcode = `الباركود مستخدم بالفعل في: ${barcodeDuplicate}`;
     return errors;
   }, [formData.name, formData.retailPrice, barcodeDuplicate]);
 
+  // تحديث الأخطاء فقط إذا حاول المستخدم الحفظ
   useEffect(() => {
-    if (showForm) setFormErrors(validateForm());
-  }, [formData.name, formData.retailPrice, barcodeDuplicate, showForm, validateForm]);
+    if (isSubmitted) {
+      setFormErrors(validateForm());
+    }
+  }, [formData.name, formData.retailPrice, barcodeDuplicate, isSubmitted, validateForm]);
 
-  const handleSubmit = () => {
+  const handleSubmit = useCallback(() => {
+    setIsSubmitted(true);
     const errors = validateForm();
     setFormErrors(errors);
-    if (Object.keys(errors).length > 0) return;
+    if (Object.keys(errors).length > 0) {
+      if (errors.name || errors.barcode) {
+        setActiveFormSection('basic');
+      } else if (errors.retailPrice) {
+        setActiveFormSection('pricing');
+      }
+      return;
+    }
 
     if (editingProduct) {
       updateMutation.mutate({ id: editingProduct.id, data: formData });
     } else {
       addMutation.mutate(formData);
     }
-    setFormData(emptyProduct);
-    setEditingProduct(null);
-    setShowForm(false);
-    setFormErrors({});
-    setBarcodeDuplicate(null);
-  };
+    closeFormModal();
+  }, [validateForm, editingProduct, updateMutation, addMutation, formData, closeFormModal]);
 
   // Keyboard shortcuts
   useEffect(() => {
     if (!showForm) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setShowForm(false);
-        setEditingProduct(null);
-        setFormData(emptyProduct);
-        setFormErrors({});
-        setBarcodeDuplicate(null);
+        closeFormModal();
       }
       if (e.key === 'Enter' && e.ctrlKey) {
         e.preventDefault();
@@ -330,7 +360,7 @@ export default function InventoryPage() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showForm, formData, editingProduct]);
+  }, [showForm, closeFormModal, handleSubmit]);
 
   const handleToggleStatus = (product: Product) => {
     updateMutation.mutate({
@@ -464,6 +494,11 @@ export default function InventoryPage() {
       status: product.status,
       image: product.image,
     });
+    setFormErrors({});
+    setBarcodeDuplicate(null);
+    setIsSubmitted(false);
+    setTouchedFields({});
+    setActiveFormSection('basic');
     setShowForm(true);
   };
 
@@ -507,6 +542,14 @@ export default function InventoryPage() {
             <Barcode className="w-4 h-4" />
             <span>تقرير الباركود</span>
           </button>
+          <button
+            onClick={() => navigate('/packs')}
+            className="px-5 py-2.5 rounded-xl font-medium text-body-sm transition-all duration-200 flex items-center gap-2 cursor-pointer text-on-surface-variant hover:text-primary hover:bg-surface-container-high border border-transparent hover:border-primary/20"
+            title="الانتقال إلى إدارة عبوات الجملة والباقات"
+          >
+            <Layers className="w-4 h-4 text-primary" />
+            <span>عبوات الجملة والباقات</span>
+          </button>
         </div>
 
         {/* Global Action Buttons */}
@@ -537,7 +580,7 @@ export default function InventoryPage() {
             </button>
 
             <button
-              onClick={() => { setShowForm(true); setEditingProduct(null); setFormData(emptyProduct); }}
+              onClick={openCreateForm}
               className="flex items-center gap-2 bg-gradient-to-r from-primary to-primary-container text-on-primary px-5 py-2.5 rounded-xl shadow-md hover:shadow-primary/30 hover:opacity-95 transition-all active:scale-95 text-body-sm font-bold cursor-pointer"
             >
               <Plus className="w-5 h-5" />
@@ -1177,7 +1220,7 @@ export default function InventoryPage() {
                   إعادة ضبط التصفية
                 </button>
                 <button
-                  onClick={() => { setShowForm(true); setEditingProduct(null); setFormData(emptyProduct); }}
+                  onClick={openCreateForm}
                   className="px-5 py-2.5 rounded-xl bg-primary text-on-primary text-body-sm font-bold shadow-md hover:bg-primary-container transition-all"
                 >
                   إضافة منتج جديد
@@ -1314,30 +1357,58 @@ export default function InventoryPage() {
                   </p>
                 </div>
               </div>
-              <button
-                onClick={() => { setShowForm(false); setEditingProduct(null); setFormData(emptyProduct); setFormErrors({}); setBarcodeDuplicate(null); }}
-                className="text-on-surface-variant hover:text-on-surface p-2 rounded-xl hover:bg-surface-container-highest transition-all"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const editId = editingProduct?.id;
+                    closeFormModal();
+                    if (editId) {
+                      navigate(`/products/${editId}/edit`);
+                    } else {
+                      navigate('/products/new');
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-primary bg-primary/10 hover:bg-primary/20 rounded-xl transition-all font-medium cursor-pointer"
+                  title="فتح النموذج الموسع بجميع الأقسام والعبوات المتعددة"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>النموذج الموسّع</span>
+                </button>
+                <button
+                  onClick={closeFormModal}
+                  className="text-on-surface-variant hover:text-on-surface p-2 rounded-xl hover:bg-surface-container-highest transition-all cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             {/* Section Tabs */}
             <div className="flex gap-1 px-5 pt-3 border-b border-outline-variant/15 bg-surface-container-high/20 overflow-x-auto">
-              {formSections.map((sec) => (
-                <button
-                  key={sec.id}
-                  onClick={() => setActiveFormSection(sec.id)}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
-                    activeFormSection === sec.id
-                      ? 'bg-surface-container text-primary border-b-2 border-primary shadow-sm'
-                      : 'text-on-surface-variant hover:bg-surface-container-high'
-                  }`}
-                >
-                  {sec.icon}
-                  {sec.label}
-                </button>
-              ))}
+              {formSections.map((sec) => {
+                const hasError = isSubmitted && (
+                  (sec.id === 'basic' && (formErrors.name || formErrors.barcode)) ||
+                  (sec.id === 'pricing' && formErrors.retailPrice)
+                );
+                return (
+                  <button
+                    key={sec.id}
+                    onClick={() => setActiveFormSection(sec.id)}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
+                      activeFormSection === sec.id
+                        ? 'bg-surface-container text-primary border-b-2 border-primary shadow-sm'
+                        : 'text-on-surface-variant hover:bg-surface-container-high'
+                    }`}
+                  >
+                    {sec.icon}
+                    <span>{sec.label}</span>
+                    {hasError && (
+                      <span className="w-2 h-2 rounded-full bg-error inline-block animate-pulse" title="يحتوي على أخطاء يجب تصحيحها" />
+                    )}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Form Body */}
@@ -1350,11 +1421,16 @@ export default function InventoryPage() {
                     <div className="col-span-2">
                       <label className="block text-label-sm text-on-surface-variant mb-1.5">اسم المنتج *</label>
                       <input placeholder="مثال: بيبسي 1 لتر"
-                        value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        value={formData.name}
+                        onChange={(e) => {
+                          setFormData({ ...formData, name: e.target.value });
+                          if (formErrors.name) setFormErrors(prev => ({ ...prev, name: undefined }));
+                        }}
+                        onBlur={() => setTouchedFields(prev => ({ ...prev, name: true }))}
                         className={`w-full px-4 py-3 border rounded-lg text-right bg-surface-container transition-all ${
-                          formErrors.name ? 'border-error focus:border-error focus:ring-1 focus:ring-error' : 'border-outline-variant/20 focus:border-primary focus:ring-1 focus:ring-primary'
+                          (isSubmitted || touchedFields.name) && formErrors.name ? 'border-error focus:border-error focus:ring-1 focus:ring-error' : 'border-outline-variant/20 focus:border-primary focus:ring-1 focus:ring-primary'
                         }`} />
-                      {formErrors.name && <p className="text-error text-body-xs mt-1">{formErrors.name}</p>}
+                      {(isSubmitted || touchedFields.name) && formErrors.name && <p className="text-error text-body-xs mt-1">{formErrors.name}</p>}
                     </div>
 
                     <div className="col-span-2">
@@ -1488,13 +1564,18 @@ export default function InventoryPage() {
                       <label className="block text-label-sm text-on-surface-variant mb-1.5">سعر التجزئة *</label>
                       <div className="relative">
                         <input type="number" placeholder="0.00"
-                          value={formData.retailPrice || ''} onChange={(e) => setFormData({ ...formData, retailPrice: Number(e.target.value) || 0 })}
+                          value={formData.retailPrice || ''}
+                          onChange={(e) => {
+                            setFormData({ ...formData, retailPrice: Number(e.target.value) || 0 });
+                            if (formErrors.retailPrice) setFormErrors(prev => ({ ...prev, retailPrice: undefined }));
+                          }}
+                          onBlur={() => setTouchedFields(prev => ({ ...prev, retailPrice: true }))}
                           className={`w-full px-4 py-3 border rounded-lg text-right bg-surface-container transition-all ${
-                            formErrors.retailPrice ? 'border-error focus:border-error focus:ring-1 focus:ring-error' : 'border-outline-variant/20 focus:border-primary focus:ring-1 focus:ring-primary'
+                            (isSubmitted || touchedFields.retailPrice) && formErrors.retailPrice ? 'border-error focus:border-error focus:ring-1 focus:ring-error' : 'border-outline-variant/20 focus:border-primary focus:ring-1 focus:ring-primary'
                           }`} />
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-body-sm">دج</span>
                       </div>
-                      {formErrors.retailPrice && <p className="text-error text-body-xs mt-1">{formErrors.retailPrice}</p>}
+                      {(isSubmitted || touchedFields.retailPrice) && formErrors.retailPrice && <p className="text-error text-body-xs mt-1">{formErrors.retailPrice}</p>}
                     </div>
 
                     <div>
@@ -1636,14 +1717,17 @@ export default function InventoryPage() {
 
             {/* Footer */}
             <div className="flex gap-3 px-6 py-4 border-t border-outline-variant/20">
-              <button onClick={() => { setShowForm(false); setEditingProduct(null); setFormData(emptyProduct); setFormErrors({}); setBarcodeDuplicate(null); }}
-                className="flex-1 py-3 border border-outline-variant/20 rounded-lg text-on-surface-variant text-label-md hover:bg-surface-container-low transition-all">
+              <button onClick={closeFormModal}
+                className="flex-1 py-3 border border-outline-variant/20 rounded-lg text-on-surface-variant text-label-md hover:bg-surface-container-low transition-all cursor-pointer">
                 إلغاء
               </button>
               <button onClick={handleSubmit}
-                disabled={Object.keys(formErrors).length > 0}
-                className="flex-1 py-3 bg-primary text-on-primary rounded-lg text-label-md shadow-sm hover:bg-primary-container transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
-                {editingProduct ? 'حفظ التعديلات' : 'إضافة المنتج'}
+                disabled={addMutation.isPending || updateMutation.isPending}
+                className="flex-1 py-3 bg-primary text-on-primary rounded-lg text-label-md shadow-sm hover:bg-primary-container transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2">
+                {(addMutation.isPending || updateMutation.isPending) && (
+                  <span className="w-4 h-4 border-2 border-on-primary border-t-transparent rounded-full animate-spin" />
+                )}
+                <span>{editingProduct ? 'حفظ التعديلات' : 'إضافة المنتج'}</span>
               </button>
             </div>
           </div>

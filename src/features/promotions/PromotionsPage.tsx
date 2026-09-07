@@ -1,18 +1,20 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/infrastructure/database/dexie/db';
 import { generateId } from '@/utils';
-import type { Promotion, Product } from '@/types';
+import type { Promotion } from '@/types';
 import {
-  Plus, Trash2, X, Tag, Power, ShoppingCart, Calendar,
-  TrendingUp, Sparkles, Search, Printer, Download,
-  Edit2, Clock, AlertTriangle, CheckCircle2,
-  Percent, ArrowRight, LayoutGrid, List, ShieldAlert,
-  ChevronRight, RefreshCw, Zap, Store
+  Plus, Trash2, X, Tag, Power, Calendar,
+  Search, Printer, Download,
+  Edit2, Clock, AlertTriangle,
+  LayoutGrid, List, ShieldAlert,
+  RefreshCw, Zap, Layers
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export default function PromotionsPage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   // Queries
@@ -477,6 +479,16 @@ export default function PromotionsPage() {
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap w-full sm:w-auto">
+          {/* عبوات الجملة والباقات */}
+          <button
+            onClick={() => navigate('/packs')}
+            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/25 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+            title="الانتقال إلى شاشة عبوات الجملة والباقات"
+          >
+            <Layers className="w-4 h-4" />
+            <span>عبوات الجملة والباقات</span>
+          </button>
+
           {/* Print Shelf Talkers */}
           <button
             onClick={() => handlePrintShelfTalker()}

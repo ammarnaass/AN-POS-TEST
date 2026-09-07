@@ -2,7 +2,7 @@
 // يسمح بإضافة/تعديل/حذف عبوات جملة مرتبطة بمنتج واحد
 // يظهر فقط في وضع التعديل (form.id موجود)
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/infrastructure/database/dexie/db';
 import type { PackEntity } from '@/infrastructure/database/dexie/db';
@@ -56,8 +56,17 @@ export default function PackagingSection({ form }: Props) {
     enabled: Boolean(productId),
     queryFn: async () => {
       if (!productId) return [];
-      // items مخزنة JSON — نجلب الكل ونُفلتر بـ productId
-      const all = (await db.packs.toArray()) as PackEntity[];
+      const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+      let all: any[] = [];
+      if (api?.packs?.list) {
+        try {
+          const res = await api.packs.list();
+          if (Array.isArray(res?.data)) all = res.data;
+        } catch { /* fallback */ }
+      }
+      if (all.length === 0) {
+        all = (await db.packs.toArray()) as PackEntity[];
+      }
       return all.filter((p) => {
         const items = Array.isArray(p.items)
           ? p.items
@@ -70,12 +79,27 @@ export default function PackagingSection({ form }: Props) {
   // ===== فحص تفرد الباركود =====
   const checkBarcodeUnique = useCallback(async (barcode: string, excludePackId?: string): Promise<boolean> => {
     if (!barcode.trim()) return true;
+    const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
     // فحص في products
+    if (api?.products?.getByBarcode) {
+      try {
+        const pRes = await api.products.getByBarcode(barcode);
+        if (pRes?.data && pRes.data.id !== productId) return false;
+      } catch { /* fallback */ }
+    }
     const matchProd = await db.products.where('barcode').equals(barcode).first() as Product | undefined;
     if (matchProd && matchProd.id !== productId) return false;
+
     // فحص في packs
+    if (api?.packs?.getByBarcode) {
+      try {
+        const pkRes = await api.packs.getByBarcode(barcode);
+        if (pkRes?.data && pkRes.data.id !== excludePackId) return false;
+      } catch { /* fallback */ }
+    }
     const matchPack = await db.packs.where('barcode').equals(barcode).first() as PackEntity | undefined;
     if (matchPack && matchPack.id !== excludePackId) return false;
+
     return true;
   }, [productId]);
 
@@ -95,6 +119,16 @@ export default function PackagingSection({ form }: Props) {
         createdAt: now,
         updatedAt: now,
       };
+
+      const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+      if (api?.packs?.create) {
+        try {
+          await api.packs.create(newPack);
+        } catch (err) {
+          console.warn('[PackagingSection] SQLite pack create warning:', err);
+        }
+      }
+
       await db.packs.add(newPack);
       return newPack;
     },
@@ -120,6 +154,16 @@ export default function PackagingSection({ form }: Props) {
         items: [{ productId: productId!, qty: data.qty }],
         updatedAt: new Date().toISOString(),
       };
+
+      const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+      if (api?.packs?.update) {
+        try {
+          await api.packs.update(data.id, patch);
+        } catch (err) {
+          console.warn('[PackagingSection] SQLite pack update warning:', err);
+        }
+      }
+
       await db.packs.update(data.id, patch);
     },
     onSuccess: () => {
@@ -136,6 +180,16 @@ export default function PackagingSection({ form }: Props) {
   // ===== Mutation: حذف عبوة =====
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+      if (api?.packs?.delete || api?.packs?.remove) {
+        try {
+          const fn = api.packs.delete ?? api.packs.remove;
+          await fn(id);
+        } catch (err) {
+          console.warn('[PackagingSection] SQLite pack delete warning:', err);
+        }
+      }
+
       await db.packs.delete(id);
     },
     onSuccess: () => {
@@ -240,6 +294,27 @@ export default function PackagingSection({ form }: Props) {
             <button type="button" onClick={closeForm} className="p-1 rounded text-on-surface-variant hover:text-error">
               <X className="w-4 h-4" />
             </button>
+          </div>
+
+          {/* ارتباط صورة وهوية العبوة بالصنف الأساسي */}
+          <div className="flex items-center gap-3 p-3 rounded-xl bg-surface-container/60 border border-outline-variant/20">
+            <div className="w-12 h-12 rounded-xl bg-surface-container-high border border-outline-variant/30 overflow-hidden flex items-center justify-center shrink-0 shadow-xs">
+              {form.image ? (
+                <img src={form.image} alt={form.name || 'المنتج'} className="w-full h-full object-cover" />
+              ) : (
+                <Package className="w-6 h-6 text-on-surface-variant/40" />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-body-xs text-on-surface font-bold truncate">
+                الصنف المرتبط: {form.name || 'بدون اسم'}
+              </p>
+              <p className="text-[11px] text-on-surface-variant mt-0.5">
+                {form.image
+                  ? 'ستظهر هذه العبوة في شاشة نقطة البيع (POS) بنفس صورة هذا المنتج تلقائياً.'
+                  : 'المنتج بدون صورة حالياً — يمكنك تعيين صورة مباشرة عبر النقر على بطاقة المعاينة أو تبويب معلومات المنتج.'}
+              </p>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

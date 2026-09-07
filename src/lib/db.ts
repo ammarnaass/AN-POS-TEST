@@ -133,8 +133,19 @@ function createTableProxy(table: string) {
 
     put: async (obj: Record<string, unknown>) => {
       const api = await waitForAPI();
-      const res = await api.update(table, obj.id as string, toSnake(obj));
-      return res?.data ? toCamel(res.data) : undefined;
+      const id = (obj.id ?? obj.docType ?? obj.doc_type ?? obj.key) as string;
+      const existing = id ? await api.get(table, id).catch(() => null) : null;
+      if (existing?.data) {
+        const res = await api.update(table, id, toSnake(obj));
+        return res?.data ? toCamel(res.data) : undefined;
+      } else {
+        const payload = toSnake(obj);
+        if (id && !payload.id) {
+          payload.id = id;
+        }
+        const res = await api.create(table, payload);
+        return res?.data ? toCamel(res.data) : undefined;
+      }
     },
 
     bulkAdd: async (items: Record<string, unknown>[]) => {
@@ -148,11 +159,21 @@ function createTableProxy(table: string) {
 
     bulkPut: async (items: Record<string, unknown>[]) => {
       const api = await waitForAPI();
-      if (typeof api.bulkUpdate === 'function') {
-        await api.bulkUpdate(table, items.map(toSnake));
-      } else {
-        await Promise.all(items.map((i) => api.update(table, i.id as string, toSnake(i))));
-      }
+      await Promise.all(
+        items.map(async (i) => {
+          const id = (i.id ?? i.docType ?? i.doc_type ?? i.key) as string;
+          const existing = id ? await api.get(table, id).catch(() => null) : null;
+          if (existing?.data) {
+            return api.update(table, id, toSnake(i));
+          } else {
+            const payload = toSnake(i);
+            if (id && !payload.id) {
+              payload.id = id;
+            }
+            return api.create(table, payload);
+          }
+        }),
+      );
     },
 
     update: async (id: string, patch: Record<string, unknown>) => {
@@ -192,6 +213,24 @@ function createTableProxy(table: string) {
           const snakeField = getSnakeKey(field);
           const res = await api.list(table, { filter: { [snakeField]: value } });
           return res.data.map(toCamel);
+        },
+        count: async () => {
+          const api = await waitForAPI();
+          const snakeField = getSnakeKey(field);
+          const res = await api.list(table, { filter: { [snakeField]: value } });
+          return res?.data ? res.data.length : 0;
+        },
+        delete: async () => {
+          const api = await waitForAPI();
+          const snakeField = getSnakeKey(field);
+          const res = await api.list(table, { filter: { [snakeField]: value } });
+          const items = res?.data || [];
+          await Promise.all(
+            items.map((r: Record<string, unknown>) =>
+              api.remove(table, (r.id ?? r.doc_type ?? r.key) as string),
+            ),
+          );
+          return items.length;
         },
       }),
       notEqual: (value: unknown) => ({
@@ -248,6 +287,16 @@ function createTableProxy(table: string) {
       return (res?.data || []).map(toCamel);
     },
 
+    bulkDelete: async (ids: string[]) => {
+      if (!ids || ids.length === 0) return;
+      const api = await waitForAPI();
+      if (typeof api.bulkDelete === 'function') {
+        await api.bulkDelete(table, ids);
+        return;
+      }
+      await Promise.all(ids.map((id) => api.remove(table, id)));
+    },
+
     clear: async () => {
       const api = await waitForAPI();
       if (typeof api.clear === 'function') {
@@ -280,7 +329,7 @@ export const db = new Proxy({} as any, {
       //   db.transaction('rw', [db.x, db.y], async () => {...})   // tables كمصفوفة
       //   db.transaction('rw', db.x, db.y, async () => {...})      // tables كـ args متعددة
       // ونُرجع Promise يحاكي Dexie's Transaction (يُدعم .then/.catch فقط — لا يحتاج التطبيق النمط المتقدم).
-      return (mode: string, ...rest: unknown[]) => {
+      return (_mode: string, ...rest: unknown[]) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const cb = rest[rest.length - 1] as (...args: any[]) => unknown | Promise<unknown>;
         try {
@@ -291,7 +340,15 @@ export const db = new Proxy({} as any, {
         }
       };
     }
-    if (prop === 'open' || prop === 'close' || prop === 'delete') {
+    if (prop === 'delete') {
+      return async () => {
+        const api = await waitForAPI().catch(() => null);
+        if (api && typeof api.clearAll === 'function') {
+          await api.clearAll();
+        }
+      };
+    }
+    if (prop === 'open' || prop === 'close') {
       return async () => {};
     }
     return createTableProxy(prop);

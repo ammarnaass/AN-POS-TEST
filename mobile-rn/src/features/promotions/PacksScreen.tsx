@@ -22,7 +22,9 @@ import {
   Search,
   ArrowRight,
   ArrowLeft,
+  Camera,
 } from 'lucide-react-native';
+import CameraScanner from '@/features/barcode/CameraScanner';
 import { db, ensureInit } from '@/lib/db';
 import { generateId } from '@shared/utils';
 import type { Pack, Product } from '@shared/types';
@@ -46,6 +48,10 @@ export const PacksScreen = ({ navigation }: any) => {
   const [productPickerVisible, setProductPickerVisible] = useState(false);
   const [productSearch, setProductSearch] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Camera Scanner State
+  const [showCameraScanner, setShowCameraScanner] = useState(false);
+  const [scannerTarget, setScannerTarget] = useState<'packBarcode' | 'itemBarcode'>('packBarcode');
 
   useEffect(() => {
     loadPacksData();
@@ -255,7 +261,7 @@ export const PacksScreen = ({ navigation }: any) => {
       </ScrollView>
 
       {/* Add Pack Modal */}
-      <Modal visible={modalVisible} transparent animationType="slide">
+      <Modal visible={modalVisible && !showCameraScanner} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
             <View style={[styles.modalHeader, { borderBottomColor: colors.border.default }]}>
@@ -279,13 +285,26 @@ export const PacksScreen = ({ navigation }: any) => {
 
               <View style={styles.formGroup}>
                 <Text style={[styles.formLabel, { color: colors.text.secondary, textAlign }]}>{t('inventory.barcode')}</Text>
-                <TextInput
-                  style={[styles.formInput, { color: colors.text.primary, borderColor: colors.border.default, backgroundColor: isDark ? colors.surfaceElevated : '#f8fafc', textAlign }]}
-                  placeholder="PACK-123456"
-                  placeholderTextColor={colors.text.tertiary}
-                  value={packBarcode}
-                  onChangeText={setPackBarcode}
-                />
+                <View style={[styles.barcodeInputRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                  <TextInput
+                    style={[styles.formInput, { flex: 1, color: colors.text.primary, borderColor: colors.border.default, backgroundColor: isDark ? colors.surfaceElevated : '#f8fafc', textAlign }]}
+                    placeholder="PACK-123456"
+                    placeholderTextColor={colors.text.tertiary}
+                    value={packBarcode}
+                    onChangeText={setPackBarcode}
+                  />
+                  <TouchableOpacity
+                    style={[styles.scanBarcodeBtn, { backgroundColor: colors.primary[600] }]}
+                    onPress={() => {
+                      setScannerTarget('packBarcode');
+                      setShowCameraScanner(true);
+                    }}
+                    activeOpacity={0.8}
+                    accessibilityLabel="تصوير الباركود"
+                  >
+                    <Camera size={18} color="#ffffff" />
+                  </TouchableOpacity>
+                </View>
               </View>
 
               <View style={styles.formGroup}>
@@ -302,13 +321,26 @@ export const PacksScreen = ({ navigation }: any) => {
               </View>
 
               <View style={[styles.sectionHeaderRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                <TouchableOpacity
-                  style={[styles.addItemBtn, { backgroundColor: colors.primary[600], flexDirection: isRTL ? 'row-reverse' : 'row' }]}
-                  onPress={() => setProductPickerVisible(true)}
-                >
-                  <Plus size={14} color="#fff" />
-                  <Text style={styles.addItemBtnText}>{t('promotions.addPack')}</Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 6 }}>
+                  <TouchableOpacity
+                    style={[styles.addItemBtn, { backgroundColor: colors.primary[600], flexDirection: isRTL ? 'row-reverse' : 'row' }]}
+                    onPress={() => setProductPickerVisible(true)}
+                  >
+                    <Plus size={14} color="#fff" />
+                    <Text style={styles.addItemBtnText}>{t('dashboard.addProductBtn') || 'إضافة منتج'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.addItemBtn, { backgroundColor: colors.indigo[600], flexDirection: isRTL ? 'row-reverse' : 'row' }]}
+                    onPress={() => {
+                      setScannerTarget('itemBarcode');
+                      setShowCameraScanner(true);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Camera size={14} color="#fff" />
+                    <Text style={styles.addItemBtnText}>مسح منتج</Text>
+                  </TouchableOpacity>
+                </View>
                 <Text style={[styles.formLabel, { color: colors.text.secondary, textAlign }]}>{t('promotions.packItems')} ({selectedItems.length})</Text>
               </View>
 
@@ -339,7 +371,7 @@ export const PacksScreen = ({ navigation }: any) => {
       </Modal>
 
       {/* Product Picker Modal */}
-      <Modal visible={productPickerVisible} transparent animationType="slide">
+      <Modal visible={productPickerVisible && !showCameraScanner} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
             <View style={[styles.modalHeader, { borderBottomColor: colors.border.default, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
@@ -352,12 +384,22 @@ export const PacksScreen = ({ navigation }: any) => {
             <View style={[styles.searchBar, { backgroundColor: isDark ? colors.surfaceElevated : '#f1f5f9', borderColor: colors.border.default, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <Search size={16} color={colors.text.tertiary} />
               <TextInput
-                style={[styles.searchInput, { color: colors.text.primary, textAlign }]}
+                style={[styles.searchInput, { flex: 1, color: colors.text.primary, textAlign }]}
                 placeholder={t('inventory.searchPlaceholder')}
                 placeholderTextColor={colors.text.tertiary}
                 value={productSearch}
                 onChangeText={setProductSearch}
               />
+              <TouchableOpacity
+                onPress={() => {
+                  setScannerTarget('itemBarcode');
+                  setShowCameraScanner(true);
+                }}
+                style={{ padding: 4 }}
+                activeOpacity={0.7}
+              >
+                <Camera size={18} color={colors.primary[600]} />
+              </TouchableOpacity>
             </View>
 
             <ScrollView style={{ maxHeight: 350 }}>
@@ -375,6 +417,26 @@ export const PacksScreen = ({ navigation }: any) => {
           </View>
         </View>
       </Modal>
+
+      {/* Camera Barcode Scanner Fullscreen */}
+      {showCameraScanner && (
+        <CameraScanner
+          onScan={(code) => {
+            if (scannerTarget === 'packBarcode') {
+              setPackBarcode(code);
+            } else if (scannerTarget === 'itemBarcode') {
+              const matched = products.find((p) => p.barcode === code);
+              if (matched) {
+                addItemToPack(matched);
+              } else {
+                Alert.alert(t('common.warning'), `لم يتم العثور على منتج بهذا الباركود: ${code}`);
+              }
+            }
+            setShowCameraScanner(false);
+          }}
+          onClose={() => setShowCameraScanner(false)}
+        />
+      )}
     </View>
   );
 };
@@ -493,6 +555,20 @@ const styles = StyleSheet.create({
   pickItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
   pickItemName: { fontSize: 14, fontWeight: 'bold', color: '#0f172a', fontFamily: 'Cairo' },
   pickItemPrice: { fontSize: 13, fontWeight: 'bold', color: '#3b82f6' },
+
+  barcodeInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  scanBarcodeBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#3b82f6',
+  },
 });
 
 export default PacksScreen;

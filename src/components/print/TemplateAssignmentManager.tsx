@@ -36,6 +36,7 @@ export default function TemplateAssignmentManager() {
   const allDocTypes: { key: DocTypeKey; desc: string }[] = [
     { key: 'thermal-receipt', desc: 'إيصالات نقاط البيع الحرارية السريعة' },
     { key: 'sale-invoice', desc: 'فاتورة المبيعات الرسمية للزبائن' },
+    { key: 'wholesale-invoice', desc: 'فاتورة بيع بالجملة والطرود والأرصدة والديون (Gros)' },
     { key: 'proforma', desc: 'فاتورة شكلية أولية غير محاسبية' },
     { key: 'devis', desc: 'عرض أسعار تجاري تفصيلي للعميل' },
     { key: 'bl', desc: 'وصل تسليم البضائع وخروج المخزون' },

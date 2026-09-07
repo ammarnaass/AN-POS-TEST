@@ -11,6 +11,7 @@ export type Orientation = 'portrait' | 'landscape';
 export type DocTypeKey =
   | 'thermal-receipt'
   | 'sale-invoice'
+  | 'wholesale-invoice'
   | 'proforma'
   | 'devis'
   | 'bl'
@@ -268,6 +269,7 @@ export interface PrintHistoryRecord {
 export const DOC_TYPE_LABELS_AR: Record<DocTypeKey, string> = {
   'thermal-receipt': 'إيصال حراري',
   'sale-invoice': 'فاتورة بيع',
+  'wholesale-invoice': 'فاتورة بيع بالجملة (Gros)',
   proforma: 'فاتورة أولية (Proforma)',
   devis: 'عرض سعر (Devis)',
   bl: 'وصل تسليم (BL)',
@@ -280,6 +282,7 @@ export const DOC_TYPE_LABELS_AR: Record<DocTypeKey, string> = {
 export const ALL_DOC_TYPES: DocTypeKey[] = [
   'thermal-receipt',
   'sale-invoice',
+  'wholesale-invoice',
   'proforma',
   'devis',
   'bl',

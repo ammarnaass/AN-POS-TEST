@@ -52,24 +52,41 @@ export const SuccessModal: React.FC<SuccessModalProps> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 pt-2">
-          <button
-            onClick={() => {
-              printDocument(completedSale.id, 'thermal-receipt', {
-                userId: '',
-                userName: '',
-                copies: 1,
-              });
-            }}
-            className="py-3 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-xs font-bold text-on-surface flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-          >
-            <Printer className="w-4 h-4" />
-            <span>إعادة الطباعة</span>
-          </button>
+        <div className="flex flex-col gap-2 pt-2">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => {
+                const doc = completedSale.docType === 'wholesale' ? 'wholesale-invoice' : 'thermal-receipt';
+                printDocument(completedSale.id, doc, {
+                  userId: '',
+                  userName: '',
+                  copies: 1,
+                });
+              }}
+              className="py-3 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-xs font-bold text-on-surface flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+            >
+              <Printer className="w-4 h-4" />
+              <span>{completedSale.docType === 'wholesale' ? 'طباعة فاتورة الجملة' : 'طباعة الإيصال'}</span>
+            </button>
+
+            <button
+              onClick={() => {
+                printDocument(completedSale.id, 'wholesale-invoice', {
+                  userId: '',
+                  userName: '',
+                  copies: 1,
+                });
+              }}
+              className="py-3 rounded-xl bg-primary/10 hover:bg-primary/20 border border-primary/25 text-xs font-bold text-primary flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+            >
+              <Printer className="w-4 h-4" />
+              <span>فاتورة جملة (A4)</span>
+            </button>
+          </div>
 
           <button
             onClick={onClose}
-            className="py-3 rounded-xl bg-primary hover:bg-primary/90 text-on-primary text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
+            className="w-full py-3 rounded-xl bg-primary hover:bg-primary/90 text-on-primary text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
             autoFocus
           >
             <Plus className="w-4 h-4" />

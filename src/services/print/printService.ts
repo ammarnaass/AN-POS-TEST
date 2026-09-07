@@ -106,6 +106,17 @@ export async function buildDocumentContext(
     logo: (settings as any)?.shopLogo || (settings as any)?.logo || '',
   };
 
+  // جلب بيانات العميل المتقدمة (الرصيد السابق، السجل التجاري، NIF...)
+  let customerDetails: any = null;
+  const targetCustId = sale.customerId || (sale as any)?.customer_id;
+  if (targetCustId) {
+    try {
+      customerDetails = await db.customers.get(targetCustId);
+    } catch {
+      customerDetails = null;
+    }
+  }
+
   // تحويل عناصر البيع — يدعم النماذج المختلفة (sale_items أو sale.items كمصفوفة أو كـ JSON نصي)
   let sourceItems: any[] = [];
   if (items && items.length > 0) {
@@ -123,14 +134,25 @@ export async function buildDocumentContext(
   }
   const invoiceItems = sourceItems.map((rawItem) => {
     const item = rawItem as Partial<SaleItemEntity> & Record<string, unknown>;
+    const isPackItem = Boolean(item.isPack || (item as any)?.is_pack);
     return {
+      sku: String(item.sku ?? (item as any)?.code ?? ''),
       name: String(item.name ?? ''),
+      packUnit: String(item.packUnit || (item as any)?.pack_unit || (isPackItem ? 'عبوة' : 'قطعة')),
+      packQty: Number(item.packQty || (item as any)?.pack_qty || (isPackItem ? item.qty : 1)),
       qty: Number(item.qty ?? 0),
       unitPrice: Number(item.unitPrice ?? 0),
+      discount: Number(item.discount ?? 0),
       lineTotal: Number(item.lineTotal ?? 0),
       batchNumber: String(item.batchNumber ?? ''),
     };
   });
+
+  const formerBalance = Number(customerDetails?.balance ?? 0);
+  const paid = Number(sale.paidAmount ?? (sale.paymentMethod === 'cash' ? sale.total : 0));
+  const newBalance = sale.paymentMethod === 'credit'
+    ? formerBalance + Math.max(0, sale.total - paid)
+    : formerBalance;
 
   const invoice = {
     ...sale,
@@ -141,7 +163,16 @@ export async function buildDocumentContext(
     discount: sale.discount,
     tvaAmount: sale.tvaAmount,
     total: sale.total,
-    paymentMethod: sale.paymentMethod,
+    paymentMethod: sale.paymentMethod === 'credit' ? 'آجل (دين)' : 'نقداً',
+    customerName: sale.customerName || customerDetails?.name || 'زبون عام',
+    customerPhone: customerDetails?.phone || (sale as any)?.customerPhone || '',
+    customerAddress: customerDetails?.address || (sale as any)?.customerAddress || '',
+    customerRc: customerDetails?.rc || (sale as any)?.customerRc || '',
+    customerNif: customerDetails?.nif || (sale as any)?.customerNif || '',
+    customerNis: customerDetails?.nis || (sale as any)?.customerNis || '',
+    formerBalance,
+    paidAmount: paid,
+    newBalance,
   };
 
   // POS-PRINT-001 / BR-001: إجبار QR الضريبي في كل فاتورة إذا كان المتجر مسجلاً ضريبياً
