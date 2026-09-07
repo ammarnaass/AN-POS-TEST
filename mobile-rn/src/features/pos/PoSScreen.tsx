@@ -494,6 +494,14 @@ export const POSScreen = ({ route, navigation }: any) => {
   );
 
   const handleProductPress = (product: Product) => {
+    if ((product as any).isPack) {
+      if (product.quantity <= 0) {
+        Alert.alert(t('common.warning'), 'المخزون غير كافٍ لتشكيل عبوة كاملة');
+        return;
+      }
+      addPackToCart(product);
+      return;
+    }
     if (saleMode === 'wholesale') {
       addToCart(product, 1);
       return;
@@ -528,9 +536,24 @@ export const POSScreen = ({ route, navigation }: any) => {
 
   const addPackToCart = (pack: any) => {
     const packId = pack.id;
+    const rawItems = Array.isArray(pack.items)
+      ? pack.items
+      : (() => { try { return JSON.parse(pack.items as any) ?? []; } catch { return []; } })();
+    const firstComp = rawItems[0];
+    const packPieces = Number(pack.piecesCount || firstComp?.qty || firstComp?.quantity || 1);
+    const parentProd = firstComp?.productId ? products.find((pr) => pr.id === firstComp.productId) : undefined;
+    const availablePieces = parentProd ? Number(parentProd.quantity ?? 0) : 0;
+    const availablePacks = packPieces > 0 ? Math.floor(availablePieces / packPieces) : 0;
+
+    const existing = cart.find((c) => c.productId === packId);
+    const currentPackQty = existing ? existing.qty : 0;
+    if (currentPackQty + 1 > availablePacks && availablePieces > 0) {
+      Alert.alert(t('common.warning'), `المخزون غير كافٍ! المتاح: ${availablePacks} عبوة`);
+      return;
+    }
+
     setCart((prev) => {
-      const existing = prev.find((c) => c.productId === packId);
-      const newQty = existing ? existing.qty + 1 : 1;
+      const newQty = currentPackQty + 1;
       const price = pack.packPrice || (pack as any).pack_price || 0;
 
       if (existing) {
@@ -555,7 +578,7 @@ export const POSScreen = ({ route, navigation }: any) => {
           lineTotal: price,
           isPack: true,
           packId: pack.id,
-          promoName: 'باقة مجمعة',
+          promoName: 'عبوة جملة',
         },
       ];
     });
@@ -857,20 +880,32 @@ export const POSScreen = ({ route, navigation }: any) => {
       }
       // Convert packs to product-like representation for uniform rendering
       setFiltered(
-        resultPacks.map((pk) => ({
-          id: pk.id,
-          name: `📦 ${pk.name}`,
-          retailPrice: pk.packPrice || pk.pack_price || 0,
-          wholesalePrice: 0,
-          wholesaleMinQty: 0,
-          quantity: 999,
-          unit: t('promotions.packName'),
-          barcode: pk.barcode || '',
-          category: 'packs',
-          status: 'active',
-          lowStockThreshold: 0,
-          isPack: true,
-        })) as any
+        resultPacks.map((pk) => {
+          const rawItems = Array.isArray(pk.items)
+            ? pk.items
+            : (() => { try { return JSON.parse(pk.items as any) ?? []; } catch { return []; } })();
+          const firstComp = rawItems[0];
+          const packPieces = Number(pk.piecesCount || firstComp?.qty || firstComp?.quantity || 1);
+          const parentProd = firstComp?.productId ? products.find((pr) => pr.id === firstComp.productId) : undefined;
+          const parentStock = parentProd ? Number(parentProd.quantity ?? 0) : 0;
+          const availablePacks = packPieces > 0 ? Math.max(0, Math.floor(parentStock / packPieces)) : 0;
+
+          return {
+            id: pk.id,
+            name: `📦 ${pk.name} (×${packPieces})`,
+            retailPrice: pk.packPrice || pk.pack_price || 0,
+            wholesalePrice: 0,
+            wholesaleMinQty: 0,
+            quantity: availablePacks,
+            unit: 'عبوة',
+            barcode: pk.barcode || '',
+            category: 'packs',
+            status: 'active',
+            lowStockThreshold: 0,
+            isPack: true,
+            packPiecesCount: packPieces,
+          };
+        }) as any
       );
       return;
     }
@@ -1186,20 +1221,30 @@ export const POSScreen = ({ route, navigation }: any) => {
         }
 
         // 2b. Stock Deduction & Movements
-        if (item.isPack && item.packId) {
+        const effectivePackId = item.isPack ? (item.packId || item.productId) : null;
+        if (item.isPack && effectivePackId) {
           // It's a pack -> deduct stock for sub-products
-          const packData = packs.find((pk) => pk.id === item.packId);
+          let packData = packs.find((pk) => pk.id === effectivePackId);
+          if (!packData) {
+            packData = await db.packs.get(effectivePackId).catch(() => null);
+          }
           if (packData && packData.items) {
-            const rawSubItems: any[] = typeof packData.items === 'string' ? JSON.parse(packData.items) : packData.items;
+            let rawSubItems: any[] = [];
+            try {
+              rawSubItems = typeof packData.items === 'string' ? JSON.parse(packData.items) : (packData.items || []);
+            } catch {
+              rawSubItems = [];
+            }
             for (const sub of rawSubItems) {
               const subProdId = sub.productId || sub.product_id;
-              const subTotalQty = (Number(sub.qty || 1)) * item.qty;
+              const subTotalQty = (Number(sub.qty || sub.quantity || 1)) * item.qty;
               try {
                 const p = await db.products.get(subProdId);
                 if (p) {
                   const currentQty = Number(p.quantity || (p as any).qty || 0);
+                  const newQty = Math.max(0, currentQty - subTotalQty);
                   await db.products.update(subProdId, {
-                    quantity: Math.max(0, currentQty - subTotalQty),
+                    quantity: newQty,
                     updated_at: nowIso,
                   });
                   await db.stockMovements.add({
@@ -1208,12 +1253,33 @@ export const POSScreen = ({ route, navigation }: any) => {
                     type: 'out',
                     product_id: subProdId,
                     qty: subTotalQty,
-                    reason: `مبيعات باقة (${packData.name}) - فاتورة ${invoiceNumber}`,
+                    reason: `مبيعات عبوة جملة (${packData.name}) - فاتورة ${invoiceNumber}`,
                     reference: invoiceNumber,
                     reference_id: saleId,
                     created_by: user?.name || user?.username || '',
                     created_at: nowIso,
                   }).catch(() => {});
+
+                  // Log to stockMovementsV2 for desktop parity
+                  const movV2Id = generateId();
+                  const movV2Record = {
+                    id: movV2Id,
+                    movement_number: `MOV-${Date.now().toString().slice(-6)}`,
+                    date: nowIso,
+                    type: 'sale',
+                    warehouse_id: (p as any).warehouseId || (p as any).warehouse_id || 'main',
+                    item_id: subProdId,
+                    quantity: -subTotalQty,
+                    unit_price: p.retailPrice || 0,
+                    total_amount: (p.retailPrice || 0) * subTotalQty,
+                    reference: invoiceNumber,
+                    is_reviewed: 1,
+                    reviewed_by: user?.name || user?.username || '',
+                    created_at: nowIso,
+                    updated_at: nowIso,
+                  };
+                  await db.stockMovementsV2.add(movV2Record).catch(() => {});
+                  await syncEngine.enqueue('create', 'stock_movements_v2', movV2Id, movV2Record);
                 }
               } catch (err) {
                 console.warn('[PoS] Failed pack sub-item stock deduction:', err);
@@ -1716,6 +1782,7 @@ export const POSScreen = ({ route, navigation }: any) => {
                       borderColor: inCartItem ? colors.primary[500] : isDark ? 'rgba(255, 255, 255, 0.08)' : colors.border.default,
                     },
                     inCartItem && { borderWidth: 2 },
+                    product.quantity <= 0 && { opacity: 0.6 },
                   ]}
                   onPress={() => handleProductPress(product)}
                 >
@@ -1740,9 +1807,19 @@ export const POSScreen = ({ route, navigation }: any) => {
                       {product.name}
                     </Text>
 
-                    <View style={[styles.gridStockBadge, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ecfdf5' }]}>
-                      <Text style={[styles.gridStockText, { color: isDark ? '#34d399' : '#059669' }]}>
-                        • {product.quantity} {product.unit || t('inventory.unitPiece')}
+                    <View style={[
+                      styles.gridStockBadge,
+                      product.quantity <= 0
+                        ? { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#fef2f2' }
+                        : { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ecfdf5' }
+                    ]}>
+                      <Text style={[
+                        styles.gridStockText,
+                        product.quantity <= 0
+                          ? { color: isDark ? '#f87171' : '#dc2626' }
+                          : { color: isDark ? '#34d399' : '#059669' }
+                      ]}>
+                        • {product.quantity <= 0 ? 'نفذ' : `${product.quantity} ${product.unit || t('inventory.unitPiece')}`}
                       </Text>
                     </View>
 
@@ -1774,6 +1851,7 @@ export const POSScreen = ({ route, navigation }: any) => {
                       borderColor: inCartItem ? colors.primary[500] : isDark ? 'rgba(255, 255, 255, 0.08)' : colors.border.default,
                     },
                     inCartItem && { borderWidth: 2 },
+                    product.quantity <= 0 && { opacity: 0.6 },
                   ]}
                   onPress={() => handleProductPress(product)}
                 >
@@ -1797,9 +1875,19 @@ export const POSScreen = ({ route, navigation }: any) => {
                       {product.name}
                     </Text>
                     <View style={styles.listMetaRow}>
-                      <View style={[styles.listStockBadge, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ecfdf5' }]}>
-                        <Text style={[styles.listStockText, { color: isDark ? '#34d399' : '#059669' }]}>
-                          {product.quantity} {product.unit || t('inventory.unitPiece')}
+                      <View style={[
+                        styles.listStockBadge,
+                        product.quantity <= 0
+                          ? { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#fef2f2' }
+                          : { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ecfdf5' }
+                      ]}>
+                        <Text style={[
+                          styles.listStockText,
+                          product.quantity <= 0
+                            ? { color: isDark ? '#f87171' : '#dc2626' }
+                            : { color: isDark ? '#34d399' : '#059669' }
+                        ]}>
+                          {product.quantity <= 0 ? 'نفذ' : `${product.quantity} ${product.unit || t('inventory.unitPiece')}`}
                         </Text>
                       </View>
                       {product.barcode ? (
@@ -2753,6 +2841,7 @@ export const POSScreen = ({ route, navigation }: any) => {
           onClose={() => setShowPrintModal(false)}
           saleId={lastSaleId}
           invoiceData={lastInvoiceData}
+          sampleDocType={lastInvoiceData?.docType || (saleMode === 'wholesale' ? 'wholesale-invoice' : 'sale-invoice')}
         />
       )}
     </View>

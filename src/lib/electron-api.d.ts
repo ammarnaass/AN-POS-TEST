@@ -105,6 +105,47 @@ export interface ElectronAPI {
     start: (existingStart?: string, existingEnd?: string, existingSales?: number) => Promise<any>;
     incrementSales: () => Promise<number>;
   };
+  backup?: {
+    exportFull: () => Promise<{
+      metadata: {
+        appName: string;
+        appVersion: string;
+        exportDate: string;
+        environment: 'electron' | 'browser';
+        stats: {
+          productsCount: number;
+          imagesCount: number;
+          categoriesCount: number;
+          packsCount: number;
+          customersCount: number;
+          suppliersCount: number;
+          salesCount: number;
+          saleItemsCount: number;
+          expensesCount: number;
+          printTemplatesCount: number;
+          totalSizeEstMB: number;
+        };
+      };
+      data: Record<string, any[]>;
+    }>;
+    importFull: (data: any, mode?: 'clean' | 'merge') => Promise<{
+      success: boolean;
+      importedCounts: Record<string, number>;
+    }>;
+    saveFileDialog: (defaultName: string, content: string) => Promise<{
+      canceled: boolean;
+      filePath?: string;
+    }>;
+    openFileDialog: () => Promise<{
+      canceled: boolean;
+      filePath?: string;
+      content?: string;
+    }>;
+    exportRawDb: () => Promise<{
+      canceled: boolean;
+      filePath?: string;
+    }>;
+  };
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

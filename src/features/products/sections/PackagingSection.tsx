@@ -11,7 +11,7 @@ import { generateEAN13, generateCode128 } from '@/services/barcode';
 import { generateId } from '@/utils';
 import {
   Plus, Trash2, Edit2, Save, X,
-  Package, RefreshCw, Barcode, AlertTriangle,
+  Package, RefreshCw, Barcode, AlertTriangle, Box,
 } from 'lucide-react';
 
 interface Props {
@@ -250,6 +250,9 @@ export default function PackagingSection({ form }: Props) {
   };
 
   const margin = computeMargin(packForm.packPrice, packForm.qty, costPrice);
+  const currentStock = Number(form.quantity ?? 0);
+  const formAvailablePacks = packForm.qty > 0 ? Math.floor(currentStock / packForm.qty) : 0;
+  const formRemainderPieces = packForm.qty > 0 ? currentStock % packForm.qty : 0;
 
   if (!productId) {
     return (
@@ -406,6 +409,35 @@ export default function PackagingSection({ form }: Props) {
                 </span>
               </div>
             )}
+
+            {/* حساب المخزون المتوفر للعبوة بناءً على رصيد الصنف بالتجزئة */}
+            <div className="md:col-span-2 p-3 rounded-xl bg-surface-container/70 border border-outline-variant/30 flex flex-wrap items-center justify-between gap-3 text-body-sm">
+              <div className="flex items-center gap-2">
+                <Box className="w-4 h-4 text-primary" />
+                <span className="text-on-surface font-medium">رصيد الصنف الحالي (تجزئة):</span>
+                <span className="font-mono font-bold text-on-surface bg-surface-container-high px-2 py-0.5 rounded-md text-xs">
+                  {currentStock} قطعة
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Package className="w-4 h-4 text-secondary" />
+                <span className="text-on-surface font-medium">العبوات المتوفرة للبيع:</span>
+                <span
+                  className={`font-mono font-bold px-2.5 py-1 rounded-lg text-xs flex items-center gap-1 ${
+                    formAvailablePacks > 0
+                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                      : 'bg-error/10 text-error border border-error/20'
+                  }`}
+                >
+                  {formAvailablePacks > 0 ? `${formAvailablePacks} عبوة` : '0 عبوة (غير متوفر)'}
+                </span>
+                {formRemainderPieces > 0 && (
+                  <span className="text-xs text-on-surface-variant font-mono">
+                    (+{formRemainderPieces} قطع متبقية)
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* رسالة الخطأ */}
@@ -454,7 +486,8 @@ export default function PackagingSection({ form }: Props) {
               <tr>
                 <th className="px-4 py-2.5 text-right">الاسم</th>
                 <th className="px-4 py-2.5 text-right font-mono">الباركود</th>
-                <th className="px-4 py-2.5 text-center">الكمية</th>
+                <th className="px-4 py-2.5 text-center">سعة العبوة</th>
+                <th className="px-4 py-2.5 text-center">المخزون المتاح</th>
                 <th className="px-4 py-2.5 text-left">سعر البيع</th>
                 <th className="px-4 py-2.5 text-center">الهامش</th>
                 <th className="px-4 py-2.5 text-center">إجراءات</th>
@@ -468,11 +501,33 @@ export default function PackagingSection({ form }: Props) {
                 const item = items.find((it: { productId: string }) => it.productId === productId);
                 const qty = item?.qty ?? 1;
                 const m = computeMargin(pack.packPrice, qty, costPrice);
+                const availablePacks = qty > 0 ? Math.floor(currentStock / qty) : 0;
+                const remainder = qty > 0 ? currentStock % qty : 0;
+
                 return (
                   <tr key={pack.id} className="border-t border-outline-variant/10 hover:bg-surface-container/40">
                     <td className="px-4 py-3 font-semibold text-on-surface">{pack.name}</td>
                     <td className="px-4 py-3 font-mono text-on-surface-variant text-xs">{pack.barcode || '—'}</td>
-                    <td className="px-4 py-3 text-center text-on-surface">{qty}</td>
+                    <td className="px-4 py-3 text-center font-mono font-medium text-on-surface">{qty} قطع</td>
+                    <td className="px-4 py-3 text-center">
+                      {availablePacks > 0 ? (
+                        <div className="inline-flex flex-col items-center">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono font-bold text-xs">
+                            <Package className="w-3 h-3" />
+                            {availablePacks} عبوة
+                          </span>
+                          {remainder > 0 && (
+                            <span className="text-[10px] text-on-surface-variant font-mono mt-0.5">
+                              +{remainder} قطع
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-error/10 text-error font-mono font-bold text-xs">
+                          0 (أقل من عبوة)
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-left font-mono font-bold text-on-surface">
                       {pack.packPrice.toFixed(2)}
                     </td>

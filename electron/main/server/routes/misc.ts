@@ -73,4 +73,18 @@ export async function registerMiscRoutes(server: FastifyInstance): Promise<void>
     const result = await logActivity(data);
     return reply.send(result);
   });
+
+  // ===== backup & restore (LAN sync with mobile) =====
+  server.get('/api/backup/export', async (_request, reply) => {
+    const { exportFullBackup } = await import('../../handlers/backup');
+    const result = await exportFullBackup();
+    return reply.send(result);
+  });
+  server.post('/api/backup/import', async (request, reply) => {
+    const { importFullBackup } = await import('../../handlers/backup');
+    const body = request.body as any;
+    const mode = body?.mode || 'merge';
+    const result = await importFullBackup(body?.backup || body, mode);
+    return reply.send(result);
+  });
 }

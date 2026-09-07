@@ -382,30 +382,81 @@ export default function POSPage() {
       baseProducts = baseProducts.filter((p) => Boolean(p.highlighted || (p as any).isFeatured || (p as any).featured));
     }
 
-    // دالة استخراج صورة العبوة تلقائياً من الصنف الأساسي
-    const resolvePackImage = (pack: any) => {
-      if (pack.image) return pack.image;
+    // دالة استخراج بيانات العبوة ومخزونها الحقيقي من الصنف الأساسي (مخزون الصنف ÷ سعة العبوة)
+    const resolvePackDetails = (pack: any) => {
       const items = Array.isArray(pack.items)
         ? pack.items
         : (() => { try { return JSON.parse(pack.items) ?? []; } catch { return []; } })();
       const firstId = items[0]?.productId;
-      if (!firstId) return '';
-      const prod = products.find((pr) => pr.id === firstId);
-      return prod?.image || '';
+      const parentProd = firstId ? products.find((pr) => pr.id === firstId) : undefined;
+      const packPieces = Number(pack.piecesCount || items[0]?.qty || items[0]?.quantity || 1);
+      const parentStock = parentProd ? Number(parentProd.quantity ?? 0) : 0;
+      const availablePacks = packPieces > 0 ? Math.max(0, Math.floor(parentStock / packPieces)) : 0;
+      const image = pack.image || parentProd?.image || '';
+      const category = (parentProd && (typeof parentProd.category === 'object' && parentProd.category !== null ? (parentProd.category as any)?.name : parentProd.category)) || 'عبوات جملة';
+
+      return {
+        availablePacks,
+        packPieces,
+        parentStock,
+        parentProd,
+        image,
+        category,
+      };
     };
 
-    // 5. Search Query
-    const hasStrictFilter = Boolean(filterSupplier || filterStockStatus !== 'all' || (filterCategory && filterCategory !== 'ALL') || isFeaturedOnly);
-    if (!searchQuery) {
-      const stockProducts = baseProducts.filter((p) => p.status === 'active' && !('items' in p));
-      const mappedPacks = hasStrictFilter ? [] : activePacks.map((p) => ({
+    const buildPackProduct = (p: any) => {
+      const { availablePacks, packPieces, parentStock, parentProd, image, category } = resolvePackDetails(p);
+      return {
         ...p,
         id: `pack-${p.id}`,
         retailPrice: p.packPrice,
-        quantity: 9999,
-        image: resolvePackImage(p),
-      }));
-      return [...stockProducts, ...mappedPacks];
+        quantity: availablePacks,
+        packPiecesCount: packPieces,
+        parentStock,
+        parentName: parentProd?.name || '',
+        category,
+        image,
+        isPack: true,
+      };
+    };
+
+    // معالجة العبوات وتطبيق التصفية المماثلة للمنتجات
+    let filteredPacks = activePacks.map(buildPackProduct);
+
+    if (filterSupplier) {
+      filteredPacks = filteredPacks.filter((p) => {
+        const items = Array.isArray(p.items)
+          ? p.items
+          : (() => { try { return JSON.parse(p.items) ?? []; } catch { return []; } })();
+        const prod = products.find((pr) => pr.id === items[0]?.productId);
+        return (prod as any)?.supplierId === filterSupplier || (prod as any)?.supplier === filterSupplier;
+      });
+    }
+
+    if (filterStockStatus === 'in_stock') {
+      filteredPacks = filteredPacks.filter((p) => p.quantity > 0);
+    } else if (filterStockStatus === 'out_of_stock') {
+      filteredPacks = filteredPacks.filter((p) => p.quantity <= 0);
+    } else if (filterStockStatus === 'low_stock') {
+      filteredPacks = filteredPacks.filter((p) => p.quantity > 0 && p.quantity <= 3);
+    }
+
+    if (filterCategory && filterCategory !== 'ALL') {
+      filteredPacks = filteredPacks.filter((p) => {
+        const cat = typeof p.category === 'object' && p.category !== null ? p.category.name : p.category;
+        return cat === filterCategory;
+      });
+    }
+
+    if (isFeaturedOnly) {
+      filteredPacks = filteredPacks.filter((p) => Boolean(p.highlighted || (p as any).isFeatured));
+    }
+
+    // 5. Search Query
+    if (!searchQuery) {
+      const stockProducts = baseProducts.filter((p) => p.status === 'active' && !('items' in p));
+      return [...stockProducts, ...filteredPacks];
     }
     const q = searchQuery.toLowerCase().trim();
     const matchedProducts = baseProducts.filter(
@@ -417,15 +468,13 @@ export default function POSPage() {
         (typeof p.category === 'object' && p.category?.name && p.category.name.toLowerCase().includes(q))
       )
     );
-    const mappedPacks = hasStrictFilter ? [] : activePacks.filter((p) => p.name.toLowerCase().includes(q) || (p.barcode && p.barcode.toLowerCase().includes(q)))
-      .map((p) => ({
-        ...p,
-        id: `pack-${p.id}`,
-        retailPrice: p.packPrice,
-        quantity: 9999,
-        image: resolvePackImage(p),
-      }));
-    return [...matchedProducts, ...mappedPacks];
+    const matchedPacks = filteredPacks.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        (p.barcode && p.barcode.toLowerCase().includes(q)) ||
+        (p.parentName && p.parentName.toLowerCase().includes(q))
+    );
+    return [...matchedProducts, ...matchedPacks];
   }, [products, packs, searchQuery, filterCategory, filterSupplier, filterStockStatus, isFeaturedOnly, supplierProductIds]);
 
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE));
@@ -517,6 +566,7 @@ export default function POSPage() {
       promotions: promotions as any,
       addItem,
       forceWholesale: isWholesaleActive,
+      allowNegativeStock: posSettings.allowNegativeStock || posSettings.accountingOnly,
     });
     if (result.added) {
       playAdded(0.08);
@@ -542,12 +592,42 @@ export default function POSPage() {
 
   const handleAddProduct = useCallback(
     (product: any) => {
-      const isPack = String(product.id).startsWith('pack-');
+      const isPack = String(product.id).startsWith('pack-') || Boolean(product.isPack);
       if (isPack) {
-        const packId = product.id.replace('pack-', '');
+        const packId = String(product.id).replace('pack-', '');
         const pack = packs.find((p) => p.id === packId);
         if (!pack) return;
-        const pQty = pack.piecesCount || pack.items?.reduce((sum: number, it: any) => sum + (it.quantity || 0), 0) || 1;
+        const items = Array.isArray(pack.items)
+          ? pack.items
+          : (() => { try { return JSON.parse(pack.items as any) ?? []; } catch { return []; } })();
+        const firstComp = items[0];
+        const pQty = Number(pack.piecesCount || firstComp?.qty || firstComp?.quantity || 1);
+
+        // التحقق من المخزون المتوفر إذا كان البيع بالسالب غير مسموح
+        if (!posSettings.allowNegativeStock && !posSettings.accountingOnly && firstComp?.productId) {
+          const parentProd = products.find((p) => p.id === firstComp.productId);
+          const availablePieces = parentProd ? Number(parentProd.quantity ?? 0) : 0;
+          const availablePacks = pQty > 0 ? Math.floor(availablePieces / pQty) : 0;
+
+          // حساب القطع الموجودة بالفعل في السلة من هذا الصنف الأساسي
+          const existingCartPieces = cart.reduce((sum, it) => {
+            if (it.productId === firstComp.productId) return sum + it.qty;
+            if (it.isPack && (it.packId === packId || it.productId === `pack-${packId}`)) {
+              return sum + (it.qty * (it.packQty || pQty));
+            }
+            return sum;
+          }, 0);
+
+          if (existingCartPieces + pQty > availablePieces) {
+            addNotification({
+              title: 'تنبيه المخزون',
+              type: 'warning',
+              message: `المخزون غير كافٍ! المتاح من "${parentProd?.name || pack.name}": ${availablePieces} قطعة (${availablePacks} عبوة).`,
+            });
+            return;
+          }
+        }
+
         addItem({
           productId: `pack-${packId}`,
           name: pack.name,
@@ -581,7 +661,7 @@ export default function POSPage() {
         setTimeout(() => scanInputRef.current?.focus(), 100);
       }
     },
-    [addItem, promotions, cart, packs, quickMode, isWholesaleActive]
+    [addItem, promotions, cart, packs, products, quickMode, isWholesaleActive, posSettings, addNotification]
   );
 
   const handleUpdateQty = useCallback(
@@ -1346,9 +1426,10 @@ export default function POSPage() {
               /* Product Cards Grid matching the Reference Design */
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5 sm:gap-3.5">
                 {paginatedProducts.map((product) => {
-                  const isPack = String(product.id).startsWith('pack-');
-                  const isOutOfStock = !isPack && !posSettings.allowNegativeStock && !posSettings.accountingOnly && product.quantity <= 0;
+                  const isPack = String(product.id).startsWith('pack-') || Boolean((product as any).isPack);
+                  const isOutOfStock = !posSettings.allowNegativeStock && !posSettings.accountingOnly && product.quantity <= 0;
                   const categoryName = (typeof product.category === 'object' && product.category !== null ? (product.category as any).name : product.category) || 'عام';
+                  const packPieces = (product as any).packPiecesCount || 1;
 
                   return (
                     <div
@@ -1379,10 +1460,20 @@ export default function POSPage() {
                           ) : (
                             <span className="px-2.5 py-1 rounded-xl bg-surface-container-highest/90 backdrop-blur-md border border-outline-variant/30 text-emerald-600 dark:text-emerald-400 text-[10px] font-mono font-bold shadow-sm flex items-center gap-1">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                              <span>{product.quantity} قطع</span>
+                              <span>{product.quantity} {isPack ? 'عبوة' : 'قطع'}</span>
                             </span>
                           )}
                         </div>
+
+                        {/* شارة تمييز عبوة الجملة */}
+                        {isPack && (
+                          <div className="absolute bottom-2.5 right-2.5 z-10">
+                            <span className="px-2.5 py-0.5 rounded-lg bg-primary/95 text-on-primary text-[10px] font-bold shadow-sm flex items-center gap-1 backdrop-blur-xs">
+                              <Package className="w-3 h-3" />
+                              <span>عبوة جملة (×{packPieces})</span>
+                            </span>
+                          </div>
+                        )}
 
                         {/* Main Product Image or Design-driven Fallback */}
                         {product.image ? (
@@ -1449,8 +1540,9 @@ export default function POSPage() {
               /* Product List Mode */
               <div className="space-y-2">
                 {paginatedProducts.map((product) => {
-                  const isPack = String(product.id).startsWith('pack-');
-                  const isOutOfStock = !isPack && !posSettings.allowNegativeStock && !posSettings.accountingOnly && product.quantity <= 0;
+                  const isPack = String(product.id).startsWith('pack-') || Boolean((product as any).isPack);
+                  const isOutOfStock = !posSettings.allowNegativeStock && !posSettings.accountingOnly && product.quantity <= 0;
+                  const packPieces = (product as any).packPiecesCount || 1;
 
                   return (
                     <div
@@ -1478,7 +1570,18 @@ export default function POSPage() {
                             <span>{product.barcode || product.sku || 'بدون باركود'}</span>
                             <span>·</span>
                             <span>{(typeof product.category === 'object' && product.category !== null ? (product.category as any).name : product.category) || 'عام'}</span>
-                            {!isPack && <span className="font-bold text-emerald-600">({product.quantity} قطعة)</span>}
+                            <span>·</span>
+                            {isOutOfStock ? (
+                              <span className="px-2 py-0.5 rounded-md bg-error/10 text-error font-extrabold border border-error/20">
+                                نفذ {isPack ? `(0 عبوة)` : `` }
+                              </span>
+                            ) : isPack ? (
+                              <span className="font-bold text-primary">
+                                ({product.quantity} عبوة متاحة · ×{packPieces} قطع)
+                              </span>
+                            ) : (
+                              <span className="font-bold text-emerald-600">({product.quantity} قطعة)</span>
+                            )}
                           </div>
                         </div>
                       </div>

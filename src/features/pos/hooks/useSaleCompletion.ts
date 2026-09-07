@@ -175,13 +175,18 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
               if (item.isPack && item.packId) {
                 const pack = packs.find((p) => p.id === item.packId);
                 if (pack) {
-                  for (const comp of pack.items) {
-                    const product = products.find((p) => p.id === comp.productId);
+                  const rawItems = Array.isArray(pack.items)
+                    ? pack.items
+                    : (() => { try { return JSON.parse(pack.items as any) ?? []; } catch { return []; } })();
+                  for (const comp of rawItems) {
+                    const compProductId = comp.productId ?? comp.product_id;
+                    const compQty = Number(comp.qty ?? comp.quantity ?? 1);
+                    const product = products.find((p) => p.id === compProductId);
                     if (product) {
                       const qtyChange =
                         saleType === 'return'
-                          ? Math.abs(comp.qty * item.qty)
-                          : -(comp.qty * item.qty);
+                          ? Math.abs(compQty * item.qty)
+                          : -(compQty * item.qty);
                       const newQuantity = settings?.allowNegativeStock
                         ? product.quantity + qtyChange
                         : Math.max(0, product.quantity + qtyChange);

@@ -41,6 +41,12 @@ import ExportBackupTab from './tabs/ExportBackupTab';
 import MobileDevicesTab from './tabs/MobileDevicesTab';
 import UpdatesTab from './tabs/UpdatesTab';
 import AccountTab from './tabs/AccountTab';
+import {
+  generateComprehensiveBackup,
+  saveBackupToFile,
+  inspectBackupFile,
+  executeRestore,
+} from '@/services/backup/backupService';
 
 export default function SettingsPage() {
   const navigate = useNavigate();
@@ -962,17 +968,23 @@ export default function SettingsPage() {
   };
 
   const handleExportBackup = async () => {
-    const [products, customers, suppliers, sales, expenses, usersData, cashSessions, capitalEntries, promotions, settingsData] = await Promise.all([
-      db.products.toArray(), db.customers.toArray(), db.suppliers.toArray(),
-      db.sales.toArray(), db.expenses.toArray(), db.users.toArray(),
-      db.cash_sessions.toArray(), db.capital_entries.toArray(), db.promotions.toArray(), db.settings.get('default'),
-    ]);
-    const backup = { products, customers, suppliers, sales, expenses, users: usersData, cashSessions, capitalEntries, promotions, settings: settingsData, exportDate: new Date().toISOString(), version: '1.0.0' };
-    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = `an-pos-backup-${new Date().toISOString().split('T')[0]}.json`;
-    a.click(); URL.revokeObjectURL(url);
-    addNotification({ title: 'تم التصدير', message: 'تم تصدير النسخة الاحتياطية بنجاح', type: 'success' });
+    try {
+      const backup = await generateComprehensiveBackup();
+      const res = await saveBackupToFile(backup);
+      if (res.saved) {
+        addNotification({
+          title: 'تم التصدير',
+          message: `تم تصدير النسخة الاحتياطية بنجاح (${backup.metadata.stats.productsCount} منتج، ${backup.metadata.stats.imagesCount} صورة محفوظة)`,
+          type: 'success',
+        });
+      }
+    } catch (err: any) {
+      addNotification({
+        title: 'خطأ في التصدير',
+        message: err?.message || 'تعذر تصدير النسخة الاحتياطية',
+        type: 'error',
+      });
+    }
   };
 
   const [copiedField, setCopiedField] = useState<string | null>(null);
@@ -1000,17 +1012,33 @@ export default function SettingsPage() {
     const reader = new FileReader();
     reader.onload = async (event) => {
       try {
-        const backup = JSON.parse(event.target?.result as string);
-        if (backup.products) await db.products.bulkAdd(backup.products);
-        if (backup.customers) await db.customers.bulkAdd(backup.customers);
-        if (backup.settings) await db.settings.put({ ...backup.settings, id: 'default' });
+        const content = event.target?.result as string;
+        const inspection = inspectBackupFile(content);
+        if (!inspection.valid) {
+          addNotification({
+            title: 'خطأ في الملف',
+            message: inspection.error || 'ملف النسخة الاحتياطية غير صالح',
+            type: 'error',
+          });
+          return;
+        }
+        await executeRestore({ data: inspection.parsedData }, 'merge');
         await queryClient.invalidateQueries();
-        addNotification({ title: 'تم الاسترجاع', message: 'تم استرجاع النسخة الاحتياطية بنجاح', type: 'success' });
-      } catch {
-        addNotification({ title: 'خطأ', message: 'خطأ في قراءة ملف النسخة الاحتياطية', type: 'error' });
+        addNotification({
+          title: 'تم الاسترجاع',
+          message: `تم استرجاع النسخة الاحتياطية بنجاح (${inspection.summary.productsCount} منتج، ${inspection.summary.imagesCount} صورة)`,
+          type: 'success',
+        });
+      } catch (err: any) {
+        addNotification({
+          title: 'خطأ',
+          message: err?.message || 'خطأ في قراءة أو استرجاع ملف النسخة الاحتياطية',
+          type: 'error',
+        });
       }
     };
-    reader.readAsText(file); e.target.value = '';
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   const tabGroups = [

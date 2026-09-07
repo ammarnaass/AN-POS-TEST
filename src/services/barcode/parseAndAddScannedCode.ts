@@ -12,6 +12,7 @@ export interface ParseScanContext {
   promotions: Promotion[];
   addItem: (item: CartItem) => void;
   forceWholesale?: boolean;
+  allowNegativeStock?: boolean;
 }
 
 export interface ParseScanResult {
@@ -28,6 +29,29 @@ interface SaleRefusedReason {
 function refusalReason(p: Product): SaleRefusedReason | null {
   if (p.status !== 'active') return { message: 'المنتج موقوف مؤقتاً' };
   if (p.quantity <= 0) return { message: 'نفد المخزون' };
+  return null;
+}
+
+function packRefusalReason(
+  pk: PackEntity,
+  products: Product[],
+  allowNegativeStock?: boolean
+): SaleRefusedReason | null {
+  if (pk.status !== "active") return { message: "الحزمة موقوفة" };
+  if (allowNegativeStock) return null;
+  const rawItems = Array.isArray(pk.items)
+    ? pk.items
+    : (() => { try { return JSON.parse(pk.items as any) ?? []; } catch { return []; } })();
+  const firstComp = rawItems[0];
+  const firstId = firstComp?.productId ?? (firstComp as any)?.product_id;
+  const pQty = Number(pk.piecesCount || firstComp?.qty || firstComp?.quantity || 1);
+  if (firstId) {
+    const parentProd = products.find((p) => p.id === firstId);
+    const availablePieces = parentProd ? Number(parentProd.quantity ?? 0) : 0;
+    if (availablePieces < pQty) {
+      return { message: "المخزون غير كافٍ لتشكيل عبوة كاملة" };
+    }
+  }
   return null;
 }
 
@@ -61,7 +85,12 @@ export async function parseAndAddScannedCode(
     (pk) => pk.status === 'active' && pk.barcode && pk.barcode.trim() === code
   );
   if (inMemoryPack) {
-    const pQty = inMemoryPack.piecesCount || inMemoryPack.items?.reduce((s, it) => s + (it.quantity || 0), 0) || 1;
+    const blocked = packRefusalReason(inMemoryPack, ctx.products, ctx.allowNegativeStock);
+    if (blocked) return { added: false, message: blocked.message };
+    const rawItems = Array.isArray(inMemoryPack.items)
+      ? inMemoryPack.items
+      : (() => { try { return JSON.parse(inMemoryPack.items as any) ?? []; } catch { return []; } })();
+    const pQty = inMemoryPack.piecesCount || rawItems.reduce((s: number, it: any) => s + (Number(it.qty ?? it.quantity ?? 0)), 0) || 1;
     ctx.addItem({
       productId: `pack-${inMemoryPack.id}`,
       name: inMemoryPack.name,
@@ -125,8 +154,12 @@ export async function parseAndAddScannedCode(
 
   if (result.kind === 'pack' && result.pack) {
     const pk = result.pack;
-    if (pk.status !== 'active') return { added: false, message: 'الحزمة موقوفة' };
-    const pQty = pk.piecesCount || pk.items?.reduce((s, it) => s + (it.quantity || 0), 0) || 1;
+    const blocked = packRefusalReason(pk, ctx.products, ctx.allowNegativeStock);
+    if (blocked) return { added: false, message: blocked.message };
+    const rawItems = Array.isArray(pk.items)
+      ? pk.items
+      : (() => { try { return JSON.parse(pk.items as any) ?? []; } catch { return []; } })();
+    const pQty = pk.piecesCount || rawItems.reduce((s: number, it: any) => s + (Number(it.qty ?? it.quantity ?? 0)), 0) || 1;
     ctx.addItem({
       productId: `pack-${pk.id}`,
       name: pk.name,

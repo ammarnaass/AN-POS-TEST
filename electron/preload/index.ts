@@ -240,6 +240,20 @@ const electronAPI = {
     getPrinters: () =>
       ipcRenderer.invoke('print:getPrinters'),
   },
+
+  // ===== إدارة النسخ الاحتياطي والاستعادة الشاملة =====
+  backup: {
+    exportFull: () =>
+      ipcRenderer.invoke('backup:exportFull'),
+    importFull: (data: any, mode?: 'clean' | 'merge') =>
+      ipcRenderer.invoke('backup:importFull', data, mode),
+    saveFileDialog: (defaultName: string, content: string) =>
+      ipcRenderer.invoke('backup:saveFileDialog', defaultName, content),
+    openFileDialog: () =>
+      ipcRenderer.invoke('backup:openFileDialog'),
+    exportRawDb: () =>
+      ipcRenderer.invoke('backup:exportRawDb'),
+  },
 };
 
 try {
