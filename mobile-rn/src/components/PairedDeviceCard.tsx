@@ -25,6 +25,7 @@ import { useTheme } from '@/theme';
 import { useI18n } from '@/store/i18nStore';
 import { radii, spacing, shadows } from '@/theme/tokens';
 import { removePairedDevice, type PairedDevice } from '@/lib/pairedDeviceStore';
+import { session } from '@/lib/apiClient';
 import { db as unifiedDB } from '@/infrastructure/database/UnifiedDB';
 import { useSyncEngine, syncEngine } from '@/lib/syncEngine';
 
@@ -124,8 +125,7 @@ export default function PairedDeviceCard({
           text: t('pair.unpair'),
           style: 'destructive',
           onPress: async () => {
-            await removePairedDevice();
-            await unifiedDB.switchToStandalone();
+            await session.unpair();
             onPressUnpair?.();
           },
         },

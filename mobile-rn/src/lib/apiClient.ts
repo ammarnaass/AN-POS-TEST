@@ -376,6 +376,38 @@ export const session = {
     _cachedDeviceId = null;
     await removePairedDevice().catch(() => {});
   },
+  unpair: async () => {
+    try {
+      // 1. Notify desktop server to release device session if reachable
+      if (_cachedServerUrl && _cachedToken && _cachedDeviceId) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 2500);
+        await electronAPI.pair.unpair().catch(() => {});
+        clearTimeout(timer);
+      }
+    } catch {}
+
+    // 2. Clear credentials and server URL from SecureStore
+    await clearSession();
+    await Promise.all([
+      AnposSecureStore.remove(STORAGE_KEYS.SERVER_URL).catch(() => {}),
+      AnposSecureStore.remove(STORAGE_KEYS.USER_ID).catch(() => {}),
+    ]);
+
+    // 3. Reset in-memory caches
+    _cachedToken = null;
+    _cachedDeviceId = null;
+    _cachedServerUrl = null;
+
+    // 4. Remove active paired device
+    await removePairedDevice().catch(() => {});
+
+    // 5. Switch UnifiedDB to standalone mode
+    await unifiedDB.switchToStandalone().catch(() => {});
+
+    // 6. Notify listeners (syncEngine, UI)
+    notifySessionInvalidated('unpaired');
+  },
   invalidate: async (reason: string = 'unauthorized') => {
     await Promise.all([
       AnposSecureStore.remove(STORAGE_KEYS.SESSION_TOKEN),

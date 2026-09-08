@@ -129,6 +129,7 @@ export const en: TranslationSchema = {
     logout: 'Sign Out',
     logoutConfirmTitle: 'Sign Out Confirmation',
     logoutConfirmMsg: 'Are you sure you want to sign out?',
+    logoutConfirmConnectedMsg: 'Are you sure you want to sign out? This will directly unpair from the computer and switch to standalone mode.',
     invalidCredentials: 'Invalid username or PIN code',
     loginSuccess: 'Signed in successfully',
     fillAllFields: 'Please fill in all required fields',

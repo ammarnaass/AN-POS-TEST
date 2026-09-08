@@ -129,6 +129,7 @@ export const fr: TranslationSchema = {
     logout: 'Déconnexion',
     logoutConfirmTitle: 'Confirmation de déconnexion',
     logoutConfirmMsg: 'Êtes-vous sûr de vouloir vous déconnecter ?',
+    logoutConfirmConnectedMsg: 'Êtes-vous sûr de vouloir vous déconnecter ? Cela dissociera directement cet appareil du serveur et passera en mode autonome.',
     invalidCredentials: "Nom d'utilisateur ou code PIN incorrect",
     loginSuccess: 'Connexion réussie',
     fillAllFields: 'Veuillez remplir tous les champs obligatoires',

@@ -86,6 +86,8 @@ export const LoginScreen = ({ navigation }: any) => {
         setActiveServerUrl(sUrl);
         if (sUrl) {
           useAuthStore.getState().setServerUrl(sUrl);
+        } else {
+          useAuthStore.setState({ serverUrl: null });
         }
         await ensureInit();
       } catch (e) {
@@ -95,7 +97,12 @@ export const LoginScreen = ({ navigation }: any) => {
       }
     };
     detectMode();
-  }, []);
+
+    const unsub = navigation.addListener('focus', () => {
+      detectMode();
+    });
+    return unsub;
+  }, [navigation]);
 
   const handleLogin = async () => {
     setSubmitError(null);

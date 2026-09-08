@@ -1,6 +1,6 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Alert } from 'react-native';
 import { AppImages } from '@/assets';
 import { Home, ShoppingCart, Package, Users, MoreHorizontal, Sun, Moon, LogOut } from 'lucide-react-native';
 import DashboardScreen from '@/features/dashboard/DashboardScreen';
@@ -10,6 +10,7 @@ import { CustomersScreen } from '@/features/customers/CustomersScreen';
 import MoreScreen from '@/features/more/MoreScreen';
 import SyncIndicator from '@/components/SyncIndicator';
 import { useAuthStore } from '@/store/authStore';
+import { getStoredMode } from '@/infrastructure/database/UnifiedDB';
 
 const Tab = createBottomTabNavigator();
 
@@ -28,9 +29,27 @@ const HomeLayout = ({ navigation }: any) => {
   const { user, logout, serverUrl } = useAuthStore();
   const [darkMode, setDarkMode] = React.useState(false);
 
-  const handleLogout = () => {
-    logout();
-    navigation.replace('Login');
+  const handleLogout = async () => {
+    const mode = await getStoredMode().catch(() => 'standalone');
+    const isConnected = mode === 'connected';
+
+    Alert.alert(
+      'تأكيد تسجيل الخروج',
+      isConnected
+        ? 'هل أنت متأكد من رغبتك في تسجيل الخروج؟ سيتم إلغاء الربط مع الحاسوب مباشرة والعودة للوضع المستقل.'
+        : 'هل أنت متأكد من رغبتك في تسجيل الخروج؟',
+      [
+        { text: 'إلغاء', style: 'cancel' },
+        {
+          text: 'تسجيل الخروج',
+          style: 'destructive',
+          onPress: async () => {
+            await logout();
+            navigation.replace('Login');
+          },
+        },
+      ]
+    );
   };
 
   return (

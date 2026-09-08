@@ -341,17 +341,24 @@ export const MoreScreen = ({ navigation }: any) => {
   };
 
   const handleLogout = () => {
-    Alert.alert(t('auth.logoutConfirmTitle'), t('auth.logoutConfirmMsg'), [
-      { text: t('common.cancel'), style: 'cancel' },
-      {
-        text: t('auth.logout'),
-        style: 'destructive',
-        onPress: () => {
-          logout();
-          navigation?.replace('Login');
+    const isConnected = appMode === 'connected';
+    Alert.alert(
+      t('auth.logoutConfirmTitle'),
+      isConnected
+        ? (t('auth.logoutConfirmConnectedMsg') || 'هل أنت متأكد من رغبتك في تسجيل الخروج؟ سيتم إلغاء الربط مع الحاسوب مباشرة والعودة للوضع المستقل.')
+        : t('auth.logoutConfirmMsg'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('auth.logout'),
+          style: 'destructive',
+          onPress: async () => {
+            await logout();
+            navigation?.replace('Login');
+          },
         },
-      },
-    ]);
+      ]
+    );
   };
 
   if (loading) {

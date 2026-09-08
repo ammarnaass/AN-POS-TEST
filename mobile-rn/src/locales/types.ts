@@ -129,6 +129,7 @@ export interface TranslationSchema {
     logout: string;
     logoutConfirmTitle: string;
     logoutConfirmMsg: string;
+    logoutConfirmConnectedMsg: string;
     invalidCredentials: string;
     loginSuccess: string;
     fillAllFields: string;

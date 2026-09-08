@@ -1,6 +1,6 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Text, StyleSheet, View, TouchableOpacity, Image } from 'react-native';
+import { Text, StyleSheet, View, TouchableOpacity, Image, Alert } from 'react-native';
 import { AppImages } from '@/assets';
 import {
   LayoutDashboard,
@@ -23,6 +23,7 @@ import SyncIndicator from '@/components/SyncIndicator';
 import { useAuthStore } from '@/store/authStore';
 import { useTheme } from '@/theme';
 import { useI18n } from '@/store/i18nStore';
+import { getStoredMode } from '@/infrastructure/database/UnifiedDB';
 import { radii, spacing, shadows } from '@/theme/tokens';
 import { Badge } from '@/components/ui';
 
@@ -87,9 +88,27 @@ export const HomeTabs = ({ navigation }: any) => {
   const { isDark, colors, toggleTheme } = useTheme();
   const { t } = useI18n();
 
-  const handleLogout = () => {
-    logout();
-    navigation.replace('Login');
+  const handleLogout = async () => {
+    const mode = await getStoredMode().catch(() => 'standalone');
+    const isConnected = mode === 'connected';
+
+    Alert.alert(
+      t('auth.logoutConfirmTitle') || 'تأكيد تسجيل الخروج',
+      isConnected
+        ? (t('auth.logoutConfirmConnectedMsg') || 'هل أنت متأكد من رغبتك في تسجيل الخروج؟ سيتم إلغاء الربط مع الحاسوب مباشرة والعودة للوضع المستقل.')
+        : (t('auth.logoutConfirmMsg') || 'هل أنت متأكد من رغبتك في تسجيل الخروج؟'),
+      [
+        { text: t('common.cancel') || 'إلغاء', style: 'cancel' },
+        {
+          text: t('auth.logout') || 'تسجيل الخروج',
+          style: 'destructive',
+          onPress: async () => {
+            await logout();
+            navigation.replace('Login');
+          },
+        },
+      ]
+    );
   };
 
   const roleLabel =

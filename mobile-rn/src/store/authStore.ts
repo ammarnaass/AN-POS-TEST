@@ -5,6 +5,7 @@ import { syncEngine } from '@/lib/syncEngine';
 
 import { STORAGE_KEYS } from '@/lib/storageKeys';
 import { rememberServerUrl } from '@/lib/discovery';
+import { getStoredMode } from '@/infrastructure/database/UnifiedDB';
 
 interface AuthState {
   user: User | null;
@@ -13,7 +14,7 @@ interface AuthState {
   serverUrl: string | null;
 
   login: (username: string, pin: string) => Promise<{ success: boolean; error?: string }>;
-  logout: () => void;
+  logout: () => Promise<void>;
   restoreSession: () => Promise<boolean>;
   setServerUrl: (url: string) => Promise<void>;
 }
@@ -49,13 +50,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  logout: () => {
+  logout: async () => {
     const user = get().user;
     if (user?.id) {
       electronAPI.auth.logout(user.id).catch(() => {});
     }
-    AnposSecureStore.remove(STORAGE_KEYS.USER_ID);
-    set({ user: null, isAuthenticated: false });
+
+    try {
+      const currentMode = await getStoredMode();
+      const isConnected = currentMode === 'connected' || session.isConnectedSync();
+
+      if (isConnected) {
+        await session.unpair();
+      } else {
+        await AnposSecureStore.remove(STORAGE_KEYS.USER_ID);
+      }
+    } catch (err) {
+      console.warn('[authStore] Error unpairing during logout:', err);
+      await AnposSecureStore.remove(STORAGE_KEYS.USER_ID).catch(() => {});
+    }
+
+    set({ user: null, isAuthenticated: false, serverUrl: null });
   },
 
   restoreSession: async () => {

@@ -129,6 +129,7 @@ export const ar: TranslationSchema = {
     logout: 'تسجيل الخروج',
     logoutConfirmTitle: 'تأكيد تسجيل الخروج',
     logoutConfirmMsg: 'هل أنت متأكد من رغبتك في تسجيل الخروج؟',
+    logoutConfirmConnectedMsg: 'هل أنت متأكد من رغبتك في تسجيل الخروج؟ سيتم إلغاء الربط مع الحاسوب مباشرة والعودة للوضع المستقل.',
     invalidCredentials: 'اسم المستخدم أو رمز PIN غير صحيح',
     loginSuccess: 'تم تسجيل الدخول بنجاح',
     fillAllFields: 'يرجى ملء جميع الحقول المطلوبة',

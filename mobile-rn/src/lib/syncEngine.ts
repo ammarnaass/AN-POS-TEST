@@ -113,7 +113,12 @@ class SyncEngine {
       this.startPeriodicSync();
       this.startHealthCheck();
       this.listenToAppState();
-      onSessionInvalidated(() => {
+      onSessionInvalidated((reason?: string) => {
+        if (reason === 'unpaired' || reason === 'unauthorized') {
+          this.stopPeriodicSync();
+          this.cachedPairedDevice = null;
+          this.isOnline = false;
+        }
         this.notifyListeners();
       });
       this.initialized = true;

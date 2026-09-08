@@ -968,8 +968,7 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
                           text: t('pair.unpair'),
                           style: 'destructive',
                           onPress: async () => {
-                            await session.clear();
-                            await unifiedDB.switchToStandalone();
+                            await session.unpair();
                             Alert.alert(t('common.success'), 'تم إلغاء الربط بنجاح.');
                             navigation.replace('Login');
                           },
