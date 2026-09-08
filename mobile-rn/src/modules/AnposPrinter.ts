@@ -20,6 +20,14 @@ export interface ReceiptData {
   total: number;
   paymentMethod: string;
   customerName?: string;
+  customerPhone?: string;
+  customerRc?: string;
+  customerNif?: string;
+  customerNis?: string;
+  customerArt?: string;
+  formerBalance?: number;
+  paidAmount?: number;
+  newBalance?: number;
   soldBy?: string;
 }
 

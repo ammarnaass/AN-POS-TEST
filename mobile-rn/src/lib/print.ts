@@ -168,6 +168,14 @@ class PrintQueueManager {
         total: data.total,
         paymentMethod: localizedPayment,
         customerName: data.customerName || '',
+        customerPhone: data.customerPhone || '',
+        customerRc: data.customerRc || '',
+        customerNif: data.customerNif || '',
+        customerNis: data.customerNis || '',
+        customerArt: data.customerArt || '',
+        formerBalance: data.formerBalance,
+        paidAmount: data.paidAmount,
+        newBalance: data.newBalance,
         soldBy: data.soldBy || data.cashierName || '',
       };
 

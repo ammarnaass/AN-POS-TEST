@@ -60,6 +60,7 @@ import { syncEngine } from '@/lib/syncEngine';
 import { getStoreSettings, fetchStoreSettingsFromDesktop, StoreSettings, DEFAULT_STORE_SETTINGS } from '@/lib/settingService';
 import CameraScanner from '@/features/barcode/CameraScanner';
 import InvoicePrintPreviewModal from '@/features/print/InvoicePrintPreviewModal';
+import { generateMobileInvoiceNumber } from '@/lib/deviceHelper';
 import type { DocTypeKey } from '@shared/types/invoicePrint';
 import type { Product, Customer } from '@/lib/apiClient';
 import { useFocusEffect } from '@react-navigation/native';
@@ -1076,10 +1077,7 @@ export const POSScreen = ({ route, navigation }: any) => {
     try {
       await ensureInit();
       const nowIso = new Date().toISOString();
-      const datePart = nowIso.slice(0, 10).replace(/-/g, '');
-      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-      const invoicePrefix = saleMode === 'wholesale' ? 'MOB-WS' : 'MOB';
-      const invoiceNumber = `${invoicePrefix}-${datePart}-${randomSuffix}`;
+      const invoiceNumber = await generateMobileInvoiceNumber(saleMode === 'wholesale');
       const saleId = generateId();
 
       const enteredPaid = parseFloat(paidInput) || 0;
@@ -1100,7 +1098,7 @@ export const POSScreen = ({ route, navigation }: any) => {
             setCheckoutLoading(false);
             return;
           }
-          effectiveStatus = effectivePaid > 0 ? 'partial' : 'unpaid';
+          effectiveStatus = 'partial';
           debtToAdd = total - effectivePaid;
         }
       } else if (paymentMethod === 'card') {
@@ -1109,23 +1107,24 @@ export const POSScreen = ({ route, navigation }: any) => {
         debtToAdd = 0;
       } else if (paymentMethod === 'credit') {
         if (!selectedCustomer) {
-          Alert.alert(t('common.warning'), t('pos.cannotCreditGuest'));
+          Alert.alert(t('common.warning'), t('pos.customerRequiredForCredit'));
           setCheckoutLoading(false);
           return;
         }
-        effectivePaid = Math.min(enteredPaid, total);
-        effectiveStatus = effectivePaid >= total ? 'paid' : effectivePaid > 0 ? 'partial' : 'unpaid';
-        debtToAdd = total - effectivePaid;
+        effectivePaid = 0;
+        effectiveStatus = 'unpaid';
+        debtToAdd = total;
       }
 
-      // Check Customer Credit Limit
-      if (debtToAdd > 0 && selectedCustomer) {
-        const custLimit = selectedCustomer.creditLimit || 0;
-        const currentBal = selectedCustomer.balance || 0;
-        if (custLimit > 0 && currentBal + debtToAdd > custLimit) {
+      // Check credit limit
+      if (debtToAdd > 0 && selectedCustomer && selectedCustomer.creditLimit && selectedCustomer.creditLimit > 0) {
+        const currentDebt = selectedCustomer.balance || 0;
+        const newDebt = currentDebt + debtToAdd;
+        if (newDebt > selectedCustomer.creditLimit) {
+          const over = newDebt - selectedCustomer.creditLimit;
           Alert.alert(
             t('pos.creditLimitExceededWarning'),
-            `${t('pos.creditLimitExceededMsg')} (${(currentBal + debtToAdd).toLocaleString(language === 'ar' ? 'ar-DZ' : 'fr-FR')} ${currency})`,
+            `${t('pos.creditLimitExceededMsg')} (${newDebt.toLocaleString(language === 'ar' ? 'ar-DZ' : 'fr-FR')} ${currency})`,
             [
               { text: t('common.cancel'), style: 'cancel', onPress: () => setCheckoutLoading(false) },
               { text: t('pos.proceedAnyway'), style: 'destructive', onPress: () => executeSaleTransaction(saleId, invoiceNumber, nowIso, finalMethod, effectivePaid, effectiveStatus, debtToAdd) },
@@ -1137,7 +1136,9 @@ export const POSScreen = ({ route, navigation }: any) => {
 
       await executeSaleTransaction(saleId, invoiceNumber, nowIso, finalMethod, effectivePaid, effectiveStatus, debtToAdd);
     } catch (err) {
+      console.warn('[PoS] Checkout failed:', err);
       Alert.alert(t('common.error'), `${t('pos.savingFailed')}: ${err instanceof Error ? err.message : 'Error'}`);
+    } finally {
       setCheckoutLoading(false);
     }
   };
@@ -1152,7 +1153,12 @@ export const POSScreen = ({ route, navigation }: any) => {
     debtToAdd: number
   ) => {
     try {
-      // 1. Create main Sale record
+      // 1. Calculate customer ledger balance at time of sale
+      const formerBal = selectedCustomer ? Number(selectedCustomer.balance || 0) : 0;
+      const paidAmt = finalMethod === 'credit' ? 0 : effectivePaid;
+      const newBal = formerBal + total - paidAmt;
+
+      // 2. Create main Sale record
       const mappedItems = cart.map((c) => ({
         productId: c.productId,
         name: c.name,
@@ -1186,8 +1192,20 @@ export const POSScreen = ({ route, navigation }: any) => {
         customer_id: selectedCustomer?.id || '',
         customerName: selectedCustomer?.name || t('pos.guestCustomer'),
         customer_name: selectedCustomer?.name || t('pos.guestCustomer'),
+        customer_phone: selectedCustomer?.phone || '',
+        customer_address: (selectedCustomer as any)?.address || '',
+        customer_rc: (selectedCustomer as any)?.rc || '',
+        customer_nif: (selectedCustomer as any)?.nif || '',
+        customer_nis: (selectedCustomer as any)?.nis || '',
+        customer_art: (selectedCustomer as any)?.art || '',
+        former_balance: formerBal,
+        formerBalance: formerBal,
         amountPaid: effectivePaid,
         amount_paid: effectivePaid,
+        paid_amount: paidAmt,
+        paidAmount: paidAmt,
+        new_balance: newBal,
+        newBalance: newBal,
         status: effectiveStatus,
         soldBy: user?.name || user?.username || 'الكاشير',
         sold_by: user?.name || user?.username || 'الكاشير',
@@ -1384,9 +1402,6 @@ export const POSScreen = ({ route, navigation }: any) => {
       }
 
       // 5. Print invoice safely without blocking checkout completion
-      const formerBal = selectedCustomer ? (selectedCustomer.balance || 0) : 0;
-      const paidAmt = finalMethod === 'credit' ? 0 : effectivePaid;
-      const newBal = formerBal + total - paidAmt;
       const docType: DocTypeKey =
         saleMode === 'wholesale'
           ? 'wholesale-invoice'

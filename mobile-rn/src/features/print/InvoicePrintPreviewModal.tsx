@@ -21,6 +21,7 @@ import {
 } from 'lucide-react-native';
 import { db, ensureInit } from '@/lib/db';
 import { printInvoice, type PrintInvoiceData } from '@/lib/print';
+import { getStoreSettings, type StoreSettings } from '@/lib/settingService';
 import {
   getTemplateById,
   getDefaultTemplate,
@@ -89,6 +90,7 @@ export const InvoicePrintPreviewModal = ({
   const [printing, setPrinting] = useState(false);
   const [copies, setCopies] = useState(1);
   const [selectedLang, setSelectedLang] = useState<TemplateLanguage>('ar');
+  const [settings, setSettings] = useState<StoreSettings | null>(null);
 
   useEffect(() => {
     if (visible) {
@@ -100,6 +102,14 @@ export const InvoicePrintPreviewModal = ({
     setLoading(true);
     try {
       await ensureInit();
+
+      // 0. Fetch store settings
+      try {
+        const s = await getStoreSettings(false);
+        if (s) setSettings(s);
+      } catch (e) {
+        console.warn('[InvoicePreview] Settings fetch error:', e);
+      }
 
       // 1. Resolve template
       let tpl: PrintTemplate | undefined;
@@ -177,6 +187,35 @@ export const InvoicePrintPreviewModal = ({
             }
           }
 
+          let cust: any = null;
+          const custId = sale.customerId || (sale as any).customer_id;
+          if (custId) {
+            try {
+              cust = await db.customers.get(custId);
+            } catch (e) {
+              console.warn('[InvoicePreview] Customer lookup error:', e);
+            }
+          }
+
+          const formerBal = Number(
+            (sale as any)?.formerBalance ??
+            (sale as any)?.former_balance ??
+            cust?.balance ??
+            0
+          );
+          const paidAmt = Number(
+            (sale as any)?.paidAmount ??
+            (sale as any)?.paid_amount ??
+            (sale as any)?.amountPaid ??
+            (sale as any)?.amount_paid ??
+            (sale?.paymentMethod === 'credit' || (sale as any)?.payment_method === 'credit' ? 0 : sale?.total || 0)
+          );
+          const newBal = Number(
+            (sale as any)?.newBalance ??
+            (sale as any)?.new_balance ??
+            (formerBal + (sale?.total || 0) - paidAmt)
+          );
+
           setData({
             id: sale.id,
             number: sale.number || 'INV-0001',
@@ -192,7 +231,16 @@ export const InvoicePrintPreviewModal = ({
             tvaAmount: Number(sale.tvaAmount || sale.tva_amount || 0),
             total: Number(sale.total || 0),
             paymentMethod: sale.paymentMethod || sale.payment_method || 'cash',
-            customerName: sale.customerName || sale.customer_name || 'زبون عام',
+            customerName: sale.customerName || sale.customer_name || cust?.name || 'زبون عام',
+            customerPhone: (sale as any)?.customer_phone || cust?.phone || '',
+            customerAddress: (sale as any)?.customer_address || (cust as any)?.address || '',
+            customerRc: (sale as any)?.customer_rc || (cust as any)?.rc || '',
+            customerNif: (sale as any)?.customer_nif || (cust as any)?.nif || '',
+            customerNis: (sale as any)?.customer_nis || (cust as any)?.nis || '',
+            customerArt: (sale as any)?.customer_art || (cust as any)?.art || '',
+            formerBalance: formerBal,
+            paidAmount: paidAmt,
+            newBalance: newBal,
             soldBy: sale.soldBy || sale.sold_by || 'الكاشير',
             docType: sampleDocType,
           });
@@ -262,6 +310,10 @@ export const InvoicePrintPreviewModal = ({
     const formattedDate = formatDate(rawDate, selectedLang);
     const localizedPayment = getLocalizedPaymentMethod(data?.paymentMethod || 'cash', selectedLang);
 
+    const formerBalStr = formatCurrency(data?.formerBalance || 0, selectedLang);
+    const paidAmtStr = formatCurrency(data?.paidAmount || 0, selectedLang);
+    const newBalStr = formatCurrency(data?.newBalance || 0, selectedLang);
+
     return {
       invoice: {
         ...(data || {}),
@@ -269,17 +321,29 @@ export const InvoicePrintPreviewModal = ({
         paymentMethod: localizedPayment,
         totalFormatted: formatCurrency(data?.total || 0, selectedLang),
         subtotalFormatted: formatCurrency(data?.subtotal || 0, selectedLang),
+        formerBalance: formerBalStr,
+        paidAmount: paidAmtStr,
+        newBalance: newBalStr,
+        customerRc: data?.customerRc || '',
+        customerNif: data?.customerNif || '',
+        customerNis: data?.customerNis || '',
+        customerArt: data?.customerArt || '',
       },
       shopLegal: {
-        name: 'AN POS - متجر المستقبل',
-        phone: '0550 00 00 00',
-        address: selectedLang === 'fr' ? 'Alger, Algérie' : selectedLang === 'en' ? 'Algiers, Algeria' : 'الجزائر العاصمة',
-        footer: currentDict.defaultFooter,
-        nif: '001616012345678',
+        name: settings?.shop_name || settings?.store_name || 'AN POS - متجر المستقبل',
+        phone: settings?.phone || settings?.store_phone || '0550 00 00 00',
+        address: settings?.address || settings?.store_address || (selectedLang === 'fr' ? 'Alger, Algérie' : selectedLang === 'en' ? 'Algiers, Algeria' : 'الجزائر العاصمة'),
+        footer: settings?.receipt_footer || currentDict.defaultFooter,
+        rc: settings?.commercial_register || settings?.company_rc || '16/00-1234567B19',
+        nif: settings?.tax_number || settings?.company_nif || '001916012345678',
+        nis: settings?.company_ai || '199016010012345',
+        art: settings?.tax_article || settings?.company_art || '16012345678',
+        commercialRegister: settings?.commercial_register || settings?.company_rc || '16/00-1234567B19',
+        ai: settings?.company_ai || settings?.tax_article || '199016010012345',
       },
       user: { name: data?.soldBy || (selectedLang === 'fr' ? 'Caissier' : 'الكاشير') },
     };
-  }, [data, selectedLang, currentDict]);
+  }, [data, selectedLang, currentDict, settings]);
 
   const dynamicStyles = React.useMemo(
     () => makeStyles(colors, isDark, selectedLang),

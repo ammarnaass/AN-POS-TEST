@@ -13,6 +13,7 @@ export const STORAGE_KEYS = {
   LAST_DISCOVERED_PORT: 'anpos_last_discovered_port',
   PAIRED_DEVICE: 'anpos_paired_device',
   KNOWN_DEVICES: 'anpos_known_devices',
+  STANDALONE_DEVICE_PREFIX: 'anpos_device_prefix',
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];

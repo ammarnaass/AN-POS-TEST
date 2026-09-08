@@ -46,6 +46,7 @@ export const InvoiceDetailScreen = ({ route, navigation }: any) => {
   const styles = useMemo(() => makeStyles(colors, isDark), [colors, isDark]);
 
   const [sale, setSale] = useState<Sale | null>(initialSale || null);
+  const [customer, setCustomer] = useState<any | null>(null);
   const [dbItems, setDbItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(!initialSale);
   const [printing, setPrinting] = useState(false);
@@ -66,6 +67,15 @@ export const InvoiceDetailScreen = ({ route, navigation }: any) => {
         const found = await db.sales.get(targetId);
         if (found) {
           setSale(found);
+          const custId = found.customerId || (found as any).customer_id;
+          if (custId) {
+            try {
+              const cust = await db.customers.get(custId);
+              if (cust) setCustomer(cust);
+            } catch (e) {
+              console.warn('Customer lookup error:', e);
+            }
+          }
         }
         // Also fetch from sale_items
         try {
@@ -116,6 +126,32 @@ function parseSaleItems(raw: unknown): any[] {
   const items: any[] = rawItems.length > 0 ? rawItems : parsedDbItems;
   const localeStr = language === 'ar' ? 'ar-DZ' : language === 'fr' ? 'fr-FR' : 'en-US';
 
+  const formerBal = Number(
+    (sale as any)?.formerBalance ??
+    (sale as any)?.former_balance ??
+    customer?.balance ??
+    0
+  );
+  const paidAmt = Number(
+    (sale as any)?.paidAmount ??
+    (sale as any)?.paid_amount ??
+    (sale as any)?.amountPaid ??
+    (sale as any)?.amount_paid ??
+    (sale?.paymentMethod === 'credit' || (sale as any)?.payment_method === 'credit' ? 0 : sale?.total || 0)
+  );
+  const newBal = Number(
+    (sale as any)?.newBalance ??
+    (sale as any)?.new_balance ??
+    (formerBal + (sale?.total || 0) - paidAmt)
+  );
+
+  const customerRc = (sale as any)?.customer_rc || (sale as any)?.customerRc || customer?.rc || '';
+  const customerNif = (sale as any)?.customer_nif || (sale as any)?.customerNif || customer?.nif || '';
+  const customerNis = (sale as any)?.customer_nis || (sale as any)?.customerNis || customer?.nis || '';
+  const customerArt = (sale as any)?.customer_art || (sale as any)?.customerArt || customer?.art || '';
+  const customerPhone = (sale as any)?.customer_phone || (sale as any)?.customerPhone || customer?.phone || '';
+  const customerAddress = (sale as any)?.customer_address || (sale as any)?.customerAddress || customer?.address || '';
+
   const invoicePrintData: PrintInvoiceData | null = sale
     ? {
         id: sale.id,
@@ -132,9 +168,18 @@ function parseSaleItems(raw: unknown): any[] {
         tvaAmount: Number(sale.tvaAmount || (sale as any).tva_amount || 0),
         total: Number(sale.total || 0),
         paymentMethod: sale.paymentMethod === 'credit' || (sale as any).payment_method === 'credit' ? t('pos.credit') : t('pos.cash'),
-        customerName: sale.customerName || (sale as any).customer_name || '',
+        customerName: sale.customerName || (sale as any).customer_name || customer?.name || '',
+        customerPhone,
+        customerAddress,
+        customerRc,
+        customerNif,
+        customerNis,
+        customerArt,
+        formerBalance: formerBal,
+        paidAmount: paidAmt,
+        newBalance: newBal,
         soldBy: sale.soldBy || (sale as any).sold_by || '',
-        docType: (sale.docType as any) || 'sale-invoice',
+        docType: (sale.docType as any) || (sale.number?.startsWith('MOB-WS') ? 'wholesale-invoice' : 'sale-invoice'),
       }
     : null;
 
@@ -162,7 +207,12 @@ function parseSaleItems(raw: unknown): any[] {
     try {
       let text = `🧾 *${t('pos.invoice')}: ${sale.number}*\n`;
       text += `📅 ${t('sales.invoiceDate')}: ${new Date(sale.date || '').toLocaleDateString(localeStr)}\n`;
-      if (sale.customerName) text += `👤 ${t('pos.customer')}: ${sale.customerName}\n`;
+      const custName = sale.customerName || (sale as any).customer_name || customer?.name;
+      if (custName) text += `👤 ${t('pos.customer')}: ${custName}\n`;
+      if (customerPhone) text += `📞 ${customerPhone}\n`;
+      if (customerRc || customerNif) {
+        text += `📋 RC: ${customerRc || '-'} | NIF: ${customerNif || '-'}\n`;
+      }
       text += `--------------------------\n`;
       items.forEach((item, idx) => {
         text += `${idx + 1}. ${item.name} (${item.qty} × ${(item.unitPrice || 0).toLocaleString(localeStr)} ${currency}) = ${((item.qty || 1) * (item.unitPrice || 0)).toLocaleString(localeStr)} ${currency}\n`;
@@ -171,6 +221,15 @@ function parseSaleItems(raw: unknown): any[] {
       if (sale.discount > 0) text += `${t('common.discount')}: ${(sale.discount || 0).toLocaleString(localeStr)} ${currency}\n`;
       text += `💰 *${t('common.total')}: ${(sale.total || 0).toLocaleString(localeStr)} ${currency}*\n`;
       text += `${t('pos.paymentMethod')}: ${sale.paymentMethod === 'credit' ? t('pos.credit') : t('pos.cash')}\n`;
+
+      if (custName && (formerBal !== 0 || paidAmt > 0 || newBal !== 0)) {
+        text += `--------------------------\n`;
+        text += `📊 *كشف حساب ووضعية الزبون:*\n`;
+        text += `◄ الرصيد السابق (Ancien Solde): ${formerBal.toLocaleString(localeStr)} ${currency}\n`;
+        text += `◄ قيمة الفاتورة الحالية: ${(sale.total || 0).toLocaleString(localeStr)} ${currency}\n`;
+        text += `◄ المبلغ المدفوع (Montant Versé): ${paidAmt.toLocaleString(localeStr)} ${currency}\n`;
+        text += `◄ الرصيد المتبقي الجديد (Nouveau Solde): ${newBal.toLocaleString(localeStr)} ${currency}\n`;
+      }
 
       await Share.share({ message: text });
     } catch {
@@ -372,6 +431,84 @@ function parseSaleItems(raw: unknown): any[] {
             <Text style={styles.summaryTotalLabel}>{t('common.total')}</Text>
           </View>
         </Card>
+
+        {/* Customer Financial Statement & Fiscal Details (Wholesale Parity) */}
+        {(sale.customerName || customer) && (
+          <>
+            <Text style={[styles.sectionHeading, { textAlign }]}>
+              {language === 'fr' ? 'Situation Financière du Client' : 'كشف الحساب والوضعية المالية للزبون'}
+            </Text>
+            <Card style={styles.card}>
+              <View style={[styles.summaryRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <Text style={styles.summaryValue}>
+                  {formerBal.toLocaleString(localeStr)} {currency}
+                </Text>
+                <Text style={styles.summaryLabel}>
+                  {language === 'fr' ? 'Ancien Solde' : 'الرصيد السابق (Ancien Solde)'}
+                </Text>
+              </View>
+
+              <View style={[styles.summaryRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <Text style={styles.summaryValue}>
+                  {(sale.total || 0).toLocaleString(localeStr)} {currency}
+                </Text>
+                <Text style={styles.summaryLabel}>
+                  {language === 'fr' ? 'Montant de la Facture' : 'قيمة هذه الفاتورة'}
+                </Text>
+              </View>
+
+              <View style={[styles.summaryRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <Text style={[styles.summaryValue, { color: colors.emerald[600] }]}>
+                  {paidAmt.toLocaleString(localeStr)} {currency}
+                </Text>
+                <Text style={styles.summaryLabel}>
+                  {language === 'fr' ? 'Montant Versé' : 'المبلغ المدفوع (Montant Versé)'}
+                </Text>
+              </View>
+
+              <View style={[styles.summaryRow, styles.summaryTotalRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <Text style={[styles.summaryTotalValue, { color: newBal > 0 ? colors.danger.main : colors.primary[600] }]}>
+                  {newBal.toLocaleString(localeStr)} {currency}
+                </Text>
+                <Text style={styles.summaryTotalLabel}>
+                  {language === 'fr' ? 'Nouveau Solde' : 'الرصيد المتبقي الجديد (Nouveau Solde)'}
+                </Text>
+              </View>
+
+              {(customerRc || customerNif || customerNis || customerArt) && (
+                <>
+                  <View style={styles.divider} />
+                  <View style={[styles.fiscalBadgeRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                    {Boolean(customerRc) && (
+                      <View style={styles.fiscalBadge}>
+                        <Text style={styles.fiscalBadgeLabel}>RC:</Text>
+                        <Text style={styles.fiscalBadgeVal}>{customerRc}</Text>
+                      </View>
+                    )}
+                    {Boolean(customerNif) && (
+                      <View style={styles.fiscalBadge}>
+                        <Text style={styles.fiscalBadgeLabel}>NIF:</Text>
+                        <Text style={styles.fiscalBadgeVal}>{customerNif}</Text>
+                      </View>
+                    )}
+                    {Boolean(customerNis) && (
+                      <View style={styles.fiscalBadge}>
+                        <Text style={styles.fiscalBadgeLabel}>NIS:</Text>
+                        <Text style={styles.fiscalBadgeVal}>{customerNis}</Text>
+                      </View>
+                    )}
+                    {Boolean(customerArt) && (
+                      <View style={styles.fiscalBadge}>
+                        <Text style={styles.fiscalBadgeLabel}>ART:</Text>
+                        <Text style={styles.fiscalBadgeVal}>{customerArt}</Text>
+                      </View>
+                    )}
+                  </View>
+                </>
+              )}
+            </Card>
+          </>
+        )}
 
         {/* Return Button if not already return */}
         {!isReturn && (
@@ -666,6 +803,33 @@ const makeStyles = (colors: any, isDark: boolean) =>
     returnBtn: {
       borderColor: colors.danger.main,
       marginTop: spacing.xs,
+    },
+    fiscalBadgeRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 6,
+      marginTop: spacing.xs,
+    },
+    fiscalBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: isDark ? '#1e293b' : '#f1f5f9',
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: radii.sm,
+      gap: 4,
+    },
+    fiscalBadgeLabel: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.text.secondary,
+      fontFamily: 'Cairo',
+    },
+    fiscalBadgeVal: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: colors.text.primary,
+      fontFamily: 'Cairo',
     },
   });
 
