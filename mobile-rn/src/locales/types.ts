@@ -68,6 +68,7 @@ export interface TranslationSchema {
     upload: string;
     completed: string;
     syncing: string;
+    connectedTo: string;
   };
   nav: {
     dashboard: string;
@@ -229,6 +230,17 @@ export interface TranslationSchema {
     changeDesktop: string;
     unpair: string;
     singleDeviceFound: string;
+    pairedDevice: string;
+    deviceOnline: string;
+    deviceOffline: string;
+    deviceUnauthorized: string;
+    lastSeen: string;
+    continue: string;
+    unpairConfirm: string;
+    previouslyPaired: string;
+    reconnect: string;
+    knownDevices: string;
+    pingNow: string;
   };
   pos: {
     posTitle: string;

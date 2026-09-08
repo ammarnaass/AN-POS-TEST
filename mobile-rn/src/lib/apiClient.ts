@@ -2,7 +2,7 @@ import { AnposSecureStore } from '@/modules/AnposSecureStore';
 import type { User, Product, Sale, Customer, Supplier, CashSession, Promotion, Category, CartItem } from '@shared/types';
 import { db as unifiedDB } from '@/infrastructure/database/UnifiedDB';
 import { STORAGE_KEYS } from './storageKeys';
-import { savePairedDevice, removePairedDevice, type PairedDevice } from './pairedDeviceStore';
+import { savePairedDevice, removePairedDevice, updateLastSeen, type PairedDevice } from './pairedDeviceStore';
 import { rememberServerUrl } from './discovery';
 
 /**
@@ -56,6 +56,27 @@ async function clearSession(): Promise<void> {
     AnposSecureStore.remove(STORAGE_KEYS.DEVICE_ID),
   ]);
   await removePairedDevice().catch(() => {});
+}
+
+export type SessionInvalidatedListener = (reason?: string) => void;
+const _sessionInvalidatedListeners: SessionInvalidatedListener[] = [];
+
+export function onSessionInvalidated(listener: SessionInvalidatedListener): () => void {
+  _sessionInvalidatedListeners.push(listener);
+  return () => {
+    const idx = _sessionInvalidatedListeners.indexOf(listener);
+    if (idx !== -1) _sessionInvalidatedListeners.splice(idx, 1);
+  };
+}
+
+export function notifySessionInvalidated(reason?: string): void {
+  for (const listener of _sessionInvalidatedListeners) {
+    try {
+      listener(reason);
+    } catch (e) {
+      console.warn('[session] listener error:', e);
+    }
+  }
 }
 
 export async function checkServerHealth(serverUrl: string): Promise<{ ok: boolean; info?: any; error?: string }> {
@@ -126,7 +147,7 @@ export async function apiCall<T>(
 
     if (!res.ok) {
       if (res.status === 401) {
-        await clearSession();
+        await session.invalidate('unauthorized');
       }
       let errMsg = `خطأ من الخادم (${res.status})`;
       try {
@@ -354,6 +375,17 @@ export const session = {
     _cachedToken = null;
     _cachedDeviceId = null;
     await removePairedDevice().catch(() => {});
+  },
+  invalidate: async (reason: string = 'unauthorized') => {
+    await Promise.all([
+      AnposSecureStore.remove(STORAGE_KEYS.SESSION_TOKEN),
+      AnposSecureStore.remove(STORAGE_KEYS.DEVICE_ID),
+      AnposSecureStore.set(STORAGE_KEYS.APP_MODE, 'standalone'),
+    ]);
+    _cachedToken = null;
+    _cachedDeviceId = null;
+    await updateLastSeen('unauthorized').catch(() => {});
+    notifySessionInvalidated(reason);
   },
   isConnected: async () => {
     await refreshSessionCache();

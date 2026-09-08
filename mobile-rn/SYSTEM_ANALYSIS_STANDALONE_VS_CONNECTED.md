@@ -228,3 +228,38 @@ stateDiagram-v2
    - إرسال التغييرات فقط (`Changed fields only`) بدلاً من السجلات الكاملة لتقليل استهلاك بيانات الشبكة.
 3. **محرك حسم النزاعات المتقدم (CRDT / Operational Transformation)**:
    - دعم التعديل المشترك على الفواتير المعلقة والطلبات السريعة دون أي تعارضات بيانية.
+
+---
+
+## 8. إدارة الجلسات واستعادة الحالة الحية (Session & Paired Device Architecture)
+
+تمت إضافة بنية متكاملة وموثوقة لإدارة دورة حياة الجلسات والأجهزة المقترنة:
+
+```mermaid
+graph TD
+    Boot[BootstrapScreen: تشغيل التطبيق] --> InitDB[UnifiedDB.init: تهيئة المحرك]
+    InitDB --> CheckConn{session.isConnected?}
+    
+    CheckConn -->|نعم| CheckMigrate{هل يوجد PairedDevice؟}
+    CheckMigrate -->|لا| AutoMigrate[إنشاء PairedDevice تلقائياً وحفظه]
+    CheckMigrate -->|نعم| CheckUser{هل anpos_user_id موجود؟}
+    AutoMigrate --> CheckUser
+    
+    CheckUser -->|نعم| Restore[authStore.restoreSession]
+    Restore -->|نجاح| Home[Home: شاشة الكاشير الرئيسية]
+    Restore -->|فشل| Login[LoginScreen]
+    CheckUser -->|لا| Login
+    
+    CheckConn -->|لا| CheckMode{وضع standalone؟}
+    CheckMode -->|نعم ولديه مستخدمين| Login
+    CheckMode -->|لا أو جهاز جديد| ModeSelect[ModeSelect: اختيار الوضع]
+```
+
+### 8.1. متجر الأجهزة المقترنة (`pairedDeviceStore`)
+* يحفظ بيانات الجهاز المقترن بالكامل (`deviceId`, `serverUrl`, `ip`, `port`, `shopName`, `version`, `lastStatus`).
+* يحتفظ بآخر 10 أجهزة معروفة في `anpos_known_devices` مع منع التكرار وإمكانية التبديل السريع (`setActiveDevice`).
+
+### 8.2. دورة حياة الحالة الحية (`Live Device Status`)
+* **Online (أخضر)**: الخادم متاح ويستجيب بنجاح، ويتم قياس زمن الاستجابة (Latency بالمللي ثانية).
+* **Offline (رمادي)**: تعذر الوصول إلى الخادم أو انقطاع شبكة Wi-Fi دون تجميد التطبيق.
+* **Unauthorized (برتقالي)**: ورود كود 401 من الخادم؛ يتم استدعاء `session.invalidate` لمسح التوكن وحماية البيانات مع الإبقاء على بيانات الجهاز لإعادة الاقتران بلمسة واحدة.

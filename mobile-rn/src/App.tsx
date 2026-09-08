@@ -14,6 +14,7 @@ import { useThemeStore } from '@/store/themeStore';
 import { useI18nStore } from '@/store/i18nStore';
 
 // Core Screens
+import BootstrapScreen from '@/features/pair/BootstrapScreen';
 import ModeSelectScreen from '@/features/pair/ModeSelectScreen';
 import PairScreen from '@/features/pair/PairScreen';
 import LoginScreen from '@/features/auth/LoginScreen';
@@ -111,13 +112,16 @@ export default function App() {
         />
         <NavigationContainer theme={navTheme}>
           <Stack.Navigator
-            initialRouteName="ModeSelect"
+            initialRouteName="Bootstrap"
             screenOptions={{
               animation: 'slide_from_right',
               headerShown: false,
               contentStyle: { backgroundColor: colors.background },
             }}
           >
+            {/* Bootstrap Splash & Auto-Restore */}
+            <Stack.Screen name="Bootstrap" component={BootstrapScreen} />
+
             {/* Mode Select / Onboarding */}
             <Stack.Screen name="ModeSelect" component={ModeSelectScreen} />
 

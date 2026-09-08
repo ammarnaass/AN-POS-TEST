@@ -15,6 +15,7 @@ const DiscoveryStep = ({ onConnect, onBack }: Props) => {
   const [connectionKey, setConnectionKey] = useState('');
   const [error, setError] = useState('');
   const [progress, setProgress] = useState(0);
+  const [customPort, setCustomPort] = useState('');
 
   const startScan = async () => {
     setStatus('scanning');
@@ -23,9 +24,14 @@ const DiscoveryStep = ({ onConnect, onBack }: Props) => {
     setProgress(0);
 
     try {
-      const results = await detectLocalServer((current, total) => {
-        setProgress(Math.round((current / total) * 100));
-      });
+      const preferredPort = customPort.trim() ? Number(customPort.trim()) : undefined;
+      const results = await detectLocalServer(
+        (current, total) => {
+          setProgress(Math.round((current / total) * 100));
+        },
+        undefined,
+        { preferredPort }
+      );
 
       if (results.length > 0) {
         setDevices(results);
@@ -145,9 +151,24 @@ const DiscoveryStep = ({ onConnect, onBack }: Props) => {
           <AlertCircle size={40} color="#ef4444" style={{ marginBottom: 12 }} />
           <Text style={styles.failedText}>{error || 'فشل البحث'}</Text>
           <Text style={styles.failedHint}>تأكد من أن الحاسوب متصل بنفس الشبكة</Text>
+
+          <View style={{ width: '100%', marginTop: 6, marginBottom: 8 }}>
+            <TextInput
+              style={[styles.keyInput, { letterSpacing: 0, paddingVertical: 8, fontSize: 13, marginBottom: 4 }]}
+              placeholder="منفذ مخصص (اختياري - مثلاً 3000)"
+              value={customPort}
+              onChangeText={setCustomPort}
+              keyboardType="numeric"
+              placeholderTextColor="#94a3b8"
+            />
+            <Text style={[styles.failedHint, { marginBottom: 0, fontSize: 10 }]}>
+              إذا غيّرت منفذ الخادم على الحاسوب أدخله هنا ثم أعد المحاولة
+            </Text>
+          </View>
+
           <TouchableOpacity onPress={startScan} style={styles.retryBtnFull}>
-            <RefreshCw size={16} color="#3b82f6" />
-            <Text style={styles.retryText}>إعادة المحاولة</Text>
+            <RefreshCw size={16} color="#fff" />
+            <Text style={[styles.retryText, { color: '#fff' }]}>إعادة المحاولة</Text>
           </TouchableOpacity>
         </View>
       )}

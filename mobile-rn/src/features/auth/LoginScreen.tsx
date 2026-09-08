@@ -41,6 +41,7 @@ import { session } from '@/lib/apiClient';
 import { useTheme } from '@/theme';
 import { radii, spacing, typography, shadows } from '@/theme/tokens';
 import { LanguageQuickButton } from '@/components/ui';
+import PairedDeviceCard from '@/components/PairedDeviceCard';
 
 type ViewMode = 'login' | 'register';
 
@@ -293,22 +294,13 @@ export const LoginScreen = ({ navigation }: any) => {
 
         {/* Server Status info */}
         {mode === 'connected' ? (
-          <View
-            style={[
-              styles.connectedServerBadge,
-              {
-                backgroundColor: isDark ? 'rgba(30, 58, 138, 0.35)' : '#eff6ff',
-                borderColor: isDark ? '#3b82f6' : '#bfdbfe',
-                flexDirection: isRTL ? 'row-reverse' : 'row',
-                marginTop: 16,
-              },
-            ]}
-          >
-            <View style={styles.connectedGreenDot} />
-            <Text style={[styles.connectedServerText, { color: isDark ? '#93c5fd' : '#1d4ed8' }]}>
-              {t('auth.connectedToPC')} {activeServerUrl ? `(${activeServerUrl.replace(/^https?:\/\//, '')})` : ''}
-            </Text>
-          </View>
+          <PairedDeviceCard
+            compact
+            style={{ marginTop: 16 }}
+            onPressUnpair={() => {
+              setMode('standalone');
+            }}
+          />
         ) : (
           <View
             style={[

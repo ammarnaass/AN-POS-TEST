@@ -43,6 +43,9 @@ import {
 } from 'lucide-react-native';
 import { session, electronAPI, normalizeServerUrl, checkServerHealth } from '@/lib/apiClient';
 import { useAuthStore } from '@/store/authStore';
+import { AnposSecureStore } from '@/modules/AnposSecureStore';
+import { STORAGE_KEYS } from '@/lib/storageKeys';
+import { getPairedDevice, type PairedDevice } from '@/lib/pairedDeviceStore';
 import { AppImages } from '@/assets';
 import {
   detectLocalServer,
@@ -77,6 +80,13 @@ export const PairScreen = ({ navigation, route }: any) => {
   const [devices, setDevices] = useState<DiscoveredDevice[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<DiscoveredDevice | null>(null);
   const [scanProgress, setScanProgress] = useState(0);
+  const [activePairedDevice, setActivePairedDevice] = useState<PairedDevice | null>(null);
+  const [savedConnKey, setSavedConnKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    getPairedDevice().then((d) => setActivePairedDevice(d));
+    AnposSecureStore.get(STORAGE_KEYS.CONNECTION_KEY).then((k) => setSavedConnKey(k));
+  }, []);
 
   // Pairing Confirmation Modal State (PRD §5.4)
   const [pairModalVisible, setPairModalVisible] = useState(false);
@@ -94,8 +104,12 @@ export const PairScreen = ({ navigation, route }: any) => {
 
   // Manual IP State
   const [manualIp, setManualIp] = useState('');
-  const [manualPort, setManualPort] = useState('4321');
+  const [manualPort, setManualPort] = useState(String(DEFAULT_DISCOVERY_PORT));
   const [manualKey, setManualKey] = useState('');
+
+  // Custom Port Override for Auto Discovery
+  const [customDiscoveryPort, setCustomDiscoveryPort] = useState('');
+  const [showCustomPort, setShowCustomPort] = useState(false);
 
   // Cloud State
   const [cloudUrl, setCloudUrl] = useState('https://cloud.anpos.app');
@@ -104,6 +118,17 @@ export const PairScreen = ({ navigation, route }: any) => {
   // Abort controller ref for cleanup
   const abortControllerRef = useRef<AbortController | null>(null);
   const scanTimeoutRef = useRef<any>(null);
+
+  // Load last remembered port on mount
+  useEffect(() => {
+    AnposSecureStore.get(STORAGE_KEYS.LAST_DISCOVERED_PORT)
+      .then((savedPort) => {
+        if (savedPort && Number(savedPort) > 0) {
+          setManualPort(savedPort);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Auto-fill subnet in manual IP mode if empty
   useEffect(() => {
@@ -158,10 +183,15 @@ export const PairScreen = ({ navigation, route }: any) => {
     }, AUTO_DISCOVERY_TIMEOUT_MS);
 
     try {
-      const results = await detectLocalServer((current, total) => {
-        const percent = Math.min(95, Math.round((current / total) * 100));
-        setScanProgress(percent);
-      }, controller.signal);
+      const preferredPort = customDiscoveryPort.trim() ? Number(customDiscoveryPort.trim()) : undefined;
+      const results = await detectLocalServer(
+        (current, total) => {
+          const percent = Math.min(95, Math.round((current / total) * 100));
+          setScanProgress(percent);
+        },
+        controller.signal,
+        { preferredPort }
+      );
 
       if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
 
@@ -199,10 +229,15 @@ export const PairScreen = ({ navigation, route }: any) => {
     setScanProgress(5);
 
     try {
-      const results = await deepManualSubnetScan((current, total) => {
-        const percent = Math.min(98, Math.round((current / total) * 100));
-        setScanProgress(percent);
-      }, controller.signal);
+      const preferredPort = customDiscoveryPort.trim() ? Number(customDiscoveryPort.trim()) : undefined;
+      const results = await deepManualSubnetScan(
+        (current, total) => {
+          const percent = Math.min(98, Math.round((current / total) * 100));
+          setScanProgress(percent);
+        },
+        controller.signal,
+        { preferredPort }
+      );
 
       if (results.length > 0) {
         setScanProgress(100);
@@ -246,14 +281,15 @@ export const PairScreen = ({ navigation, route }: any) => {
   };
 
   // Execute Confirmation / Pairing (PRD §5.4)
-  const handleConfirmPairing = async (overrideCode?: string) => {
-    if (!targetDevice) return;
+  const handleConfirmPairing = async (overrideCode?: string, overrideDevice?: DiscoveredDevice) => {
+    const deviceToUse = overrideDevice ?? targetDevice;
+    if (!deviceToUse) return;
 
     const codeToUse = (overrideCode ?? sixDigitCode).trim();
     setPairModalLoading(true);
     setPairModalError('');
 
-    const serverUrl = `http://${targetDevice.ip}:${targetDevice.port}`;
+    const serverUrl = `http://${deviceToUse.ip}:${deviceToUse.port}`;
     const normalizedUrl = normalizeServerUrl(serverUrl);
 
     try {
@@ -293,16 +329,17 @@ export const PairScreen = ({ navigation, route }: any) => {
       await session.savePairing(token, deviceId, {
         deviceId,
         serverUrl: normalizedUrl,
-        ip: targetDevice.ip,
-        port: targetDevice.port,
-        shopName: targetDevice.shopName,
-        deviceName: targetDevice.deviceName,
-        version: targetDevice.version,
+        ip: deviceToUse.ip,
+        port: deviceToUse.port,
+        shopName: deviceToUse.shopName,
+        deviceName: deviceToUse.deviceName,
+        version: deviceToUse.version,
         mode: normalizedUrl.includes('cloud') ? 'cloud' : 'lan',
         pairedAt: new Date().toISOString(),
         lastSeenAt: new Date().toISOString(),
         lastStatus: 'online',
       });
+      await AnposSecureStore.set(STORAGE_KEYS.CONNECTION_KEY, codeToUse).catch(() => {});
       setPairSuccess(true);
 
       // PRD §5.4: Automatic initial sync start
@@ -637,6 +674,39 @@ export const PairScreen = ({ navigation, route }: any) => {
               </View>
             </View>
 
+            {/* Optional Custom Port Toggle (PRD Dynamic Port) */}
+            <View style={{ marginBottom: 12 }}>
+              <TouchableOpacity
+                onPress={() => setShowCustomPort(!showCustomPort)}
+                style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6, alignSelf: isRTL ? 'flex-end' : 'flex-start', paddingVertical: 4 }}
+                activeOpacity={0.7}
+              >
+                <Code2 size={14} color={colors.primary[500]} />
+                <Text style={{ fontSize: 12, color: colors.primary[500], fontWeight: '600' }}>
+                  {t('pair.specifyPort')}
+                </Text>
+              </TouchableOpacity>
+
+              {showCustomPort && (
+                <View style={{ marginTop: 8, width: '100%', gap: 4 }}>
+                  <View style={[styles.inputContainer, { backgroundColor: inputBg, borderColor, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                    <Code2 size={16} color={colors.text.tertiary} style={styles.inputIcon} />
+                    <TextInput
+                      style={[styles.textInput, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}
+                      placeholder={t('pair.customPortPlaceholder')}
+                      placeholderTextColor={colors.text.tertiary}
+                      value={customDiscoveryPort}
+                      onChangeText={setCustomDiscoveryPort}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  <Text style={{ color: colors.text.tertiary, fontSize: 10, textAlign: isRTL ? 'right' : 'left' }}>
+                    {t('pair.customPortHint')}
+                  </Text>
+                </View>
+              )}
+            </View>
+
             {/* SCANNING STATE */}
             {scanStatus === 'scanning' && (
               <View style={styles.scanningBox}>
@@ -656,51 +726,75 @@ export const PairScreen = ({ navigation, route }: any) => {
             )}
 
             {/* FOUND STATE: Single Device Hero Card (PRD §5.2) */}
-            {scanStatus === 'found' && devices.length === 1 && (
-              <View style={styles.singleDeviceHero}>
-                <View style={[styles.heroBadgeRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                  <View style={styles.heroGreenDot} />
-                  <Text style={styles.heroBadgeText}>{t('pair.singleDeviceFound')}</Text>
-                </View>
-
-                <View style={styles.heroShopInfo}>
-                  <Text style={[styles.heroShopName, { color: colors.text.primary }]}>
-                    {devices[0].shopName || devices[0].deviceName || 'AN POS Desktop'}
-                  </Text>
-                  <View style={[styles.heroMetaRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                    <Text style={[styles.heroMetaText, { color: colors.text.secondary }]}>
-                      IP: {devices[0].ip}:{devices[0].port}
-                    </Text>
-                    <Text style={[styles.heroMetaDot, { color: colors.text.tertiary }]}>•</Text>
-                    <Text style={[styles.heroMetaText, { color: colors.text.secondary }]}>
-                      {devices[0].responseTime}ms
-                    </Text>
-                    <Text style={[styles.heroMetaDot, { color: colors.text.tertiary }]}>•</Text>
-                    <Text style={[styles.heroMetaText, { color: colors.text.secondary }]}>
-                      v{devices[0].version}
-                    </Text>
+            {scanStatus === 'found' && devices.length === 1 && (() => {
+              const isPrevPaired = Boolean(
+                activePairedDevice &&
+                (devices[0].ip === activePairedDevice.ip || activePairedDevice.serverUrl.includes(devices[0].ip))
+              );
+              return (
+                <View style={styles.singleDeviceHero}>
+                  <View style={[styles.heroBadgeRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                    <View style={styles.heroGreenDot} />
+                    <Text style={styles.heroBadgeText}>{t('pair.singleDeviceFound')}</Text>
+                    {isPrevPaired && (
+                      <View style={[styles.prevPairedBadge, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#eff6ff' }]}>
+                        <Text style={[styles.prevPairedBadgeText, { color: isDark ? '#60a5fa' : '#2563eb' }]}>
+                          {t('pair.previouslyPaired')}
+                        </Text>
+                      </View>
+                    )}
                   </View>
+
+                  <View style={styles.heroShopInfo}>
+                    <Text style={[styles.heroShopName, { color: colors.text.primary }]}>
+                      {devices[0].shopName || devices[0].deviceName || 'AN POS Desktop'}
+                    </Text>
+                    <View style={[styles.heroMetaRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                      <Text style={[styles.heroMetaText, { color: colors.text.secondary }]}>
+                        IP: {devices[0].ip}:{devices[0].port}
+                      </Text>
+                      <Text style={[styles.heroMetaDot, { color: colors.text.tertiary }]}>•</Text>
+                      <Text style={[styles.heroMetaText, { color: colors.text.secondary }]}>
+                        {devices[0].responseTime}ms
+                      </Text>
+                      <Text style={[styles.heroMetaDot, { color: colors.text.tertiary }]}>•</Text>
+                      <Text style={[styles.heroMetaText, { color: colors.text.secondary }]}>
+                        v{devices[0].version}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {isPrevPaired && savedConnKey ? (
+                    <TouchableOpacity
+                      style={[styles.primaryPairHeroBtn, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
+                      onPress={() => handleConfirmPairing(savedConnKey, devices[0])}
+                      activeOpacity={0.88}
+                    >
+                      <Sparkles size={18} color="#ffffff" />
+                      <Text style={styles.primaryPairHeroBtnText}>{t('pair.reconnect')}</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      style={[styles.primaryPairHeroBtn, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
+                      onPress={() => handleOpenPairModal(devices[0])}
+                      activeOpacity={0.88}
+                    >
+                      <Sparkles size={18} color="#ffffff" />
+                      <Text style={styles.primaryPairHeroBtnText}>{t('pair.pairWithDevice')}</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  <TouchableOpacity
+                    onPress={startAutoScan}
+                    style={[styles.retryRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
+                    activeOpacity={0.7}
+                  >
+                    <RefreshCw size={14} color="#3b82f6" />
+                    <Text style={styles.retryText}>{t('pair.retry')}</Text>
+                  </TouchableOpacity>
                 </View>
-
-                <TouchableOpacity
-                  style={[styles.primaryPairHeroBtn, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
-                  onPress={() => handleOpenPairModal(devices[0])}
-                  activeOpacity={0.88}
-                >
-                  <Sparkles size={18} color="#ffffff" />
-                  <Text style={styles.primaryPairHeroBtnText}>{t('pair.pairWithDevice')}</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={startAutoScan}
-                  style={[styles.retryRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
-                  activeOpacity={0.7}
-                >
-                  <RefreshCw size={14} color="#3b82f6" />
-                  <Text style={styles.retryText}>{t('pair.retry')}</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+              );
+            })()}
 
             {/* FOUND STATE: Multiple Devices List (PRD §5.2) */}
             {scanStatus === 'found' && devices.length > 1 && (
@@ -708,34 +802,57 @@ export const PairScreen = ({ navigation, route }: any) => {
                 <Text style={[styles.foundCountText, { color: colors.text.secondary, textAlign: isRTL ? 'right' : 'left' }]}>
                   {t('pair.foundDevices')} ({devices.length}):
                 </Text>
-                {devices.map((device, i) => (
-                  <View
-                    key={i}
-                    style={[
-                      styles.deviceCardMulti,
-                      { backgroundColor: inputBg, borderColor, flexDirection: isRTL ? 'row-reverse' : 'row' },
-                    ]}
-                  >
-                    <View style={styles.deviceIconBox}>
-                      <Store size={20} color="#3b82f6" />
-                    </View>
-                    <View style={{ flex: 1, alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
-                      <Text style={[styles.deviceName, { color: colors.text.primary }]}>
-                        {device.shopName || device.deviceName || 'AN POS Desktop'}
-                      </Text>
-                      <Text style={[styles.deviceIp, { color: colors.text.tertiary }]}>
-                        {device.ip}:{device.port} • {device.responseTime}ms
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      style={styles.connectSmallBtn}
-                      onPress={() => handleOpenPairModal(device)}
-                      activeOpacity={0.8}
+                {devices.map((device, i) => {
+                  const isPrevPaired = Boolean(
+                    activePairedDevice &&
+                    (device.ip === activePairedDevice.ip || activePairedDevice.serverUrl.includes(device.ip))
+                  );
+                  return (
+                    <View
+                      key={i}
+                      style={[
+                        styles.deviceCardMulti,
+                        { backgroundColor: inputBg, borderColor, flexDirection: isRTL ? 'row-reverse' : 'row' },
+                      ]}
                     >
-                      <Text style={styles.connectSmallBtnText}>{t('pair.connect')}</Text>
-                    </TouchableOpacity>
-                  </View>
-                ))}
+                      <View style={styles.deviceIconBox}>
+                        <Store size={20} color="#3b82f6" />
+                      </View>
+                      <View style={{ flex: 1, alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
+                        <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }}>
+                          <Text style={[styles.deviceName, { color: colors.text.primary }]}>
+                            {device.shopName || device.deviceName || 'AN POS Desktop'}
+                          </Text>
+                          {isPrevPaired && (
+                            <View style={[styles.prevPairedBadge, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#eff6ff' }]}>
+                              <Text style={[styles.prevPairedBadgeText, { color: isDark ? '#60a5fa' : '#2563eb' }]}>
+                                {t('pair.previouslyPaired')}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                        <Text style={[styles.deviceIp, { color: colors.text.tertiary }]}>
+                          {device.ip}:{device.port} • {device.responseTime}ms
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.connectSmallBtn}
+                        onPress={() => {
+                          if (isPrevPaired && savedConnKey) {
+                            handleConfirmPairing(savedConnKey, device);
+                          } else {
+                            handleOpenPairModal(device);
+                          }
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.connectSmallBtnText}>
+                          {isPrevPaired && savedConnKey ? t('pair.reconnect') : t('pair.connect')}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
 
                 <TouchableOpacity
                   onPress={startAutoScan}
@@ -1826,6 +1943,18 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontFamily: 'Cairo',
     textAlign: 'center',
+  },
+  prevPairedBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.3)',
+  },
+  prevPairedBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    fontFamily: 'Cairo',
   },
 });
 

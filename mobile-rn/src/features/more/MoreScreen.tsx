@@ -53,7 +53,7 @@ import { useAuthStore } from '@/store/authStore';
 import { session } from '@/lib/apiClient';
 import { db, ensureInit } from '@/lib/db';
 import { useSyncEngine } from '@/lib/syncEngine';
-import { getStoredMode } from '@/infrastructure/database/UnifiedDB';
+import { db as unifiedDB, getStoredMode } from '@/infrastructure/database/UnifiedDB';
 import { useTheme, type ThemeMode } from '@/theme';
 import { useI18n } from '@/store/i18nStore';
 import { radii, spacing, shadows } from '@/theme/tokens';
@@ -65,6 +65,8 @@ import {
   type StoreSettings,
 } from '@/lib/settingService';
 import { AnposCamera } from '@/modules/AnposCamera';
+import PairedDeviceCard from '@/components/PairedDeviceCard';
+import { getKnownDevices, setActiveDevice, type PairedDevice } from '@/lib/pairedDeviceStore';
 
 export const MoreScreen = ({ navigation }: any) => {
   const { user, logout } = useAuthStore();
@@ -82,6 +84,7 @@ export const MoreScreen = ({ navigation }: any) => {
   const [appMode, setAppMode] = useState<'standalone' | 'connected'>('standalone');
   const [serverUrlDisplay, setServerUrlDisplay] = useState<string>('—');
   const [activeShift, setActiveShift] = useState<any>(null);
+  const [knownDevices, setKnownDevices] = useState<PairedDevice[]>([]);
 
   // Store Logo Modal state
   const [logoPickerVisible, setLogoPickerVisible] = useState(false);
@@ -103,6 +106,9 @@ export const MoreScreen = ({ navigation }: any) => {
 
       const url = await session.getServerUrlDisplay();
       setServerUrlDisplay(url || '—');
+
+      const known = await getKnownDevices();
+      setKnownDevices(known);
 
       // Fetch store settings (handles connected desktop fetch + SQLite fallback)
       const st = await getStoreSettings(forceRefresh || smode === 'connected');
@@ -796,6 +802,17 @@ export const MoreScreen = ({ navigation }: any) => {
 
       {/* 8. Connection Status & Sync */}
       <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>{t('settings.systemConfig')}</Text>
+
+      {sync.pairedDevice ? (
+        <PairedDeviceCard
+          device={sync.pairedDevice}
+          showActions
+          onPressUnpair={async () => {
+            await loadSettings(true);
+          }}
+        />
+      ) : null}
+
       <Card style={styles.sectionCard}>
         <View style={styles.statusRow}>
           {appMode === 'connected' ? (
@@ -833,6 +850,58 @@ export const MoreScreen = ({ navigation }: any) => {
           </View>
         )}
       </Card>
+
+      {/* Known Devices Management */}
+      {knownDevices.length > 0 && (
+        <Card style={[styles.sectionCard, { marginTop: spacing.sm }]}>
+          <Text style={[styles.knownDevicesHeader, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
+            {t('pair.knownDevices')} ({knownDevices.length})
+          </Text>
+          {knownDevices.map((dev, idx) => {
+            const isActive = dev.serverUrl === sync.pairedDevice?.serverUrl;
+            return (
+              <View
+                key={idx}
+                style={[
+                  styles.knownDeviceRow,
+                  {
+                    borderTopColor: colors.border.subtle,
+                    borderTopWidth: idx > 0 ? 1 : 0,
+                    flexDirection: isRTL ? 'row-reverse' : 'row',
+                  },
+                ]}
+              >
+                <View style={{ flex: 1, alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
+                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={[styles.knownDevName, { color: colors.text.primary }]}>
+                      {dev.shopName || dev.deviceName || 'AN POS Desktop'}
+                    </Text>
+                    {isActive && (
+                      <Badge variant="emerald" size="xs">{t('settings.connected')}</Badge>
+                    )}
+                  </View>
+                  <Text style={[styles.knownDevIp, { color: colors.text.tertiary }]}>
+                    {dev.ip}:{dev.port} • v{dev.version}
+                  </Text>
+                </View>
+
+                {!isActive ? (
+                  <Button
+                    title={t('pair.continue')}
+                    size="sm"
+                    variant="outline"
+                    onPress={async () => {
+                      await setActiveDevice(dev.serverUrl);
+                      await unifiedDB.switchToConnected(dev.serverUrl);
+                      await loadSettings(true);
+                    }}
+                  />
+                ) : null}
+              </View>
+            );
+          })}
+        </Card>
+      )}
 
       {/* 9. Store Settings */}
       <View style={styles.sectionHeaderRow}>
@@ -1799,6 +1868,27 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     borderWidth: 1.5,
     fontSize: 14,
+    fontFamily: 'Cairo',
+  },
+  knownDevicesHeader: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    fontFamily: 'Cairo',
+    marginBottom: spacing.xs,
+  },
+  knownDeviceRow: {
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.xs,
+    gap: spacing.sm,
+  },
+  knownDevName: {
+    fontSize: 13,
+    fontWeight: '700',
+    fontFamily: 'Cairo',
+  },
+  knownDevIp: {
+    fontSize: 11,
     fontFamily: 'Cairo',
   },
 });

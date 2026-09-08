@@ -28,6 +28,8 @@ import { useI18n } from '@/store/i18nStore';
 import { radii, spacing, shadows } from '@/theme/tokens';
 import { AppImages } from '@/assets';
 import { LanguageQuickButton } from '@/components/ui';
+import PairedDeviceCard from '@/components/PairedDeviceCard';
+import { useSyncEngine } from '@/lib/syncEngine';
 
 interface Props {
   navigation: any;
@@ -36,7 +38,9 @@ interface Props {
 export const ModeSelectScreen = ({ navigation }: Props) => {
   const { isDark, colors } = useTheme();
   const { t, isRTL } = useI18n();
+  const sync = useSyncEngine();
   const [loading, setLoading] = useState(false);
+  const pairedDevice = sync.pairedDevice;
 
   const handleStartStandalone = async () => {
     setLoading(true);
@@ -92,6 +96,26 @@ export const ModeSelectScreen = ({ navigation }: Props) => {
           {t('modeSelect.welcomeSubtitle')}
         </Text>
       </View>
+
+      {/* Paired Device Card (if device is paired) */}
+      {pairedDevice ? (
+        <View style={styles.pairedSection}>
+          <Text style={[styles.sectionHeaderTitle, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
+            {t('pair.pairedDevice')}
+          </Text>
+          <PairedDeviceCard
+            device={pairedDevice}
+            onPressContinue={async () => {
+              if (pairedDevice.lastStatus !== 'unauthorized') {
+                await unifiedDB.switchToConnected(pairedDevice.serverUrl);
+                navigation.replace('Login');
+              } else {
+                navigation.navigate('Pair', { initialTab: 'discover' });
+              }
+            }}
+          />
+        </View>
+      ) : null}
 
       {/* Hero Card: Standalone Mode (الوضع المستقل) */}
       <View style={styles.heroCard}>
@@ -452,6 +476,15 @@ const styles = StyleSheet.create({
     fontFamily: 'Cairo',
     textAlign: 'center',
     marginTop: 4,
+  },
+  pairedSection: {
+    marginBottom: 16,
+  },
+  sectionHeaderTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    fontFamily: 'Cairo',
+    marginBottom: 8,
   },
 });
 

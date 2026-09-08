@@ -1,9 +1,10 @@
 import { AppState, type AppStateStatus } from 'react-native';
 import { db, ensureInit } from '@/lib/db';
 import { db as unifiedDB } from '@/infrastructure/database/UnifiedDB';
-import { session, checkServerHealth } from '@/lib/apiClient';
+import { session, checkServerHealth, onSessionInvalidated } from '@/lib/apiClient';
 import { generateId } from '@shared/utils';
 import { AnposSecureStore } from '@/modules/AnposSecureStore';
+import { getPairedDevice, updateLastSeen, type PairedDevice } from './pairedDeviceStore';
 
 export interface SyncOperation {
   id: string;
@@ -26,6 +27,9 @@ export interface SyncState {
   failedCount: number;
   lastSyncTime: string | null;
   connectionMode: 'standalone' | 'connected';
+  pairedDevice: PairedDevice | null;
+  lastSeenAt: string | null;
+  latencyMs: number | null;
 }
 
 export interface FullSyncResult {
@@ -91,6 +95,9 @@ class SyncEngine {
   private retryBackoffMs = 5000;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private initialized = false;
+  private cachedPairedDevice: PairedDevice | null = null;
+  private lastLatencyMs: number | null = null;
+  private lastStandaloneCheck = 0;
 
   constructor() {
     this.initEngine();
@@ -102,9 +109,13 @@ class SyncEngine {
       await this.migrateLegacyQueue();
       await this.loadLastSyncTime();
       await this.refreshQueueCounts();
+      this.cachedPairedDevice = await getPairedDevice();
       this.startPeriodicSync();
       this.startHealthCheck();
       this.listenToAppState();
+      onSessionInvalidated(() => {
+        this.notifyListeners();
+      });
       this.initialized = true;
       this.notifyListeners();
     } catch (err) {
@@ -194,6 +205,9 @@ class SyncEngine {
       failedCount: this.cachedFailedCount,
       lastSyncTime: this.lastSyncTime,
       connectionMode: session.isConnectedSync() ? 'connected' : 'standalone',
+      pairedDevice: this.cachedPairedDevice,
+      lastSeenAt: this.cachedPairedDevice?.lastSeenAt || null,
+      latencyMs: this.lastLatencyMs,
     };
   }
 
@@ -219,28 +233,66 @@ class SyncEngine {
   private startHealthCheck(): void {
     if (this.healthInterval) clearInterval(this.healthInterval);
     this.healthInterval = setInterval(async () => {
-      if (!session.isConnectedSync()) return;
-      await this.checkConnectivityAndSync();
+      if (AppState.currentState !== 'active') return;
+
+      const isConnected = session.isConnectedSync();
+      if (isConnected) {
+        await this.checkConnectivityAndSync();
+      } else {
+        const now = Date.now();
+        if (now - this.lastStandaloneCheck >= 28000) {
+          this.lastStandaloneCheck = now;
+          const paired = await getPairedDevice();
+          if (paired) {
+            await this.checkConnectivityAndSync();
+          }
+        }
+      }
     }, 15000);
   }
 
   private async checkConnectivityAndSync(): Promise<void> {
-    if (!session.isConnectedSync()) return;
-    const url = await session.getServerUrl();
-    if (!url) return;
+    const isConnected = session.isConnectedSync();
+    let paired = await getPairedDevice();
+    this.cachedPairedDevice = paired;
 
+    const url = isConnected ? await session.getServerUrl() : paired?.serverUrl;
+    if (!url) {
+      this.notifyListeners();
+      return;
+    }
+
+    const start = Date.now();
     const health = await checkServerHealth(url);
+    const latency = Date.now() - start;
+    this.lastLatencyMs = health.ok ? latency : null;
+
     const prevOnline = this.isOnline;
     this.isOnline = health.ok;
 
-    // إذا استعاد التطبيق الاتصال بالإنترنت وكان هناك عمليات معلقة، نفذ تفريغ فوري للطابور
-    if (!prevOnline && this.isOnline) {
+    if (health.ok) {
+      await updateLastSeen('online', health.info ? {
+        shopName: health.info.shopName || paired?.shopName,
+        version: health.info.version || paired?.version,
+        deviceName: health.info.deviceName || paired?.deviceName,
+      } : undefined);
+    } else {
+      await updateLastSeen('offline');
+    }
+
+    this.cachedPairedDevice = await getPairedDevice();
+
+    if (isConnected && !prevOnline && this.isOnline) {
       console.log('[SyncEngine] 🌐 تم استعادة الاتصال بالخادم — بدء تفريغ الطابور وسحب التحديثات...');
       this.retryBackoffMs = 5000;
       this.processQueue().then(() => this.pullUpdates());
     }
 
     this.notifyListeners();
+  }
+
+  async pingNow(): Promise<void> {
+    await this.checkConnectivityAndSync();
   }
 
   /**
@@ -733,6 +785,7 @@ export function useSyncEngine(): SyncState & {
   fullSync: () => Promise<FullSyncResult>;
   bulkSync: () => Promise<boolean>;
   clearQueue: () => Promise<void>;
+  pingNow: () => Promise<void>;
 } {
   const [state, setState] = useState<SyncState>(syncEngine.getState());
 
@@ -749,5 +802,6 @@ export function useSyncEngine(): SyncState & {
     fullSync: () => syncEngine.fullSync(),
     bulkSync: () => syncEngine.bulkSync(),
     clearQueue: () => syncEngine.clearQueue(),
+    pingNow: () => syncEngine.pingNow(),
   };
 }
