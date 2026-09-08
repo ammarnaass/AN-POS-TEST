@@ -419,7 +419,8 @@ export default function SettingsPage() {
   const [activationInput, setActivationInput] = useState('');
   const [copiedFingerprint, setCopiedFingerprint] = useState(false);
   const [isActivating, setIsActivating] = useState(false);
-  const trial = getTrialState();
+  const isDeveloper = currentUser?.role === 'developer';
+  const trial = getTrialState(currentUser?.role);
   const isLicenseActive = Boolean(licenseStatus?.isLicensed && licenseStatus?.status === 'active');
 
   useEffect(() => {
@@ -1098,7 +1099,7 @@ export default function SettingsPage() {
       title: 'النظام والبيانات',
       items: [
         { id: 'export', label: 'النسخ الاحتياطي والبيانات', icon: HardDrive, badge: undefined },
-        { id: 'activation', label: 'تفعيل الترخيص', icon: Key, badge: isLicenseActive ? 'مفعّل' : trial.isActive ? 'تجريبي' : undefined },
+        { id: 'activation', label: 'تفعيل الترخيص', icon: Key, badge: isDeveloper ? 'مطور' : isLicenseActive ? 'مفعّل' : trial.isActive ? 'تجريبي' : undefined },
         { id: 'updates', label: 'تحديثات النظام', icon: RefreshCw, badge: undefined },
         { id: 'account', label: 'الملف والحساب', icon: UserIcon, badge: undefined },
       ],
@@ -1127,7 +1128,7 @@ export default function SettingsPage() {
 
           <div className="px-3 py-1.5 rounded-xl bg-surface-container-highest border border-outline-variant/20 flex items-center gap-2 text-xs font-semibold text-on-surface">
             <ShieldCheck className="w-4 h-4 text-primary" />
-            <span>{isLicenseActive ? 'النسخة الكاملة' : trial.isActive ? `تجريبي (${trial.remainingDays} يوم)` : 'غير مفعل'}</span>
+            <span>{isDeveloper ? 'وضع المطور (غير محدود)' : isLicenseActive ? 'النسخة الكاملة' : trial.isActive ? `تجريبي (${trial.remainingDays} يوم)` : 'غير مفعل'}</span>
           </div>
         </div>
       </header>
@@ -1220,7 +1221,7 @@ export default function SettingsPage() {
 
         {/* === تفعيل التطبيق (Ed25519 Offline-First) === */}
         {activeTab === 'activation' && (
-          <ActivationTab {...{ activationInput, addNotification, copiedFingerprint, handleActivate, handleCopyFingerprint, handleDeactivate, handleFileUpload, isActivating, licenseStatus, setActivationInput, trial }} />
+          <ActivationTab {...{ activationInput, addNotification, copiedFingerprint, handleActivate, handleCopyFingerprint, handleDeactivate, handleFileUpload, isActivating, isDeveloper, licenseStatus, setActivationInput, trial }} />
         )}
 
         {/* === الاعدادات العامة (مُطورة بتصميم استثنائي وتفاعلي) === */}

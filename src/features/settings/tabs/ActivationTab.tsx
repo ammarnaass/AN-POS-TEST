@@ -3,6 +3,18 @@ import { Upload, Smartphone, RefreshCw, Zap, ShieldCheck, KeyRound, AlertCircle,
 import { formatTrialDate } from '@/services/trialService';
 
 interface ActivationTabProps {
+  activationInput: string;
+  addNotification: (n: any) => void;
+  copiedFingerprint: boolean;
+  handleActivate: () => void;
+  handleCopyFingerprint: () => void;
+  handleDeactivate: () => void;
+  handleFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  isActivating: boolean;
+  isDeveloper?: boolean;
+  licenseStatus: any;
+  setActivationInput: (s: string) => void;
+  trial: any;
   [key: string]: any;
 }
 
@@ -15,6 +27,7 @@ export default function ActivationTab({
   handleDeactivate,
   handleFileUpload,
   isActivating,
+  isDeveloper,
   licenseStatus,
   setActivationInput,
   trial
@@ -25,6 +38,8 @@ export default function ActivationTab({
             <div className={`glass-card rounded-2xl border p-6 transition-all shadow-sm ${
               licenseStatus?.status === 'active'
                 ? 'border-emerald-500/30 bg-gradient-to-br from-emerald-500/5 via-surface to-emerald-500/10'
+                : isDeveloper
+                ? 'border-indigo-500/30 bg-gradient-to-br from-indigo-500/5 via-surface to-indigo-500/10'
                 : licenseStatus?.status === 'expired'
                 ? 'border-rose-500/30 bg-gradient-to-br from-rose-500/5 via-surface to-rose-500/10'
                 : licenseStatus?.status === 'tampered'
@@ -36,6 +51,8 @@ export default function ActivationTab({
                   <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-md ${
                     licenseStatus?.status === 'active'
                       ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                      : isDeveloper
+                      ? 'bg-indigo-500/20 text-indigo-600 dark:text-indigo-400'
                       : licenseStatus?.status === 'expired' || licenseStatus?.status === 'tampered'
                       ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400'
                       : 'bg-primary/20 text-primary'
@@ -50,6 +67,11 @@ export default function ActivationTab({
                           <CheckCircle2 className="w-3.5 h-3.5" />
                           مفعّل ورسمي (Ed25519)
                         </span>
+                      ) : isDeveloper ? (
+                        <span className="px-3 py-1 rounded-full text-xs font-bold bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 flex items-center gap-1.5">
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          حساب مطور (وصول دائم غير محدود)
+                        </span>
                       ) : licenseStatus?.status === 'expired' ? (
                         <span className="px-3 py-1 rounded-full text-xs font-bold bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30 flex items-center gap-1.5">
                           <AlertCircle className="w-3.5 h-3.5" />
@@ -60,7 +82,7 @@ export default function ActivationTab({
                           <AlertCircle className="w-3.5 h-3.5" />
                           المفتاح مربوط بجهاز آخر
                         </span>
-                      ) : trial.isActive ? (
+                      ) : trial?.isActive ? (
                         <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 flex items-center gap-1.5">
                           <Zap className="w-3.5 h-3.5" />
                           فترة تجريبية (متبقي {trial.remainingDays} يوم)
@@ -92,7 +114,7 @@ export default function ActivationTab({
                 <div className="bg-surface-container/60 border border-outline-variant/10 rounded-xl p-4">
                   <p className="text-label-sm text-on-surface-variant mb-1">معرّف المتجر</p>
                   <p className="font-mono text-title-md font-bold text-on-surface">
-                    {licenseStatus?.storeId || '—'}
+                    {licenseStatus?.storeId || (isDeveloper ? 'حساب مطور' : '—')}
                   </p>
                 </div>
 
@@ -103,11 +125,17 @@ export default function ActivationTab({
                       ? 'مدى الحياة (Lifetime)'
                       : licenseStatus?.expiresAt
                       ? new Date(licenseStatus.expiresAt * 1000).toLocaleDateString('ar-EG')
+                      : isDeveloper
+                      ? 'ترخيص مطور (وصول دائم)'
                       : 'فترة تجريبية (7 أيام)'}
                   </p>
                   {licenseStatus?.daysRemaining !== null && licenseStatus?.daysRemaining !== undefined ? (
                     <span className="text-[11px] text-amber-600 font-bold">
                       متبقي {licenseStatus.daysRemaining} يوم
+                    </span>
+                  ) : isDeveloper ? (
+                    <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-bold">
+                      غير خاضع لقيود الفترة التجريبية
                     </span>
                   ) : trial?.isActive ? (
                     <span className="text-[11px] text-amber-600 font-bold">
@@ -121,7 +149,7 @@ export default function ActivationTab({
                   <div className="flex items-center gap-2">
                     <Smartphone className="w-4 h-4 text-primary" />
                     <p className="font-bold text-title-md text-on-surface">
-                      {licenseStatus?.maxMobileDevices ?? 5} أجهزة
+                      {isDeveloper ? 'غير محدود (مطور)' : `${licenseStatus?.maxMobileDevices ?? 5} أجهزة`}
                     </p>
                   </div>
                 </div>
@@ -143,7 +171,24 @@ export default function ActivationTab({
                 </div>
               </div>
 
-              {trial?.isActive && (
+              {isDeveloper && licenseStatus?.status !== 'active' ? (
+                <div className="mt-4 p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/25 flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex items-center gap-2.5">
+                    <ShieldCheck className="w-5 h-5 text-indigo-500 shrink-0" />
+                    <div>
+                      <p className="text-xs font-bold text-on-surface font-cairo">
+                        وضع المطور نشط (Developer Mode)
+                      </p>
+                      <p className="text-[11px] text-on-surface-variant font-tajawal mt-0.5">
+                        أنت مسجل الدخول بحساب مطور مع صلاحيات وصول كاملة ومفتوحة لجميع ميزات النظام وقاعدة البيانات دون التقيد بالفترة التجريبية أو قيود الفواتير.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-xs font-mono font-bold text-indigo-700 dark:text-indigo-300 bg-surface-container px-3 py-1.5 rounded-lg border border-outline-variant/20">
+                    وصول دائم غير محدود
+                  </div>
+                </div>
+              ) : trial?.isActive ? (
                 <div className="mt-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/25 flex flex-wrap items-center justify-between gap-4">
                   <div className="flex items-center gap-2.5">
                     <Zap className="w-5 h-5 text-amber-500 shrink-0" />
@@ -160,7 +205,7 @@ export default function ActivationTab({
                     متبقي: {trial.remainingDays} يوم و {trial.remainingHours} ساعة
                   </div>
                 </div>
-              )}
+              ) : null}
             </div>
 
             {/* بطاقة إدخال المفتاح أو استيراد ملف الترخيص */}
