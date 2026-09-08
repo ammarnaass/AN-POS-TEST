@@ -117,6 +117,7 @@ export async function loginUser(
   execute('UPDATE users SET login_attempts = 0, locked_until = ?, last_login = ?, updated_at = ? WHERE id = ?', ['', now, now, user.id]);
   logActivity(user.id as string, 'login', 'user', user.id as string, 'دخول ناجح');
 
+  activeDesktopUser = { id: user.id as string, username: user.username as string, role: user.role as string };
   return { user: transformUser(user) };
 }
 
@@ -262,6 +263,30 @@ export function checkRegistrationAllowed(): { allowSelfRegistration: boolean; de
   }
 }
 
+let activeDesktopUser: { id: string; username: string; role: string } | null = null;
+
+export function setActiveDesktopUser(user: { id: string; username: string; role: string } | null): void {
+  activeDesktopUser = user;
+}
+
+export function getActiveDesktopUser(): { id: string; username: string; role: string } | null {
+  return activeDesktopUser;
+}
+
+/**
+ * فحص ما إذا كان حساب المطور نشطاً حالياً في النظام
+ */
+export function isDeveloperModeActive(): boolean {
+  if (activeDesktopUser?.role === 'developer') return true;
+  try {
+    const lastUser = queryOne(
+      "SELECT role FROM users WHERE last_login IS NOT NULL ORDER BY last_login DESC LIMIT 1"
+    );
+    if (lastUser && lastUser.role === 'developer') return true;
+  } catch {}
+  return false;
+}
+
 /**
  * جلب المستخدم الحالي عبر user_id
  */
@@ -270,6 +295,7 @@ export async function getCurrentUser(userId: string): Promise<{ user?: ReturnTyp
   if (!user) {
     return { error: { status: 404, detail: 'المستخدم غير موجود' } };
   }
+  activeDesktopUser = { id: user.id as string, username: user.username as string, role: user.role as string };
   return { user: transformUser(user) };
 }
 
@@ -279,6 +305,9 @@ export async function getCurrentUser(userId: string): Promise<{ user?: ReturnTyp
 export async function logoutUser(userId: string): Promise<{ success: boolean }> {
   if (userId) {
     logActivity(userId, 'logout', 'user', userId, 'تسجيل خروج');
+  }
+  if (activeDesktopUser?.id === userId) {
+    activeDesktopUser = null;
   }
   return { success: true };
 }

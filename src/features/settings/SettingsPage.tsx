@@ -545,6 +545,16 @@ export default function SettingsPage() {
           }).catch(() => {});
         }
         saveNet({ lanEnabled: false });
+      } else if (newMode === 'lan' || newMode === 'hybrid') {
+        const api = (window as any).electronAPI?.server;
+        if (api?.enable) {
+          api.enable({ port: netSettings.serverPort }).then((res: any) => {
+            if (res?.success) {
+              setServerStatus((prev) => (prev ? { ...prev, running: true, lanEnabled: true, port: res.port } : null));
+            }
+          }).catch(() => {});
+        }
+        saveNet({ lanEnabled: true });
       }
     }
     settingsMutation.mutate(mirrored);
@@ -611,8 +621,8 @@ export default function SettingsPage() {
       if (serverStatus?.running) {
         await api.disable();
       } else {
-        // فحص شرط وضع التشغيل: يجب ألا يشتغل وضع المقترن مع الهاتف إذا كان الوضع "جهاز واحد"
-        if (settings.syncMode === 'single') {
+        // فحص شرط وضع التشغيل: يجب ألا يشتغل وضع المقترن مع الهاتف إذا كان الوضع "جهاز واحد" (إلا لحساب المطور)
+        if (settings.syncMode === 'single' && !isDeveloper) {
           addNotification({
             title: 'وضع التشغيل غير متوافق',
             message: 'لا يمكن تشغيل خادم الربط أو إقران الهواتف في وضع "جهاز واحد". يرجى تغيير وضع التشغيل أولاً إلى "عدة أجهزة (شبكة محلية LAN)".',
@@ -1256,7 +1266,7 @@ export default function SettingsPage() {
 
         {/* === تطبيق الهاتف المحمول (AN POS Mobile) === */}
         {activeTab === 'mobile' && (
-          <MobileDevicesTab {...{ copiedField, handleCopyText, handleRegenerateKey, mobilePhones, pairingInfo, refetchConnected, serverLoading, serverStatus, toggleServer, settings, handleSaveSettings, saveNet }} />
+          <MobileDevicesTab {...{ copiedField, handleCopyText, handleRegenerateKey, isDeveloper, mobilePhones, pairingInfo, refetchConnected, serverLoading, serverStatus, toggleServer, settings, handleSaveSettings, saveNet }} />
         )}
 
         {/* === التحديثات === */}

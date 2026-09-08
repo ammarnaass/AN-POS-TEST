@@ -11,6 +11,7 @@ import {
   getOrCreateConnectionKey,
 } from '../server';
 import { execute, queryAll, queryOne } from '../handlers/db-utils';
+import { isDeveloperModeActive } from '../handlers/auth';
 
 /**
  * تفعيل/تعطيل خادم HTTP + إعداد network_settings
@@ -20,7 +21,8 @@ export function registerNetworkIpc(): void {
   ipcMain.handle('server:status', async () => {
     const settingsRow = queryOne('SELECT sync_mode FROM settings WHERE id = \'default\' LIMIT 1');
     const syncMode = (settingsRow?.sync_mode as string) || 'single';
-    if (syncMode === 'single' && isHttpServerRunning()) {
+    const isDev = isDeveloperModeActive();
+    if (syncMode === 'single' && !isDev && isHttpServerRunning()) {
       await stopHttpServer();
       execute(
         "UPDATE network_settings SET lan_enabled = 0, updated_at = ? WHERE id = 'default'",
@@ -37,10 +39,11 @@ export function registerNetworkIpc(): void {
 
   // server:enable — فتح الخادم + تحديث lan_enabled = 1
   ipcMain.handle('server:enable', async (_evt, opts?: { port?: number }) => {
-    // شرط وضع التشغيل: يجب ألا يشتغل وضع المقترن مع الهاتف إذا كان الوضع جهاز واحد
+    // شرط وضع التشغيل: يجب ألا يشتغل وضع المقترن مع الهاتف إذا كان الوضع جهاز واحد (إلا لحساب المطور)
     const settingsRow = queryOne('SELECT sync_mode FROM settings WHERE id = \'default\' LIMIT 1');
     const syncMode = (settingsRow?.sync_mode as string) || 'single';
-    if (syncMode === 'single') {
+    const isDev = isDeveloperModeActive();
+    if (syncMode === 'single' && !isDev) {
       return {
         success: false,
         error: 'لا يمكن تشغيل خادم الربط أو إقران الهواتف في وضع "جهاز واحد". يجب تغيير وضع التشغيل أولاً إلى "عدة أجهزة (شبكة محلية LAN)".',
@@ -78,7 +81,7 @@ export function registerNetworkIpc(): void {
   ipcMain.handle('server:pairing-info', async () => {
     const settingsRow = queryOne('SELECT sync_mode FROM settings WHERE id = \'default\' LIMIT 1');
     const syncMode = (settingsRow?.sync_mode as string) || 'single';
-    if (syncMode === 'single') {
+    if (syncMode === 'single' && !isDeveloperModeActive()) {
       return null;
     }
     return getPairingInfo();

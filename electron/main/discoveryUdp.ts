@@ -2,6 +2,7 @@ import dgram from 'node:dgram';
 import os from 'node:os';
 import { getNetworkSettings } from './server/index';
 import { queryOne } from './handlers/db-utils';
+import { isDeveloperModeActive } from './handlers/auth';
 
 export const DISCOVERY_UDP_PORT = 41999; // ثابت للأبد — منفصل عن server_port
 
@@ -27,8 +28,9 @@ export function startDiscoveryListener(): void {
         const settingsRow = queryOne("SELECT shop_name, sync_mode FROM settings WHERE id = 'default'") || {};
         const syncMode = (settingsRow.sync_mode as string) || 'single';
 
-        // لا يتم الرد إذا كانت الشبكة معطلة أو كان وضع التشغيل جهاز واحد
-        if (!lanEnabled || syncMode === 'single') return;
+        const isDev = isDeveloperModeActive();
+        // لا يتم الرد إذا كانت الشبكة معطلة أو كان وضع التشغيل جهاز واحد (إلا إذا كان حساب المطور نشطاً)
+        if ((!lanEnabled && !isDev) || (syncMode === 'single' && !isDev)) return;
 
         const reply = JSON.stringify({
           type: 'anpos-discover-reply',

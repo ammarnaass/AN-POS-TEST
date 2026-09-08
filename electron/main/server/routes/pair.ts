@@ -16,6 +16,7 @@ import {
   execute,
 } from '../../handlers/db-utils';
 import { licenseManager } from '../../license/licenseManager';
+import { isDeveloperModeActive } from '../../handlers/auth';
 
 /**
  * جلسات الأجهزة النشطة — مُحمّلة من قاعدة البيانات.
@@ -28,6 +29,8 @@ const activeSessions = new Map<string, { deviceId: string; userId: string | null
  */
 function loadSessionsFromDB(): void {
   try {
+    execute("UPDATE device_sessions SET expires_at = datetime('now') WHERE expires_at IS NULL AND (last_seen < datetime('now', '-7 days') OR last_seen IS NULL)");
+    activeSessions.clear();
     const rows = queryAll(
       "SELECT session_token, device_id, user_id, paired_at, expires_at FROM device_sessions WHERE expires_at IS NULL OR expires_at > datetime('now')"
     );
@@ -143,12 +146,22 @@ async function pairDevice(
   }
 
   // فحص الحد الأقصى لأجهزة الهاتف المصرح بربطها من الترخيص
-  const maxAllowed = licenseManager.getMaxMobileDevices();
+  const isDev = isDeveloperModeActive();
+  const maxAllowed = isDev ? 999 : licenseManager.getMaxMobileDevices();
+
+  // تنظيف الجلسات القديمة لنفس الجهاز أو المنتهية بعد 24 ساعة بدون نشاط
+  try {
+    execute(
+      "UPDATE device_sessions SET expires_at = datetime('now') WHERE expires_at IS NULL AND (last_seen < datetime('now', '-1 day') OR device_name = ?)",
+      [payload.deviceName]
+    );
+  } catch {}
+
   const currentCountRow = queryOne(
     "SELECT COUNT(DISTINCT device_id) as count FROM device_sessions WHERE expires_at IS NULL OR expires_at > datetime('now')"
   );
   const currentCount = (currentCountRow?.count as number) || activeSessions.size || 0;
-  if (currentCount >= maxAllowed) {
+  if (!isDev && currentCount >= maxAllowed) {
     return {
       error: {
         status: 403,

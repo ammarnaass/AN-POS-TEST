@@ -4,6 +4,7 @@ import { computeHardwareFingerprint, computeHardwareHashInt } from './hardwareFi
 import { parseAndVerifyKey, type ParsedLicense } from './verifyLicense';
 import { loadStoredLicense, saveStoredLicense, removeStoredLicense, type StoredLicenseData } from './licenseStorage';
 import { getStoredTrialStatus, type ElectronTrialStatus } from './trialStorage';
+import { isDeveloperModeActive } from '../handlers/auth';
 
 export type LicenseStateStatus = 'active' | 'trial' | 'expired' | 'tampered' | 'unlicensed';
 
@@ -199,6 +200,9 @@ class LicenseManager {
    * الحد الأقصى لأجهزة الهاتف المصرح بربطها
    */
   public getMaxMobileDevices(): number {
+    if (isDeveloperModeActive()) {
+      return 999;
+    }
     const status = this.getStatus();
     if (status.isLicensed && status.status === 'active') {
       return status.maxMobileDevices;
@@ -210,7 +214,7 @@ class LicenseManager {
    * هل النظام مفعّل ومرخص حالياً؟
    */
   public isLicensed(): boolean {
-    return this.getStatus().status === 'active';
+    return this.getStatus().status === 'active' || isDeveloperModeActive();
   }
 }
 

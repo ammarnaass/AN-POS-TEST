@@ -32,11 +32,12 @@ export default function MobileDevicesTab({
   settings,
   handleSaveSettings,
   saveNet,
+  isDeveloper,
 }: MobileDevicesTabProps) {
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* تنبيه تحذيري عند العمل في وضع جهاز واحد */}
-      {settings?.syncMode === 'single' && (
+      {settings?.syncMode === 'single' && !isDeveloper && (
         <div className="p-4 sm:p-5 rounded-2xl bg-amber-500/10 border-2 border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-in shadow-xs">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0 mt-0.5">
@@ -61,6 +62,27 @@ export default function MobileDevicesTab({
               className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold font-cairo shadow-sm transition-all whitespace-nowrap cursor-pointer shrink-0"
             >
               التبديل إلى وضع عدة أجهزة الآن
+            </button>
+          )}
+        </div>
+      )}
+
+      {isDeveloper && (
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-between gap-3 text-xs shadow-xs animate-fade-in">
+          <div className="flex items-center gap-2.5 text-indigo-700 dark:text-indigo-300 font-bold font-cairo">
+            <ShieldCheck className="w-5 h-5 text-indigo-500 shrink-0" />
+            <span>حساب مطور نشط — إقران هواتف غير محدود، وخادم الربط متاح بدون قيود الترخيص أو الأجهزة.</span>
+          </div>
+          {settings?.syncMode === 'single' && handleSaveSettings && (
+            <button
+              type="button"
+              onClick={() => {
+                handleSaveSettings({ syncMode: 'lan' });
+                if (saveNet) saveNet({ lanEnabled: true });
+              }}
+              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold font-cairo shadow-sm transition-all whitespace-nowrap cursor-pointer shrink-0"
+            >
+              تفعيل شبكة LAN
             </button>
           )}
         </div>

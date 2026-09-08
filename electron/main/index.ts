@@ -9,6 +9,7 @@ import { seedDatabase } from './seed';
 import { registerIpcHandlers } from './ipc/register';
 import { startHttpServer, stopHttpServer, getNetworkSettings, getOrCreateConnectionKey } from './server/index';
 import { queryOne } from './handlers/db-utils';
+import { isDeveloperModeActive } from './handlers/auth';
 
 // إخفاء شريط القوائم الافتراضي بالكامل (File, Edit, View, Window, etc.)
 Menu.setApplicationMenu(null);
@@ -64,7 +65,9 @@ async function createWindow() {
     const settingsRow = queryOne('SELECT sync_mode FROM settings WHERE id = \'default\' LIMIT 1');
     const syncMode = (settingsRow?.sync_mode as string) || 'single';
 
-    if (lanEnabled && syncMode !== 'single') {
+    const isDev = isDeveloperModeActive();
+
+    if ((lanEnabled || isDev) && (syncMode !== 'single' || isDev)) {
       const port = Number(netSettings?.server_port) || 3000;
       // تأكد من وجود مفتاح اتصال (يُولّد تلقائياً عند الحاجة)
       getOrCreateConnectionKey();
