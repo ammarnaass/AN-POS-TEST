@@ -188,6 +188,8 @@ export interface TranslationSchema {
     connecting: string;
     connectSuccess: string;
     connectFailed: string;
+    connectFailedHelp: string;
+    portHelp: string;
     retry: string;
     desktopInstructions: string;
     startScan: string;

@@ -11,7 +11,9 @@ export interface DiscoveredDevice {
   responseTime: number;
 }
 
-const DISCOVERY_PORT = 4321;
+export const DEFAULT_DISCOVERY_PORT = 3000;
+export const FALLBACK_DISCOVERY_PORT = 4321;
+export const DISCOVERY_PORT = DEFAULT_DISCOVERY_PORT;
 const PROBE_TIMEOUT_MS = 650;
 export const AUTO_DISCOVERY_TIMEOUT_MS = 8000;
 
@@ -44,7 +46,7 @@ export async function getCurrentSubnet(): Promise<string> {
 
 export async function probeHost(
   ip: string,
-  port: number = DISCOVERY_PORT,
+  port: number = DEFAULT_DISCOVERY_PORT,
   parentSignal?: AbortSignal
 ): Promise<DiscoveredDevice | null> {
   if (parentSignal?.aborted) return null;
@@ -163,18 +165,73 @@ async function scanSubnetBatch(
 }
 
 /**
+ * Fast port-independent auto-discovery via UDP broadcast (port 41999).
+ * The Desktop responds with its dynamically configured server_port and shop name.
+ */
+export async function detectViaUdpBroadcast(timeoutMs = 1200): Promise<DiscoveredDevice[]> {
+  try {
+    const raw = await AnposNetwork.discoverDesktop(timeoutMs);
+    if (!Array.isArray(raw) || raw.length === 0) return [];
+
+    const discovered: DiscoveredDevice[] = [];
+    const seenIps = new Set<string>();
+
+    for (const r of raw) {
+      try {
+        const parsed = typeof r.raw === 'string' ? JSON.parse(r.raw) : r.raw;
+        if (parsed?.type !== 'anpos-discover-reply') continue;
+
+        const ip = r.ip || parsed.ip;
+        if (!ip || seenIps.has(ip)) continue;
+        seenIps.add(ip);
+
+        discovered.push({
+          ip,
+          port: Number(parsed.port) || DEFAULT_DISCOVERY_PORT,
+          deviceName: parsed.deviceName || `AN POS (${ip})`,
+          shopName: parsed.shopName || 'AN POS',
+          version: parsed.v?.toString() || '1',
+          requiresPairing: parsed.requiresPairing ?? true,
+          responseTime: 0,
+        });
+      } catch {
+        // Ignore unparseable packet
+      }
+    }
+
+    return discovered;
+  } catch {
+    return [];
+  }
+}
+
+/**
  * PRD §5.1: Automatic Discovery
- * - Auto-starts on screen open
- * - Hard timeout capped at 8 seconds
- * - Cancels cleanly if screen unmounts or user cancels
+ * 1. UDP Broadcast First: Ultra-fast (<1s) and port-independent (resolves actual server_port).
+ * 2. Quick Probing Fallback: Fast checks of known server IP, emulator host (10.0.2.2), and gateway.
+ * 3. Subnet Sweep Fallback: Sequential batch scans on candidate ports [3000, 4321] if Wi-Fi blocks UDP.
  */
 export async function detectLocalServer(
   onProgress?: (current: number, total: number) => void,
   signal?: AbortSignal
 ): Promise<DiscoveredDevice[]> {
+  if (signal?.aborted) return [];
+
+  // 1. Primary: Ultra-fast UDP broadcast to discover port dynamically
+  try {
+    const udpResults = await detectViaUdpBroadcast(1200);
+    if (udpResults.length > 0) {
+      onProgress?.(100, 100);
+      await AnposSecureStore.set('anpos_last_discovered_ip', udpResults[0].ip).catch(() => {});
+      return udpResults;
+    }
+  } catch {}
+
+  if (signal?.aborted) return [];
+
   const allResults: DiscoveredDevice[] = [];
 
-  // 1. Check last known IP + emulator + gateway in parallel for instant (<1s) match
+  // 2. Secondary fallback: Check last known IP + emulator + gateway in parallel
   const quickHosts: string[] = [];
   const knownServer = await AnposSecureStore.get('anpos_last_discovered_ip').catch(() => null);
   if (knownServer) quickHosts.push(knownServer);
@@ -185,7 +242,11 @@ export async function detectLocalServer(
     if (gateway && !quickHosts.includes(gateway)) quickHosts.push(gateway);
   } catch {}
 
-  const quickProbes = quickHosts.map((h) => probeHost(h, DISCOVERY_PORT, signal));
+  // Dual-port quick check: 3000 primary, 4321 fallback for instant (<1s) match
+  const quickProbes = quickHosts.flatMap((h) => [
+    probeHost(h, DEFAULT_DISCOVERY_PORT, signal),
+    probeHost(h, FALLBACK_DISCOVERY_PORT, signal),
+  ]);
   const quickSettled = await Promise.allSettled(quickProbes);
   for (const res of quickSettled) {
     if (res.status === 'fulfilled' && res.value) {
@@ -201,13 +262,18 @@ export async function detectLocalServer(
 
   if (signal?.aborted) return [];
 
-  // 2. Rapid sweep of current active subnet (/24)
+  // 3. Tertiary fallback: Rapid sweep of current active subnet (/24) across candidate ports
   const subnet = await getCurrentSubnet();
-  const localResults = await scanSubnetBatch(subnet, DISCOVERY_PORT, onProgress, signal);
-  allResults.push(...localResults);
+  const candidatePorts = [DEFAULT_DISCOVERY_PORT, FALLBACK_DISCOVERY_PORT];
 
-  if (allResults.length > 0) {
-    await AnposSecureStore.set('anpos_last_discovered_ip', allResults[0].ip).catch(() => {});
+  for (const port of candidatePorts) {
+    if (signal?.aborted) break;
+    const localResults = await scanSubnetBatch(subnet, port, onProgress, signal);
+    if (localResults.length > 0) {
+      allResults.push(...localResults);
+      await AnposSecureStore.set('anpos_last_discovered_ip', allResults[0].ip).catch(() => {});
+      return allResults;
+    }
   }
 
   return allResults;
@@ -215,12 +281,24 @@ export async function detectLocalServer(
 
 /**
  * PRD §5.3: Deep Manual Network Scan (Fallback path)
- * Checks active subnet and common fallback subnets
+ * Checks UDP first, then active subnet and common fallback subnets
  */
 export async function deepManualSubnetScan(
   onProgress?: (current: number, total: number) => void,
   signal?: AbortSignal
 ): Promise<DiscoveredDevice[]> {
+  if (signal?.aborted) return [];
+
+  // Quick check via UDP first
+  const udpResults = await detectViaUdpBroadcast(1200);
+  if (udpResults.length > 0) {
+    onProgress?.(100, 100);
+    await AnposSecureStore.set('anpos_last_discovered_ip', udpResults[0].ip).catch(() => {});
+    return udpResults;
+  }
+
+  if (signal?.aborted) return [];
+
   const allResults: DiscoveredDevice[] = [];
   const subnet = await getCurrentSubnet();
 
@@ -235,36 +313,36 @@ export async function deepManualSubnetScan(
     '10.0.2',
   ].filter((s, idx, arr) => arr.indexOf(s) === idx);
 
-  let totalIPs = subnetsToScan.length * 254;
+  const candidatePorts = [DEFAULT_DISCOVERY_PORT, FALLBACK_DISCOVERY_PORT];
+  const totalOperations = subnetsToScan.length * 254 * candidatePorts.length;
   let overallScanned = 0;
 
-  for (const s of subnetsToScan) {
-    if (signal?.aborted) break;
+  for (const port of candidatePorts) {
+    for (const s of subnetsToScan) {
+      if (signal?.aborted) break;
 
-    const results = await scanSubnetBatch(
-      s,
-      DISCOVERY_PORT,
-      (scanned) => {
-        onProgress?.(overallScanned + scanned, totalIPs);
-      },
-      signal
-    );
+      const results = await scanSubnetBatch(
+        s,
+        port,
+        (scanned) => {
+          onProgress?.(overallScanned + scanned, totalOperations);
+        },
+        signal
+      );
 
-    overallScanned += 254;
-    allResults.push(...results);
-
-    if (allResults.length > 0) {
-      break;
+      overallScanned += 254;
+      if (results.length > 0) {
+        allResults.push(...results);
+        await AnposSecureStore.set('anpos_last_discovered_ip', allResults[0].ip).catch(() => {});
+        return allResults;
+      }
     }
-  }
-
-  if (allResults.length > 0) {
-    await AnposSecureStore.set('anpos_last_discovered_ip', allResults[0].ip).catch(() => {});
+    if (allResults.length > 0 || signal?.aborted) break;
   }
 
   return allResults;
 }
 
-export async function checkServer(ip: string, port: number = DISCOVERY_PORT): Promise<DiscoveredDevice | null> {
+export async function checkServer(ip: string, port: number = DEFAULT_DISCOVERY_PORT): Promise<DiscoveredDevice | null> {
   return probeHost(ip, port);
 }

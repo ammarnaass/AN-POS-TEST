@@ -217,10 +217,12 @@ export const PacksScreen = ({ navigation }: any) => {
           price: priceNum,
           pack_price: priceNum,
           pack_type: packType,
-          unit_name: unitName.trim() || 'كرتونة',
+          unit_name: unitName.trim() || 'كرتون',
           pieces_count: piecesCount,
           min_wholesale_qty: minQtyNum,
           items: JSON.stringify(selectedItems),
+          status: 'active',
+          is_active: 1,
           updated_at: nowIso,
         } as any);
       } else {
@@ -231,7 +233,7 @@ export const PacksScreen = ({ navigation }: any) => {
           price: priceNum,
           pack_price: priceNum,
           pack_type: packType,
-          unit_name: unitName.trim() || 'كرتونة',
+          unit_name: unitName.trim() || 'كرتون',
           pieces_count: piecesCount,
           min_wholesale_qty: minQtyNum,
           items: JSON.stringify(selectedItems),

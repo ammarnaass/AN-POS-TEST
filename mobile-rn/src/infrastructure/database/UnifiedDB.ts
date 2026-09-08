@@ -62,10 +62,13 @@ export async function initSQLiteSchema(driver: AnposSQLiteDriver): Promise<void>
     // packs — colisage and wholesale pack upgrades
     "ALTER TABLE packs ADD COLUMN barcode TEXT DEFAULT ''",
     'ALTER TABLE packs ADD COLUMN pack_price REAL DEFAULT 0',
+    'ALTER TABLE packs ADD COLUMN price REAL DEFAULT 0',
     "ALTER TABLE packs ADD COLUMN pack_type TEXT DEFAULT 'pack'",
     "ALTER TABLE packs ADD COLUMN unit_name TEXT DEFAULT 'كرتون'",
     'ALTER TABLE packs ADD COLUMN pieces_count INTEGER DEFAULT 1',
     'ALTER TABLE packs ADD COLUMN min_wholesale_qty INTEGER DEFAULT 1',
+    'ALTER TABLE packs ADD COLUMN is_active INTEGER DEFAULT 1',
+    "ALTER TABLE packs ADD COLUMN description TEXT DEFAULT ''",
     // customers — Algerian tax and commercial numbers
     "ALTER TABLE customers ADD COLUMN rc TEXT DEFAULT ''",
     "ALTER TABLE customers ADD COLUMN nif TEXT DEFAULT ''",
@@ -168,6 +171,10 @@ export async function initSQLiteSchema(driver: AnposSQLiteDriver): Promise<void>
       await driver.execute(sql);
     } catch { /* index may already exist */ }
   }
+
+  // Refresh introspection cache after migrations
+  driver.clearTableColumnsCache?.();
+
   try {
     await seedDatabase(driver);
   } catch (err) {

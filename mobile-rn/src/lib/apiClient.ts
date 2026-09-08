@@ -10,7 +10,7 @@ const CONNECTION_KEY_KEY = 'anpos_connection_key';
 /**
  * Normalizes any IP, host, or URL into a clean http://<host>:<port> string
  */
-export function normalizeServerUrl(rawUrl: string, defaultPort: string = '4321'): string {
+export function normalizeServerUrl(rawUrl: string, defaultPort: string = '3000'): string {
   let url = (rawUrl || '').trim();
   if (!url) return '';
 

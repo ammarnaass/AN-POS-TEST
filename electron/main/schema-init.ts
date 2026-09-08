@@ -701,7 +701,7 @@ CREATE TABLE IF NOT EXISTS network_settings (
   id TEXT PRIMARY KEY,
   lan_enabled INTEGER NOT NULL DEFAULT 0,
   server_ip TEXT NOT NULL DEFAULT '',
-  server_port INTEGER NOT NULL DEFAULT 3000,
+  server_port INTEGER NOT NULL DEFAULT 4321,
   protocol TEXT NOT NULL DEFAULT 'http',
   ssl_cert_path TEXT DEFAULT '',
   ssl_key_path TEXT DEFAULT '',

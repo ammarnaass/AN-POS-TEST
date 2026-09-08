@@ -37,7 +37,7 @@ export async function registerDiscoveryRoutes(server: FastifyInstance): Promise<
       type: 'anpos-discover',
       deviceName: os.hostname(),
       shopName: (settings.shop_name as string) || 'AN POS',
-      port: Number(netSettings?.server_port) || 4321,
+      port: Number(netSettings?.server_port) || 3000,
       ips,
       version: '1.0.0',
       platform: os.platform(),

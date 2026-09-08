@@ -6,6 +6,8 @@ import android.net.wifi.WifiManager
 import android.net.ConnectivityManager
 import java.net.InetAddress
 import java.net.NetworkInterface
+import java.net.DatagramSocket
+import java.net.DatagramPacket
 import java.util.*
 
 class AnposNetworkModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
@@ -144,5 +146,55 @@ class AnposNetworkModule(reactContext: ReactApplicationContext) : ReactContextBa
         } catch (e: Exception) {
             promise.resolve(false)
         }
+    }
+
+    @ReactMethod
+    fun discoverDesktop(timeoutMs: Int, promise: Promise) {
+        Thread {
+            var socket: DatagramSocket? = null
+            try {
+                socket = DatagramSocket()
+                socket.broadcast = true
+                val actualTimeout = if (timeoutMs > 0) timeoutMs else 1200
+                socket.soTimeout = actualTimeout
+
+                val requestMsg = """{"type":"anpos-discover-request","v":1}""".toByteArray(Charsets.UTF_8)
+                val broadcastAddr = InetAddress.getByName("255.255.255.255")
+                val packet = DatagramPacket(requestMsg, requestMsg.size, broadcastAddr, 41999)
+                socket.send(packet)
+
+                val results = Arguments.createArray()
+                val seenIps = HashSet<String>()
+                val buffer = ByteArray(2048)
+                val deadline = System.currentTimeMillis() + actualTimeout
+
+                while (System.currentTimeMillis() < deadline) {
+                    try {
+                        val replyPacket = DatagramPacket(buffer, buffer.size)
+                        socket.receive(replyPacket)
+                        val senderIp = replyPacket.address.hostAddress ?: ""
+                        if (senderIp.isNotEmpty() && !seenIps.contains(senderIp)) {
+                            seenIps.add(senderIp)
+                            val json = String(replyPacket.data, 0, replyPacket.length, Charsets.UTF_8)
+                            val map = Arguments.createMap()
+                            map.putString("ip", senderIp)
+                            map.putString("raw", json)
+                            results.pushMap(map)
+                        }
+                    } catch (e: java.net.SocketTimeoutException) {
+                        break
+                    } catch (e: Exception) {
+                        break
+                    }
+                }
+                promise.resolve(results)
+            } catch (e: Exception) {
+                promise.resolve(Arguments.createArray())
+            } finally {
+                try {
+                    socket?.close()
+                } catch (e: Exception) {}
+            }
+        }.start()
     }
 }

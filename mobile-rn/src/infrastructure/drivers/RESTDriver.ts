@@ -109,6 +109,44 @@ function normalizeEntity<T = any>(table: string, raw: any): T {
     } as unknown as T;
   }
 
+  if (table === 'packs' || table === 'pack') {
+    const id = raw.id || raw._id || '';
+    const name = raw.name || raw.packName || raw.pack_name || '';
+    const barcode = raw.barcode ? String(raw.barcode) : '';
+    const packPrice = Number(raw.packPrice ?? raw.pack_price ?? raw.price ?? 0);
+    const price = packPrice;
+    const packType = raw.packType || raw.pack_type || 'pack';
+    const unitName = raw.unitName || raw.unit_name || 'كرتون';
+    const piecesCount = Number(raw.piecesCount ?? raw.pieces_count ?? 1);
+    const minWholesaleQty = Number(raw.minWholesaleQty ?? raw.min_wholesale_qty ?? 1);
+    const items = typeof raw.items === 'string'
+      ? raw.items
+      : JSON.stringify(raw.items || []);
+    const status = raw.status || 'active';
+    const isActive = raw.isActive !== undefined ? (raw.isActive ? 1 : 0) : raw.is_active !== undefined ? Number(raw.is_active) : 1;
+    return {
+      ...raw,
+      id,
+      name,
+      barcode,
+      packPrice,
+      pack_price: packPrice,
+      price,
+      packType,
+      pack_type: packType,
+      unitName,
+      unit_name: unitName,
+      piecesCount,
+      pieces_count: piecesCount,
+      minWholesaleQty,
+      min_wholesale_qty: minWholesaleQty,
+      items,
+      status,
+      isActive,
+      is_active: isActive,
+    } as unknown as T;
+  }
+
   return raw;
 }
 
@@ -297,6 +335,49 @@ function sanitizePayload(table: string, data: any, isPartial = false): any {
       balance: Number(data.balance || 0),
       created_at: data.created_at || new Date().toISOString(),
       updated_at: data.updated_at || new Date().toISOString(),
+    };
+  }
+
+  if (table === 'packs' || table === 'pack') {
+    const packPrice = Number(data.packPrice ?? data.pack_price ?? data.price ?? 0);
+    const items = typeof data.items === 'string' ? data.items : JSON.stringify(data.items || []);
+    if (isPartial) {
+      const sanitized: Record<string, any> = {};
+      if (data.id !== undefined) sanitized.id = data.id;
+      if (data.name !== undefined) sanitized.name = data.name;
+      if (data.barcode !== undefined) sanitized.barcode = String(data.barcode);
+      if (data.packPrice !== undefined || data.pack_price !== undefined || data.price !== undefined) {
+        sanitized.pack_price = packPrice;
+        sanitized.price = packPrice;
+      }
+      if (data.packType !== undefined || data.pack_type !== undefined) sanitized.pack_type = data.packType || data.pack_type;
+      if (data.unitName !== undefined || data.unit_name !== undefined) sanitized.unit_name = data.unitName || data.unit_name;
+      if (data.piecesCount !== undefined || data.pieces_count !== undefined) sanitized.pieces_count = Number(data.piecesCount ?? data.pieces_count);
+      if (data.minWholesaleQty !== undefined || data.min_wholesale_qty !== undefined) sanitized.min_wholesale_qty = Number(data.minWholesaleQty ?? data.min_wholesale_qty);
+      if (data.items !== undefined) sanitized.items = items;
+      if (data.status !== undefined) sanitized.status = data.status;
+      if (data.isActive !== undefined || data.is_active !== undefined) {
+        sanitized.is_active = data.isActive !== undefined ? (data.isActive ? 1 : 0) : Number(data.is_active);
+      }
+      if (data.updated_at !== undefined || data.updatedAt !== undefined) sanitized.updated_at = data.updated_at || data.updatedAt || new Date().toISOString();
+      return sanitized;
+    }
+
+    return {
+      id: data.id || `pack_${Date.now()}`,
+      name: data.name || '',
+      barcode: data.barcode || '',
+      pack_price: packPrice,
+      price: packPrice,
+      pack_type: data.packType || data.pack_type || 'pack',
+      unit_name: data.unitName || data.unit_name || 'كرتون',
+      pieces_count: Number(data.piecesCount ?? data.pieces_count ?? 1),
+      min_wholesale_qty: Number(data.minWholesaleQty ?? data.min_wholesale_qty ?? 1),
+      items,
+      status: data.status || 'active',
+      is_active: data.isActive !== undefined ? (data.isActive ? 1 : 0) : data.is_active !== undefined ? Number(data.is_active) : 1,
+      created_at: data.created_at || data.createdAt || new Date().toISOString(),
+      updated_at: data.updated_at || data.updatedAt || new Date().toISOString(),
     };
   }
 

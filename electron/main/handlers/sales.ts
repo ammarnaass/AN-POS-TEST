@@ -8,6 +8,7 @@ import {
   queryOne,
   execute,
   transaction,
+  notifyTableChange,
   serializeValue,
   toSnakeKey,
   type Row,
@@ -296,6 +297,15 @@ export async function createSale(data: Record<string, unknown>): Promise<{ data:
     }
   });
 
+  notifyTableChange('sales', 'create', id);
+  notifyTableChange('products', 'bulk-update');
+  if (customerId) {
+    notifyTableChange('customers', 'update', customerId);
+  }
+  if (cashSessionId) {
+    notifyTableChange('cash_sessions', 'update', cashSessionId);
+  }
+
   const created = queryOne('SELECT * FROM sales WHERE id = ?', [id]);
   return { data: created ? transformSale(created) : null };
 }
@@ -316,6 +326,8 @@ export async function updateSale(id: string, data: Record<string, unknown>): Pro
     }
   });
 
+  notifyTableChange('sales', 'update', id);
+
   const updated = queryOne('SELECT * FROM sales WHERE id = ?', [id]);
   return { data: updated ? transformSale(updated) : null };
 }
@@ -333,5 +345,8 @@ export async function removeSale(id: string): Promise<{ success: boolean }> {
       /* ignore tombstone insertion error */
     }
   });
+
+  notifyTableChange('sales', 'delete', id);
+  notifyTableChange('products', 'bulk-update');
   return { success: true };
 }

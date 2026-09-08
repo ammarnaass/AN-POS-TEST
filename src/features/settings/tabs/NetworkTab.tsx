@@ -52,7 +52,12 @@ export default function NetworkTab({
                     <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-primary/10 text-primary border border-primary/20">
                       {onlineDevicesCount} جهاز متصل
                     </span>
-                    {serverStatus?.running ? (
+                    {settings.syncMode === 'single' ? (
+                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                        وضع جهاز واحد (الاقتران معطّل)
+                      </span>
+                    ) : serverStatus?.running ? (
                       <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 flex items-center gap-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                         خادم الشبكة: نشط ({serverStatus.port})
@@ -178,6 +183,9 @@ export default function NetworkTab({
                         onClick={() => {
                           if (!opt.available || hasActiveConnections) return;
                           handleSaveSettings({ syncMode: opt.mode });
+                          if (opt.mode === 'single') {
+                            saveNet({ lanEnabled: false });
+                          }
                           if (opt.mode === 'lan') saveNet({ lanEnabled: true });
                           if (opt.mode === 'cloud') saveNet({ cloudEnabled: true });
                         }}
@@ -233,6 +241,35 @@ export default function NetworkTab({
             {/* === تبويب 2: الشبكة المحلية وخادم الهواتف (LAN) === */}
             {netSubTab === 'lan' && (
               <div className="space-y-6">
+                {/* تنبيه تحذيري عند العمل في وضع جهاز واحد */}
+                {settings.syncMode === 'single' && (
+                  <div className="p-5 rounded-3xl bg-amber-500/10 border-2 border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-in shadow-xs">
+                    <div className="flex items-start gap-3.5">
+                      <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0 mt-0.5 shadow-inner">
+                        <AlertCircle className="w-5 h-5" />
+                      </div>
+                      <div className="space-y-1">
+                        <h4 className="text-sm font-bold font-cairo text-amber-900 dark:text-amber-200">
+                          وضع المقترن مع الهاتف معطّل — النظام مضبوط على وضع «جهاز واحد»
+                        </h4>
+                        <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed font-tajawal">
+                          وفق شروط التشغيل: لا يمكن تشغيل خادم الربط أو إقران الهواتف في وضع <strong>جهاز واحد (Single Mode)</strong>. يجب تغيير وضع التشغيل أولاً إلى <strong>عدة أجهزة (شبكة محلية LAN)</strong> حتى يعمل خادم الربط ويُتاح مسح رمز QR.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleSaveSettings({ syncMode: 'lan' });
+                        saveNet({ lanEnabled: true });
+                      }}
+                      className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold font-cairo shadow-sm transition-all whitespace-nowrap cursor-pointer shrink-0"
+                    >
+                      التبديل إلى وضع عدة أجهزة الآن
+                    </button>
+                  </div>
+                )}
+
                 {/* خادم التطبيق المحمول ورمز QR */}
                 <div className="p-6 rounded-3xl bg-surface-container border border-outline-variant/15 space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-outline-variant/15">
@@ -243,7 +280,9 @@ export default function NetworkTab({
                       <div>
                         <h4 className="text-base font-bold font-cairo text-on-surface">خادم ربط تطبيقات الهواتف المحمولة</h4>
                         <p className="text-xs text-on-surface-variant mt-0.5">
-                          {serverStatus?.running
+                          {settings.syncMode === 'single'
+                            ? 'الخادم معطل بحكم وضع التشغيل المستقل (جهاز واحد)'
+                            : serverStatus?.running
                             ? `الخادم نشط ويعمل على ${pairingInfo?.ip ?? '---'}:${serverStatus.port}`
                             : 'شغّل الخادم لربط هواتف الكاشير والمبيعات في نفس الشبكة'}
                         </p>
@@ -254,24 +293,34 @@ export default function NetworkTab({
                       type="button"
                       onClick={toggleServer}
                       disabled={serverLoading}
-                      className={`relative px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm ${
-                        serverStatus?.running
+                      className={`relative px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm cursor-pointer ${
+                        settings.syncMode === 'single'
+                          ? 'bg-surface-container-high text-on-surface-variant border border-outline-variant/30 hover:bg-surface-container-highest'
+                          : serverStatus?.running
                           ? 'bg-emerald-500 text-white hover:bg-emerald-600'
                           : 'bg-primary text-on-primary hover:bg-primary/90'
                       }`}
                     >
                       {serverLoading ? (
                         <RefreshCw className="w-4 h-4 animate-spin" />
-                      ) : serverStatus?.running ? (
+                      ) : serverStatus?.running && settings.syncMode !== 'single' ? (
                         <CheckCircle2 className="w-4 h-4" />
                       ) : (
                         <Zap className="w-4 h-4" />
                       )}
-                      <span>{serverLoading ? 'جاري المعالجة...' : serverStatus?.running ? 'إيقاف الخادم' : 'تشغيل الخادم'}</span>
+                      <span>
+                        {serverLoading
+                          ? 'جاري المعالجة...'
+                          : settings.syncMode === 'single'
+                          ? 'الخادم معطل (وضع جهاز واحد)'
+                          : serverStatus?.running
+                          ? 'إيقاف الخادم'
+                          : 'تشغيل الخادم'}
+                      </span>
                     </button>
                   </div>
 
-                  {serverStatus?.running && pairingInfo && (
+                  {settings.syncMode !== 'single' && serverStatus?.running && pairingInfo ? (
                     <div className="pt-2">
                       <PairingQR data={pairingInfo} subtitle="افتح تطبيق AN POS على هاتفك وامسح هذا الرمز للاتصال الفوري" />
                       <div className="mt-3 p-3 bg-surface-container-low rounded-2xl border border-outline-variant/15 flex flex-wrap items-center justify-center gap-4 text-xs font-mono text-on-surface-variant">
@@ -280,7 +329,12 @@ export default function NetworkTab({
                         <span>🔑 Key: <strong className="text-on-surface">{pairingInfo.key}</strong></span>
                       </div>
                     </div>
-                  )}
+                  ) : settings.syncMode === 'single' ? (
+                    <div className="p-4 rounded-2xl bg-surface-container-low border border-outline-variant/15 text-center text-xs text-on-surface-variant space-y-1">
+                      <p className="font-bold text-amber-700 dark:text-amber-400">🔒 رمز الاقتران (QR) ومعلومات الاتصال غير متاحة في وضع «جهاز واحد».</p>
+                      <p>قم بالتبديل إلى وضع «عدة أجهزة (شبكة محلية LAN)» لتوليد رمز الاقتران وبدء المزامنة مع الهواتف.</p>
+                    </div>
+                  ) : null}
                 </div>
 
                 {/* إعدادات الاتصال المتقدمة */}

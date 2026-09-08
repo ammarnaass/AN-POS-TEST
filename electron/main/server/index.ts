@@ -24,6 +24,7 @@ import { registerPairRoutes, verifySession } from './routes/pair';
 import { registerDiscoveryRoutes } from './routes/discovery';
 import { registerSyncRoutes } from './routes/sync';
 import { registerSettingsRoutes } from './routes/settings';
+import { startDiscoveryListener, stopDiscoveryListener } from '../discoveryUdp';
 
 export interface ServerConfig {
   port?: number;
@@ -83,7 +84,7 @@ export async function startHttpServer(config: ServerConfig = {}): Promise<{ url:
     return { url: '', port: 0, host: '' };
   }
 
-  const port = config.port ?? 4321;
+  const port = config.port ?? 3000;
   const host = config.host ?? '0.0.0.0';
 
   const netSettings = getNetworkSettings();
@@ -214,6 +215,7 @@ export async function startHttpServer(config: ServerConfig = {}): Promise<{ url:
     } catch {}
   }
 
+  try { startDiscoveryListener(); } catch (e) { console.warn('[http] فشل تشغيل مستمع UDP:', e); }
   console.log(`[http] 🚀 خادم AN-POS يعمل على http://${host}:${activePort}`);
   console.log(`[http] عناوين الوصول: ${getLocalIpAddresses().map((ip) => `http://${ip}:${activePort}`).join(', ')}`);
 
@@ -225,6 +227,7 @@ export async function startHttpServer(config: ServerConfig = {}): Promise<{ url:
  */
 export async function stopHttpServer(): Promise<void> {
   if (!serverInstance) return;
+  try { stopDiscoveryListener(); } catch {} 
   await serverInstance.close();
   serverInstance = null;
   console.log('[http] 🛑 تم إيقاف خادم HTTP');
@@ -246,7 +249,7 @@ export function isHttpServerRunning(): boolean {
  */
 export function getPairingInfo(): { ip: string; port: number; key: string; shopName: string; ips: string[] } {
   const netSettings = getNetworkSettings();
-  const port = Number(netSettings?.server_port) || 4321;
+  const port = Number(netSettings?.server_port) || 3000;
   const key = getOrCreateConnectionKey();
   const settings = queryOne("SELECT shop_name FROM settings WHERE id = 'default'") || {};
   const ips = getLocalIpAddresses();

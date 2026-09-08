@@ -532,6 +532,20 @@ export default function SettingsPage() {
       mirrored.default_role = updates.defaultRole;
       mirrored.defaultRole = updates.defaultRole;
     }
+    if (updates.syncMode !== undefined || updates.sync_mode !== undefined) {
+      const newMode = (updates.syncMode ?? updates.sync_mode) as string;
+      mirrored.sync_mode = newMode;
+      mirrored.syncMode = newMode;
+      if (newMode === 'single') {
+        const api = (window as any).electronAPI?.server;
+        if (serverStatus?.running && api?.disable) {
+          api.disable().then(() => {
+            setServerStatus((prev) => (prev ? { ...prev, running: false, lanEnabled: false } : null));
+          }).catch(() => {});
+        }
+        saveNet({ lanEnabled: false });
+      }
+    }
     settingsMutation.mutate(mirrored);
   };
 
@@ -596,7 +610,24 @@ export default function SettingsPage() {
       if (serverStatus?.running) {
         await api.disable();
       } else {
-        await api.enable({ port: netSettings.serverPort });
+        // فحص شرط وضع التشغيل: يجب ألا يشتغل وضع المقترن مع الهاتف إذا كان الوضع "جهاز واحد"
+        if (settings.syncMode === 'single') {
+          addNotification({
+            title: 'وضع التشغيل غير متوافق',
+            message: 'لا يمكن تشغيل خادم الربط أو إقران الهواتف في وضع "جهاز واحد". يرجى تغيير وضع التشغيل أولاً إلى "عدة أجهزة (شبكة محلية LAN)".',
+            type: 'warning',
+          });
+          return;
+        }
+        const res = await api.enable({ port: netSettings.serverPort });
+        if (res && res.success === false) {
+          addNotification({
+            title: 'تنبيه وضع التشغيل',
+            message: res.error || 'لا يمكن تشغيل الخادم في وضع جهاز واحد.',
+            type: 'warning',
+          });
+          return;
+        }
       }
       // إعادة جلب الحالة
       const status = await api.status() as { running: boolean; lanEnabled: boolean; port: number };
@@ -1224,7 +1255,7 @@ export default function SettingsPage() {
 
         {/* === تطبيق الهاتف المحمول (AN POS Mobile) === */}
         {activeTab === 'mobile' && (
-          <MobileDevicesTab {...{ copiedField, handleCopyText, handleRegenerateKey, mobilePhones, pairingInfo, refetchConnected, serverLoading, serverStatus, toggleServer }} />
+          <MobileDevicesTab {...{ copiedField, handleCopyText, handleRegenerateKey, mobilePhones, pairingInfo, refetchConnected, serverLoading, serverStatus, toggleServer, settings, handleSaveSettings, saveNet }} />
         )}
 
         {/* === التحديثات === */}

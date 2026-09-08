@@ -151,6 +151,21 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
         if (!res || res.data === null) {
           throw new Error('فشل تسجيل الفاتورة في قاعدة البيانات المركزية');
         }
+
+        // تحديث كاش الفاتورة والمنتجات محلياً فوراً لضمان عدم تأخر الواجهة
+        await db.sales.put(sale as any).catch(() => {});
+        for (const item of cart) {
+          if (!item.isPack && item.productId && !item.isCustom) {
+            const product = products.find((p) => p.id === item.productId);
+            if (product) {
+              const qtyChange = saleType === 'return' ? Math.abs(item.qty) : -item.qty;
+              const newQuantity = settings?.allowNegativeStock
+                ? product.quantity + qtyChange
+                : Math.max(0, product.quantity + qtyChange);
+              db.products.update(product.id, { quantity: newQuantity }).catch(() => {});
+            }
+          }
+        }
       } else {
         // تنفيذ المعاملة الشاملة في قاعدة البيانات (Fallback)
         await db.transaction(

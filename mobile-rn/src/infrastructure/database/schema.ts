@@ -349,6 +349,7 @@ export const CREATE_TABLES_SQL: string[] = [
     min_wholesale_qty INTEGER DEFAULT 1,
     items TEXT NOT NULL DEFAULT '[]',
     status TEXT NOT NULL DEFAULT 'active',
+    is_active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   )`,

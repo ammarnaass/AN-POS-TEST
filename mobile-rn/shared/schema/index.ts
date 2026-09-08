@@ -404,10 +404,17 @@ export const SCHEMA_DDL: string[] = [
   `CREATE TABLE IF NOT EXISTS packs (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
+    description TEXT DEFAULT '',
     barcode TEXT NOT NULL DEFAULT '',
     items TEXT NOT NULL DEFAULT '[]',
     pack_price REAL NOT NULL DEFAULT 0,
+    price REAL NOT NULL DEFAULT 0,
+    pack_type TEXT NOT NULL DEFAULT 'pack',
+    unit_name TEXT DEFAULT 'كرتون',
+    pieces_count INTEGER DEFAULT 1,
+    min_wholesale_qty INTEGER DEFAULT 1,
     status TEXT NOT NULL DEFAULT 'active',
+    is_active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
@@ -889,7 +896,7 @@ export const DEFAULT_SETTINGS = {
 
 export const DEFAULT_NETWORK_SETTINGS = {
   lanEnabled: false,
-  serverPort: 4321,
+  serverPort: 3000,
   protocol: 'http',
   autoReconnect: true,
   reconnectInterval: 5,

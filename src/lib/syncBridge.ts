@@ -111,6 +111,18 @@ export function initSyncBridge(): () => void {
           }
         }
       }
+
+      // ===== 6. جدول الجلسات النقدية (cash_sessions) =====
+      if (table === 'cash_sessions' && id && api.db?.get) {
+        if (action === 'delete') {
+          await db.cash_sessions.delete(id);
+        } else {
+          const res = await api.db.get('cash_sessions', id);
+          if (res?.data) {
+            await db.cash_sessions.put(res.data as any);
+          }
+        }
+      }
     } catch (bridgeErr) {
       console.warn('[syncBridge] خطأ أثناء تطبيق تحديث الجدول:', bridgeErr);
     }

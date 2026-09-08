@@ -1,9 +1,21 @@
 // Tab Component: MobileDevicesTab (Refactored from SettingsPage.tsx)
 import React from 'react';
-import { Wifi, Smartphone, Key, RefreshCw, Zap, ListChecks, LogOut, Copy, Check, ShoppingCart, ScanLine, Users, ShieldCheck } from 'lucide-react';
+import { Wifi, Smartphone, Key, RefreshCw, Zap, ListChecks, LogOut, Copy, Check, ShoppingCart, ScanLine, Users, ShieldCheck, AlertCircle } from 'lucide-react';
 import PairingQR from '../components/PairingQR';
 
 interface MobileDevicesTabProps {
+  copiedField?: string | null;
+  handleCopyText: (text: string, field: string) => void;
+  handleRegenerateKey: () => void;
+  mobilePhones: any[];
+  pairingInfo: any;
+  refetchConnected: () => void;
+  serverLoading: boolean;
+  serverStatus: any;
+  toggleServer: () => void;
+  settings?: any;
+  handleSaveSettings?: (settings: any) => void;
+  saveNet?: (net: any) => void;
   [key: string]: any;
 }
 
@@ -16,74 +28,123 @@ export default function MobileDevicesTab({
   refetchConnected,
   serverLoading,
   serverStatus,
-  toggleServer
+  toggleServer,
+  settings,
+  handleSaveSettings,
+  saveNet,
 }: MobileDevicesTabProps) {
   return (
     <div className="space-y-4 sm:space-y-6">
-            {/* بطاقة الترويسة والتحكم بالخادم */}
-            <div className="bg-surface-container-low rounded-2xl sm:rounded-3xl border border-outline-variant/20 p-4 sm:p-6 shadow-sm">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 sm:pb-5 border-b border-outline-variant/15">
-                <div className="flex items-start sm:items-center gap-3 sm:gap-3.5">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-primary/10 text-primary flex items-center justify-center border border-primary/20 shadow-inner shrink-0">
-                    <Smartphone className="w-5 h-5 sm:w-6 sm:h-6" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
-                      <h2 className="text-lg sm:text-xl font-bold font-cairo text-on-surface">تطبيق الهاتف المقترن (AN POS Mobile)</h2>
-                      {serverStatus?.running ? (
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-extrabold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                          خادم الربط يعمل (منفذ {serverStatus.port})
-                        </span>
-                      ) : (
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-medium bg-surface-container-high text-on-surface-variant">
-                          الخادم متوقف
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-on-surface-variant mt-0.5 font-tajawal">
-                      ربط هواتف الكاشير والمبيعات المحمولة ومزامنة الفواتير والمخزون في الوقت الفعلي
-                    </p>
-                  </div>
-                </div>
+      {/* تنبيه تحذيري عند العمل في وضع جهاز واحد */}
+      {settings?.syncMode === 'single' && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-amber-500/10 border-2 border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-in shadow-xs">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0 mt-0.5">
+              <AlertCircle className="w-5 h-5" />
+            </div>
+            <div className="space-y-1">
+              <h4 className="text-sm font-bold font-cairo text-amber-900 dark:text-amber-200">
+                وضع المقترن مع الهاتف معطّل — النظام مضبوط على وضع «جهاز واحد»
+              </h4>
+              <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed font-tajawal">
+                وفق شروط التشغيل: لا يمكن تشغيل خادم الربط أو إقران الهواتف في وضع <strong>جهاز واحد (Single Mode)</strong>. يجب تغيير وضع التشغيل أولاً إلى <strong>عدة أجهزة (شبكة محلية LAN)</strong> حتى يعمل خادم الربط ويُتاح مسح رمز QR.
+              </p>
+            </div>
+          </div>
+          {handleSaveSettings && (
+            <button
+              type="button"
+              onClick={() => {
+                handleSaveSettings({ syncMode: 'lan' });
+                if (saveNet) saveNet({ lanEnabled: true });
+              }}
+              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold font-cairo shadow-sm transition-all whitespace-nowrap cursor-pointer shrink-0"
+            >
+              التبديل إلى وضع عدة أجهزة الآن
+            </button>
+          )}
+        </div>
+      )}
 
-                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-                  {serverStatus?.running && (
-                    <button
-                      type="button"
-                      onClick={handleRegenerateKey}
-                      className="px-3.5 sm:px-4 py-2 sm:py-2.5 bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant hover:text-on-surface rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border border-outline-variant/20 cursor-pointer"
-                      title="توليد مفتاح أمان سري جديد لقطع وإعادة اقتران الأجهزة"
-                    >
-                      <Key className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                      <span>تجديد المفتاح السري</span>
-                    </button>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={toggleServer}
-                    disabled={serverLoading}
-                    className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm cursor-pointer ${
-                      serverStatus?.running
-                        ? 'bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20'
-                        : 'bg-primary text-on-primary hover:bg-primary/90'
-                    }`}
-                  >
-                    {serverLoading ? (
-                      <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" />
-                    ) : serverStatus?.running ? (
-                      <LogOut className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    ) : (
-                      <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    )}
-                    <span>{serverLoading ? 'جاري المعالجة...' : serverStatus?.running ? 'إيقاف خادم الربط' : 'تشغيل خادم الربط'}</span>
-                  </button>
-                </div>
+      {/* بطاقة الترويسة والتحكم بالخادم */}
+      <div className="bg-surface-container-low rounded-2xl sm:rounded-3xl border border-outline-variant/20 p-4 sm:p-6 shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 sm:pb-5 border-b border-outline-variant/15">
+          <div className="flex items-start sm:items-center gap-3 sm:gap-3.5">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-primary/10 text-primary flex items-center justify-center border border-primary/20 shadow-inner shrink-0">
+              <Smartphone className="w-5 h-5 sm:w-6 sm:h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
+                <h2 className="text-lg sm:text-xl font-bold font-cairo text-on-surface">تطبيق الهاتف المقترن (AN POS Mobile)</h2>
+                {settings?.syncMode === 'single' ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    وضع جهاز واحد (الاقتران معطّل)
+                  </span>
+                ) : serverStatus?.running ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-extrabold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    خادم الربط يعمل (منفذ {serverStatus.port})
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-medium bg-surface-container-high text-on-surface-variant">
+                    الخادم متوقف
+                  </span>
+                )}
               </div>
+              <p className="text-xs text-on-surface-variant mt-0.5 font-tajawal">
+                ربط هواتف الكاشير والمبيعات المحمولة ومزامنة الفواتير والمخزون في الوقت الفعلي
+              </p>
+            </div>
+          </div>
 
-              {/* المحتوى المركزي: إذا كان الخادم يعمل، نعرض رمز QR وإرشادات الربط */}
-              {serverStatus?.running && pairingInfo ? (
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            {serverStatus?.running && settings?.syncMode !== 'single' && (
+              <button
+                type="button"
+                onClick={handleRegenerateKey}
+                className="px-3.5 sm:px-4 py-2 sm:py-2.5 bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant hover:text-on-surface rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border border-outline-variant/20 cursor-pointer"
+                title="توليد مفتاح أمان سري جديد لقطع وإعادة اقتران الأجهزة"
+              >
+                <Key className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <span>تجديد المفتاح السري</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={toggleServer}
+              disabled={serverLoading}
+              className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm cursor-pointer ${
+                settings?.syncMode === 'single'
+                  ? 'bg-surface-container-high text-on-surface-variant border border-outline-variant/30 hover:bg-surface-container-highest'
+                  : serverStatus?.running
+                  ? 'bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20'
+                  : 'bg-primary text-on-primary hover:bg-primary/90'
+              }`}
+            >
+              {serverLoading ? (
+                <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" />
+              ) : serverStatus?.running && settings?.syncMode !== 'single' ? (
+                <LogOut className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              ) : (
+                <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              )}
+              <span>
+                {serverLoading
+                  ? 'جاري المعالجة...'
+                  : settings?.syncMode === 'single'
+                  ? 'الخادم معطل (وضع جهاز واحد)'
+                  : serverStatus?.running
+                  ? 'إيقاف خادم الربط'
+                  : 'تشغيل خادم الربط'}
+              </span>
+            </button>
+          </div>
+        </div>
+
+              {/* المحتوى المركزي: إذا كان الخادم يعمل ولسنا في وضع جهاز واحد، نعرض رمز QR وإرشادات الربط */}
+              {serverStatus?.running && pairingInfo && settings?.syncMode !== 'single' ? (
                 <div className="pt-5 sm:pt-6 grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-center">
                   {/* عمود رمز QR الأنيق */}
                   <div className="lg:col-span-5 flex flex-col items-center justify-center p-4 sm:p-6 bg-surface-container-lowest/80 dark:bg-surface-container-low rounded-2xl sm:rounded-3xl border border-outline-variant/20 shadow-sm text-center">
@@ -172,8 +233,33 @@ export default function MobileDevicesTab({
                     </div>
                   </div>
                 </div>
+              ) : settings?.syncMode === 'single' ? (
+                /* في حالة وضع جهاز واحد */
+                <div className="text-center py-8 sm:py-12 px-4 max-w-lg mx-auto space-y-4">
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 bg-amber-500/10 text-amber-600 rounded-2xl sm:rounded-3xl flex items-center justify-center mx-auto border border-amber-500/20 shadow-inner">
+                    <Smartphone className="w-8 h-8 sm:w-10 sm:h-10" />
+                  </div>
+                  <div>
+                    <h3 className="font-cairo text-base sm:text-lg font-bold text-on-surface">وضع المقترن مع الهاتف معطّل</h3>
+                    <p className="text-xs text-on-surface-variant mt-1 leading-relaxed font-tajawal">
+                      النظام يعمل حالياً في وضع <strong>جهاز واحد مستقل</strong>. لا يشتغل وضع الاقتران ورمز QR حتى تقوم بتغيير وضع التشغيل إلى وضع الأجهزة المتعددة.
+                    </p>
+                  </div>
+                  {handleSaveSettings && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleSaveSettings({ syncMode: 'lan' });
+                        if (saveNet) saveNet({ lanEnabled: true });
+                      }}
+                      className="px-5 sm:px-6 py-2.5 sm:py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl sm:rounded-2xl text-xs font-bold shadow-md transition-all flex items-center justify-center gap-2 mx-auto cursor-pointer"
+                    >
+                      <span>التبديل إلى وضع عدة أجهزة لتفعيل الاقتران</span>
+                    </button>
+                  )}
+                </div>
               ) : (
-                /* في حالة توقف الخادم */
+                /* في حالة توقف الخادم في وضع LAN */
                 <div className="text-center py-8 sm:py-12 px-4 max-w-lg mx-auto space-y-4">
                   <div className="w-16 h-16 sm:w-20 sm:h-20 bg-surface-container rounded-2xl sm:rounded-3xl flex items-center justify-center mx-auto text-primary border border-outline-variant/20 shadow-inner">
                     <Wifi className="w-8 h-8 sm:w-10 sm:h-10 animate-pulse" />

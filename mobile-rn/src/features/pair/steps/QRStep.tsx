@@ -12,7 +12,7 @@ interface Props {
 const QRStep = ({ onConnect, onBack, loading }: Props) => {
   const [mode, setMode] = useState<'scan' | 'manual'>('scan');
   const [ip, setIp] = useState('');
-  const [port, setPort] = useState('4321');
+  const [port, setPort] = useState('3000');
   const [key, setKey] = useState('');
   const [showScanner, setShowScanner] = useState(true);
 

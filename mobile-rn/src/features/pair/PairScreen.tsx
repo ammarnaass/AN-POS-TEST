@@ -93,7 +93,7 @@ export const PairScreen = ({ navigation, route }: any) => {
 
   // Manual IP State
   const [manualIp, setManualIp] = useState('');
-  const [manualPort, setManualPort] = useState('4321');
+  const [manualPort, setManualPort] = useState('3000');
   const [manualKey, setManualKey] = useState('');
 
   // Cloud State
@@ -340,7 +340,18 @@ export const PairScreen = ({ navigation, route }: any) => {
         throw new Error(t('pair.desktopInstructions'));
       }
     } catch (e: any) {
-      setError(e instanceof Error ? e.message : t('pair.connectFailed'));
+      const msg = e instanceof Error ? e.message : t('pair.connectFailed');
+      if (
+        msg.includes('Network request failed') ||
+        msg.includes('Failed to fetch') ||
+        msg.includes('timeout') ||
+        msg.includes('ECONNREFUSED') ||
+        msg === t('pair.connectFailed')
+      ) {
+        setError(t('pair.connectFailedHelp'));
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -353,7 +364,7 @@ export const PairScreen = ({ navigation, route }: any) => {
       setError(t('pair.ipPlaceholder'));
       return;
     }
-    const port = manualPort.trim() || '4321';
+    const port = manualPort.trim() || '3000';
     let url = rawIp;
     if (!url.includes(':') && !url.startsWith('http')) {
       url = `http://${rawIp}:${port}`;
@@ -389,11 +400,11 @@ export const PairScreen = ({ navigation, route }: any) => {
     const parts = raw.split(':');
     if (parts.length >= 2) {
       const ip = parts[0];
-      const port = parts[1] || '4321';
+      const port = parts[1] || '3000';
       const key = parts.slice(2).join(':') || '';
       handleConnect(`http://${ip}:${port}`, key);
     } else {
-      handleConnect(`http://${raw}:4321`, '');
+      handleConnect(`http://${raw}:3000`, '');
     }
   };
 
@@ -801,13 +812,16 @@ export const PairScreen = ({ navigation, route }: any) => {
                 <Code2 size={18} color={colors.text.tertiary} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.textInput, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}
-                  placeholder="4321"
+                  placeholder="3000"
                   placeholderTextColor={colors.text.tertiary}
                   value={manualPort}
                   onChangeText={setManualPort}
                   keyboardType="numeric"
                 />
               </View>
+              <Text style={{ color: colors.text.tertiary, fontSize: 11, marginTop: 4, textAlign: isRTL ? 'right' : 'left' }}>
+                {t('pair.portHelp')}
+              </Text>
             </View>
 
             {/* Pairing Code / Key */}

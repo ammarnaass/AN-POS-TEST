@@ -195,7 +195,7 @@ export async function seedDatabase(): Promise<void> {
         scanner_beep_enabled, scanner_terminator, scanner_min_length, scanner_allow_manual_types,
         created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ['default', 0, '', 3000, 'http', 1, 5,
+      ['default', 0, '', 4321, 'http', 1, 5,
         0, 1, 5, 'incremental', 'night', 1, 0,
         0, 0, 100, '[]', 1,
         'usb', 'esc_pos', 203, 150, 80,

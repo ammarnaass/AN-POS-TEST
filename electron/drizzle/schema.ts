@@ -836,7 +836,7 @@ export const networkSettings = sqliteTable('network_settings', {
   id: text('id').primaryKey(),
   lanEnabled: integer('lan_enabled').notNull().default(0),
   serverIp: text('server_ip').notNull().default(''),
-  serverPort: integer('server_port').notNull().default(3000),
+  serverPort: integer('server_port').notNull().default(4321),
   protocol: text('protocol').notNull().default('http'),
   sslCertPath: text('ssl_cert_path').default(''),
   sslKeyPath: text('ssl_key_path').default(''),

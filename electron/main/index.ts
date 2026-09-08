@@ -8,6 +8,7 @@ import { initSchema } from './schema-init';
 import { seedDatabase } from './seed';
 import { registerIpcHandlers } from './ipc/register';
 import { startHttpServer, stopHttpServer, getNetworkSettings, getOrCreateConnectionKey } from './server/index';
+import { queryOne } from './handlers/db-utils';
 
 // إخفاء شريط القوائم الافتراضي بالكامل (File, Edit, View, Window, etc.)
 Menu.setApplicationMenu(null);
@@ -56,17 +57,20 @@ async function createWindow() {
     console.error('[main] فشل seed:', e);
   }
 
-  // 5. تشغيل خادم HTTP REST (إن كان LAN مفعلًا في network_settings)
+  // 5. تشغيل خادم HTTP REST (فقط إن كان LAN مفعلًا ووضع التشغيل عدة أجهزة)
   try {
     const netSettings = getNetworkSettings();
     const lanEnabled = Boolean(netSettings?.lan_enabled);
-    if (lanEnabled) {
-      const port = Number(netSettings?.server_port) || 4321;
+    const settingsRow = queryOne('SELECT sync_mode FROM settings WHERE id = \'default\' LIMIT 1');
+    const syncMode = (settingsRow?.sync_mode as string) || 'single';
+
+    if (lanEnabled && syncMode !== 'single') {
+      const port = Number(netSettings?.server_port) || 3000;
       // تأكد من وجود مفتاح اتصال (يُولّد تلقائياً عند الحاجة)
       getOrCreateConnectionKey();
       await startHttpServer({ port });
     } else {
-      console.log('[main] خادم HTTP معطّل (lan_enabled = 0 في network_settings)');
+      console.log(`[main] خادم HTTP معطّل (lan_enabled = ${lanEnabled ? 1 : 0}, sync_mode = '${syncMode}')`);
     }
   } catch (e) {
     console.error('[main] فشل تشغيل خادم HTTP:', e);

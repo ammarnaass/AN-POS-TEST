@@ -10,22 +10,44 @@ import {
   getNetworkSettings,
   getOrCreateConnectionKey,
 } from '../server';
-import { execute, queryAll } from '../handlers/db-utils';
+import { execute, queryAll, queryOne } from '../handlers/db-utils';
 
 /**
  * تفعيل/تعطيل خادم HTTP + إعداد network_settings
  */
 export function registerNetworkIpc(): void {
   // server:status — هل الخادم يعمل؟
-  ipcMain.handle('server:status', async () => ({
-    running: isHttpServerRunning(),
-    lanEnabled: Boolean(getNetworkSettings()?.lan_enabled),
-    port: Number(getNetworkSettings()?.server_port) || 4321,
-  }));
+  ipcMain.handle('server:status', async () => {
+    const settingsRow = queryOne('SELECT sync_mode FROM settings WHERE id = \'default\' LIMIT 1');
+    const syncMode = (settingsRow?.sync_mode as string) || 'single';
+    if (syncMode === 'single' && isHttpServerRunning()) {
+      await stopHttpServer();
+      execute(
+        "UPDATE network_settings SET lan_enabled = 0, updated_at = ? WHERE id = 'default'",
+        [new Date().toISOString()]
+      );
+    }
+    return {
+      running: isHttpServerRunning(),
+      lanEnabled: Boolean(getNetworkSettings()?.lan_enabled),
+      port: Number(getNetworkSettings()?.server_port) || 3000,
+      syncMode,
+    };
+  });
 
   // server:enable — فتح الخادم + تحديث lan_enabled = 1
   ipcMain.handle('server:enable', async (_evt, opts?: { port?: number }) => {
-    const port = opts?.port ?? Number(getNetworkSettings()?.server_port) ?? 4321;
+    // شرط وضع التشغيل: يجب ألا يشتغل وضع المقترن مع الهاتف إذا كان الوضع جهاز واحد
+    const settingsRow = queryOne('SELECT sync_mode FROM settings WHERE id = \'default\' LIMIT 1');
+    const syncMode = (settingsRow?.sync_mode as string) || 'single';
+    if (syncMode === 'single') {
+      return {
+        success: false,
+        error: 'لا يمكن تشغيل خادم الربط أو إقران الهواتف في وضع "جهاز واحد". يجب تغيير وضع التشغيل أولاً إلى "عدة أجهزة (شبكة محلية LAN)".',
+        running: false,
+      };
+    }
+    const port = opts?.port ?? Number(getNetworkSettings()?.server_port) ?? 3000;
     // تحديث الإعدادات
     execute(
       "UPDATE network_settings SET lan_enabled = 1, server_port = ?, updated_at = ? WHERE id = 'default'",
@@ -53,7 +75,14 @@ export function registerNetworkIpc(): void {
   });
 
   // server:pairing-info — معلومات QR (ip, port, key, shopName)
-  ipcMain.handle('server:pairing-info', async () => getPairingInfo());
+  ipcMain.handle('server:pairing-info', async () => {
+    const settingsRow = queryOne('SELECT sync_mode FROM settings WHERE id = \'default\' LIMIT 1');
+    const syncMode = (settingsRow?.sync_mode as string) || 'single';
+    if (syncMode === 'single') {
+      return null;
+    }
+    return getPairingInfo();
+  });
 
   // server:regenerate-key — توليد مفتاح اتصال جديد (إبطال الأجهزة القديمة)
   ipcMain.handle('server:regenerate-key', async () => {

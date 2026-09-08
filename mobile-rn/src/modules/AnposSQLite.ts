@@ -149,6 +149,28 @@ export class AnposSQLiteDriver implements DataDriver {
 
   private tableColumnsCache = new Map<string, Set<string>>();
 
+  clearTableColumnsCache(): void {
+    this.tableColumnsCache.clear();
+  }
+
+  private static readonly FALLBACK_COLUMNS: Record<string, string[]> = {
+    packs: [
+      'id', 'name', 'description', 'barcode', 'price', 'pack_price',
+      'pack_type', 'unit_name', 'pieces_count', 'min_wholesale_qty',
+      'items', 'status', 'is_active', 'created_at', 'updated_at'
+    ],
+    products: [
+      'id', 'name', 'product_name', 'barcode', 'sku', 'category', 'category_id',
+      'cost_price', 'purchase_price', 'average_price', 'retail_price', 'price',
+      'sale_price2', 'sale_price3', 'wholesale_price', 'invoice_price', 'profit_margin',
+      'tax_rate', 'discount', 'wholesale_min_qty', 'wholesale_unit_name', 'weight',
+      'package_size', 'location', 'quantity', 'min_quantity', 'low_stock_threshold',
+      'allow_negative_stock', 'warehouse_id', 'status', 'image', 'image_url',
+      'expiry_date', 'batch_number', 'quick_sale', 'custom_prices', 'sync_version',
+      'deleted_at', 'created_at', 'updated_at'
+    ],
+  };
+
   private getTableColumns(table: string): Set<string> {
     if (this.tableColumnsCache.has(table)) {
       return this.tableColumnsCache.get(table)!;
@@ -167,6 +189,12 @@ export class AnposSQLiteDriver implements DataDriver {
       }
     } catch (err) {
       console.warn(`[AnposSQLite] PRAGMA table_info(${table}) error:`, err);
+    }
+    const fallback = AnposSQLiteDriver.FALLBACK_COLUMNS[table];
+    if (fallback && fallback.length > 0) {
+      const fallbackSet = new Set(fallback);
+      this.tableColumnsCache.set(table, fallbackSet);
+      return fallbackSet;
     }
     return new Set<string>();
   }

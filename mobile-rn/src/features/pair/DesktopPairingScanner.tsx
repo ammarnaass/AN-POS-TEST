@@ -78,7 +78,7 @@ export const parsePairingCode = (rawCode: string): { serverUrl: string; key: str
 
       const host = data.ip || data.host || data.server || (Array.isArray(data.ips) && data.ips.length > 0 ? data.ips[0] : undefined);
       if (host) {
-        const port = data.port || '4321';
+        const port = data.port || '3000';
         return { serverUrl: normalizeServerUrl(`http://${host}:${port}`), key };
       }
     } catch {
@@ -97,7 +97,7 @@ export const parsePairingCode = (rawCode: string): { serverUrl: string; key: str
 
       const url = new URL(code.replace('anpos://pair', 'http://localhost').replace('anpos://', 'http://localhost/'));
       const host = url.searchParams.get('ip') || url.searchParams.get('host') || url.searchParams.get('server');
-      const port = url.searchParams.get('port') || '4321';
+      const port = url.searchParams.get('port') || '3000';
       const key = url.searchParams.get('key') || url.searchParams.get('token') || url.searchParams.get('connectionKey') || '';
 
       if (host) {
@@ -112,14 +112,14 @@ export const parsePairingCode = (rawCode: string): { serverUrl: string; key: str
   const parts = code.split(':');
   if (parts.length >= 2) {
     const host = parts[0].trim();
-    const port = parts[1].trim() || '4321';
+    const port = parts[1].trim() || '3000';
     const key = parts.slice(2).join(':').trim();
     if (host.includes('.') || host === 'localhost') {
       return { serverUrl: normalizeServerUrl(`http://${host}:${port}`), key };
     }
   } else if (code.includes('.')) {
     // Bare IP e.g. 192.168.1.10
-    return { serverUrl: normalizeServerUrl(`http://${code}:4321`), key: '' };
+    return { serverUrl: normalizeServerUrl(`http://${code}:3000`), key: '' };
   }
 
   return null;
