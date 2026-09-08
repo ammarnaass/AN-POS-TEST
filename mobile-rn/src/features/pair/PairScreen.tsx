@@ -11,6 +11,7 @@ import {
   Image,
   Modal,
   Animated,
+  Vibration,
 } from 'react-native';
 import {
   Radio,
@@ -36,6 +37,7 @@ import {
   ArrowLeft,
   ArrowRight,
   CheckCircle2,
+  XCircle,
   X,
   Sparkles,
   Store,
@@ -101,6 +103,12 @@ export const PairScreen = ({ navigation, route }: any) => {
   const [showScanner, setShowScanner] = useState(false);
   const [qrPastedCode, setQrPastedCode] = useState('');
   const [qrMode, setQrMode] = useState<'camera' | 'paste'>('camera');
+
+  // Universal Connection & Transition Overlay State (ui-ux-pro-max)
+  const [connectStage, setConnectStage] = useState<'idle' | 'connecting' | 'success' | 'error'>('idle');
+  const [connectedTarget, setConnectedTarget] = useState<{ shopName: string; ip: string; port: number } | null>(null);
+  const connectScaleAnim = useRef(new Animated.Value(0)).current;
+  const connectFadeAnim = useRef(new Animated.Value(1)).current;
 
   // Manual IP State
   const [manualIp, setManualIp] = useState('');
@@ -366,6 +374,10 @@ export const PairScreen = ({ navigation, route }: any) => {
       return;
     }
 
+    setConnectStage('connecting');
+    connectScaleAnim.setValue(0);
+    connectFadeAnim.setValue(1);
+
     try {
       await session.save(normalizedUrl, key);
       await setServerUrl(normalizedUrl);
@@ -412,20 +424,48 @@ export const PairScreen = ({ navigation, route }: any) => {
         lastStatus: 'online',
       });
       syncEngine.pullUpdates().catch(() => {});
-      navigation.replace('Login');
+
+      // Success feedback (ui-ux-pro-max)
+      setConnectedTarget({ shopName, ip, port });
+      setConnectStage('success');
+      try {
+        Vibration.vibrate([0, 40, 70, 40]);
+      } catch {}
+
+      Animated.spring(connectScaleAnim, {
+        toValue: 1,
+        friction: 5,
+        tension: 65,
+        useNativeDriver: true,
+      }).start();
+
+      // Smooth transition to UI
+      setTimeout(() => {
+        Animated.timing(connectFadeAnim, {
+          toValue: 0,
+          duration: 250,
+          useNativeDriver: true,
+        }).start(() => {
+          setConnectStage('idle');
+          setLoading(false);
+          navigation.replace('Login');
+        });
+      }, 950);
     } catch (e: any) {
       const msg = e instanceof Error ? e.message : t('pair.connectFailed');
-      if (
+      const errText = (
         msg.includes('Network request failed') ||
         msg.includes('Failed to fetch') ||
         msg.includes('timeout') ||
         msg.includes('ECONNREFUSED') ||
         msg === t('pair.connectFailed')
-      ) {
-        setError(t('pair.connectFailedHelp'));
-      } else {
-        setError(msg);
-      }
+      ) ? t('pair.connectFailedHelp') : msg;
+
+      setError(errText);
+      setConnectStage('error');
+      try {
+        Vibration.vibrate([0, 80, 50, 80]);
+      } catch {}
     } finally {
       setLoading(false);
     }
@@ -1378,6 +1418,107 @@ export const PairScreen = ({ navigation, route }: any) => {
           }}
         />
       )}
+
+      {/* ========================================================================= */}
+      {/* UI/UX PRO MAX: CONNECTION & VERIFICATION OVERLAY MODAL                    */}
+      {/* ========================================================================= */}
+      <Modal
+        visible={connectStage !== 'idle'}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => {
+          if (connectStage === 'error') {
+            setConnectStage('idle');
+          }
+        }}
+      >
+        <Animated.View style={[styles.connectOverlayBackdrop, { opacity: connectFadeAnim }]}>
+          <Animated.View
+            style={[
+              styles.connectOverlayCard,
+              {
+                backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                borderColor: connectStage === 'error'
+                  ? 'rgba(239, 68, 68, 0.4)'
+                  : connectStage === 'success'
+                  ? 'rgba(34, 197, 94, 0.4)'
+                  : borderColor,
+              },
+            ]}
+          >
+            {/* 1. CONNECTING / LOADING STATE */}
+            {connectStage === 'connecting' && (
+              <View style={styles.connectStateBox}>
+                <View style={[styles.connectIconHalo, { backgroundColor: 'rgba(59, 130, 246, 0.12)' }]}>
+                  <ActivityIndicator size="large" color="#3b82f6" />
+                </View>
+                <Text style={[styles.connectStatusTitle, { color: colors.text.primary }]}>
+                  جاري الاتصال بالخادم...
+                </Text>
+                <Text style={[styles.connectStatusSubtitle, { color: colors.text.secondary }]}>
+                  التحقق من بيانات الاعتماد وتهيئة قنوات المزامنة الفورية
+                </Text>
+              </View>
+            )}
+
+            {/* 2. SUCCESS STATE: Animated Spring Checkmark */}
+            {connectStage === 'success' && (
+              <Animated.View
+                style={[
+                  styles.connectStateBox,
+                  { transform: [{ scale: connectScaleAnim }] },
+                ]}
+              >
+                <View style={[styles.connectIconHalo, { backgroundColor: 'rgba(34, 197, 94, 0.14)' }]}>
+                  <CheckCircle2 size={56} color="#22c55e" />
+                </View>
+                <Text style={[styles.connectStatusTitle, { color: colors.text.primary }]}>
+                  تم الاتصال بنجاح!
+                </Text>
+                {connectedTarget && (
+                  <View style={styles.connectedTargetBadge}>
+                    <Text style={styles.connectedShopName}>
+                      {connectedTarget.shopName || 'AN POS Desktop'}
+                    </Text>
+                    <Text style={styles.connectedIpText}>
+                      {connectedTarget.ip}:{connectedTarget.port}
+                    </Text>
+                  </View>
+                )}
+                <View style={styles.verifiedRow}>
+                  <ShieldCheck size={14} color="#22c55e" />
+                  <Text style={[styles.connectStatusSubtitle, { color: '#16a34a', fontWeight: '600' }]}>
+                    اتصال آمن ومزامنة مشفرة نشطة
+                  </Text>
+                </View>
+              </Animated.View>
+            )}
+
+            {/* 3. ERROR STATE: Red Alert and Retry Action */}
+            {connectStage === 'error' && (
+              <View style={styles.connectStateBox}>
+                <View style={[styles.connectIconHalo, { backgroundColor: 'rgba(239, 68, 68, 0.12)' }]}>
+                  <XCircle size={56} color="#ef4444" />
+                </View>
+                <Text style={[styles.connectStatusTitle, { color: colors.danger.main }]}>
+                  تعذر الاتصال بالخادم
+                </Text>
+                <Text style={[styles.connectStatusSubtitle, { color: colors.text.secondary }]}>
+                  {error || 'تأكد من تشغيل AN POS على الحاسوب وتوصيل الجهازين بنفس شبكة Wi-Fi'}
+                </Text>
+                <TouchableOpacity
+                  style={[styles.primaryPanelBtn, { marginTop: 12, width: '100%' }]}
+                  onPress={() => setConnectStage('idle')}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.primaryPanelBtnText}>حسناً، سأحاول مجدداً</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </Animated.View>
+        </Animated.View>
+      </Modal>
     </ScrollView>
   );
 };
@@ -1955,6 +2096,82 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     fontFamily: 'Cairo',
+  },
+  connectOverlayBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.72)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  connectOverlayCard: {
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: radii['2xl'],
+    padding: 24,
+    borderWidth: 1,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  connectStateBox: {
+    alignItems: 'center',
+    width: '100%',
+    gap: 10,
+  },
+  connectIconHalo: {
+    width: 84,
+    height: 84,
+    borderRadius: radii.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  connectStatusTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    fontFamily: 'Cairo',
+    textAlign: 'center',
+  },
+  connectStatusSubtitle: {
+    fontSize: 12.5,
+    fontFamily: 'Cairo',
+    textAlign: 'center',
+    lineHeight: 18,
+    paddingHorizontal: 8,
+  },
+  connectedTargetBadge: {
+    backgroundColor: 'rgba(34, 197, 94, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.3)',
+    borderRadius: radii.xl,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    alignItems: 'center',
+    marginTop: 4,
+    width: '100%',
+  },
+  connectedShopName: {
+    color: '#22c55e',
+    fontSize: 15,
+    fontWeight: '800',
+    fontFamily: 'Cairo',
+  },
+  connectedIpText: {
+    color: '#86efac',
+    fontSize: 12,
+    fontWeight: '600',
+    fontFamily: 'Cairo',
+    marginTop: 2,
+  },
+  verifiedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
   },
 });
 

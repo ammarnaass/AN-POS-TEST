@@ -48,12 +48,15 @@ export const CameraScanner = ({
   const [manualMode, setManualMode] = useState(false);
   const [manualCode, setManualCode] = useState('');
   const [lastScannedFeedback, setLastScannedFeedback] = useState<string | null>(null);
+  const [singleSuccessCode, setSingleSuccessCode] = useState<string | null>(null);
 
   const hasScannedSingle = useRef(false);
   const lastScanTime = useRef<number>(0);
   const lastCodeScanned = useRef<string>('');
   const scanLineAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const singleSuccessAnim = useRef(new Animated.Value(0)).current;
+  const fadeOutAnim = useRef(new Animated.Value(1)).current;
 
   // Scan line animation loop
   useEffect(() => {
@@ -110,10 +113,29 @@ export const CameraScanner = ({
         if (!hasScannedSingle.current) {
           hasScannedSingle.current = true;
           try {
-            Vibration.vibrate(60);
+            Vibration.vibrate([0, 35, 55, 35]);
+            AnposCamera.stopScan();
           } catch {}
-          onScan(code, 'single');
-          onClose();
+
+          setSingleSuccessCode(code);
+
+          Animated.spring(singleSuccessAnim, {
+            toValue: 1,
+            friction: 5,
+            tension: 70,
+            useNativeDriver: true,
+          }).start();
+
+          setTimeout(() => {
+            Animated.timing(fadeOutAnim, {
+              toValue: 0,
+              duration: 220,
+              useNativeDriver: true,
+            }).start(() => {
+              onScan(code, 'single');
+              onClose();
+            });
+          }, 450);
         }
       } else {
         // Multi Mode: debounce repeated scans of the same code within 1.4s
@@ -193,7 +215,7 @@ export const CameraScanner = ({
 
   return (
     <Modal transparent visible animationType="fade" statusBarTranslucent>
-      <View style={styles.container}>
+      <Animated.View style={[styles.container, { opacity: fadeOutAnim }]}>
         {/* ── Top Bar / Header ── */}
         <View style={styles.header}>
           <TouchableOpacity
@@ -355,29 +377,48 @@ export const CameraScanner = ({
                 { transform: [{ scale: pulseAnim }] },
               ]}
             >
-              <View style={styles.scanFrame}>
-                {/* 4 Glowing Corner Accents */}
-                <View style={[styles.corner, styles.cornerTL]} />
-                <View style={[styles.corner, styles.cornerTR]} />
-                <View style={[styles.corner, styles.cornerBL]} />
-                <View style={[styles.corner, styles.cornerBR]} />
+              <View style={[styles.scanFrame, singleSuccessCode && styles.scanFrameSuccess]}>
+                {singleSuccessCode ? (
+                  <Animated.View
+                    style={[
+                      styles.singleSuccessBox,
+                      { transform: [{ scale: singleSuccessAnim }] },
+                    ]}
+                  >
+                    <View style={styles.singleSuccessIconCircle}>
+                      <CheckCircle2 size={50} color="#22c55e" />
+                    </View>
+                    <Text style={styles.singleSuccessTitle}>تم التقاط الباركود!</Text>
+                    <View style={styles.singleSuccessCodeBadge}>
+                      <Text style={styles.singleSuccessCodeText}>{singleSuccessCode}</Text>
+                    </View>
+                  </Animated.View>
+                ) : (
+                  <>
+                    {/* 4 Glowing Corner Accents */}
+                    <View style={[styles.corner, styles.cornerTL]} />
+                    <View style={[styles.corner, styles.cornerTR]} />
+                    <View style={[styles.corner, styles.cornerBL]} />
+                    <View style={[styles.corner, styles.cornerBR]} />
 
-                {/* Animated Vertical Scan Line */}
-                <Animated.View
-                  style={[
-                    styles.scanLine,
-                    {
-                      transform: [
+                    {/* Animated Vertical Scan Line */}
+                    <Animated.View
+                      style={[
+                        styles.scanLine,
                         {
-                          translateY: scanLineAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [0, FRAME_HEIGHT - 6],
-                          }),
+                          transform: [
+                            {
+                              translateY: scanLineAnim.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [0, FRAME_HEIGHT - 6],
+                              }),
+                            },
+                          ],
                         },
-                      ],
-                    },
-                  ]}
-                />
+                      ]}
+                    />
+                  </>
+                )}
               </View>
             </Animated.View>
 
@@ -405,7 +446,7 @@ export const CameraScanner = ({
             </View>
           </View>
         )}
-      </View>
+      </Animated.View>
     </Modal>
   );
 };
@@ -548,8 +589,48 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderRadius: radii.lg,
     borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.6)',
-    backgroundColor: 'transparent',
+    borderColor: 'rgba(59, 130, 246, 0.4)',
+    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scanFrameSuccess: {
+    borderColor: 'rgba(34, 197, 94, 0.9)',
+    backgroundColor: 'rgba(20, 83, 45, 0.3)',
+  },
+  singleSuccessBox: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  singleSuccessIconCircle: {
+    width: 68,
+    height: 68,
+    borderRadius: radii.full,
+    backgroundColor: 'rgba(34, 197, 94, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  singleSuccessTitle: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontFamily: 'Cairo',
+    fontWeight: '700',
+  },
+  singleSuccessCodeBadge: {
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.4)',
+  },
+  singleSuccessCodeText: {
+    color: '#86efac',
+    fontSize: 12,
+    fontFamily: 'Cairo',
+    fontWeight: '700',
   },
   corner: {
     position: 'absolute',

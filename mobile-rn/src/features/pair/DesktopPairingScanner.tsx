@@ -11,12 +11,16 @@ import {
   Animated,
   Vibration,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import {
   X,
   Keyboard,
   QrCode,
   Wifi,
+  CheckCircle2,
+  XCircle,
+  Loader2,
 } from 'lucide-react-native';
 import { AnposCamera, type ScanResult } from '@/modules/AnposCamera';
 import { radii, spacing } from '@/theme/tokens';
@@ -43,87 +47,64 @@ export interface PairingPayload {
   baseUrl?: string;
 }
 
-/**
- * Robust parser for all QR code and pairing code formats
- */
-export const parsePairingCode = (rawCode: string): { serverUrl: string; key: string } | null => {
-  let code = (rawCode || '').trim();
-  if (!code) return null;
+export function parsePairingCode(
+  rawText: string
+): { serverUrl: string; key: string } | null {
+  if (!rawText) return null;
+  const text = rawText.trim();
 
-  // 0. Try Base64 decoding if applicable
-  if (!code.startsWith('{') && !code.startsWith('http') && !code.startsWith('anpos') && code.length > 10) {
+  // 1. Try parsing JSON format
+  try {
+    const data = JSON.parse(text);
+    const host =
+      data.ip ||
+      data.host ||
+      data.server ||
+      (Array.isArray(data.ips) ? data.ips[0] : null);
+    const key = data.key || data.token || data.connectionKey || '';
+
+    if (data.serverUrl || data.url || data.baseUrl) {
+      const u = data.serverUrl || data.url || data.baseUrl;
+      return { serverUrl: normalizeServerUrl(u), key };
+    }
+
+    if (host) {
+      const port = data.port || 3000;
+      return { serverUrl: normalizeServerUrl(`http://${host}:${port}`), key };
+    }
+  } catch {}
+
+  // 2. Try URI format: anpos://pair?host=...&port=...&key=...
+  if (text.startsWith('anpos://') || text.startsWith('http://') || text.startsWith('https://')) {
     try {
-      // Check if it's base64
-      if (/^[A-Za-z0-9+/=]+$/.test(code)) {
-        const decoded = typeof atob === 'function' ? atob(code) : Buffer.from(code, 'base64').toString('utf-8');
-        if (decoded && (decoded.startsWith('{') || decoded.includes(':') || decoded.includes('anpos'))) {
-          code = decoded.trim();
+      const url = new URL(text);
+      if (text.startsWith('anpos://')) {
+        const host = url.searchParams.get('host') || url.hostname;
+        const port = url.searchParams.get('port') || '3000';
+        const key = url.searchParams.get('key') || url.searchParams.get('k') || '';
+        if (host) {
+          return { serverUrl: normalizeServerUrl(`http://${host}:${port}`), key };
         }
+      } else {
+        const key = url.searchParams.get('key') || url.searchParams.get('k') || '';
+        return { serverUrl: normalizeServerUrl(url.origin), key };
       }
-    } catch {
-      /* continue */
-    }
+    } catch {}
   }
 
-  // 1. Try parsing JSON format: {"ip":"192.168.1.10","port":4321,"key":"..."} or {"ips":[...], ...}
-  if (code.startsWith('{') && code.endsWith('}')) {
-    try {
-      const data: PairingPayload & { ips?: string[] } = JSON.parse(code);
-      const serverUrl = data.serverUrl || data.url || data.baseUrl;
-      const key = data.key || data.token || data.connectionKey || '';
-
-      if (serverUrl) {
-        return { serverUrl: normalizeServerUrl(serverUrl), key };
-      }
-
-      const host = data.ip || data.host || data.server || (Array.isArray(data.ips) && data.ips.length > 0 ? data.ips[0] : undefined);
-      if (host) {
-        const port = data.port || '3000';
-        return { serverUrl: normalizeServerUrl(`http://${host}:${port}`), key };
-      }
-    } catch {
-      /* continue */
-    }
-  }
-
-  // 2. Try parsing URI schemes: anpos://pair?... or http://... or https://...
-  if (code.startsWith('anpos://') || code.startsWith('http://') || code.startsWith('https://')) {
-    try {
-      if (code.startsWith('http://') || code.startsWith('https://')) {
-        const u = new URL(code);
-        const key = u.searchParams.get('key') || u.searchParams.get('token') || u.searchParams.get('connectionKey') || '';
-        return { serverUrl: normalizeServerUrl(`${u.protocol}//${u.host}`), key };
-      }
-
-      const url = new URL(code.replace('anpos://pair', 'http://localhost').replace('anpos://', 'http://localhost/'));
-      const host = url.searchParams.get('ip') || url.searchParams.get('host') || url.searchParams.get('server');
-      const port = url.searchParams.get('port') || '3000';
-      const key = url.searchParams.get('key') || url.searchParams.get('token') || url.searchParams.get('connectionKey') || '';
-
-      if (host) {
-        return { serverUrl: normalizeServerUrl(`http://${host}:${port}`), key };
-      }
-    } catch {
-      /* continue */
-    }
-  }
-
-  // 3. Try delimited formats: 192.168.1.10:4321:connection_key or 192.168.1.10:4321 or 192.168.1.10
-  const parts = code.split(':');
+  // 3. Try delimited formats: host:port:key or host:port
+  const parts = text.split(':');
   if (parts.length >= 2) {
     const host = parts[0].trim();
     const port = parts[1].trim() || '3000';
     const key = parts.slice(2).join(':').trim();
-    if (host.includes('.') || host === 'localhost') {
+    if (host && /^[a-zA-Z0-9.-]+$/.test(host)) {
       return { serverUrl: normalizeServerUrl(`http://${host}:${port}`), key };
     }
-  } else if (code.includes('.')) {
-    // Bare IP e.g. 192.168.1.10
-    return { serverUrl: normalizeServerUrl(`http://${code}:3000`), key: '' };
   }
 
   return null;
-};
+}
 
 export const DesktopPairingScanner = ({
   onConnect,
@@ -131,14 +112,20 @@ export const DesktopPairingScanner = ({
   onClose,
 }: DesktopPairingScannerProps) => {
   const [cameraReady, setCameraReady] = useState(false);
-  const [hasScanned, setHasScanned] = useState(false);
+  const [scanState, setScanState] = useState<'scanning' | 'verifying' | 'success' | 'error'>('scanning');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successInfo, setSuccessInfo] = useState<{ serverUrl: string; key: string } | null>(null);
 
   const scanLineAnim = useRef(new Animated.Value(0)).current;
   const reticlePulse = useRef(new Animated.Value(1)).current;
+  const successScaleAnim = useRef(new Animated.Value(0)).current;
+  const errorShakeAnim = useRef(new Animated.Value(0)).current;
+  const overlayFadeAnim = useRef(new Animated.Value(1)).current;
 
   // Vertical laser animation loop
   useEffect(() => {
+    if (scanState !== 'scanning') return;
+
     const laserLoop = Animated.loop(
       Animated.sequence([
         Animated.timing(scanLineAnim, {
@@ -176,28 +163,72 @@ export const DesktopPairingScanner = ({
       laserLoop.stop();
       pulseLoop.stop();
     };
-  }, [scanLineAnim, reticlePulse]);
+  }, [scanLineAnim, reticlePulse, scanState]);
 
   const handleCodeScanned = useCallback(
     (code: string) => {
-      if (hasScanned) return;
+      if (scanState !== 'scanning') return;
 
-      const parsed = parsePairingCode(code);
-      if (parsed) {
-        setHasScanned(true);
-        try {
-          Vibration.vibrate(60);
-        } catch {}
-        try {
-          AnposCamera.stopScan();
-        } catch {}
-        onConnect(parsed.serverUrl, parsed.key);
-      } else {
-        setErrorMessage('رمز QR غير صالح للاقتران. تأكد من مسح رمز برنامج AN POS على سطح المكتب.');
-        setTimeout(() => setErrorMessage(null), 3500);
-      }
+      // 1. Immediately pause scanning & enter verifying loading state
+      setScanState('verifying');
+      try {
+        AnposCamera.stopScan();
+      } catch {}
+
+      // Slight natural pause for verification feel
+      setTimeout(() => {
+        const parsed = parsePairingCode(code);
+        if (parsed) {
+          setSuccessInfo(parsed);
+          setScanState('success');
+          try {
+            Vibration.vibrate([0, 40, 60, 40]);
+          } catch {}
+
+          Animated.spring(successScaleAnim, {
+            toValue: 1,
+            friction: 5,
+            tension: 60,
+            useNativeDriver: true,
+          }).start();
+
+          // Smooth transition to UI
+          setTimeout(() => {
+            Animated.timing(overlayFadeAnim, {
+              toValue: 0,
+              duration: 250,
+              useNativeDriver: true,
+            }).start(() => {
+              onConnect(parsed.serverUrl, parsed.key);
+            });
+          }, 850);
+        } else {
+          setScanState('error');
+          setErrorMessage('رمز QR غير صالح للاقتران. تأكد من مسح رمز برنامج AN POS على سطح المكتب.');
+          try {
+            Vibration.vibrate([0, 80, 50, 80]);
+          } catch {}
+
+          Animated.sequence([
+            Animated.timing(errorShakeAnim, { toValue: 10, duration: 60, useNativeDriver: true }),
+            Animated.timing(errorShakeAnim, { toValue: -10, duration: 60, useNativeDriver: true }),
+            Animated.timing(errorShakeAnim, { toValue: 6, duration: 50, useNativeDriver: true }),
+            Animated.timing(errorShakeAnim, { toValue: 0, duration: 50, useNativeDriver: true }),
+          ]).start();
+
+          // Resume after 2.4 seconds
+          setTimeout(() => {
+            setErrorMessage(null);
+            setScanState('scanning');
+            successScaleAnim.setValue(0);
+            try {
+              AnposCamera.startScan();
+            } catch {}
+          }, 2400);
+        }
+      }, 250);
     },
-    [hasScanned, onConnect]
+    [scanState, onConnect, successScaleAnim, errorShakeAnim, overlayFadeAnim]
   );
 
   // Start Camera and Subscribe to scan events
@@ -229,7 +260,6 @@ export const DesktopPairingScanner = ({
         AnposCamera.startScan();
         setCameraReady(true);
 
-        // Listen to BOTH 'onBarcodeScan' (native emit name) and 'onBarcodeScanned' (alias)
         subScan = CameraEventEmitter.addListener('onBarcodeScan', (res: ScanResult | { code?: string }) => {
           if (!res?.code) return;
           handleCodeScanned(res.code);
@@ -262,10 +292,15 @@ export const DesktopPairingScanner = ({
 
   return (
     <Modal transparent visible animationType="fade" statusBarTranslucent onRequestClose={onClose}>
-      <View style={styles.container}>
+      <Animated.View style={[styles.container, { opacity: overlayFadeAnim }]}>
         {/* Top Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.75}>
+          <TouchableOpacity
+            style={styles.closeBtn}
+            onPress={onClose}
+            activeOpacity={0.75}
+            disabled={scanState === 'verifying' || scanState === 'success'}
+          >
             <X size={22} color="#ffffff" />
           </TouchableOpacity>
           <View style={styles.headerTitles}>
@@ -277,34 +312,104 @@ export const DesktopPairingScanner = ({
 
         {/* Central QR Reticle Frame */}
         <View style={styles.scannerCenter}>
-          <Animated.View style={[styles.reticleFrame, { transform: [{ scale: reticlePulse }] }]}>
-            {/* 4 Corner Markers */}
-            <View style={[styles.corner, styles.topLeft]} />
-            <View style={[styles.corner, styles.topRight]} />
-            <View style={[styles.corner, styles.bottomLeft]} />
-            <View style={[styles.corner, styles.bottomRight]} />
+          <Animated.View
+            style={[
+              styles.reticleFrame,
+              scanState === 'verifying' && styles.reticleVerifying,
+              scanState === 'success' && styles.reticleSuccess,
+              scanState === 'error' && styles.reticleError,
+              {
+                transform: [
+                  { scale: scanState === 'scanning' ? reticlePulse : 1 },
+                  { translateX: errorShakeAnim },
+                ],
+              },
+            ]}
+          >
+            {/* SCANNING STATE: Laser & Corners */}
+            {scanState === 'scanning' && (
+              <>
+                <View style={[styles.corner, styles.topLeft]} />
+                <View style={[styles.corner, styles.topRight]} />
+                <View style={[styles.corner, styles.bottomLeft]} />
+                <View style={[styles.corner, styles.bottomRight]} />
 
-            {/* Glowing Laser Scanline */}
-            <Animated.View
-              style={[
-                styles.laserLine,
-                {
-                  transform: [{ translateY: laserTranslateY }],
-                },
-              ]}
-            />
+                <Animated.View
+                  style={[
+                    styles.laserLine,
+                    {
+                      transform: [{ translateY: laserTranslateY }],
+                    },
+                  ]}
+                />
 
-            {/* Subtle QR Watermark */}
-            <View style={styles.watermark}>
-              <QrCode size={70} color="rgba(255, 255, 255, 0.15)" />
-            </View>
+                <View style={styles.watermark}>
+                  <QrCode size={70} color="rgba(255, 255, 255, 0.15)" />
+                </View>
+              </>
+            )}
+
+            {/* VERIFYING / LOADING STATE */}
+            {scanState === 'verifying' && (
+              <View style={styles.stateCenterBox}>
+                <ActivityIndicator size="large" color="#60a5fa" />
+                <Text style={styles.verifyingText}>جاري التحقق من رمز الاقتران...</Text>
+              </View>
+            )}
+
+            {/* SUCCESS STATE: Animated Green Checkmark */}
+            {scanState === 'success' && (
+              <Animated.View
+                style={[
+                  styles.stateCenterBox,
+                  { transform: [{ scale: successScaleAnim }] },
+                ]}
+              >
+                <View style={styles.successIconCircle}>
+                  <CheckCircle2 size={58} color="#22c55e" />
+                </View>
+                <Text style={styles.successTitleText}>تم التعرف على الحاسوب!</Text>
+                {successInfo?.serverUrl ? (
+                  <Text style={styles.successSubText} numberOfLines={1}>
+                    {successInfo.serverUrl}
+                  </Text>
+                ) : null}
+              </Animated.View>
+            )}
+
+            {/* ERROR STATE: Animated Red X */}
+            {scanState === 'error' && (
+              <View style={styles.stateCenterBox}>
+                <View style={styles.errorIconCircle}>
+                  <XCircle size={56} color="#ef4444" />
+                </View>
+                <Text style={styles.errorTitleText}>رمز غير صالح!</Text>
+              </View>
+            )}
           </Animated.View>
 
-          {errorMessage ? (
+          {/* Under-Reticle Feedback Badges */}
+          {scanState === 'verifying' && (
+            <View style={[styles.hintBadge, { backgroundColor: 'rgba(30, 58, 138, 0.5)', borderColor: '#3b82f6' }]}>
+              <ActivityIndicator size="small" color="#93c5fd" />
+              <Text style={styles.hintText}>معالجة بيانات الخادم...</Text>
+            </View>
+          )}
+
+          {scanState === 'success' && (
+            <View style={[styles.hintBadge, { backgroundColor: 'rgba(20, 83, 45, 0.6)', borderColor: '#22c55e' }]}>
+              <CheckCircle2 size={15} color="#4ade80" />
+              <Text style={[styles.hintText, { color: '#86efac' }]}>جاري الانتقال لشاشة الاتصال...</Text>
+            </View>
+          )}
+
+          {scanState === 'error' && (
             <View style={styles.errorToast}>
               <Text style={styles.errorToastText}>{errorMessage}</Text>
             </View>
-          ) : (
+          )}
+
+          {scanState === 'scanning' && (
             <View style={styles.hintBadge}>
               <Wifi size={14} color="#60a5fa" />
               <Text style={styles.hintText}>تأكد من اتصال الهاتف والحاسوب بنفس الشبكة</Text>
@@ -322,13 +427,14 @@ export const DesktopPairingScanner = ({
                 onManualInput();
               }}
               activeOpacity={0.8}
+              disabled={scanState === 'verifying' || scanState === 'success'}
             >
               <Keyboard size={18} color="#ffffff" />
               <Text style={styles.manualBtnText}>إدخال عنوان IP ومفتاح الربط يدوياً</Text>
             </TouchableOpacity>
           )}
         </View>
-      </View>
+      </Animated.View>
     </Modal>
   );
 };
@@ -392,6 +498,70 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  reticleVerifying: {
+    borderColor: 'rgba(96, 165, 250, 0.8)',
+    backgroundColor: 'rgba(30, 58, 138, 0.18)',
+  },
+  reticleSuccess: {
+    borderColor: 'rgba(34, 197, 94, 0.9)',
+    backgroundColor: 'rgba(20, 83, 45, 0.25)',
+  },
+  reticleError: {
+    borderColor: 'rgba(239, 68, 68, 0.9)',
+    backgroundColor: 'rgba(127, 29, 29, 0.25)',
+  },
+  stateCenterBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+    gap: spacing.sm,
+  },
+  verifyingText: {
+    color: '#93c5fd',
+    fontSize: 13,
+    fontFamily: 'Cairo',
+    fontWeight: '600',
+    marginTop: spacing.xs,
+  },
+  successIconCircle: {
+    width: 76,
+    height: 76,
+    borderRadius: radii.full,
+    backgroundColor: 'rgba(34, 197, 94, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  successTitleText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontFamily: 'Cairo',
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  successSubText: {
+    color: '#86efac',
+    fontSize: 11.5,
+    fontFamily: 'Cairo',
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  errorIconCircle: {
+    width: 74,
+    height: 74,
+    borderRadius: radii.full,
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  errorTitleText: {
+    color: '#fca5a5',
+    fontSize: 15,
+    fontFamily: 'Cairo',
+    fontWeight: '700',
+    textAlign: 'center',
   },
   watermark: {
     position: 'absolute',

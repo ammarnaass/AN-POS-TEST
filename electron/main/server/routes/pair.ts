@@ -170,12 +170,25 @@ async function pairDevice(
       "UPDATE device_sessions SET expires_at = datetime('now') WHERE expires_at IS NULL AND (last_seen < datetime('now', '-1 day') OR device_name = ?)",
       [payload.deviceName]
     );
+    // مزامنة الذاكرة العشوائية بحذف أي جلسات تم إنهاؤها
+    for (const [token] of activeSessions.entries()) {
+      const activeRow = queryOne(
+        "SELECT id FROM device_sessions WHERE session_token = ? AND (expires_at IS NULL OR expires_at > datetime('now'))",
+        [token]
+      );
+      if (!activeRow) {
+        activeSessions.delete(token);
+      }
+    }
   } catch {}
 
   const currentCountRow = queryOne(
     "SELECT COUNT(DISTINCT device_id) as count FROM device_sessions WHERE expires_at IS NULL OR expires_at > datetime('now')"
   );
-  const currentCount = (currentCountRow?.count as number) || activeSessions.size || 0;
+  const currentCount = typeof currentCountRow?.count === 'number'
+    ? (currentCountRow.count as number)
+    : activeSessions.size;
+
   if (!isDev && currentCount >= maxAllowed) {
     return {
       error: {
