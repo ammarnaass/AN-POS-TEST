@@ -4,22 +4,17 @@ import { AnposSecureStore } from '@/modules/AnposSecureStore';
 import type { DataDriver, DriverConfig, DriverType, ListOptions, ListResult } from '../drivers/DataDriver';
 import { CREATE_TABLES_SQL, CREATE_INDEXES_SQL } from './schema';
 import { seedDatabase } from './seed';
+import { STORAGE_KEYS } from '@/lib/storageKeys';
 
 export type AppMode = 'standalone' | 'connected';
 
-const PREF_KEY_MODE = 'anpos_app_mode';
-const PREF_KEY_SERVER_URL = 'anpos_server_url';
-const PREF_KEY_SESSION_TOKEN = 'anpos_session_token';
-const PREF_KEY_DEVICE_ID = 'anpos_device_id';
-const PREF_KEY_CONNECTION_KEY = 'anpos_connection_key';
-
 export async function getStoredMode(): Promise<AppMode> {
-  const mode = await AnposSecureStore.get(PREF_KEY_MODE);
+  const mode = await AnposSecureStore.get(STORAGE_KEYS.APP_MODE);
   return (mode as AppMode) || 'standalone';
 }
 
 export async function setStoredMode(mode: AppMode): Promise<void> {
-  await AnposSecureStore.set(PREF_KEY_MODE, mode);
+  await AnposSecureStore.set(STORAGE_KEYS.APP_MODE, mode);
 }
 
 /** Run CREATE TABLE + INDEX statements, then seed default data */
@@ -197,9 +192,9 @@ class UnifiedDB {
 
     if (this.mode === 'connected') {
       const [serverUrl, token, deviceId] = await Promise.all([
-        AnposSecureStore.get(PREF_KEY_SERVER_URL),
-        AnposSecureStore.get(PREF_KEY_SESSION_TOKEN),
-        AnposSecureStore.get(PREF_KEY_DEVICE_ID),
+        AnposSecureStore.get(STORAGE_KEYS.SERVER_URL),
+        AnposSecureStore.get(STORAGE_KEYS.SESSION_TOKEN),
+        AnposSecureStore.get(STORAGE_KEYS.DEVICE_ID),
       ]);
 
       if (serverUrl && token && deviceId) {
@@ -211,7 +206,9 @@ class UnifiedDB {
         await this.restDriver.initialize();
         this.driver = this.restDriver;
       } else {
+        console.warn('[UnifiedDB] Missing connection credentials in connected mode — falling back to standalone');
         this.mode = 'standalone';
+        await setStoredMode('standalone');
       }
     }
 
@@ -247,9 +244,9 @@ class UnifiedDB {
 
   async switchToConnected(serverUrl: string, token?: string, deviceId?: string): Promise<void> {
     await this.init();
-    await AnposSecureStore.set(PREF_KEY_SERVER_URL, serverUrl);
-    const sessionToken = token || (await AnposSecureStore.get(PREF_KEY_SESSION_TOKEN)) || '';
-    const devId = deviceId || (await AnposSecureStore.get(PREF_KEY_DEVICE_ID)) || '';
+    await AnposSecureStore.set(STORAGE_KEYS.SERVER_URL, serverUrl);
+    const sessionToken = token || (await AnposSecureStore.get(STORAGE_KEYS.SESSION_TOKEN)) || '';
+    const devId = deviceId || (await AnposSecureStore.get(STORAGE_KEYS.DEVICE_ID)) || '';
 
     this.restDriver = new RESTDriver({
       baseUrl: serverUrl,

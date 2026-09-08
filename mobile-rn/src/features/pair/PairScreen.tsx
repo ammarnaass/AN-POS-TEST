@@ -41,7 +41,7 @@ import {
   Store,
   KeyRound,
 } from 'lucide-react-native';
-import { session, electronAPI, normalizeServerUrl } from '@/lib/apiClient';
+import { session, electronAPI, normalizeServerUrl, checkServerHealth } from '@/lib/apiClient';
 import { useAuthStore } from '@/store/authStore';
 import { AppImages } from '@/assets';
 import {
@@ -49,6 +49,7 @@ import {
   deepManualSubnetScan,
   getCurrentSubnet,
   AUTO_DISCOVERY_TIMEOUT_MS,
+  DEFAULT_DISCOVERY_PORT,
   type DiscoveredDevice,
 } from '@/lib/discovery';
 import { syncEngine } from '@/lib/syncEngine';
@@ -283,22 +284,34 @@ export const PairScreen = ({ navigation, route }: any) => {
       }
 
       const token = res?.sessionToken || res?.token || res?.data?.sessionToken || res?.data?.token;
-      const deviceId = res?.deviceId || res?.id || res?.data?.deviceId || res?.data?.id || 'mobile-terminal';
+      const deviceId = res?.deviceId || res?.id || res?.data?.deviceId || res?.data?.id;
 
-      if (res?.success || token || res?.data) {
-        await session.savePairing(token || 'paired-token', deviceId);
-        setPairSuccess(true);
-
-        // PRD §5.4: Automatic initial sync start
-        syncEngine.pullUpdates().catch(() => {});
-
-        setTimeout(() => {
-          setPairModalVisible(false);
-          navigation.replace('Login');
-        }, 1200);
-      } else {
+      if (!token || !deviceId) {
         throw new Error(t('pair.invalidPairingCode'));
       }
+
+      await session.savePairing(token, deviceId, {
+        deviceId,
+        serverUrl: normalizedUrl,
+        ip: targetDevice.ip,
+        port: targetDevice.port,
+        shopName: targetDevice.shopName,
+        deviceName: targetDevice.deviceName,
+        version: targetDevice.version,
+        mode: normalizedUrl.includes('cloud') ? 'cloud' : 'lan',
+        pairedAt: new Date().toISOString(),
+        lastSeenAt: new Date().toISOString(),
+        lastStatus: 'online',
+      });
+      setPairSuccess(true);
+
+      // PRD §5.4: Automatic initial sync start
+      syncEngine.pullUpdates().catch(() => {});
+
+      setTimeout(() => {
+        setPairModalVisible(false);
+        navigation.replace('Login');
+      }, 1200);
     } catch (e: any) {
       setPairModalError(e instanceof Error ? e.message : t('pair.invalidPairingCode'));
     } finally {
@@ -330,15 +343,39 @@ export const PairScreen = ({ navigation, route }: any) => {
       }
 
       const token = res?.sessionToken || res?.token || res?.data?.sessionToken || res?.data?.token;
-      const deviceId = res?.deviceId || res?.id || res?.data?.deviceId || res?.data?.id || 'mobile-terminal';
+      const deviceId = res?.deviceId || res?.id || res?.data?.deviceId || res?.data?.id;
 
-      if (res?.success || token) {
-        await session.savePairing(token || 'paired-token', deviceId);
-        syncEngine.pullUpdates().catch(() => {});
-        navigation.replace('Login');
-      } else {
-        throw new Error(t('pair.desktopInstructions'));
+      if (!token || !deviceId) {
+        throw new Error(t('pair.connectFailed'));
       }
+
+      let ip = '127.0.0.1';
+      let port = DEFAULT_DISCOVERY_PORT;
+      try {
+        const u = new URL(normalizedUrl);
+        ip = u.hostname;
+        port = Number(u.port) || DEFAULT_DISCOVERY_PORT;
+      } catch {}
+
+      const health = await checkServerHealth(normalizedUrl).catch(() => null);
+      const shopName = health?.info?.shopName || health?.info?.shop_name || 'AN POS';
+      const version = health?.info?.version || '1.0';
+
+      await session.savePairing(token, deviceId, {
+        deviceId,
+        serverUrl: normalizedUrl,
+        ip,
+        port,
+        shopName,
+        deviceName: `Desktop (${ip})`,
+        version,
+        mode: normalizedUrl.includes('cloud') ? 'cloud' : 'lan',
+        pairedAt: new Date().toISOString(),
+        lastSeenAt: new Date().toISOString(),
+        lastStatus: 'online',
+      });
+      syncEngine.pullUpdates().catch(() => {});
+      navigation.replace('Login');
     } catch (e: any) {
       const msg = e instanceof Error ? e.message : t('pair.connectFailed');
       if (
@@ -364,7 +401,7 @@ export const PairScreen = ({ navigation, route }: any) => {
       setError(t('pair.ipPlaceholder'));
       return;
     }
-    const port = manualPort.trim() || '3000';
+    const port = manualPort.trim() || String(DEFAULT_DISCOVERY_PORT);
     let url = rawIp;
     if (!url.includes(':') && !url.startsWith('http')) {
       url = `http://${rawIp}:${port}`;
@@ -400,11 +437,11 @@ export const PairScreen = ({ navigation, route }: any) => {
     const parts = raw.split(':');
     if (parts.length >= 2) {
       const ip = parts[0];
-      const port = parts[1] || '3000';
+      const port = parts[1] || String(DEFAULT_DISCOVERY_PORT);
       const key = parts.slice(2).join(':') || '';
       handleConnect(`http://${ip}:${port}`, key);
     } else {
-      handleConnect(`http://${raw}:3000`, '');
+      handleConnect(`http://${raw}:${DEFAULT_DISCOVERY_PORT}`, '');
     }
   };
 

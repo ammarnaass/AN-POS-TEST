@@ -190,6 +190,10 @@ export interface TranslationSchema {
     connectFailed: string;
     connectFailedHelp: string;
     portHelp: string;
+    customPort: string;
+    customPortHint: string;
+    customPortPlaceholder: string;
+    specifyPort: string;
     retry: string;
     desktopInstructions: string;
     startScan: string;

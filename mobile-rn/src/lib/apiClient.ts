@@ -1,16 +1,14 @@
 import { AnposSecureStore } from '@/modules/AnposSecureStore';
 import type { User, Product, Sale, Customer, Supplier, CashSession, Promotion, Category, CartItem } from '@shared/types';
 import { db as unifiedDB } from '@/infrastructure/database/UnifiedDB';
-
-const SERVER_URL_KEY = 'anpos_server_url';
-const SESSION_KEY = 'anpos_session_token';
-const DEVICE_ID_KEY = 'anpos_device_id';
-const CONNECTION_KEY_KEY = 'anpos_connection_key';
+import { STORAGE_KEYS } from './storageKeys';
+import { savePairedDevice, removePairedDevice, type PairedDevice } from './pairedDeviceStore';
+import { rememberServerUrl } from './discovery';
 
 /**
  * Normalizes any IP, host, or URL into a clean http://<host>:<port> string
  */
-export function normalizeServerUrl(rawUrl: string, defaultPort: string = '3000'): string {
+export function normalizeServerUrl(rawUrl: string, defaultPort: string = '4321'): string {
   let url = (rawUrl || '').trim();
   if (!url) return '';
 
@@ -40,23 +38,24 @@ export function normalizeServerUrl(rawUrl: string, defaultPort: string = '3000')
 }
 
 async function getServerUrl(): Promise<string | null> {
-  const raw = await AnposSecureStore.get(SERVER_URL_KEY);
+  const raw = await AnposSecureStore.get(STORAGE_KEYS.SERVER_URL);
   return raw ? normalizeServerUrl(raw) : null;
 }
 
 async function getSession(): Promise<{ token: string | null; deviceId: string | null }> {
   const [token, deviceId] = await Promise.all([
-    AnposSecureStore.get(SESSION_KEY),
-    AnposSecureStore.get(DEVICE_ID_KEY),
+    AnposSecureStore.get(STORAGE_KEYS.SESSION_TOKEN),
+    AnposSecureStore.get(STORAGE_KEYS.DEVICE_ID),
   ]);
   return { token, deviceId };
 }
 
 async function clearSession(): Promise<void> {
   await Promise.all([
-    AnposSecureStore.remove(SESSION_KEY),
-    AnposSecureStore.remove(DEVICE_ID_KEY),
+    AnposSecureStore.remove(STORAGE_KEYS.SESSION_TOKEN),
+    AnposSecureStore.remove(STORAGE_KEYS.DEVICE_ID),
   ]);
+  await removePairedDevice().catch(() => {});
 }
 
 export async function checkServerHealth(serverUrl: string): Promise<{ ok: boolean; info?: any; error?: string }> {
@@ -293,8 +292,8 @@ let _cachedDeviceId: string | null = null;
 async function refreshSessionCache(): Promise<void> {
   const [urlPref, tokenPref, devicePref] = await Promise.all([
     getServerUrl(),
-    AnposSecureStore.get(SESSION_KEY),
-    AnposSecureStore.get(DEVICE_ID_KEY),
+    AnposSecureStore.get(STORAGE_KEYS.SESSION_TOKEN),
+    AnposSecureStore.get(STORAGE_KEYS.DEVICE_ID),
   ]);
   _cachedServerUrl = urlPref ? normalizeServerUrl(urlPref) : null;
   _cachedToken = tokenPref;
@@ -307,19 +306,44 @@ export const session = {
   save: async (serverUrl: string, key: string) => {
     const normalized = normalizeServerUrl(serverUrl);
     await Promise.all([
-      AnposSecureStore.set(SERVER_URL_KEY, normalized),
-      AnposSecureStore.set(CONNECTION_KEY_KEY, key),
+      AnposSecureStore.set(STORAGE_KEYS.SERVER_URL, normalized),
+      AnposSecureStore.set(STORAGE_KEYS.CONNECTION_KEY, key),
     ]);
     _cachedServerUrl = normalized;
+    await rememberServerUrl(normalized).catch(() => {});
   },
-  savePairing: async (token: string, deviceId: string) => {
+  savePairing: async (token: string, deviceId: string, deviceMeta?: Partial<PairedDevice>) => {
     await Promise.all([
-      AnposSecureStore.set(SESSION_KEY, token),
-      AnposSecureStore.set(DEVICE_ID_KEY, deviceId),
+      AnposSecureStore.set(STORAGE_KEYS.SESSION_TOKEN, token),
+      AnposSecureStore.set(STORAGE_KEYS.DEVICE_ID, deviceId),
     ]);
     _cachedToken = token;
     _cachedDeviceId = deviceId;
     if (_cachedServerUrl) {
+      await rememberServerUrl(_cachedServerUrl).catch(() => {});
+      let ip = '127.0.0.1';
+      let port = 4321;
+      try {
+        const u = new URL(_cachedServerUrl);
+        ip = u.hostname;
+        port = Number(u.port) || 4321;
+      } catch {}
+
+      const pairedRecord: PairedDevice = {
+        deviceId,
+        serverUrl: _cachedServerUrl,
+        ip: deviceMeta?.ip || ip,
+        port: deviceMeta?.port || port,
+        shopName: deviceMeta?.shopName || 'AN POS',
+        deviceName: deviceMeta?.deviceName || `Desktop (${ip})`,
+        version: deviceMeta?.version || '1.0',
+        mode: deviceMeta?.mode || (_cachedServerUrl.includes('cloud') ? 'cloud' : 'lan'),
+        pairedAt: deviceMeta?.pairedAt || new Date().toISOString(),
+        lastSeenAt: new Date().toISOString(),
+        lastStatus: 'online',
+      };
+      await savePairedDevice(pairedRecord);
+
       await unifiedDB.switchToConnected(_cachedServerUrl);
     }
   },
@@ -329,6 +353,7 @@ export const session = {
     await clearSession();
     _cachedToken = null;
     _cachedDeviceId = null;
+    await removePairedDevice().catch(() => {});
   },
   isConnected: async () => {
     await refreshSessionCache();

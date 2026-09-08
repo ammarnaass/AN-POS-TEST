@@ -3,7 +3,8 @@ import { electronAPI, session, type User } from '@/lib/apiClient';
 import { AnposSecureStore } from '@/modules/AnposSecureStore';
 import { syncEngine } from '@/lib/syncEngine';
 
-const USER_ID_KEY = 'anpos_user_id';
+import { STORAGE_KEYS } from '@/lib/storageKeys';
+import { rememberServerUrl } from '@/lib/discovery';
 
 interface AuthState {
   user: User | null;
@@ -13,7 +14,7 @@ interface AuthState {
 
   login: (username: string, pin: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
-  restoreSession: () => Promise<void>;
+  restoreSession: () => Promise<boolean>;
   setServerUrl: (url: string) => Promise<void>;
 }
 
@@ -34,7 +35,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return { success: false, error: 'loginFailed' };
       }
 
-      await AnposSecureStore.set(USER_ID_KEY, result.user.id);
+      await AnposSecureStore.set(STORAGE_KEYS.USER_ID, result.user.id);
       set({ user: result.user, isAuthenticated: true, loading: false });
 
       // Trigger background sync pull if connected
@@ -53,26 +54,32 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (user?.id) {
       electronAPI.auth.logout(user.id).catch(() => {});
     }
-    AnposSecureStore.remove(USER_ID_KEY);
+    AnposSecureStore.remove(STORAGE_KEYS.USER_ID);
     set({ user: null, isAuthenticated: false });
   },
 
   restoreSession: async () => {
-    if (!(await session.isConnected())) return;
-    const userId = await AnposSecureStore.get(USER_ID_KEY);
-    if (!userId) return;
+    if (!(await session.isConnected())) return false;
+    const userId = await AnposSecureStore.get(STORAGE_KEYS.USER_ID);
+    if (!userId) return false;
+    set({ loading: true });
     try {
       const result = await electronAPI.auth.me(userId);
       if (result.user) {
-        set({ user: result.user, isAuthenticated: true });
+        set({ user: result.user, isAuthenticated: true, loading: false });
         syncEngine.pullUpdates().catch(() => {});
+        return true;
       }
+      set({ loading: false });
+      return false;
     } catch {
-      // Session expired
+      set({ loading: false });
+      return false;
     }
   },
 
   setServerUrl: async (url: string) => {
     set({ serverUrl: url });
+    await rememberServerUrl(url).catch(() => {});
   },
 }));
