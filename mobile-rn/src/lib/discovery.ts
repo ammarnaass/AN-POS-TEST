@@ -12,8 +12,8 @@ export interface DiscoveredDevice {
   responseTime: number;
 }
 
-export const DEFAULT_DISCOVERY_PORT = 4321;
-export const FALLBACK_DISCOVERY_PORT = 3000;
+export const DEFAULT_DISCOVERY_PORT = 3000;
+export const FALLBACK_DISCOVERY_PORT = 4321;
 export const DISCOVERY_PORT = DEFAULT_DISCOVERY_PORT;
 const PROBE_TIMEOUT_MS = 650;
 export const AUTO_DISCOVERY_TIMEOUT_MS = 8000;
@@ -206,7 +206,7 @@ export async function rememberServerUrl(rawUrl: string): Promise<void> {
 
 /**
  * Computes an ordered, deduplicated list of candidate ports (max 4).
- * Priority: User preferredPort > Last remembered port > URL port > DEFAULT_PORT (4321) > FALLBACK_PORT (3000).
+ * Priority: User preferredPort > Last remembered port > URL port > DEFAULT_PORT (3000) > FALLBACK_PORT (4321).
  */
 export async function getCandidatePorts(preferredPort?: number): Promise<number[]> {
   const ports: number[] = [];

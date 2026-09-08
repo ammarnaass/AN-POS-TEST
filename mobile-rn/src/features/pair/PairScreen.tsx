@@ -966,7 +966,7 @@ export const PairScreen = ({ navigation, route }: any) => {
                 <Code2 size={18} color={colors.text.tertiary} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.textInput, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}
-                  placeholder="4321"
+                  placeholder="3000"
                   placeholderTextColor={colors.text.tertiary}
                   value={manualPort}
                   onChangeText={setManualPort}

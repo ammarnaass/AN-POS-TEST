@@ -56,11 +56,11 @@ export default function BootstrapScreen({ navigation }: Props) {
             if (serverUrl) {
               const devId = (await AnposSecureStore.get(STORAGE_KEYS.DEVICE_ID)) || 'migrated-device';
               let ip = '127.0.0.1';
-              let port = 4321;
+              let port = 3000;
               try {
                 const u = new URL(serverUrl);
                 ip = u.hostname;
-                port = Number(u.port) || 4321;
+                port = Number(u.port) || 3000;
               } catch {}
 
               const health = await checkServerHealth(serverUrl).catch(() => ({ ok: false, info: null }));

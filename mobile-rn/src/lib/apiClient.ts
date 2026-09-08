@@ -8,7 +8,7 @@ import { rememberServerUrl } from './discovery';
 /**
  * Normalizes any IP, host, or URL into a clean http://<host>:<port> string
  */
-export function normalizeServerUrl(rawUrl: string, defaultPort: string = '4321'): string {
+export function normalizeServerUrl(rawUrl: string, defaultPort: string = '3000'): string {
   let url = (rawUrl || '').trim();
   if (!url) return '';
 
@@ -343,11 +343,11 @@ export const session = {
     if (_cachedServerUrl) {
       await rememberServerUrl(_cachedServerUrl).catch(() => {});
       let ip = '127.0.0.1';
-      let port = 4321;
+      let port = 3000;
       try {
         const u = new URL(_cachedServerUrl);
         ip = u.hostname;
-        port = Number(u.port) || 4321;
+        port = Number(u.port) || 3000;
       } catch {}
 
       const pairedRecord: PairedDevice = {
