@@ -9,6 +9,8 @@ import {
   isHttpServerRunning,
   getNetworkSettings,
   getOrCreateConnectionKey,
+  invalidateDeviceSessions,
+  invalidateAllSessions,
 } from '../server';
 import { execute, queryAll, queryOne } from '../handlers/db-utils';
 import { isDeveloperModeActive } from '../handlers/auth';
@@ -102,6 +104,7 @@ export function registerNetworkIpc(): void {
       "UPDATE connected_devices SET status = 'offline', updated_at = ? WHERE status = 'online'",
       [new Date().toISOString()]
     );
+    invalidateAllSessions();
     return { success: true, key: newKey };
   });
 
@@ -117,6 +120,7 @@ export function registerNetworkIpc(): void {
       'UPDATE connected_devices SET status = ?, updated_at = ? WHERE id = ?',
       ['offline', new Date().toISOString(), deviceId]
     );
+    invalidateDeviceSessions(deviceId);
     return { success: true };
   });
 }

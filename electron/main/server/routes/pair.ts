@@ -65,6 +65,14 @@ export async function verifySession(token: string, deviceId?: string): Promise<b
   const session = activeSessions.get(token);
   if (session) {
     if (deviceId && session.deviceId !== deviceId) return false;
+    const targetDevId = deviceId || session.deviceId;
+    if (targetDevId) {
+      const devRow = queryOne('SELECT status FROM connected_devices WHERE id = ?', [targetDevId]);
+      if (devRow && devRow.status === 'offline') {
+        activeSessions.delete(token);
+        return false;
+      }
+    }
     // تحديث last_seen
     try {
       execute('UPDATE device_sessions SET last_seen = ? WHERE session_token = ?',
@@ -81,6 +89,13 @@ export async function verifySession(token: string, deviceId?: string): Promise<b
     );
     if (row) {
       if (deviceId && row.device_id !== deviceId) return false;
+      const targetDevId = deviceId || (row.device_id as string);
+      if (targetDevId) {
+        const devRow = queryOne('SELECT status FROM connected_devices WHERE id = ?', [targetDevId]);
+        if (devRow && devRow.status === 'offline') {
+          return false;
+        }
+      }
       // أعد تحميلها في الذاكرة
       activeSessions.set(token, {
         deviceId: row.device_id as string,
@@ -213,6 +228,39 @@ export async function unpairDevice(deviceId: string, sessionToken: string): Prom
   execute('UPDATE connected_devices SET status = ?, updated_at = ? WHERE id = ?',
     ['offline', new Date().toISOString(), deviceId]);
   return { success: true };
+}
+
+/**
+ * إبطال كافة جلسات جهاز محدد (عند فصله من سطح المكتب)
+ */
+export function invalidateDeviceSessions(deviceId: string): void {
+  for (const [token, session] of activeSessions.entries()) {
+    if (session.deviceId === deviceId) {
+      activeSessions.delete(token);
+    }
+  }
+  try {
+    execute(
+      "UPDATE device_sessions SET expires_at = datetime('now') WHERE device_id = ? AND (expires_at IS NULL OR expires_at > datetime('now'))",
+      [deviceId]
+    );
+  } catch (err) {
+    console.warn('[pair] خطأ في إبطال جلسات الجهاز:', err);
+  }
+}
+
+/**
+ * تفريغ وإبطال كافة الجلسات النشطة (عند تجديد المفتاح السري لسطح المكتب)
+ */
+export function invalidateAllSessions(): void {
+  activeSessions.clear();
+  try {
+    execute(
+      "UPDATE device_sessions SET expires_at = datetime('now') WHERE expires_at IS NULL OR expires_at > datetime('now')"
+    );
+  } catch (err) {
+    console.warn('[pair] خطأ في إبطال كافة الجلسات:', err);
+  }
 }
 
 /**

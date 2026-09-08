@@ -261,3 +261,6 @@ export function getPairingInfo(): { ip: string; port: number; key: string; shopN
     ips,
   };
 }
+
+export { invalidateDeviceSessions, invalidateAllSessions } from './routes/pair';
+

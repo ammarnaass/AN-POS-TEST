@@ -148,6 +148,7 @@ export default function SettingsPage() {
       return res ?? [];
     },
     staleTime: 3000,
+    refetchInterval: 3000,
   });
   // قائمة "الهواتف المحمولة" المقترنة
   const mobilePhones: any[] = Array.isArray(rawConnectedDevices)
@@ -156,7 +157,10 @@ export default function SettingsPage() {
     ? rawConnectedDevices.data
     : [];
 
-  const onlineDevicesCount = devices.filter(d => d.status === 'online').length;
+  // توحيد عداد الأجهزة النشطة: دمج الهواتف المتصلة عبر الخادم (SQLite) مع أجهزة العتاد الملحقة (Dexie) بدون تكرار
+  const dexieOnlineIds = new Set(devices.filter(d => d.status === 'online').map(d => d.id));
+  const serverOnlineCount = mobilePhones.filter((m: any) => m.status === 'online' && !dexieOnlineIds.has(m.id)).length;
+  const onlineDevicesCount = dexieOnlineIds.size + serverOnlineCount;
   // BR-NET-005: لا يمكن تغيير إعدادات الشبكة أثناء وجود اتصال نشط
   const hasActiveConnections = onlineDevicesCount > 0;
 

@@ -94,7 +94,7 @@ export default function NetworkTab({
                 { id: 'printer', label: 'الطابعة', Icon: Printer, count: null },
                 { id: 'barcode', label: 'الباركود', Icon: ScanLine, count: null },
                 { id: 'security', label: 'الأمان', Icon: ShieldCheck, count: null },
-                { id: 'devices', label: 'الأجهزة المتصلة', Icon: Plug, count: devices.length },
+                { id: 'devices', label: 'الأجهزة المتصلة', Icon: Plug, count: onlineDevicesCount > 0 ? onlineDevicesCount : (devices.length > 0 ? devices.length : null) },
               ] as const).map(({ id, label, Icon, count }) => {
                 const active = netSubTab === id;
                 return (
