@@ -32,11 +32,15 @@ export function computeHardwareFingerprint(): string {
           rawIdentifier = match[1].trim();
         }
       } catch {
-        // بديل: WMIC BIOS Serial
+        // بديل: PowerShell Get-CimInstance UUID (يدعم Windows 11 24H2 والأنظمة الحديثة بدون wmic)
         try {
-          const wmic = execSync('wmic csproduct get uuid', { encoding: 'utf8', timeout: 2000, windowsHide: true });
-          const lines = wmic.split('\n').map((l) => l.trim()).filter((l) => l && !l.toLowerCase().includes('uuid'));
-          if (lines.length > 0) rawIdentifier = lines[0];
+          const ps = execSync('powershell -NoProfile -Command "(Get-CimInstance -ClassName Win32_ComputerSystemProduct).UUID"', {
+            encoding: 'utf8',
+            timeout: 2500,
+            windowsHide: true,
+          });
+          const val = ps.trim();
+          if (val && !val.includes('powershell')) rawIdentifier = val;
         } catch { /* fallback */ }
       }
     } else if (platform === 'linux') {
@@ -78,9 +82,19 @@ export function computeHardwareFingerprint(): string {
 }
 
 /**
- * استخراج بصمة عتاد رقمية موجزة 32-بت (تُستخدم للربط المشفر بالترخيص)
+ * استخراج بصمة عتاد رقمية موجزة 32-بت من نص البصمة (تُستخدم للربط المشفر بالترخيص)
+ */
+export function computeHardwareHashIntFromFingerprint(fp: string): number {
+  if (!fp) return 0;
+  const clean = fp.replace(/[^A-Fa-f0-9]/g, '');
+  if (clean.length < 8) return 0;
+  return Buffer.from(clean.slice(0, 8), 'hex').readUInt32LE(0);
+}
+
+/**
+ * استخراج بصمة عتاد رقمية موجزة 32-بت للجهاز الحالي
  */
 export function computeHardwareHashInt(): number {
   const fp = computeHardwareFingerprint();
-  return Buffer.from(fp.slice(0, 8), 'hex').readUInt32LE(0);
+  return computeHardwareHashIntFromFingerprint(fp);
 }

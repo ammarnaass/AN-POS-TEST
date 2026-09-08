@@ -113,5 +113,23 @@ describe('trialService — إدارة التجربة المجانية (7 أيا�
     clearTrial();
     expect(localStorage.getItem(TRIAL_START_KEY)).toBeNull();
     expect(localStorage.getItem(TRIAL_END_KEY)).toBeNull();
+    expect(localStorage.getItem('anpos_clock_tampered')).toBeNull();
+  });
+
+  it('يجب إيقاف التجربة فوراً عند رصد التلاعب بالساعة (clockTampered)', () => {
+    startTrial();
+    localStorage.setItem('anpos_clock_tampered', 'true');
+
+    const state = getTrialState();
+    expect(state.isExpired).toBe(true);
+    expect(state.isActive).toBe(false);
+    expect(state.clockTampered).toBe(true);
+    expect(state.remainingDays).toBe(0);
+
+    const remaining = getTrialRemaining();
+    expect(remaining.days).toBe(0);
+    expect(remaining.hours).toBe(0);
+    expect(remaining.minutes).toBe(0);
+    expect(remaining.seconds).toBe(0);
   });
 });

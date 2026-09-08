@@ -9,6 +9,8 @@ import {
   updateSale,
   removeSale,
 } from '../handlers/sales';
+import { licenseManager } from '../license/licenseManager';
+import { getStoredTrialStatus, incrementStoredTrialSales } from '../license/trialStorage';
 
 export function registerSalesIpc(): void {
   // sales:list
@@ -21,9 +23,16 @@ export function registerSalesIpc(): void {
   ipcMain.handle('sales:get', async (_evt, id: string) => getSale(id));
 
   // sales:create
-  ipcMain.handle('sales:create', async (_evt, data: Record<string, unknown>) =>
-    createSale(data)
-  );
+  ipcMain.handle('sales:create', async (_evt, data: Record<string, unknown>) => {
+    if (!licenseManager.isLicensed()) {
+      const trial = getStoredTrialStatus();
+      if (trial.isExpired || trial.clockTampered) {
+        throw new Error('TRIAL_EXPIRED: انتهت فترة التجربة المجانية أو تم رصد تلاعب بساعة النظام. يرجى تفعيل النسخة الرسمية للمتابعة.');
+      }
+      incrementStoredTrialSales();
+    }
+    return createSale(data);
+  });
 
   // sales:update
   ipcMain.handle('sales:update', async (_evt, id: string, data: Record<string, unknown>) =>

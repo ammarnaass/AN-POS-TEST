@@ -75,6 +75,7 @@ const server = http.createServer((req, res) => {
         const durationType = data.durationType || 'lifetime'; // lifetime, 1year, 1month, custom
         const customDays = Number.parseInt(data.customDays || '0', 10);
         const maxDevices = Number.parseInt(data.maxMobileDevices || '5', 10);
+        const fingerprint = (data.fingerprint || '').trim();
         const notes = (data.notes || '').trim();
 
         let expiresAt = 0;
@@ -95,6 +96,7 @@ const server = http.createServer((req, res) => {
           storeId,
           expiresAt,
           maxMobileDevices: maxDevices,
+          fingerprint: fingerprint || undefined,
         });
 
         const newEntry = {
@@ -106,6 +108,7 @@ const server = http.createServer((req, res) => {
           expiresAt,
           durationLabel,
           maxMobileDevices: maxDevices,
+          fingerprint: fingerprint || undefined,
           issuedAt: new Date().toISOString(),
           notes,
         };
@@ -314,6 +317,16 @@ function getHtmlContent() {
               <span>10 أجهزة</span>
               <span>25 جهاز</span>
             </div>
+          </div>
+
+          <!-- بصمة عتاد الجهاز -->
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="text-xs font-bold text-slate-300">بصمة عتاد جهاز العميل (Hardware Fingerprint)</label>
+              <span class="text-[10px] text-slate-400">اختياري — للربط التشفيري الحصري</span>
+            </div>
+            <input type="text" id="fingerprint" placeholder="مثال: 7B3A9F1C... (اتركه فارغاً لترخيص عام غير مقيد)"
+              class="w-full bg-slate-900/90 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono text-xs focus:border-sky-500 outline-none dir-ltr" />
           </div>
 
           <!-- ملاحظات -->
@@ -531,6 +544,7 @@ function getHtmlContent() {
         durationType: currentDuration,
         customDays: document.getElementById('customDays').value,
         maxMobileDevices: document.getElementById('maxDevices').value,
+        fingerprint: (document.getElementById('fingerprint')?.value || '').trim(),
         notes: document.getElementById('notes').value,
       };
 

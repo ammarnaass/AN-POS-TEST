@@ -20,7 +20,22 @@ export interface TrialState {
   salesCount: number;
   remainingSales: number;
   isDeveloper?: boolean;
+  clockTampered?: boolean;
 }
+
+let latestElectronTrial: {
+  startedAt: string | null;
+  endsAt: string | null;
+  remainingDays: number;
+  remainingHours: number;
+  remainingMinutes: number;
+  remainingSeconds: number;
+  salesCount: number;
+  remainingSales: number;
+  isExpired: boolean;
+  isActive: boolean;
+  clockTampered?: boolean;
+} | null = null;
 
 export interface TrialRemaining {
   days: number;
@@ -89,14 +104,16 @@ export function startTrial(customStartDate?: string, customEndDate?: string): { 
   // المزامنة فوراً مع تخزين Electron الدائم في ملف appData/trial.json
   const electron = (window as any).electronAPI;
   if (electron?.trial?.start) {
-    electron.trial.start(startIso, endIso, Number(localStorage.getItem(TRIAL_SALES_KEY) || '0')).catch(() => {});
+    electron.trial.start(startIso, endIso, Number(localStorage.getItem(TRIAL_SALES_KEY) || '0'))
+      .then((res: any) => { if (res) latestElectronTrial = res; })
+      .catch(() => {});
   }
 
   return { startedAt: startIso, endsAt: endIso };
 }
 
 /**
- * استعادة التواريخ من مسار تخزين القرص التابع لـ Electron إن وجد لمنع التحايل
+ * استعادة التواريخ من مسار تخزين القرص التابع لـ Electron كـ Single Source of Truth
  */
 export async function syncWithElectronTrial(): Promise<void> {
   const electron = (window as any).electronAPI;
@@ -105,13 +122,16 @@ export async function syncWithElectronTrial(): Promise<void> {
   try {
     const status = await electron.trial.get();
     if (status?.startedAt && status?.endsAt) {
-      const localStart = localStorage.getItem(TRIAL_START_KEY) || localStorage.getItem(TRIAL_LEGACY_KEY);
-      // إذا كان التخزين المحلي فارغاً أو ممسوحاً، نستعيد تاريخ البدء والانتهاء من قرص النظام
-      if (!localStart) {
-        localStorage.setItem(TRIAL_START_KEY, status.startedAt);
-        localStorage.setItem(TRIAL_LEGACY_KEY, status.startedAt);
-        localStorage.setItem(TRIAL_END_KEY, status.endsAt);
-        localStorage.setItem(TRIAL_SALES_KEY, String(status.salesCount || 0));
+      latestElectronTrial = status;
+      // المزامنة الصارمة من القرص الدائم إلى localStorage
+      localStorage.setItem(TRIAL_START_KEY, status.startedAt);
+      localStorage.setItem(TRIAL_LEGACY_KEY, status.startedAt);
+      localStorage.setItem(TRIAL_END_KEY, status.endsAt);
+      localStorage.setItem(TRIAL_SALES_KEY, String(status.salesCount || 0));
+      if (status.clockTampered) {
+        localStorage.setItem('anpos_clock_tampered', 'true');
+      } else {
+        localStorage.removeItem('anpos_clock_tampered');
       }
     } else {
       // إذا كان التخزين المحلي يحتوي على التجربة بينما Electron لم يسجلها بعد
@@ -119,7 +139,8 @@ export async function syncWithElectronTrial(): Promise<void> {
       const localEnd = localStorage.getItem(TRIAL_END_KEY);
       if (localStart) {
         const sales = Number(localStorage.getItem(TRIAL_SALES_KEY) || '0');
-        electron.trial.start(localStart, localEnd || undefined, sales).catch(() => {});
+        const res = await electron.trial.start(localStart, localEnd || undefined, sales).catch(() => null);
+        if (res) latestElectronTrial = res;
       }
     }
   } catch (err) {
@@ -147,6 +168,20 @@ export function ensureTrialStarted(): void {
 export function getTrialRemaining(userRole?: string): TrialRemaining {
   if (userRole === 'developer') {
     return { days: 999, hours: 0, minutes: 0, seconds: 0 };
+  }
+
+  const isClockTampered = latestElectronTrial?.clockTampered || localStorage.getItem('anpos_clock_tampered') === 'true';
+  if (isClockTampered) {
+    return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+  }
+
+  if (latestElectronTrial) {
+    return {
+      days: latestElectronTrial.remainingDays,
+      hours: latestElectronTrial.remainingHours,
+      minutes: latestElectronTrial.remainingMinutes,
+      seconds: latestElectronTrial.remainingSeconds,
+    };
   }
 
   ensureTrialStarted();
@@ -223,7 +258,27 @@ export function getTrialState(userRole?: string): TrialState {
     };
   }
 
-  // 3. ضمان تشغيل العداد وحفظ التواريخ من أول استخدام
+  const isClockTampered = latestElectronTrial?.clockTampered || localStorage.getItem('anpos_clock_tampered') === 'true';
+
+  // 3. إذا توفرت حالة Electron المحفوظة على القرص مسبقاً
+  if (latestElectronTrial) {
+    const isExpired = latestElectronTrial.isExpired || isClockTampered;
+    return {
+      startedAt: latestElectronTrial.startedAt,
+      endsAt: latestElectronTrial.endsAt,
+      remainingDays: isClockTampered ? 0 : latestElectronTrial.remainingDays,
+      remainingHours: isClockTampered ? 0 : latestElectronTrial.remainingHours,
+      remainingMinutes: isClockTampered ? 0 : latestElectronTrial.remainingMinutes,
+      remainingSeconds: isClockTampered ? 0 : latestElectronTrial.remainingSeconds,
+      isExpired,
+      isActive: !isExpired,
+      salesCount: latestElectronTrial.salesCount,
+      remainingSales: isClockTampered ? 0 : latestElectronTrial.remainingSales,
+      clockTampered: isClockTampered,
+    };
+  }
+
+  // 4. ضمان تشغيل العداد وحفظ التواريخ من أول استخدام
   ensureTrialStarted();
 
   const startedAt = localStorage.getItem(TRIAL_START_KEY) || localStorage.getItem(TRIAL_LEGACY_KEY);
@@ -242,6 +297,7 @@ export function getTrialState(userRole?: string): TrialState {
       isActive: true,
       salesCount: 0,
       remainingSales: TRIAL_MAX_SALES,
+      clockTampered: isClockTampered,
     };
   }
 
@@ -255,15 +311,15 @@ export function getTrialState(userRole?: string): TrialState {
   const end = new Date(endsAt).getTime();
   const totalMs = end - now;
 
-  const isTimeExpired = totalMs <= 0;
+  const isTimeExpired = totalMs <= 0 || isClockTampered;
   const isSalesExpired = salesCount >= TRIAL_MAX_SALES;
   const isExpired = isTimeExpired || isSalesExpired;
 
   const remainingMs = Math.max(0, totalMs);
-  const remainingDays = Math.floor(remainingMs / (24 * 60 * 60 * 1000));
-  const remainingHours = Math.floor((remainingMs % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
-  const remainingMinutes = Math.floor((remainingMs % (60 * 60 * 1000)) / (60 * 1000));
-  const remainingSeconds = Math.floor((remainingMs % (60 * 1000)) / 1000);
+  const remainingDays = isClockTampered ? 0 : Math.floor(remainingMs / (24 * 60 * 60 * 1000));
+  const remainingHours = isClockTampered ? 0 : Math.floor((remainingMs % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+  const remainingMinutes = isClockTampered ? 0 : Math.floor((remainingMs % (60 * 60 * 1000)) / (60 * 1000));
+  const remainingSeconds = isClockTampered ? 0 : Math.floor((remainingMs % (60 * 1000)) / 1000);
 
   return {
     startedAt,
@@ -276,6 +332,7 @@ export function getTrialState(userRole?: string): TrialState {
     isActive: !isExpired,
     salesCount,
     remainingSales: Math.max(0, TRIAL_MAX_SALES - salesCount),
+    clockTampered: isClockTampered,
   };
 }
 
@@ -289,7 +346,18 @@ export function incrementTrialSales(): void {
 
   const electron = (window as any).electronAPI;
   if (electron?.trial?.incrementSales) {
-    electron.trial.incrementSales().catch(() => {});
+    electron.trial.incrementSales()
+      .then((count: number) => {
+        if (latestElectronTrial && typeof count === 'number') {
+          latestElectronTrial.salesCount = count;
+          latestElectronTrial.remainingSales = Math.max(0, TRIAL_MAX_SALES - count);
+          if (count >= TRIAL_MAX_SALES) {
+            latestElectronTrial.isExpired = true;
+            latestElectronTrial.isActive = false;
+          }
+        }
+      })
+      .catch(() => {});
   }
 }
 
@@ -301,6 +369,8 @@ export function clearTrial(): void {
   localStorage.removeItem(TRIAL_END_KEY);
   localStorage.removeItem(TRIAL_LEGACY_KEY);
   localStorage.removeItem(TRIAL_SALES_KEY);
+  localStorage.removeItem('anpos_clock_tampered');
+  latestElectronTrial = null;
 }
 
 // تشغيل الفحص والمزامنة فوراً

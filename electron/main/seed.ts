@@ -3,6 +3,7 @@
 // يستخدم node:sqlite مباشرة (getSqlite)
 
 import { randomUUID } from 'node:crypto';
+import { app } from 'electron';
 import { getSqlite } from './database';
 import { hashPassword, verifyPassword, isHashed } from './handlers/password-hash';
 
@@ -78,8 +79,17 @@ export async function seedDatabase(): Promise<void> {
   }
 
   // ===== 2. المستخدمون =====
+  // حساب المطور الافتراضي يُدرج فقط في بيئة التطوير والاختبار، أو بطلب صريح عبر ANPOS_ALLOW_DEV_ACCOUNT
+  const isDevEnv =
+    (typeof app !== 'undefined' && typeof app.isPackaged === 'boolean' ? !app.isPackaged : false) ||
+    process.env.NODE_ENV === 'development' ||
+    process.env.NODE_ENV === 'test' ||
+    process.env.ANPOS_ALLOW_DEV_ACCOUNT === 'true';
+
+  const usersToSeed = DEFAULT_USERS.filter((u) => u.role !== 'developer' || isDevEnv);
+
   let adminId = '';
-  for (const def of DEFAULT_USERS) {
+  for (const def of usersToSeed) {
     const existing = queryOne('SELECT * FROM users WHERE username = ?', [def.username]);
     if (existing) {
       // إذا كانت كلمة المرور غير مشفرة، نقوم بترحيلها إلى هاش مشفر فوراً

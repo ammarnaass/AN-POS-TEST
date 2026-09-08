@@ -103,4 +103,42 @@ describe('Ed25519 Offline License System Tests', () => {
       expect(parsed?.maxMobileDevices).toBe(8);
     }
   });
+
+  it('يجب الحفاظ على الأصفار النهائية الأصلية في معرّف المتجر بدقة (مثل ST0100)', () => {
+    const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+    const testPubPem = publicKey.export({ type: 'spki', format: 'pem' }).toString();
+    const testPrivPem = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+
+    const targetStoreId = 'ST0100';
+    const { key } = generateLicenseKey({ storeId: targetStoreId }, testPrivPem);
+
+    const parsed = parseAndVerifyKey(key, testPubPem);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.storeId).toBe(targetStoreId);
+  });
+
+  it('يجب دعم الربط التشفيري الحصري ببصمة العتاد عبر حقل flags', () => {
+    const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+    const testPubPem = publicKey.export({ type: 'spki', format: 'pem' }).toString();
+    const testPrivPem = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+
+    const clientFingerprint = 'A1B2C3D4E5F60718293A4B5C6D7E8F90';
+    const otherFingerprint = 'FFFFFFFFE5F60718293A4B5C6D7E8F90';
+
+    const { key } = generateLicenseKey(
+      { storeId: 'ST0001', fingerprint: clientFingerprint },
+      testPrivPem
+    );
+
+    const parsed = parseAndVerifyKey(key, testPubPem);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.flags).not.toBe(0);
+
+    // حساب الهاش المتوقع للبصمة
+    const expectedHash = Buffer.from(clientFingerprint.slice(0, 8), 'hex').readUInt32LE(0);
+    const otherHash = Buffer.from(otherFingerprint.slice(0, 8), 'hex').readUInt32LE(0);
+
+    expect(parsed?.flags).toBe(expectedHash);
+    expect(parsed?.flags).not.toBe(otherHash);
+  });
 });

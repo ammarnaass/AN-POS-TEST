@@ -10,6 +10,8 @@ import {
   type SalesListOptions,
 } from '../../handlers/sales';
 import { normalizeBody } from '../middleware/normalizeFields';
+import { licenseManager } from '../../license/licenseManager';
+import { getStoredTrialStatus, incrementStoredTrialSales } from '../../license/trialStorage';
 
 export async function registerSalesRoutes(server: FastifyInstance): Promise<void> {
   // GET /api/sales?type=&docType=&customerId=&status=&search=&from=&to=&limit=&offset=
@@ -34,6 +36,16 @@ export async function registerSalesRoutes(server: FastifyInstance): Promise<void
 
   // POST /api/sales
   server.post('/api/sales', async (request, reply) => {
+    if (!licenseManager.isLicensed()) {
+      const trial = getStoredTrialStatus();
+      if (trial.isExpired || trial.clockTampered) {
+        return reply.code(403).send({
+          success: false,
+          error: 'TRIAL_EXPIRED: انتهت فترة التجربة المجانية أو تم رصد تلاعب بساعة النظام. يرجى تفعيل النسخة الرسمية للمتابعة.',
+        });
+      }
+      incrementStoredTrialSales();
+    }
     const data = normalizeBody(request.body as Record<string, unknown>);
     const result = await createSale(data);
     return reply.code(201).send(result);

@@ -28,13 +28,16 @@ npm start
 
 ### 1. توليد مفتاح لعميل
 ```bash
-# الصيغة: node generate-license.js [معرف_المتجر] [عدد_الأيام] [أقصى_أجهزة_جوال]
+# الصيغة: node generate-license.js [معرف_المتجر] [عدد_الأيام] [أقصى_أجهزة_جوال] [--fingerprint بصمة_العتاد]
 
-# ترخيص مدى الحياة (0 أيام) مع 5 أجهزة جوال:
+# ترخيص عام مدى الحياة (0 أيام) مع 5 أجهزة جوال:
 node generate-license.js ST0001 0 5
 
 # ترخيص سنوي (365 يوم) مع 10 أجهزة جوال:
 node generate-license.js SHOP99 365 10
+
+# ترخيص مشفر ومقيد حصرياً بجهاز عتادي محدد (Crypto-bound):
+node generate-license.js SHOP99 365 10 --fingerprint 7B3A9F1C2E8D4B0A
 ```
 
 ### 2. إعادة توليد زوج المفاتيح (إذا لزم الأمر)

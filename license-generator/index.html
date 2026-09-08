@@ -160,6 +160,16 @@
             </div>
           </div>
 
+          <!-- بصمة عتاد الجهاز -->
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="text-xs font-bold text-slate-300">بصمة عتاد جهاز العميل (Hardware Fingerprint)</label>
+              <span class="text-[10px] text-slate-400">اختياري — للربط التشفيري الحصري</span>
+            </div>
+            <input type="text" id="fingerprint" placeholder="مثال: 7B3A9F1C... (اتركه فارغاً لترخيص عام غير مقيد)"
+              class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono text-xs focus:border-sky-500 outline-none dir-ltr" />
+          </div>
+
           <!-- ملاحظات -->
           <div>
             <label class="block text-xs font-bold text-slate-300 mb-1.5">ملاحظات داخلية (اختياري)</label>
@@ -366,15 +376,27 @@ MC4CAQAwBQYDK2VwBCIEIKYWa5F7jp5NqZnWdX+UuXqoZywS7e8jzOnggV6xQtgc
       const view = new DataView(buffer);
       const payloadBytes = new Uint8Array(buffer);
 
-      const cleanStore = (opts.storeId || 'ST0001').toUpperCase().padEnd(6, '0').slice(0, 6);
+      const cleanStore = (opts.storeId || 'ST0001').toUpperCase().padEnd(6, ' ').slice(0, 6);
       for (let i = 0; i < 6; i++) {
         payloadBytes[i] = cleanStore.charCodeAt(i);
+      }
+
+      let flags = opts.flags || 0;
+      if (opts.fingerprint) {
+        const cleanFp = String(opts.fingerprint).replace(/[^A-Fa-f0-9]/g, '');
+        if (cleanFp.length >= 8) {
+          const b0 = parseInt(cleanFp.slice(0, 2), 16);
+          const b1 = parseInt(cleanFp.slice(2, 4), 16);
+          const b2 = parseInt(cleanFp.slice(4, 6), 16);
+          const b3 = parseInt(cleanFp.slice(6, 8), 16);
+          flags = (b0 | (b1 << 8) | (b2 << 16) | (b3 << 24)) >>> 0;
+        }
       }
 
       view.setUint32(6, opts.expiresAt || 0, true); // Little Endian
       view.setUint16(10, opts.maxMobileDevices || 5, true);
       view.setUint32(12, opts.issuedAt || Math.floor(Date.now() / 1000), true);
-      view.setUint32(16, opts.flags || 0, true);
+      view.setUint32(16, flags, true);
 
       let sigBytes = null;
 
@@ -433,6 +455,7 @@ MC4CAQAwBQYDK2VwBCIEIKYWa5F7jp5NqZnWdX+UuXqoZywS7e8jzOnggV6xQtgc
       const customerPhone = document.getElementById('customerPhone').value.trim();
       const customDays = Number.parseInt(document.getElementById('customDays').value || '0', 10);
       const maxDevices = Number.parseInt(document.getElementById('maxDevices').value || '5', 10);
+      const fingerprint = (document.getElementById('fingerprint')?.value || '').trim();
       const notes = document.getElementById('notes').value.trim();
 
       let expiresAt = 0;
@@ -454,6 +477,7 @@ MC4CAQAwBQYDK2VwBCIEIKYWa5F7jp5NqZnWdX+UuXqoZywS7e8jzOnggV6xQtgc
           storeId,
           expiresAt,
           maxMobileDevices: maxDevices,
+          fingerprint: fingerprint || undefined,
         });
 
         const newEntry = {

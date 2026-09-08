@@ -3,6 +3,7 @@
 import { computeHardwareFingerprint, computeHardwareHashInt } from './hardwareFingerprint';
 import { parseAndVerifyKey, type ParsedLicense } from './verifyLicense';
 import { loadStoredLicense, saveStoredLicense, removeStoredLicense, type StoredLicenseData } from './licenseStorage';
+import { getStoredTrialStatus, type ElectronTrialStatus } from './trialStorage';
 
 export type LicenseStateStatus = 'active' | 'trial' | 'expired' | 'tampered' | 'unlicensed';
 
@@ -16,6 +17,7 @@ export interface LicenseStatusResponse {
   activatedAt?: string;
   rawKey?: string;
   daysRemaining?: number | null;
+  trialInfo?: ElectronTrialStatus;
 }
 
 class LicenseManager {
@@ -56,11 +58,21 @@ class LicenseManager {
     const hwFingerprint = computeHardwareFingerprint();
 
     if (!this.currentLicense || !this.verifiedParsed) {
+      const trial = getStoredTrialStatus();
+      let status: LicenseStateStatus = 'unlicensed';
+      if (trial.isActive && !trial.isExpired) {
+        status = 'trial';
+      } else if (trial.isExpired) {
+        status = 'expired';
+      }
+
       return {
-        status: 'unlicensed',
+        status,
         isLicensed: false,
         maxMobileDevices: 5, // الحد الافتراضي في وضع التجربة
         hardwareFingerprint: hwFingerprint,
+        trialInfo: trial,
+        daysRemaining: trial.remainingDays,
       };
     }
 

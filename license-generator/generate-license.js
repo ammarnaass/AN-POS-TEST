@@ -37,12 +37,21 @@ export function generateLicenseKey(opts, privateKeyPem) {
 
   // تجهيز الـ Binary Payload (20 بايت)
   const buffer = Buffer.alloc(20);
-  const cleanStoreId = (opts.storeId || 'ST0001').toUpperCase().padEnd(6, '0').slice(0, 6);
+  const cleanStoreId = (opts.storeId || 'ST0001').toUpperCase().padEnd(6, ' ').slice(0, 6);
   buffer.write(cleanStoreId, 0, 6, 'ascii');
   buffer.writeUInt32LE(opts.expiresAt || 0, 6);
   buffer.writeUInt16LE(opts.maxMobileDevices ?? 5, 10);
   buffer.writeUInt32LE(opts.issuedAt || Math.floor(Date.now() / 1000), 12);
-  buffer.writeUInt32LE(opts.flags || 0, 16);
+
+  // حساب قيمة flags (دعم الربط التشفيري بالعتاد إن تم تمرير بصمة العتاد)
+  let flags = opts.flags || 0;
+  if (opts.fingerprint) {
+    const cleanFp = String(opts.fingerprint).replace(/[^A-Fa-f0-9]/g, '');
+    if (cleanFp.length >= 8) {
+      flags = Buffer.from(cleanFp.slice(0, 8), 'hex').readUInt32LE(0);
+    }
+  }
+  buffer.writeUInt32LE(flags, 16);
 
   // التوقيع الرقمي بمفتاح Ed25519 الخاص (64 بايت)
   const signature = sign(null, buffer, privateKey);
@@ -63,10 +72,26 @@ export function generateLicenseKey(opts, privateKeyPem) {
 
 // تشغيل مباشر من سطر الأوامر CLI
 if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
-  const args = process.argv.slice(2);
-  const storeId = args[0] || 'ST0001';
-  const days = args[1] ? Number.parseInt(args[1], 10) : 0; // 0 = lifetime
-  const maxDevices = args[2] ? Number.parseInt(args[2], 10) : 5;
+  const rawArgs = process.argv.slice(2);
+  let storeId = 'ST0001';
+  let days = 0; // 0 = lifetime
+  let maxDevices = 5;
+  let fingerprint = '';
+
+  for (let i = 0; i < rawArgs.length; i++) {
+    const arg = rawArgs[i];
+    if (arg === '--fingerprint' || arg === '--hw' || arg === '-fp') {
+      fingerprint = rawArgs[++i] || '';
+    } else if (arg.startsWith('--fingerprint=')) {
+      fingerprint = arg.split('=')[1] || '';
+    } else if (arg.startsWith('--hw=')) {
+      fingerprint = arg.split('=')[1] || '';
+    } else if (!arg.startsWith('-')) {
+      if (storeId === 'ST0001' && i === 0) storeId = arg;
+      else if (days === 0 && !isNaN(Number(arg)) && i === 1) days = Number.parseInt(arg, 10);
+      else if (maxDevices === 5 && !isNaN(Number(arg)) && i === 2) maxDevices = Number.parseInt(arg, 10);
+    }
+  }
 
   const expiresAt = days > 0 ? Math.floor(Date.now() / 1000) + days * 86400 : 0;
 
@@ -75,6 +100,7 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
       storeId,
       expiresAt,
       maxMobileDevices: maxDevices,
+      fingerprint,
     });
 
     console.log('\n======================================================');
@@ -83,6 +109,11 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
     console.log(`المتجر:              ${storeId}`);
     console.log(`نوع الترخيص:         ${expiresAt === 0 ? 'مدى الحياة (Lifetime)' : `${days} يوم (ينتهي في ${new Date(expiresAt * 1000).toLocaleDateString('ar-EG')})`}`);
     console.log(`الحد الأقصى للجوال:  ${maxDevices} أجهزة`);
+    if (fingerprint) {
+      console.log(`الربط بالعتاد:       مقيد ببصمة الجهاز (${fingerprint})`);
+    } else {
+      console.log('الربط بالعتاد:       عام (يُربط بأول جهاز يُفعّل عليه)');
+    }
     console.log('------------------------------------------------------');
     console.log('🔑 كود التفعيل (أرسله للعميل):');
     console.log(result.key);
@@ -94,6 +125,7 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
       storeId,
       expiresAt,
       maxMobileDevices: maxDevices,
+      fingerprint: fingerprint || undefined,
       key: result.key,
       issuedAt: new Date().toISOString(),
     }, null, 2));

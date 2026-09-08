@@ -55,8 +55,8 @@ export function parseAndVerifyKey(inputKey: string, customPublicKeyPem?: string)
       return null; // التوقيع مزور أو تم التلاعب بالمفتاح
     }
 
-    // استخراج الحقول الثنائية
-    const rawStoreId = payloadBuffer.subarray(0, 6).toString('ascii').replace(/0+$/, '').trim();
+    // استخراج الحقول الثنائية (مع إزالة حشو المسافات والأحرف الخالية)
+    const rawStoreId = payloadBuffer.subarray(0, 6).toString('utf8').replace(/[\s\0]+$/, '').trim();
     const expiresAt = payloadBuffer.readUInt32LE(6);
     const maxMobileDevices = payloadBuffer.readUInt16LE(10);
     const issuedAt = payloadBuffer.readUInt32LE(12);

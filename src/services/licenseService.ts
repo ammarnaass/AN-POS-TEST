@@ -10,6 +10,7 @@ export interface LicenseStatus {
   activatedAt?: string;
   rawKey?: string;
   daysRemaining?: number | null;
+  trialInfo?: any;
 }
 
 export interface LicenseInfo {

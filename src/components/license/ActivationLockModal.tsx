@@ -91,10 +91,14 @@ export default function ActivationLockModal({ onActivated }: Props) {
           </div>
           <div>
             <h2 className="text-xl sm:text-2xl font-black font-cairo text-on-surface">
-              انتهت فترة التجربة المجانية (7 أيام)
+              {trialState.clockTampered
+                ? 'تم رصد تلاعب بساعة وتاريخ النظام'
+                : 'انتهت فترة التجربة المجانية (7 أيام)'}
             </h2>
             <p className="text-xs text-on-surface-variant font-tajawal mt-1 leading-relaxed">
-              لاستمرار استخدام نقاط البيع والمخزون وإدارة المتجر، يرجى تفعيل نسختك الرسمية بإدخال كود التفعيل أو التواصل مع المطور.
+              {trialState.clockTampered
+                ? 'تم إيقاف التجربة المجانية تلقائياً بسبب تقديم ساعة أو تاريخ الجهاز إلى الوراء. للمتابعة، يرجى إدخال كود التفعيل الرسمي أو التواصل مع المطور.'
+                : 'لاستمرار استخدام نقاط البيع والمخزون وإدارة المتجر، يرجى تفعيل نسختك الرسمية بإدخال كود التفعيل أو التواصل مع المطور.'}
             </p>
           </div>
         </div>
