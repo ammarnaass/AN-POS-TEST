@@ -159,9 +159,30 @@ class AnposNetworkModule(reactContext: ReactApplicationContext) : ReactContextBa
                 socket.soTimeout = actualTimeout
 
                 val requestMsg = """{"type":"anpos-discover-request","v":1}""".toByteArray(Charsets.UTF_8)
-                val broadcastAddr = InetAddress.getByName("255.255.255.255")
-                val packet = DatagramPacket(requestMsg, requestMsg.size, broadcastAddr, 41999)
-                socket.send(packet)
+                val targetAddrs = HashSet<InetAddress>()
+                try {
+                    targetAddrs.add(InetAddress.getByName("255.255.255.255"))
+                } catch (e: Exception) {}
+
+                try {
+                    val interfaces = NetworkInterface.getNetworkInterfaces()
+                    for (intf in Collections.list(interfaces)) {
+                        if (intf.isLoopback || !intf.isUp) continue
+                        for (intfAddr in intf.interfaceAddresses) {
+                            val bcast = intfAddr.broadcast
+                            if (bcast != null) {
+                                targetAddrs.add(bcast)
+                            }
+                        }
+                    }
+                } catch (e: Exception) {}
+
+                for (target in targetAddrs) {
+                    try {
+                        val packet = DatagramPacket(requestMsg, requestMsg.size, target, 41999)
+                        socket.send(packet)
+                    } catch (e: Exception) {}
+                }
 
                 val results = Arguments.createArray()
                 val seenIps = HashSet<String>()

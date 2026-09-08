@@ -93,7 +93,7 @@ export const PairScreen = ({ navigation, route }: any) => {
 
   // Manual IP State
   const [manualIp, setManualIp] = useState('');
-  const [manualPort, setManualPort] = useState('3000');
+  const [manualPort, setManualPort] = useState('4321');
   const [manualKey, setManualKey] = useState('');
 
   // Cloud State
@@ -812,7 +812,7 @@ export const PairScreen = ({ navigation, route }: any) => {
                 <Code2 size={18} color={colors.text.tertiary} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.textInput, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}
-                  placeholder="3000"
+                  placeholder="4321"
                   placeholderTextColor={colors.text.tertiary}
                   value={manualPort}
                   onChangeText={setManualPort}

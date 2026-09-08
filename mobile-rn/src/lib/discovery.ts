@@ -11,8 +11,8 @@ export interface DiscoveredDevice {
   responseTime: number;
 }
 
-export const DEFAULT_DISCOVERY_PORT = 3000;
-export const FALLBACK_DISCOVERY_PORT = 4321;
+export const DEFAULT_DISCOVERY_PORT = 4321;
+export const FALLBACK_DISCOVERY_PORT = 3000;
 export const DISCOVERY_PORT = DEFAULT_DISCOVERY_PORT;
 const PROBE_TIMEOUT_MS = 650;
 export const AUTO_DISCOVERY_TIMEOUT_MS = 8000;

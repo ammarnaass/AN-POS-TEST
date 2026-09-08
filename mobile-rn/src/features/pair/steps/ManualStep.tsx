@@ -10,7 +10,7 @@ interface Props {
 
 const ManualStep = ({ onConnect, onBack, loading }: Props) => {
   const [ip, setIp] = useState('');
-  const [port, setPort] = useState('3000');
+  const [port, setPort] = useState('4321');
   const [key, setKey] = useState('');
   const [error, setError] = useState('');
 
@@ -49,7 +49,7 @@ const ManualStep = ({ onConnect, onBack, loading }: Props) => {
         <Text style={styles.label}>المنفذ</Text>
         <TextInput
           style={styles.input}
-          placeholder="3000"
+          placeholder="4321"
           value={port}
           onChangeText={setPort}
           keyboardType="numeric"

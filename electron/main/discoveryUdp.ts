@@ -23,12 +23,18 @@ export function startDiscoveryListener(): void {
         if (data?.type !== 'anpos-discover-request') return;
 
         const netSettings = getNetworkSettings();
-        const settings = queryOne("SELECT shop_name FROM settings WHERE id = 'default'") || {};
+        const lanEnabled = Boolean(netSettings?.lan_enabled);
+        const settingsRow = queryOne("SELECT shop_name, sync_mode FROM settings WHERE id = 'default'") || {};
+        const syncMode = (settingsRow.sync_mode as string) || 'single';
+
+        // لا يتم الرد إذا كانت الشبكة معطلة أو كان وضع التشغيل جهاز واحد
+        if (!lanEnabled || syncMode === 'single') return;
+
         const reply = JSON.stringify({
           type: 'anpos-discover-reply',
           v: 1,
           port: Number(netSettings?.server_port) || 4321,
-          shopName: (settings.shop_name as string) || 'AN POS',
+          shopName: (settingsRow.shop_name as string) || 'AN POS',
           deviceName: os.hostname(),
           requiresPairing: true,
         });
