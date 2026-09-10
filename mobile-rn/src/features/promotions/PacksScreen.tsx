@@ -223,6 +223,7 @@ export const PacksScreen = ({ navigation }: any) => {
           items: JSON.stringify(selectedItems),
           status: 'active',
           is_active: 1,
+          sync_version: 1,
           updated_at: nowIso,
         } as any);
       } else {
@@ -239,6 +240,7 @@ export const PacksScreen = ({ navigation }: any) => {
           items: JSON.stringify(selectedItems),
           status: 'active',
           is_active: 1,
+          sync_version: 1,
           created_at: nowIso,
           updated_at: nowIso,
         } as any);

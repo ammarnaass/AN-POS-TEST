@@ -891,7 +891,7 @@ export const DEFAULT_SETTINGS = {
 
 export const DEFAULT_NETWORK_SETTINGS = {
   lanEnabled: false,
-  serverPort: 4321,
+  serverPort: 3000,
   protocol: 'http',
   autoReconnect: true,
   reconnectInterval: 5,

@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   Columns,
   Rows,
+  Sparkles,
   LayoutGrid,
   List,
   Image as ImageIcon,
@@ -15,8 +16,8 @@ import {
 interface CustomizeLayoutModalProps {
   isOpen: boolean;
   onClose: () => void;
-  posLayout: 'sidebar' | 'bottom' | 'classic';
-  setPosLayout: (layout: 'sidebar' | 'bottom' | 'classic') => void;
+  posLayout: 'sidebar' | 'bottom' | 'classic' | 'modern';
+  setPosLayout: (layout: 'sidebar' | 'bottom' | 'classic' | 'modern') => void;
   viewMode: 'grid' | 'list';
   setViewMode: (mode: 'grid' | 'list') => void;
   showProductImages: boolean;
@@ -41,7 +42,7 @@ export const CustomizeLayoutModal: React.FC<CustomizeLayoutModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="glass-card bg-surface-container-low rounded-3xl border border-outline-variant/20 w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+      <div className="glass-card bg-surface-container-low rounded-3xl border border-outline-variant/20 w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="px-6 py-4 border-b border-outline-variant/15 flex items-center justify-between bg-surface-container">
           <div className="flex items-center gap-2.5">
@@ -62,7 +63,7 @@ export const CustomizeLayoutModal: React.FC<CustomizeLayoutModalProps> = ({
           {/* Section 1: التخطيط */}
           <div>
             <h4 className="text-xs font-bold text-on-surface-variant mb-2.5">التخطيط والتصميم</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* Option 1: تصميم 1 - الملخص أسفل السلة */}
               <button
                 onClick={() => {
@@ -84,8 +85,11 @@ export const CustomizeLayoutModal: React.FC<CustomizeLayoutModalProps> = ({
                   </span>
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-on-surface">تصميم 1</p>
-                  <p className="text-[10px] text-on-surface-variant mt-0.5">الملخص أسفل السلة</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-xs font-bold text-on-surface">تصميم 1 (العصري)</p>
+                    <span className="px-1.5 py-0.2 rounded bg-emerald-600 text-white text-[9px] font-bold">جديد</span>
+                  </div>
+                  <p className="text-[10px] text-on-surface-variant mt-0.5">شريط إجمالي علوي متدرج وسلة جانبية وشبكة منظمة</p>
                 </div>
               </button>
 
@@ -137,7 +141,36 @@ export const CustomizeLayoutModal: React.FC<CustomizeLayoutModalProps> = ({
                 </div>
                 <div>
                   <p className="text-xs font-bold text-on-surface">تصميم 3</p>
-                  <p className="text-[10px] text-on-surface-variant mt-0.5">الكاشير الكلاسيكي (جدول بالوسط وشبكة بالأسفل)</p>
+                  <p className="text-[10px] text-on-surface-variant mt-0.5">الكاشير الكلاسيكي (شاشات لمس قديمة)</p>
+                </div>
+              </button>
+
+              {/* Option 4: تصميم 4 - التصميم الحديث (شريط الإجمالي العلوي العريض) */}
+              <button
+                onClick={() => {
+                  setPosLayout('modern');
+                  localStorage.setItem('pos_layout_mode', 'modern');
+                }}
+                className={`p-3.5 rounded-2xl border text-right transition-all flex flex-col justify-between gap-3 cursor-pointer ${
+                  posLayout === 'modern'
+                    ? 'border-blue-600 bg-blue-50/20 dark:bg-blue-900/20 shadow-xs ring-2 ring-blue-500/30'
+                    : 'border-outline-variant/20 hover:border-blue-400/40 bg-surface-container'
+                }`}
+              >
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles className={`w-5 h-5 ${posLayout === 'modern' ? 'text-blue-600 dark:text-blue-400' : 'text-on-surface-variant'}`} />
+                    <span className="px-1.5 py-0.2 rounded bg-blue-600 text-white text-[9px] font-bold">جديد</span>
+                  </div>
+                  <span className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center ${
+                    posLayout === 'modern' ? 'border-blue-600' : 'border-outline-variant/40'
+                  }`}>
+                    {posLayout === 'modern' && <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-on-surface">تصميم 4 (الحديث)</p>
+                  <p className="text-[10px] text-on-surface-variant mt-0.5">شريط الإجمالي العلوي وسلة تفاعلية</p>
                 </div>
               </button>
             </div>

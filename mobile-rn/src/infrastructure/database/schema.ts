@@ -350,6 +350,8 @@ export const CREATE_TABLES_SQL: string[] = [
     items TEXT NOT NULL DEFAULT '[]',
     status TEXT NOT NULL DEFAULT 'active',
     is_active INTEGER NOT NULL DEFAULT 1,
+    sync_version INTEGER DEFAULT 1,
+    deleted_at TEXT DEFAULT NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   )`,

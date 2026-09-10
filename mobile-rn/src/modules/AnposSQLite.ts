@@ -157,7 +157,8 @@ export class AnposSQLiteDriver implements DataDriver {
     packs: [
       'id', 'name', 'description', 'barcode', 'price', 'pack_price',
       'pack_type', 'unit_name', 'pieces_count', 'min_wholesale_qty',
-      'items', 'status', 'is_active', 'created_at', 'updated_at'
+      'items', 'status', 'is_active', 'sync_version', 'deleted_at',
+      'created_at', 'updated_at'
     ],
     products: [
       'id', 'name', 'product_name', 'barcode', 'sku', 'category', 'category_id',

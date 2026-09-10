@@ -22,6 +22,7 @@
     "react": "19.2.3",
     "react-native": "0.87.0",
     "react-native-ble-plx": "3.5.1",
+    "react-native-device-info": "^15.0.2",
     "react-native-gesture-handler": "2.32.0",
     "react-native-nitro-modules": "0.37.0",
     "react-native-nitro-sqlite": "9.7.0",

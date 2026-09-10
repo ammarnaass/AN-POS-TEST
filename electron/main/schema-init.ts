@@ -413,10 +413,17 @@ CREATE INDEX IF NOT EXISTS idx_suspended_orders_created ON suspended_orders(crea
 CREATE TABLE IF NOT EXISTS packs (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
+  description TEXT DEFAULT '',
   barcode TEXT NOT NULL DEFAULT '',
-  items TEXT NOT NULL DEFAULT '[]',
+  price REAL NOT NULL DEFAULT 0,
   pack_price REAL NOT NULL DEFAULT 0,
+  pack_type TEXT NOT NULL DEFAULT 'pack',
+  unit_name TEXT DEFAULT 'كرتون',
+  pieces_count INTEGER DEFAULT 1,
+  min_wholesale_qty INTEGER DEFAULT 1,
+  items TEXT NOT NULL DEFAULT '[]',
   status TEXT NOT NULL DEFAULT 'active',
+  is_active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -701,7 +708,7 @@ CREATE TABLE IF NOT EXISTS network_settings (
   id TEXT PRIMARY KEY,
   lan_enabled INTEGER NOT NULL DEFAULT 0,
   server_ip TEXT NOT NULL DEFAULT '',
-  server_port INTEGER NOT NULL DEFAULT 4321,
+  server_port INTEGER NOT NULL DEFAULT 3000,
   protocol TEXT NOT NULL DEFAULT 'http',
   ssl_cert_path TEXT DEFAULT '',
   ssl_key_path TEXT DEFAULT '',
@@ -761,6 +768,9 @@ CREATE TABLE IF NOT EXISTS connected_devices (
   last_seen TEXT DEFAULT '',
   vendor TEXT DEFAULT '',
   model TEXT DEFAULT '',
+  device_unique_id TEXT DEFAULT '',
+  app_name TEXT DEFAULT '',
+  app_version TEXT DEFAULT '',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -835,5 +845,24 @@ export function initSchema(): void {
   try { execSql("ALTER TABLE suspended_orders ADD COLUMN subtotal REAL DEFAULT 0;"); } catch { /* موجود */ }
   try { execSql("ALTER TABLE suspended_orders ADD COLUMN total REAL DEFAULT 0;"); } catch { /* موجود */ }
   try { execSql("ALTER TABLE settings ADD COLUMN allow_self_registration INTEGER NOT NULL DEFAULT 1;"); } catch { /* موجود */ }
+
+  // ترقيات عبوات الجملة والباقات لضمان التوافق التام مع تطبيق الهاتف
+  try { execSql("ALTER TABLE packs ADD COLUMN barcode TEXT NOT NULL DEFAULT '';"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE packs ADD COLUMN price REAL NOT NULL DEFAULT 0;"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE packs ADD COLUMN pack_price REAL NOT NULL DEFAULT 0;"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE packs ADD COLUMN pack_type TEXT NOT NULL DEFAULT 'pack';"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE packs ADD COLUMN unit_name TEXT DEFAULT 'كرتون';"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE packs ADD COLUMN pieces_count INTEGER DEFAULT 1;"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE packs ADD COLUMN min_wholesale_qty INTEGER DEFAULT 1;"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE packs ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1;"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE packs ADD COLUMN description TEXT DEFAULT '';"); } catch { /* موجود */ }
+
+  // تصحيح منفذ السيرفر الافتراضي في الإعدادات إلى 3000
+  try { execSql("UPDATE network_settings SET server_port = 3000 WHERE id = 'default' AND server_port = 4321;"); } catch { /* موجود */ }
   try { execSql("ALTER TABLE settings ADD COLUMN default_role TEXT NOT NULL DEFAULT 'seller';"); } catch { /* موجود */ }
+  // ترقية connected_devices: حقلا التطبيق والمعرف الفريد
+  try { execSql("ALTER TABLE connected_devices ADD COLUMN app_name TEXT DEFAULT '';"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE connected_devices ADD COLUMN app_version TEXT DEFAULT '';"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE connected_devices ADD COLUMN device_unique_id TEXT DEFAULT '';"); } catch { /* موجود */ }
+  try { execSql("CREATE UNIQUE INDEX IF NOT EXISTS idx_connected_devices_unique_id ON connected_devices(device_unique_id) WHERE device_unique_id != '';"); } catch { /* موجود */ }
 }

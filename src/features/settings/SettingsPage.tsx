@@ -200,7 +200,27 @@ export default function SettingsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['connected_devices'] }),
   });
 
-  const saveNet = (updates: Partial<NetworkSettingsEntity>) => netSettingsMutation.mutate(updates);
+  const deleteMobileDeviceMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await (window as any).electronAPI?.server?.deleteDevice?.(id);
+      await refetchConnected();
+    },
+    onSuccess: () => {
+      addNotification({ title: 'تم حذف الجهاز', message: 'تم إزالة الجهاز من سجل الأجهزة المقترنة بنجاح', type: 'success' });
+    },
+  });
+
+  const saveNet = (updates: Partial<NetworkSettingsEntity>) => {
+    netSettingsMutation.mutate(updates);
+    if (updates.serverPort !== undefined) {
+      const api = (window as any).electronAPI?.server;
+      if (api?.updatePort) {
+        api.updatePort(Number(updates.serverPort)).catch((err: any) => {
+          console.warn('[settings] فشل تحديث منفذ الخادم وإعلان Bonjour:', err);
+        });
+      }
+    }
+  };
 
   const settingsMutation = useMutation({
     mutationFn: async (updates: Record<string, unknown>) => {
@@ -562,6 +582,9 @@ export default function SettingsPage() {
       }
     }
     settingsMutation.mutate(mirrored);
+    if (updates.shopName !== undefined || updates.shop_name !== undefined) {
+      (window as any).electronAPI?.server?.refreshAdvertising?.().catch(() => {});
+    }
   };
 
   // SYS-NET-001: دوال اختبار الاتصال (BR-NET-004: تسجيل كل محاولة في user_activities)
@@ -755,10 +778,24 @@ export default function SettingsPage() {
   };
 
   const handleAddDevice = () => {
-    if (!newDevice.deviceName) return;
+    const trimmedName = newDevice.deviceName?.trim();
+    if (!trimmedName) return;
+
+    // فحص منع تكرار أسماء الأجهزة
+    const isDuplicate = devices.some(d => d.deviceName.trim().toLowerCase() === trimmedName.toLowerCase()) ||
+                        mobilePhones.some((m: any) => ((m.device_name || m.deviceName || '').trim().toLowerCase()) === trimmedName.toLowerCase());
+    if (isDuplicate) {
+      addNotification({
+        title: 'اسم الجهاز مستخدم مسبقاً',
+        message: `اسم الجهاز "${trimmedName}" مسجل بالفعل. يرجى اختيار اسم فريد لمنع تكرار أسماء الأجهزة.`,
+        type: 'warning',
+      });
+      return;
+    }
+
     deviceMutation.mutate({
       id: generateId(),
-      deviceName: newDevice.deviceName,
+      deviceName: trimmedName,
       deviceType: newDevice.deviceType,
       connectionType: newDevice.connectionType,
       ipAddress: newDevice.ipAddress || undefined,
@@ -1260,7 +1297,7 @@ export default function SettingsPage() {
 
         {/* === الشبكة والاتصال === */}
         {activeTab === 'network' && (
-          <NetworkTab {...{ deleteDeviceMutation, devices, handleAddDevice, handleSaveSettings, handleTestLan, handleTestPrinter, handleTestScanner, hasActiveConnections, mobilePhones, netSettings, netSubTab, newDevice, onlineDevicesCount, pairingInfo, refetchConnected, saveNet, serverLoading, serverStatus, setNetSubTab, setNewDevice, setPrinterSavedUnlocked, setShowDeviceForm, settings, showDeviceForm, testingLan, testingPrinter, testingScanner, toggleServer }} />
+          <NetworkTab {...{ deleteDeviceMutation, deleteMobileDeviceMutation, devices, handleAddDevice, handleSaveSettings, handleTestLan, handleTestPrinter, handleTestScanner, hasActiveConnections, mobilePhones, netSettings, netSubTab, newDevice, onlineDevicesCount, pairingInfo, refetchConnected, saveNet, serverLoading, serverStatus, setNetSubTab, setNewDevice, setPrinterSavedUnlocked, setShowDeviceForm, settings, showDeviceForm, testingLan, testingPrinter, testingScanner, toggleServer }} />
         )}
 
         {/* === تصدير واستيراد === */}
@@ -1270,7 +1307,7 @@ export default function SettingsPage() {
 
         {/* === تطبيق الهاتف المحمول (AN POS Mobile) === */}
         {activeTab === 'mobile' && (
-          <MobileDevicesTab {...{ copiedField, handleCopyText, handleRegenerateKey, isDeveloper, mobilePhones, pairingInfo, refetchConnected, serverLoading, serverStatus, toggleServer, settings, handleSaveSettings, saveNet }} />
+          <MobileDevicesTab {...{ copiedField, deleteMobileDeviceMutation, handleCopyText, handleRegenerateKey, isDeveloper, mobilePhones, pairingInfo, refetchConnected, serverLoading, serverStatus, toggleServer, settings, handleSaveSettings, saveNet }} />
         )}
 
         {/* === التحديثات === */}

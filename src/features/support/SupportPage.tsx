@@ -233,7 +233,7 @@ const GUIDES: InteractiveGuide[] = [
     iconBg: 'bg-indigo-100 dark:bg-indigo-500/15 border-indigo-300 dark:border-indigo-500/30',
     route: '/settings',
     routeLabel: 'فتح إعدادات الشبكة والأجهزة',
-    proTip: 'تأكد أن هاتف الجرد والحاسوب متصلان بنفس شبكة الـ Wi-Fi المحلية (على منفذ Fastify رقم 4321).',
+    proTip: 'تأكد أن هاتف الجرد والحاسوب متصلان بنفس شبكة الـ Wi-Fi المحلية (على منفذ Fastify رقم 3000).',
     steps: [
       {
         title: '1. فتح تبويب الأجهزة المحمولة',
@@ -326,8 +326,8 @@ const FAQS: FaqItem[] = [
     id: 'faq-mobile-sync-port',
     category: 'الهاتف والشبكة',
     q: 'ما هو المنفذ الشبكي المخصص لربط تطبيق الهاتف وما متطلباته؟',
-    a: 'يعمل خادم Fastify الداخلي للنظام على المنفذ 4321. كل ما تحتاجه هو اتصال الحاسوب والهاتف بنفس شبكة الـ Wi-Fi المحلية (أو نقطة اتصال Hotspot)، ثم مسح رمز QR من إعدادات الأجهزة المحمولة للربط التلقائي بدون أي أسلاك.',
-    keywords: ['هاتف', 'منفذ', '4321', 'واي فاي', 'شبكة', 'تطبيق', 'موبايل'],
+    a: 'يعمل خادم Fastify الداخلي للنظام على المنفذ 3000 (أو المنفذ المخصص في إعدادات الشبكة). كل ما تحتاجه هو اتصال الحاسوب والهاتف بنفس شبكة الـ Wi-Fi المحلية (أو نقطة اتصال Hotspot)، ثم مسح رمز QR من إعدادات الأجهزة المحمولة للربط التلقائي بدون أي أسلاك.',
+    keywords: ['هاتف', 'منفذ', '3000', 'واي فاي', 'شبكة', 'تطبيق', 'موبايل'],
   },
   {
     id: 'faq-backup-restore',
@@ -533,7 +533,7 @@ export default function SupportPage() {
           </div>
           <div>
             <div className="text-xs text-on-surface-variant font-medium">الخادم الداخلي (Fastify)</div>
-            <div className="text-sm font-bold text-cyan-700 dark:text-cyan-300 font-mono">المنفذ :4321 جاهز</div>
+            <div className="text-sm font-bold text-cyan-700 dark:text-cyan-300 font-mono">المنفذ :3000 جاهز</div>
           </div>
         </div>
 

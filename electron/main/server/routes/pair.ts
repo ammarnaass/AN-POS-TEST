@@ -10,6 +10,8 @@
 
 import type { FastifyInstance } from 'fastify';
 import { randomUUID, randomBytes, timingSafeEqual } from 'node:crypto';
+import * as fs from 'node:fs';
+import * as child_process from 'node:child_process';
 import {
   queryOne,
   queryAll,
@@ -143,11 +145,110 @@ function deleteSession(sessionToken: string): void {
 }
 
 /**
- * إقران جهاز جديد — يتحقق من connection_key ويُنشئ entry + session_token.
+ * استخراج عنوان MAC العتادي من جدول الـ ARP الخاص بنظام التشغيل
+ */
+export function resolveMacFromArp(ip: string): string {
+  if (!ip || ip === '127.0.0.1' || ip === 'localhost' || ip === '::1') return '';
+  const cleanIp = ip.replace(/^::ffff:/, '');
+  try {
+    if (process.platform === 'linux') {
+      if (fs.existsSync('/proc/net/arp')) {
+        const content = fs.readFileSync('/proc/net/arp', 'utf8');
+        const lines = content.split('\n');
+        for (const line of lines) {
+          const parts = line.trim().split(/\s+/);
+          if (parts[0] === cleanIp && parts[3] && parts[3] !== '00:00:00:00:00:00') {
+            return parts[3].toLowerCase();
+          }
+        }
+      }
+    } else if (process.platform === 'win32') {
+      const stdout = child_process.execSync(`arp -a ${cleanIp}`, { encoding: 'utf8', timeout: 1500 });
+      const match = stdout.match(/([0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}/);
+      if (match) {
+        return match[0].replace(/-/g, ':').toLowerCase();
+      }
+    } else if (process.platform === 'darwin') {
+      const stdout = child_process.execSync(`arp -n ${cleanIp}`, { encoding: 'utf8', timeout: 1500 });
+      const match = stdout.match(/([0-9a-fA-F]{1,2}:){5}[0-9a-fA-F]{1,2}/);
+      if (match) {
+        return match[0].toLowerCase();
+      }
+    }
+  } catch {
+    // Non-blocking fallback
+  }
+  return '';
+}
+
+/**
+ * توليد اسم فريد للجهاز ومنع التكرار نهائياً في النظام.
+ * إذا كان الاسم مستخدماً لجهاز آخر، يتم إلحاق رقم تسلسلي تصاعدي: "Device (2)", "Device (3)" ...
+ */
+export function generateUniqueDeviceName(requestedName: string, currentDeviceId?: string): string {
+  const base = (requestedName || 'جهاز غير معروف').trim();
+
+  // استعلام عن كل الأسماء المسجلة للأجهزة الأخرى
+  const query = currentDeviceId
+    ? 'SELECT device_name FROM connected_devices WHERE id != ?'
+    : 'SELECT device_name FROM connected_devices';
+  const params = currentDeviceId ? [currentDeviceId] : [];
+  const rows = queryAll(query, params);
+
+  const existingNames = new Set(
+    rows.map((r: any) => ((r.device_name as string) || '').trim().toLowerCase())
+  );
+
+  if (!existingNames.has(base.toLowerCase())) {
+    return base;
+  }
+
+  // إذا كان الاسم مكرراً، نبحث عن أول ترقيم شاغر
+  let index = 2;
+  while (existingNames.has(`${base} (${index})`.toLowerCase())) {
+    index++;
+  }
+  return `${base} (${index})`;
+}
+
+export interface PairPayload {
+  deviceName: string;
+  connectionKey: string;
+  deviceType?: string;
+  deviceUniqueId?: string;
+  deviceModel?: string;
+  deviceBrand?: string;
+  ipAddress?: string;
+  macAddress?: string;
+  model?: string;
+  vendor?: string;
+  deviceId?: string;
+  hardwareId?: string;
+  appName?: string;
+  appVersion?: string;
+}
+
+/**
+ * إقران جهاز جديد أو إعادة ربط جهاز قائم — يتحقق من connection_key
+ * ويمنع التكرار ويضمن تفرد الاسم ويخزن كافة المعطيات الـ 5 (الاسم، MAC، IP، الطراز، النوع).
  */
 async function pairDevice(
-  payload: { deviceName: string; connectionKey: string; deviceType?: string }
-): Promise<{ success: boolean; sessionToken?: string; deviceId?: string; error?: { status: number; detail: string } }> {
+  payload: PairPayload,
+  clientIp?: string
+): Promise<{
+  success: boolean;
+  sessionToken?: string;
+  deviceId?: string;
+  deviceName?: string;
+  macAddress?: string;
+  ipAddress?: string;
+  model?: string;
+  vendor?: string;
+  deviceType?: string;
+  appName?: string;
+  appVersion?: string;
+  error?: { status: number; detail: string };
+}> {
   // مفتاح الاتصال المخزّن
   const settings = queryOne("SELECT connection_key FROM network_settings WHERE id = 'default'");
   if (!settings?.connection_key) {
@@ -160,17 +261,73 @@ async function pairDevice(
     return { error: { status: 422, detail: 'اسم الجهاز مطلوب' } };
   }
 
+  // 1. تحديد عنوان IP الفعلي
+  let resolvedIp = (payload.ipAddress || clientIp || '').trim();
+  if (resolvedIp.startsWith('::ffff:')) {
+    resolvedIp = resolvedIp.substring(7);
+  }
+  if (resolvedIp === '::1' || resolvedIp === 'localhost') {
+    resolvedIp = '127.0.0.1';
+  }
+
+  // 2. تحديد عنوان MAC الفعلي (من الحمولة أولاً، أو من جدول الـ ARP)
+  let resolvedMac = (payload.macAddress || '').trim().toLowerCase();
+  if (!resolvedMac || resolvedMac === '02:00:00:00:00:00' || resolvedMac === '00:00:00:00:00:00') {
+    const arpMac = resolveMacFromArp(resolvedIp);
+    if (arpMac) resolvedMac = arpMac;
+  }
+
+  // 3. تحديد نوع الجهاز واسم الطراز والشركة المصنعة وبيانات التطبيق والمعرف الفريد
+  const deviceUniqueId = (payload.deviceUniqueId || payload.hardwareId || '').trim();
+  const deviceType = (payload.deviceType || 'mobile').trim();
+  const model = (payload.deviceModel || payload.model || '').trim();
+  const vendor = (payload.deviceBrand || payload.vendor || '').trim();
+  const appName = (payload.appName || '').trim();
+  const appVersion = (payload.appVersion || '').trim();
+
   // فحص الحد الأقصى لأجهزة الهاتف المصرح بربطها من الترخيص
   const isDev = isDeveloperModeActive();
   const maxAllowed = isDev ? 999 : licenseManager.getMaxMobileDevices();
 
-  // تنظيف الجلسات القديمة لنفس الجهاز أو المنتهية بعد 24 ساعة بدون نشاط
+  // 4. فحص ما إذا كان هذا الجهاز الفعلي مسجلاً مسبقاً ( لمنع إنشاء صفوف مكررة لنفس الجهاز )
+  let existingDevice: any = null;
+
+  // أ. بالمعرّف الفريد الثابت device_unique_id أولاً (الأولوية القصوى لمنع التكرار)
+  if (deviceUniqueId) {
+    existingDevice = queryOne("SELECT * FROM connected_devices WHERE device_unique_id = ? AND device_unique_id != ''", [deviceUniqueId]);
+  }
+
+  // ب. بالمعرّف الصريح إن تم تمريره
+  if (!existingDevice && payload.deviceId) {
+    existingDevice = queryOne('SELECT * FROM connected_devices WHERE id = ?', [payload.deviceId]);
+  }
+
+  // ج. بعنوان MAC إن كان فريداً وصالحاً
+  if (!existingDevice && resolvedMac && resolvedMac !== '02:00:00:00:00:00' && resolvedMac !== '00:00:00:00:00:00') {
+    existingDevice = queryOne('SELECT * FROM connected_devices WHERE LOWER(mac_address) = LOWER(?)', [resolvedMac]);
+  }
+
+  // د. بعنوان IP ومطابقة الطراز في حال عدم توفر MAC
+  if (!existingDevice && resolvedIp && model && resolvedIp !== '127.0.0.1') {
+    existingDevice = queryOne('SELECT * FROM connected_devices WHERE ip_address = ? AND model = ?', [resolvedIp, model]);
+  }
+
+  const deviceId = existingDevice ? (existingDevice.id as string) : randomUUID();
+  const now = new Date().toISOString();
+
+  // 5. ضمان عدم تكرار اسم الجهاز (Collision Prevention)
+  // إذا كان الجهاز قديماً واسمه لم يتغير، نحتفظ به. وإن طُلب اسم جديد أو كان جهازاً جديداً، نضمن تفرده.
+  const finalDeviceName = generateUniqueDeviceName(
+    payload.deviceName || (existingDevice?.device_name as string) || 'هاتف محمول',
+    deviceId
+  );
+
+  // تنظيف الجلسات القديمة لنفس الجهاز
   try {
     execute(
-      "UPDATE device_sessions SET expires_at = datetime('now') WHERE expires_at IS NULL AND (last_seen < datetime('now', '-1 day') OR device_name = ?)",
-      [payload.deviceName]
+      "UPDATE device_sessions SET expires_at = datetime('now') WHERE expires_at IS NULL AND (last_seen < datetime('now', '-1 day') OR device_id = ? OR device_name = ?)",
+      [deviceId, finalDeviceName]
     );
-    // مزامنة الذاكرة العشوائية بحذف أي جلسات تم إنهاؤها
     for (const [token] of activeSessions.entries()) {
       const activeRow = queryOne(
         "SELECT id FROM device_sessions WHERE session_token = ? AND (expires_at IS NULL OR expires_at > datetime('now'))",
@@ -183,13 +340,16 @@ async function pairDevice(
   } catch {}
 
   const currentCountRow = queryOne(
-    "SELECT COUNT(DISTINCT device_id) as count FROM device_sessions WHERE expires_at IS NULL OR expires_at > datetime('now')"
+    `SELECT COUNT(DISTINCT COALESCE(NULLIF(c.device_unique_id, ''), c.id, s.device_id)) as count
+     FROM device_sessions s
+     LEFT JOIN connected_devices c ON s.device_id = c.id
+     WHERE s.expires_at IS NULL OR s.expires_at > datetime('now')`
   );
   const currentCount = typeof currentCountRow?.count === 'number'
     ? (currentCountRow.count as number)
     : activeSessions.size;
 
-  if (!isDev && currentCount >= maxAllowed) {
+  if (!isDev && !existingDevice && currentCount >= maxAllowed) {
     return {
       error: {
         status: 403,
@@ -198,31 +358,83 @@ async function pairDevice(
     };
   }
 
-  // إنشاء entry في connected_devices
-  const deviceId = randomUUID();
-  const now = new Date().toISOString();
-  execute(
-    'INSERT INTO connected_devices (id, device_name, device_type, connection_type, status, last_seen, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    [
-      deviceId,
-      payload.deviceName,
-      payload.deviceType || 'mobile',
-      'network',
-      'online',
-      now,
-      now,
-      now,
-    ]
-  );
+  // 6. حفظ أو تحديث بيانات الجهاز في جدول connected_devices (مع كافة الحقول)
+  if (existingDevice) {
+    execute(
+      `UPDATE connected_devices SET
+        device_name = ?,
+        device_type = ?,
+        connection_type = 'network',
+        ip_address = ?,
+        mac_address = ?,
+        status = 'online',
+        last_seen = ?,
+        vendor = ?,
+        model = ?,
+        device_unique_id = CASE WHEN ? != '' THEN ? ELSE device_unique_id END,
+        app_name = ?,
+        app_version = ?,
+        updated_at = ?
+       WHERE id = ?`,
+      [
+        finalDeviceName,
+        deviceType || existingDevice.device_type || 'mobile',
+        resolvedIp || existingDevice.ip_address || '',
+        resolvedMac || existingDevice.mac_address || '',
+        now,
+        vendor || existingDevice.vendor || '',
+        model || existingDevice.model || '',
+        deviceUniqueId,
+        deviceUniqueId,
+        appName || existingDevice.app_name || '',
+        appVersion || existingDevice.app_version || '',
+        now,
+        deviceId,
+      ]
+    );
+  } else {
+    execute(
+      `INSERT INTO connected_devices (
+        id, device_name, device_type, connection_type, ip_address, mac_address, status, last_seen, vendor, model, device_unique_id, app_name, app_version, created_at, updated_at
+      ) VALUES (?, ?, ?, 'network', ?, ?, 'online', ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        deviceId,
+        finalDeviceName,
+        deviceType,
+        resolvedIp,
+        resolvedMac,
+        now,
+        vendor,
+        model,
+        deviceUniqueId,
+        appName,
+        appVersion,
+        now,
+        now,
+      ]
+    );
+  }
 
   // توليد session_token آمن 32 بايت = 64 hex
   const sessionToken = randomBytes(32).toString('hex');
 
   // حفظ في الذاكرة + قاعدة البيانات
   activeSessions.set(sessionToken, { deviceId, userId: null, pairedAt: now });
-  persistSession(sessionToken, deviceId, payload.deviceName);
+  persistSession(sessionToken, deviceId, finalDeviceName);
 
-  return { success: true, sessionToken, deviceId };
+  return {
+    success: true,
+    sessionToken,
+    deviceId,
+    deviceName: finalDeviceName,
+    macAddress: resolvedMac,
+    ipAddress: resolvedIp,
+    model,
+    vendor,
+    deviceType,
+    appName,
+    appVersion,
+  };
 }
 
 /**
@@ -284,18 +496,36 @@ export async function registerPairRoutes(server: FastifyInstance): Promise<void>
 
   // POST /api/pair — اقتران جهاز جديد
   // public (لا يتطلب session token)
-  server.post('/api/pair', async (request, reply) => {
-    const body = request.body as { deviceName?: string; connectionKey?: string; deviceType?: string };
-    const result = await pairDevice({
-      deviceName: body.deviceName || '',
-      connectionKey: body.connectionKey || '',
-      deviceType: body.deviceType,
-    });
+  const handlePairRequest = async (request: any, reply: any) => {
+    const body = (request.body || {}) as any;
+    const clientIp = (request.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || request.ip || request.socket?.remoteAddress;
+    const result = await pairDevice(
+      {
+        deviceName: body.deviceName || '',
+        connectionKey: body.connectionKey || body.key || body.code || body.pairingToken || '',
+        deviceType: body.deviceType,
+        deviceUniqueId: body.deviceUniqueId || body.hardwareId || (request.headers['x-device-unique-id'] as string) || '',
+        deviceModel: body.deviceModel || body.model || '',
+        deviceBrand: body.deviceBrand || body.vendor || '',
+        ipAddress: body.ipAddress,
+        macAddress: body.macAddress,
+        model: body.model || body.deviceModel,
+        vendor: body.vendor || body.deviceBrand,
+        deviceId: body.deviceId,
+        hardwareId: body.hardwareId || body.deviceUniqueId,
+        appName: body.appName || body.app_name,
+        appVersion: body.appVersion || body.app_version,
+      },
+      clientIp
+    );
     if (result.error) {
       return reply.code(result.error.status).send({ error: result.error });
     }
     return reply.code(200).send(result);
-  });
+  };
+
+  server.post('/api/pair', handlePairRequest);
+  server.post('/api/pair/confirm', handlePairRequest);
 
   // POST /api/pair/unpair — إلغاء اقتران (يتطلب session + deviceId من hook)
   server.post('/api/pair/unpair', async (request, reply) => {
@@ -332,5 +562,148 @@ export async function registerPairRoutes(server: FastifyInstance): Promise<void>
     return reply.send({ devices });
   });
 
-  console.log('[pair] مسارات الاقتران مسجلة');
+  // POST & GET /api/heartbeat — نبض الجهاز وتأكيد الحالة الحية وتحديث المعطيات الخمسة
+  const handleHeartbeat = async (request: any, reply: any) => {
+    const sessionToken = request.headers['x-session-token'] as string | undefined;
+    const deviceId = request.headers['x-device-id'] as string | undefined;
+
+    if (!sessionToken || !deviceId) {
+      return reply.code(401).send({ error: { status: 401, detail: 'معرف الجلسة ومعرف الجهاز مطلوبان' } });
+    }
+
+    const valid = await verifySession(sessionToken, deviceId);
+    if (!valid) {
+      return reply.code(401).send({ error: { status: 401, detail: 'جلسة غير صالحة — يرجى إعادة الاقتران' } });
+    }
+
+    let clientIp = request.ip;
+    if (clientIp.startsWith('::ffff:')) clientIp = clientIp.substring(7);
+
+    const body = (request.body || {}) as Record<string, any>;
+    const rawDevName = (request.headers['x-device-name'] ? decodeURIComponent(request.headers['x-device-name'] as string) : body.deviceName) as string | undefined;
+    const rawModel = (request.headers['x-device-model'] ? decodeURIComponent(request.headers['x-device-model'] as string) : body.model) as string | undefined;
+    const rawVendor = (request.headers['x-device-vendor'] ? decodeURIComponent(request.headers['x-device-vendor'] as string) : body.vendor) as string | undefined;
+    const rawType = ((request.headers['x-device-type'] as string) || body.deviceType) as string | undefined;
+    const rawMac = ((request.headers['x-device-mac'] as string) || body.macAddress) as string | undefined;
+    const rawAppName = (request.headers['x-app-name'] ? decodeURIComponent(request.headers['x-app-name'] as string) : body.appName || body.app_name) as string | undefined;
+    const rawAppVersion = ((request.headers['x-app-version'] as string) || body.appVersion || body.app_version) as string | undefined;
+
+    const arpMac = resolveMacFromArp(clientIp);
+    const effectiveMac = arpMac || rawMac;
+
+    const existing = queryOne('SELECT * FROM connected_devices WHERE id = ?', [deviceId]);
+    if (existing) {
+      const isLoopback = clientIp === '127.0.0.1' || clientIp === '::1' || clientIp === 'localhost';
+      const newIp = !isLoopback ? clientIp : (existing.ip_address || clientIp);
+      const newMac = effectiveMac || existing.mac_address || '';
+      const newModel = rawModel || existing.model || '';
+      const newVendor = rawVendor || existing.vendor || '';
+      const newType = rawType || existing.device_type || 'mobile';
+      const newAppName = rawAppName || existing.app_name || '';
+      const newAppVersion = rawAppVersion || existing.app_version || '';
+
+      let newName = (existing.device_name as string) || 'Mobile Device';
+      if ((newName === 'AN POS Mobile' || newName === 'Mobile Device') && rawDevName && rawDevName !== 'AN POS Mobile') {
+        newName = generateUniqueDeviceName(rawDevName, deviceId);
+        execute('UPDATE device_sessions SET device_name = ? WHERE device_id = ?', [newName, deviceId]);
+      }
+
+      execute(
+        `UPDATE connected_devices SET
+          device_name = ?,
+          device_type = ?,
+          ip_address = ?,
+          mac_address = ?,
+          model = ?,
+          vendor = ?,
+          app_name = ?,
+          app_version = ?,
+          status = 'online',
+          last_seen = ?,
+          updated_at = ?
+        WHERE id = ?`,
+        [
+          newName,
+          newType,
+          newIp,
+          newMac,
+          newModel,
+          newVendor,
+          newAppName,
+          newAppVersion,
+          new Date().toISOString(),
+          new Date().toISOString(),
+          deviceId,
+        ]
+      );
+
+      return reply.send({
+        ok: true,
+        status: 'online',
+        deviceId,
+        deviceName: newName,
+        ip: newIp,
+        mac: newMac,
+        model: newModel,
+        vendor: newVendor,
+        appName: newAppName,
+        appVersion: newAppVersion,
+        serverTime: new Date().toISOString(),
+      });
+    }
+
+    return reply.code(404).send({ error: { status: 404, detail: 'الجهاز غير مسجل' } });
+  };
+
+  server.post('/api/heartbeat', handleHeartbeat);
+  server.get('/api/heartbeat', handleHeartbeat);
+
+  // POST /api/devices/heartbeat — نبض الجهاز المخصص بالمعرف الفريد
+  server.post('/api/devices/heartbeat', async (request: any, reply: any) => {
+    const body = (request.body || {}) as Record<string, any>;
+    const deviceUniqueId = (body.deviceUniqueId || request.headers['x-device-unique-id'] || body.hardwareId) as string | undefined;
+    const sessionToken = request.headers['x-session-token'] as string | undefined;
+    const deviceId = (request.headers['x-device-id'] || body.deviceId) as string | undefined;
+
+    let targetDevice: any = null;
+    if (deviceUniqueId) {
+      targetDevice = queryOne("SELECT * FROM connected_devices WHERE device_unique_id = ? AND device_unique_id != ''", [deviceUniqueId]);
+    }
+    if (!targetDevice && deviceId) {
+      targetDevice = queryOne('SELECT * FROM connected_devices WHERE id = ?', [deviceId]);
+    }
+    if (!targetDevice && sessionToken) {
+      const sess = queryOne('SELECT device_id FROM device_sessions WHERE session_token = ?', [sessionToken]);
+      if (sess?.device_id) {
+        targetDevice = queryOne('SELECT * FROM connected_devices WHERE id = ?', [sess.device_id]);
+      }
+    }
+
+    if (targetDevice) {
+      const now = new Date().toISOString();
+      execute(
+        `UPDATE connected_devices SET status = 'online', last_seen = ?, updated_at = ? WHERE id = ?`,
+        [now, now, targetDevice.id]
+      );
+      if (sessionToken) {
+        execute(
+          `UPDATE device_sessions SET last_seen = ? WHERE session_token = ?`,
+          [now, sessionToken]
+        );
+      }
+      return reply.send({
+        ok: true,
+        status: 'online',
+        deviceId: targetDevice.id,
+        deviceUniqueId: targetDevice.device_unique_id,
+        deviceName: targetDevice.device_name,
+        lastSeen: now,
+      });
+    }
+
+    return reply.code(404).send({ error: { status: 404, detail: 'الجهاز غير مسجل' } });
+  });
+
+  console.log('[pair] مسارات الاقتران ونبض الأجهزة مسجلة');
 }
+

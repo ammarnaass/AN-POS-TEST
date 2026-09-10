@@ -4,6 +4,45 @@ import { db as unifiedDB } from '@/infrastructure/database/UnifiedDB';
 import { STORAGE_KEYS } from './storageKeys';
 import { savePairedDevice, removePairedDevice, updateLastSeen, type PairedDevice } from './pairedDeviceStore';
 import { rememberServerUrl } from './discovery';
+import { AnposNetwork, type DeviceInfo } from '@/modules/AnposNetwork';
+
+let _cachedDeviceInfo: DeviceInfo | null = null;
+AnposNetwork.getDeviceInfo()
+  .then((info) => {
+    _cachedDeviceInfo = info;
+  })
+  .catch(() => {});
+
+function appendDeviceTelemetryHeaders(headers: Record<string, string>): void {
+  if (_cachedDeviceInfo) {
+    if (_cachedDeviceInfo.deviceName) {
+      headers['x-device-name'] = encodeURIComponent(_cachedDeviceInfo.deviceName);
+    }
+    if (_cachedDeviceInfo.model) {
+      headers['x-device-model'] = encodeURIComponent(_cachedDeviceInfo.model);
+    }
+    if (_cachedDeviceInfo.manufacturer || _cachedDeviceInfo.brand) {
+      headers['x-device-vendor'] = encodeURIComponent(_cachedDeviceInfo.manufacturer || _cachedDeviceInfo.brand);
+    }
+    if (_cachedDeviceInfo.deviceType) {
+      headers['x-device-type'] = _cachedDeviceInfo.deviceType;
+    }
+    if (_cachedDeviceInfo.macAddress) {
+      headers['x-device-mac'] = _cachedDeviceInfo.macAddress;
+    }
+    if (_cachedDeviceInfo.hardwareId) {
+      headers['x-device-hardware-id'] = _cachedDeviceInfo.hardwareId;
+    }
+    if (_cachedDeviceInfo.deviceUniqueId || _cachedDeviceInfo.hardwareId) {
+      headers['x-device-unique-id'] = _cachedDeviceInfo.deviceUniqueId || _cachedDeviceInfo.hardwareId;
+    }
+    headers['x-app-name'] = encodeURIComponent(_cachedDeviceInfo.appName || 'AN POS Mobile');
+    headers['x-app-version'] = _cachedDeviceInfo.appVersion || '2.0.0';
+  } else {
+    headers['x-app-name'] = encodeURIComponent('AN POS Mobile');
+    headers['x-app-version'] = '2.0.0';
+  }
+}
 
 /**
  * Normalizes any IP, host, or URL into a clean http://<host>:<port> string
@@ -132,6 +171,7 @@ export async function apiCall<T>(
   };
   if (token) headers['x-session-token'] = token;
   if (deviceId) headers['x-device-id'] = deviceId;
+  appendDeviceTelemetryHeaders(headers);
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -175,36 +215,147 @@ export async function apiCall<T>(
 export const electronAPI = {
   pair: {
     info: () => apiCall<{ shopName: string; requiresKey: boolean; requiresPairing?: boolean }>('GET', '/api/pair/info'),
-    pair: (payload: { deviceName: string; connectionKey: string; key?: string; code?: string; pairingToken?: string }) =>
+    pair: (payload: {
+      deviceName: string;
+      connectionKey: string;
+      key?: string;
+      code?: string;
+      pairingToken?: string;
+      deviceType?: string;
+      deviceUniqueId?: string;
+      deviceModel?: string;
+      deviceBrand?: string;
+      ipAddress?: string;
+      macAddress?: string;
+      model?: string;
+      vendor?: string;
+      deviceId?: string;
+      hardwareId?: string;
+      appName?: string;
+      appVersion?: string;
+    }) =>
       apiCall<{
         success?: boolean;
         sessionToken?: string;
         token?: string;
         deviceId?: string;
         id?: string;
+        deviceName?: string;
+        macAddress?: string;
+        ipAddress?: string;
+        model?: string;
+        deviceType?: string;
+        appName?: string;
+        appVersion?: string;
         error?: { status: number; detail: string };
       }>('POST', '/api/pair', {
         deviceName: payload.deviceName,
+        deviceUniqueId: payload.deviceUniqueId || payload.hardwareId || _cachedDeviceInfo?.deviceUniqueId,
+        deviceModel: payload.deviceModel || payload.model || _cachedDeviceInfo?.model,
+        deviceBrand: payload.deviceBrand || payload.vendor || _cachedDeviceInfo?.brand,
         connectionKey: payload.connectionKey || payload.key || payload.code || payload.pairingToken,
         key: payload.connectionKey || payload.key || payload.code || payload.pairingToken,
         code: payload.code || payload.pairingToken || payload.connectionKey,
         pairingToken: payload.pairingToken || payload.code || payload.connectionKey,
+        deviceType: payload.deviceType,
+        ipAddress: payload.ipAddress,
+        macAddress: payload.macAddress,
+        model: payload.model || payload.deviceModel || _cachedDeviceInfo?.model,
+        vendor: payload.vendor || payload.deviceBrand || _cachedDeviceInfo?.manufacturer || _cachedDeviceInfo?.brand,
+        deviceId: payload.deviceId,
+        hardwareId: payload.hardwareId || payload.deviceUniqueId,
+        appName: payload.appName || _cachedDeviceInfo?.appName || 'AN POS Mobile',
+        appVersion: payload.appVersion || _cachedDeviceInfo?.appVersion || '3.0.0',
       }),
-    confirm: (payload: { deviceName: string; pairingToken?: string; code?: string; key?: string }) =>
+    confirm: (payload: {
+      deviceName: string;
+      pairingToken?: string;
+      code?: string;
+      key?: string;
+      connectionKey?: string;
+      deviceType?: string;
+      deviceUniqueId?: string;
+      deviceModel?: string;
+      deviceBrand?: string;
+      ipAddress?: string;
+      macAddress?: string;
+      model?: string;
+      vendor?: string;
+      deviceId?: string;
+      hardwareId?: string;
+      appName?: string;
+      appVersion?: string;
+    }) =>
       apiCall<{
         success?: boolean;
         sessionToken?: string;
         token?: string;
         deviceId?: string;
         id?: string;
+        deviceName?: string;
+        macAddress?: string;
+        ipAddress?: string;
+        model?: string;
+        deviceType?: string;
+        appName?: string;
+        appVersion?: string;
         error?: { status: number; detail: string };
       }>('POST', '/api/pair/confirm', {
         deviceName: payload.deviceName,
-        pairingToken: payload.pairingToken || payload.code || payload.key,
-        code: payload.code || payload.pairingToken || payload.key,
-        key: payload.key || payload.code || payload.pairingToken,
+        deviceUniqueId: payload.deviceUniqueId || payload.hardwareId || _cachedDeviceInfo?.deviceUniqueId,
+        deviceModel: payload.deviceModel || payload.model || _cachedDeviceInfo?.model,
+        deviceBrand: payload.deviceBrand || payload.vendor || _cachedDeviceInfo?.brand,
+        pairingToken: payload.pairingToken || payload.code || payload.key || payload.connectionKey,
+        code: payload.code || payload.pairingToken || payload.key || payload.connectionKey,
+        key: payload.key || payload.code || payload.pairingToken || payload.connectionKey,
+        connectionKey: payload.connectionKey || payload.key || payload.code || payload.pairingToken,
+        deviceType: payload.deviceType,
+        ipAddress: payload.ipAddress,
+        macAddress: payload.macAddress,
+        model: payload.model || payload.deviceModel || _cachedDeviceInfo?.model,
+        vendor: payload.vendor || payload.deviceBrand || _cachedDeviceInfo?.manufacturer || _cachedDeviceInfo?.brand,
+        deviceId: payload.deviceId,
+        hardwareId: payload.hardwareId || payload.deviceUniqueId,
+        appName: payload.appName || _cachedDeviceInfo?.appName || 'AN POS Mobile',
+        appVersion: payload.appVersion || _cachedDeviceInfo?.appVersion || '3.0.0',
       }),
     unpair: () => apiCall<{ success: boolean }>('POST', '/api/pair/unpair'),
+  },
+
+  devices: {
+    connect: (payload?: {
+      deviceName?: string;
+      deviceType?: string;
+      ipAddress?: string;
+      macAddress?: string;
+      model?: string;
+      vendor?: string;
+      appName?: string;
+      appVersion?: string;
+      connectionType?: string;
+      hardwareId?: string;
+      deviceId?: string;
+    }) =>
+      apiCall<{
+        success: boolean;
+        isNew?: boolean;
+        device: any;
+        network: any;
+        connection: any;
+        details: any;
+      }>('POST', '/api/devices/connect', {
+        deviceName: payload?.deviceName || _cachedDeviceInfo?.deviceName || 'AN POS Mobile',
+        deviceType: payload?.deviceType || _cachedDeviceInfo?.deviceType || 'mobile',
+        ipAddress: payload?.ipAddress || _cachedDeviceInfo?.localIp,
+        macAddress: payload?.macAddress || _cachedDeviceInfo?.macAddress,
+        model: payload?.model || _cachedDeviceInfo?.model,
+        vendor: payload?.vendor || _cachedDeviceInfo?.manufacturer || _cachedDeviceInfo?.brand,
+        appName: payload?.appName || _cachedDeviceInfo?.appName || 'AN POS Mobile',
+        appVersion: payload?.appVersion || _cachedDeviceInfo?.appVersion || '2.0.0',
+        hardwareId: payload?.hardwareId || _cachedDeviceInfo?.hardwareId,
+        deviceId: payload?.deviceId,
+      }),
+    list: () => apiCall<{ devices: any[]; summary: any }>('GET', '/api/devices'),
   },
 
   auth: {
@@ -304,6 +455,23 @@ export const electronAPI = {
     update: (data: Record<string, unknown>) =>
       apiCall<{ success: boolean; settings?: Record<string, any> }>('PUT', '/api/settings', data, 6000),
   },
+
+  heartbeat: () =>
+    apiCall<{ ok: boolean; status: string; deviceName?: string; ip?: string; mac?: string }>(
+      'POST',
+      '/api/devices/heartbeat',
+      {
+        deviceUniqueId: _cachedDeviceInfo?.deviceUniqueId || _cachedDeviceInfo?.hardwareId,
+      },
+      4000
+    ).catch(() =>
+      apiCall<{ ok: boolean; status: string; deviceName?: string; ip?: string; mac?: string }>(
+        'POST',
+        '/api/heartbeat',
+        undefined,
+        4000
+      )
+    ),
 };
 
 let _cachedServerUrl: string | null = null;
@@ -425,10 +593,14 @@ export const session = {
   },
   isConnectedSync: () => Boolean(_cachedToken && _cachedDeviceId && _cachedServerUrl),
   getServerUrlSync: () => _cachedServerUrl,
-  getHeaders: () => ({
-    'x-session-token': _cachedToken || '',
-    'x-device-id': _cachedDeviceId || '',
-  }),
+  getHeaders: () => {
+    const h: Record<string, string> = {
+      'x-session-token': _cachedToken || '',
+      'x-device-id': _cachedDeviceId || '',
+    };
+    appendDeviceTelemetryHeaders(h);
+    return h;
+  },
   getServerUrlDisplay: async () => {
     const base = await getServerUrl();
     if (!base) return 'غير مُكوّن';

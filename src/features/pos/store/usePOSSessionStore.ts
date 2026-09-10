@@ -28,7 +28,7 @@ interface POSSessionState {
   // Operating modes
   returnMode: boolean;
   autoPrintReceipt: boolean;
-  posLayout: 'sidebar' | 'bottom' | 'classic';
+  posLayout: 'sidebar' | 'bottom' | 'classic' | 'modern';
   showProductImages: boolean;
   uiZoom: number;
   quickMode: boolean;
@@ -50,7 +50,7 @@ interface POSSessionState {
   setPaidAmount: (amount: number | ((prev: number) => number)) => void;
   setReturnMode: (val: boolean | ((prev: boolean) => boolean)) => void;
   setAutoPrintReceipt: (val: boolean | ((prev: boolean) => boolean)) => void;
-  setPosLayout: (layout: 'sidebar' | 'bottom' | 'classic' | ((prev: 'sidebar' | 'bottom' | 'classic') => 'sidebar' | 'bottom' | 'classic')) => void;
+  setPosLayout: (layout: 'sidebar' | 'bottom' | 'classic' | 'modern' | ((prev: 'sidebar' | 'bottom' | 'classic' | 'modern') => 'sidebar' | 'bottom' | 'classic' | 'modern')) => void;
   setShowProductImages: (show: boolean | ((prev: boolean) => boolean)) => void;
   setUiZoom: (zoom: number | ((prev: number) => number)) => void;
   wholesaleMode: boolean;
@@ -86,7 +86,7 @@ export const usePOSSessionStore = create<POSSessionState>((set) => ({
   })(),
   posLayout: (() => {
     try {
-      return (localStorage.getItem('pos_layout_mode') as 'sidebar' | 'bottom' | 'classic') || 'bottom';
+      return (localStorage.getItem('pos_layout_mode') as 'sidebar' | 'bottom' | 'classic' | 'modern') || 'bottom';
     } catch {
       return 'bottom';
     }

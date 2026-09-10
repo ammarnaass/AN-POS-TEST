@@ -249,6 +249,43 @@ export async function getCandidatePorts(preferredPort?: number): Promise<number[
 }
 
 /**
+ * Fast port-independent auto-discovery via standard mDNS/Zeroconf (_anpos._tcp.local).
+ * Falls back to UDP Broadcast and Subnet sweep.
+ */
+export async function detectViaZeroconf(timeoutMs = 3500): Promise<DiscoveredDevice[]> {
+  try {
+    const raw = await AnposNetwork.discoverZeroconf(timeoutMs);
+    if (!Array.isArray(raw) || raw.length === 0) return [];
+
+    const devices: DiscoveredDevice[] = [];
+    const seenIps = new Set<string>();
+
+    for (const r of raw) {
+      const ip = r.ip;
+      const port = Number(r.port) || DEFAULT_DISCOVERY_PORT;
+      if (!ip || seenIps.has(`${ip}:${port}`)) continue;
+      seenIps.add(`${ip}:${port}`);
+
+      const name = r.name || 'AN POS Desktop';
+      devices.push({
+        ip,
+        port,
+        deviceName: name,
+        shopName: name,
+        version: '2.0.0',
+        requiresPairing: true,
+        responseTime: 50,
+      });
+    }
+
+    return devices;
+  } catch (err) {
+    console.warn('[Zeroconf] Native mDNS discovery error (fallback):', err);
+    return [];
+  }
+}
+
+/**
  * Fast port-independent auto-discovery via UDP broadcast (port 41999).
  * The Desktop responds with its dynamically configured server_port and shop name.
  */
@@ -291,9 +328,10 @@ export async function detectViaUdpBroadcast(timeoutMs = 1200): Promise<Discovere
 
 /**
  * PRD §5.1: Automatic Discovery
- * 1. UDP Broadcast First: Ultra-fast (<1s) and port-independent (resolves actual server_port).
- * 2. Quick Probing Fallback: Checks last known IP, emulator host (10.0.2.2), and gateway across candidate ports.
- * 3. Subnet Sweep Fallback: Sequential batch scans on candidate ports if Wi-Fi client isolation blocks UDP.
+ * 1. Standard mDNS/Zeroconf First: Ultra-fast and port-independent (resolves actual server_port).
+ * 2. UDP Broadcast Fallback: Quick local broadcast check.
+ * 3. Quick Probing Fallback: Checks last known IP, emulator host (10.0.2.2), and gateway across candidate ports.
+ * 4. Subnet Sweep Fallback: Sequential batch scans on candidate ports if Wi-Fi client isolation blocks mDNS/UDP.
  */
 export async function detectLocalServer(
   onProgress?: (current: number, total: number) => void,
@@ -302,7 +340,19 @@ export async function detectLocalServer(
 ): Promise<DiscoveredDevice[]> {
   if (signal?.aborted) return [];
 
-  // 1. Primary: Ultra-fast UDP broadcast to discover port dynamically
+  // 1. Primary: Standard mDNS / Zeroconf Discovery
+  try {
+    const zeroconfResults = await detectViaZeroconf(3500);
+    if (zeroconfResults.length > 0) {
+      onProgress?.(100, 100);
+      await rememberDevice(zeroconfResults[0]);
+      return zeroconfResults;
+    }
+  } catch {}
+
+  if (signal?.aborted) return [];
+
+  // 1.1 Secondary: UDP Broadcast
   try {
     const udpResults = await detectViaUdpBroadcast(1200);
     if (udpResults.length > 0) {
@@ -371,7 +421,19 @@ export async function deepManualSubnetScan(
 ): Promise<DiscoveredDevice[]> {
   if (signal?.aborted) return [];
 
-  // Quick check via UDP first
+  // Quick check via Zeroconf first
+  try {
+    const zeroconfResults = await detectViaZeroconf(3000);
+    if (zeroconfResults.length > 0) {
+      onProgress?.(100, 100);
+      await rememberDevice(zeroconfResults[0]);
+      return zeroconfResults;
+    }
+  } catch {}
+
+  if (signal?.aborted) return [];
+
+  // Quick check via UDP next
   const udpResults = await detectViaUdpBroadcast(1200);
   if (udpResults.length > 0) {
     onProgress?.(100, 100);

@@ -1,7 +1,7 @@
 import { AppState, type AppStateStatus } from 'react-native';
 import { db, ensureInit } from '@/lib/db';
 import { db as unifiedDB } from '@/infrastructure/database/UnifiedDB';
-import { session, checkServerHealth, onSessionInvalidated } from '@/lib/apiClient';
+import { session, checkServerHealth, onSessionInvalidated, electronAPI } from '@/lib/apiClient';
 import { generateId } from '@shared/utils';
 import { AnposSecureStore } from '@/modules/AnposSecureStore';
 import { getPairedDevice, updateLastSeen, type PairedDevice } from './pairedDeviceStore';
@@ -305,9 +305,15 @@ class SyncEngine {
    */
   startPeriodicSync(): void {
     if (this.syncInterval) clearInterval(this.syncInterval);
+    if (session.isConnectedSync()) {
+      electronAPI.heartbeat().catch(() => {});
+    }
     this.syncInterval = setInterval(() => {
-      if (this.isOnline && session.isConnectedSync() && !this.isSyncing) {
-        this.pullUpdates().catch(() => {});
+      if (this.isOnline && session.isConnectedSync()) {
+        electronAPI.heartbeat().catch(() => {});
+        if (!this.isSyncing) {
+          this.pullUpdates().catch(() => {});
+        }
       }
     }, this.syncIntervalMs);
   }

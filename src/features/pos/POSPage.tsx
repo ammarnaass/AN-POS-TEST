@@ -20,6 +20,8 @@ import { useSaleCompletion } from './hooks/useSaleCompletion';
 import { usePOSKeyboardShortcuts } from './hooks/usePOSKeyboardShortcuts';
 import { POSActionBar } from './components/POSActionBar';
 import { ClassicPOSLayout } from './components/ClassicPOSLayout';
+import { ModernPOSLayout } from './components/ModernPOSLayout';
+import { SidebarPOSLayout } from './components/SidebarPOSLayout';
 import { useOpenCashSession } from '@/features/cash/useOpenCashSession';
 import { usePOSSessionStore } from './store/usePOSSessionStore';
 import { getTrialState } from '@/services/trialService';
@@ -936,6 +938,7 @@ export default function POSPage() {
       {/* ========================================================= */}
       {/* ZONE 1: TOP HEADER                                        */}
       {/* ========================================================= */}
+      {posLayout !== 'modern' && posLayout !== 'sidebar' && (
       <header className="h-16 px-3 sm:px-4 bg-surface-container-lowest/90 backdrop-blur-md border-b border-outline-variant/20 flex items-center justify-between gap-2 sm:gap-3 shrink-0 z-20 shadow-xs">
         {/* Right Side (RTL): Menu Toggle + Search + Barcode + Trial Badge */}
         <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 max-w-3xl">
@@ -1179,10 +1182,12 @@ export default function POSPage() {
           </button>
         </div>
       </header>
+      )}
 
       {/* ========================================================= */}
       {/* SUBHEADER: CATEGORY & ACTION TOOLBAR                      */}
       {/* ========================================================= */}
+      {posLayout !== 'modern' && posLayout !== 'sidebar' && (
       <div className="px-3 sm:px-4 py-2 bg-surface-container-low/90 backdrop-blur-xs border-b border-outline-variant/15 flex items-center justify-between gap-2 shrink-0 shadow-2xs relative z-30 overflow-x-auto no-scrollbar touch-scroll">
         <div className="flex items-center gap-1.5 sm:gap-2 flex-nowrap sm:flex-wrap shrink-0">
           {/* 1. Advanced Filters Modal Trigger (الفلاتر المتقدمة - الزر الأول) */}
@@ -1270,11 +1275,12 @@ export default function POSPage() {
           </button>
         </div>
       </div>
+      )}
 
       {/* ───────────────────────────────────────────────────────────── */}
       {/* MOBILE VIEW SWITCHER (Visible on screens < md)                */}
       {/* ───────────────────────────────────────────────────────────── */}
-      {posLayout !== 'classic' && (
+      {posLayout !== 'classic' && posLayout !== 'modern' && posLayout !== 'sidebar' && (
         <div className="md:hidden flex items-center bg-surface-container/90 p-1 mx-3 my-1.5 rounded-2xl border border-outline-variant/20 shrink-0 gap-1 shadow-xs">
           <button
             onClick={() => setMobileTab('products')}
@@ -1310,7 +1316,112 @@ export default function POSPage() {
       {/* ========================================================= */}
       {/* MAIN CONTENT AREA: CART PANEL + PRODUCT CATALOG            */}
       {/* ========================================================= */}
-      {posLayout === 'classic' ? (
+      {posLayout === 'sidebar' ? (
+        <SidebarPOSLayout
+          cart={cart}
+          onAddToCart={(p) => handleAddProduct(p as any)}
+          onUpdateQty={(productId, qty) => {
+            const it = cart.find((c) => c.productId === productId);
+            if (it) handleUpdateQty(it, qty);
+          }}
+          onRemoveFromCart={(productId) => removeItem(productId)}
+          onClearCart={() => {
+            clearCart();
+            setSelectedCustomer('');
+            setDiscount(0);
+          }}
+          onEditPrice={(productId, newPrice) => {
+            const item = cart.find((c) => c.productId === productId);
+            if (item) {
+              updateQty(productId, item.qty, newPrice);
+            }
+          }}
+          saleSummary={saleSummary}
+          products={filteredProducts as any}
+          allProducts={products as any}
+          categories={availableCategories}
+          selectedCategory={filterCategory}
+          onSelectCategory={(catId) => setFilterCategory(catId === 'ALL' ? '' : catId)}
+          barcodeInput={barcodeHeaderInput}
+          setBarcodeInput={setBarcodeHeaderInput}
+          onBarcodeSubmit={(e) => {
+            e?.preventDefault();
+            if (barcodeHeaderInput.trim()) {
+              handleExternalScan(barcodeHeaderInput.trim());
+              setBarcodeHeaderInput('');
+            }
+          }}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          onSettleSale={() => {
+            if (!isSessionOpen) {
+              setShowSessionWarning(true);
+              return;
+            }
+            if (cart.length === 0) return;
+            setPaidAmount(saleSummary.total);
+            setShowPaymentModal(true);
+          }}
+          onSuspendSale={handleSuspend}
+          onOpenSuspended={() => setShowSuspended(true)}
+          suspendedCount={suspendedOrders.length}
+          onSelectCustomer={() => setShowCustomerSelect(true)}
+          selectedCustomerName={selectedCustomer ? customers.find((c) => c.id === selectedCustomer)?.name || '' : ''}
+          autoPrintReceipt={autoPrintReceipt}
+          onToggleAutoPrint={() => {
+            setAutoPrintReceipt(!autoPrintReceipt);
+            addNotification({
+              title: 'الطباعة التلقائية',
+              message: !autoPrintReceipt ? 'تم تفعيل الطباعة التلقائية للإيصالات' : 'تم إيقاف الطباعة التلقائية',
+              type: 'info',
+            });
+          }}
+          onOpenDiscount={() => setShowDiscountModal(true)}
+          discount={discount}
+          discountType={discountType}
+          onOpenFreeProduct={() => setShowFreeProductModal(true)}
+          onOpenReturns={() => setShowReturnSaleModal(true)}
+          returnMode={returnMode}
+          onOpenCustomize={() => setShowCustomizeModal(true)}
+          wholesaleMode={wholesaleMode}
+          toggleWholesaleMode={() => {
+            toggleWholesaleMode();
+            addNotification({
+              title: !wholesaleMode ? 'وضع الجملة مفعّل (Gros)' : 'وضع التجزئة مفعّل (Détail)',
+              message: !wholesaleMode ? 'تم تفعيل أسعار وفواتير الجملة تلقائياً (Alt+W)' : 'تم العودة إلى أسعار التجزئة العادية (Alt+W)',
+              type: !wholesaleMode ? 'success' : 'info',
+            });
+          }}
+          onSaveAsProforma={() => {
+            if (cart.length === 0) return;
+            setShowSaveAsProformaModal(true);
+          }}
+          onNewOrder={() => {
+            if (cart.length > 0) {
+              clearCart();
+              setSelectedCustomer('');
+              setDiscount(0);
+            }
+          }}
+          onOpenSalesHistory={() => navigate('/sales')}
+          invoiceNumber={1}
+          formatMoney={formatMoney}
+          currency="دج"
+          storeName={settingsOrDefault?.shopName || 'AN POS'}
+          userName={currentUser?.name || 'Admin'}
+          isSessionOpen={isSessionOpen}
+          isSalePending={isSalePending}
+          onToggleFullscreen={toggleFullscreen}
+          isFullscreen={isFullscreen}
+          onNavigateBack={() => navigate('/')}
+          onOpenKeypadForQty={(item) => {
+            setSelectedItemId(item.productId);
+            setKeypadTarget('qty');
+            setKeypadInput(String(item.qty));
+            setShowKeypad(true);
+          }}
+        />
+      ) : posLayout === 'classic' ? (
         <ClassicPOSLayout
           cart={cart}
           onAddToCart={(p) => handleAddProduct(p as any)}
@@ -1390,6 +1501,111 @@ export default function POSPage() {
           onSaveAsOrder={() => {
             if (cart.length === 0) return;
             setShowSaveAsOrderModal(true);
+          }}
+        />
+      ) : posLayout === 'modern' ? (
+        <ModernPOSLayout
+          cart={cart}
+          onAddToCart={(p) => handleAddProduct(p as any)}
+          onUpdateQty={(productId, qty) => {
+            const it = cart.find((c) => c.productId === productId);
+            if (it) handleUpdateQty(it, qty);
+          }}
+          onRemoveFromCart={(productId) => removeItem(productId)}
+          onClearCart={() => {
+            clearCart();
+            setSelectedCustomer('');
+            setDiscount(0);
+          }}
+          onEditPrice={(productId, newPrice) => {
+            const item = cart.find((c) => c.productId === productId);
+            if (item) {
+              updateQty(productId, item.qty, newPrice);
+            }
+          }}
+          saleSummary={saleSummary}
+          products={filteredProducts as any}
+          allProducts={products as any}
+          categories={availableCategories}
+          selectedCategory={filterCategory}
+          onSelectCategory={(catId) => setFilterCategory(catId === 'ALL' ? '' : catId)}
+          barcodeInput={barcodeHeaderInput}
+          setBarcodeInput={setBarcodeHeaderInput}
+          onBarcodeSubmit={(e) => {
+            e?.preventDefault();
+            if (barcodeHeaderInput.trim()) {
+              handleExternalScan(barcodeHeaderInput.trim());
+              setBarcodeHeaderInput('');
+            }
+          }}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          onSettleSale={() => {
+            if (!isSessionOpen) {
+              setShowSessionWarning(true);
+              return;
+            }
+            if (cart.length === 0) return;
+            setPaidAmount(saleSummary.total);
+            setShowPaymentModal(true);
+          }}
+          onSuspendSale={handleSuspend}
+          onOpenSuspended={() => setShowSuspended(true)}
+          suspendedCount={suspendedOrders.length}
+          onSelectCustomer={() => setShowCustomerSelect(true)}
+          selectedCustomerName={selectedCustomer ? customers.find((c) => c.id === selectedCustomer)?.name || '' : ''}
+          autoPrintReceipt={autoPrintReceipt}
+          onToggleAutoPrint={() => {
+            setAutoPrintReceipt(!autoPrintReceipt);
+            addNotification({
+              title: 'الطباعة التلقائية',
+              message: !autoPrintReceipt ? 'تم تفعيل الطباعة التلقائية للإيصالات' : 'تم إيقاف الطباعة التلقائية',
+              type: 'info',
+            });
+          }}
+          onOpenDiscount={() => setShowDiscountModal(true)}
+          discount={discount}
+          discountType={discountType}
+          onOpenFreeProduct={() => setShowFreeProductModal(true)}
+          onOpenReturns={() => setShowReturnSaleModal(true)}
+          returnMode={returnMode}
+          onOpenCustomize={() => setShowCustomizeModal(true)}
+          wholesaleMode={wholesaleMode}
+          toggleWholesaleMode={() => {
+            toggleWholesaleMode();
+            addNotification({
+              title: !wholesaleMode ? 'وضع الجملة مفعّل (Gros)' : 'وضع التجزئة مفعّل (Détail)',
+              message: !wholesaleMode ? 'تم تفعيل أسعار وفواتير الجملة تلقائياً (Alt+W)' : 'تم العودة إلى أسعار التجزئة العادية (Alt+W)',
+              type: !wholesaleMode ? 'success' : 'info',
+            });
+          }}
+          onSaveAsProforma={() => {
+            if (cart.length === 0) return;
+            setShowSaveAsProformaModal(true);
+          }}
+          onNewOrder={() => {
+            if (cart.length > 0) {
+              clearCart();
+              setSelectedCustomer('');
+              setDiscount(0);
+            }
+          }}
+          onOpenSalesHistory={() => navigate('/sales')}
+          invoiceNumber={1}
+          formatMoney={formatMoney}
+          currency="دج"
+          storeName={settingsOrDefault?.shopName || 'AN POS'}
+          userName={currentUser?.name || 'Admin'}
+          isSessionOpen={isSessionOpen}
+          isSalePending={isSalePending}
+          onToggleFullscreen={toggleFullscreen}
+          isFullscreen={isFullscreen}
+          onNavigateBack={() => navigate('/')}
+          onOpenKeypadForQty={(item) => {
+            setSelectedItemId(item.productId);
+            setKeypadTarget('qty');
+            setKeypadInput(String(item.qty));
+            setShowKeypad(true);
           }}
         />
       ) : (
@@ -1986,7 +2202,7 @@ export default function POSPage() {
       {/* ───────────────────────────────────────────────────────────── */}
       {/* FLOATING MOBILE CART SUMMARY BAR (Visible on mobile during product browsing) */}
       {/* ───────────────────────────────────────────────────────────── */}
-      {posLayout !== 'classic' && mobileTab === 'products' && cart.length > 0 && (
+      {posLayout !== 'classic' && posLayout !== 'modern' && posLayout !== 'sidebar' && mobileTab === 'products' && cart.length > 0 && (
         <div className="md:hidden fixed bottom-3 left-3 right-3 z-40 bg-surface-container-high/95 backdrop-blur-xl border border-primary/30 p-3 rounded-2xl shadow-2xl flex items-center justify-between gap-3 animate-in slide-in-from-bottom-5">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-primary text-on-primary flex items-center justify-center font-bold shadow-md shadow-primary/25 relative shrink-0">

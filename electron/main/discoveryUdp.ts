@@ -35,7 +35,7 @@ export function startDiscoveryListener(): void {
         const reply = JSON.stringify({
           type: 'anpos-discover-reply',
           v: 1,
-          port: Number(netSettings?.server_port) || 4321,
+          port: Number(netSettings?.server_port) || 3000,
           shopName: (settingsRow.shop_name as string) || 'AN POS',
           deviceName: os.hostname(),
           requiresPairing: true,

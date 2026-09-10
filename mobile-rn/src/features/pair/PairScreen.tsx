@@ -46,12 +46,15 @@ import {
 import { session, electronAPI, normalizeServerUrl, checkServerHealth } from '@/lib/apiClient';
 import { useAuthStore } from '@/store/authStore';
 import { AnposSecureStore } from '@/modules/AnposSecureStore';
+import { AnposNetwork } from '@/modules/AnposNetwork';
 import { STORAGE_KEYS } from '@/lib/storageKeys';
 import { getPairedDevice, type PairedDevice } from '@/lib/pairedDeviceStore';
 import { AppImages } from '@/assets';
 import {
   detectLocalServer,
   deepManualSubnetScan,
+  detectViaZeroconf,
+  detectViaUdpBroadcast,
   getCurrentSubnet,
   AUTO_DISCOVERY_TIMEOUT_MS,
   DEFAULT_DISCOVERY_PORT,
@@ -112,8 +115,9 @@ export const PairScreen = ({ navigation, route }: any) => {
 
   // Manual IP State
   const [manualIp, setManualIp] = useState('');
-  const [manualPort, setManualPort] = useState(String(DEFAULT_DISCOVERY_PORT));
+  const [manualPort, setManualPort] = useState('');
   const [manualKey, setManualKey] = useState('');
+  const [autoDetecting, setAutoDetecting] = useState(false);
 
   // Custom Port Override for Auto Discovery
   const [customDiscoveryPort, setCustomDiscoveryPort] = useState('');
@@ -305,22 +309,47 @@ export const PairScreen = ({ navigation, route }: any) => {
       await setServerUrl(normalizedUrl);
 
       // Call desktop pairing confirmation endpoint
+      const existingDeviceId = (await AnposSecureStore.get(STORAGE_KEYS.DEVICE_ID).catch(() => '')) || '';
+      const deviceInfo = await AnposNetwork.getDeviceInfo().catch(() => ({
+        deviceName: 'AN POS Mobile',
+        model: '',
+        manufacturer: '',
+        brand: '',
+        deviceType: 'mobile' as const,
+        hardwareId: '',
+        deviceUniqueId: '',
+        macAddress: '',
+        localIp: '',
+        appName: 'AN POS Mobile',
+        appVersion: '3.0.0',
+      }));
+
+      const pairPayload = {
+        deviceName: deviceInfo.deviceName || 'AN POS Mobile',
+        deviceUniqueId: deviceInfo.deviceUniqueId || deviceInfo.hardwareId || existingDeviceId,
+        deviceModel: deviceInfo.model,
+        deviceBrand: deviceInfo.brand || deviceInfo.manufacturer,
+        code: codeToUse,
+        pairingToken: codeToUse,
+        key: codeToUse,
+        connectionKey: codeToUse,
+        deviceType: deviceInfo.deviceType,
+        ipAddress: deviceInfo.localIp,
+        macAddress: deviceInfo.macAddress,
+        model: deviceInfo.model,
+        vendor: deviceInfo.manufacturer || deviceInfo.brand,
+        deviceId: existingDeviceId || undefined,
+        hardwareId: deviceInfo.hardwareId,
+        appName: deviceInfo.appName || 'AN POS Mobile',
+        appVersion: deviceInfo.appVersion || '3.0.0',
+      };
+
       let res: any = null;
       try {
-        res = await electronAPI.pair.confirm({
-          deviceName: 'AN POS Mobile',
-          code: codeToUse,
-          pairingToken: codeToUse,
-          key: codeToUse,
-        });
+        res = await electronAPI.pair.confirm(pairPayload);
       } catch {
         // Fallback to /api/pair
-        res = await electronAPI.pair.pair({
-          deviceName: 'AN POS Mobile',
-          connectionKey: codeToUse,
-          code: codeToUse,
-          key: codeToUse,
-        });
+        res = await electronAPI.pair.pair(pairPayload);
       }
 
       if (res?.error) {
@@ -334,19 +363,22 @@ export const PairScreen = ({ navigation, route }: any) => {
         throw new Error(t('pair.invalidPairingCode'));
       }
 
+      const assignedDeviceName = res?.deviceName || res?.data?.deviceName || deviceInfo.deviceName || deviceToUse.deviceName;
+
       await session.savePairing(token, deviceId, {
         deviceId,
         serverUrl: normalizedUrl,
         ip: deviceToUse.ip,
         port: deviceToUse.port,
         shopName: deviceToUse.shopName,
-        deviceName: deviceToUse.deviceName,
+        deviceName: assignedDeviceName,
         version: deviceToUse.version,
         mode: normalizedUrl.includes('cloud') ? 'cloud' : 'lan',
         pairedAt: new Date().toISOString(),
         lastSeenAt: new Date().toISOString(),
         lastStatus: 'online',
       });
+      await AnposSecureStore.set(STORAGE_KEYS.DEVICE_ID, deviceId).catch(() => {});
       await AnposSecureStore.set(STORAGE_KEYS.CONNECTION_KEY, codeToUse).catch(() => {});
       setPairSuccess(true);
 
@@ -382,9 +414,36 @@ export const PairScreen = ({ navigation, route }: any) => {
       await session.save(normalizedUrl, key);
       await setServerUrl(normalizedUrl);
 
-      const res: any = await electronAPI.pair.pair({
+      const existingDeviceId = (await AnposSecureStore.get(STORAGE_KEYS.DEVICE_ID).catch(() => '')) || '';
+      const deviceInfo = await AnposNetwork.getDeviceInfo().catch(() => ({
         deviceName: 'AN POS Mobile',
+        model: '',
+        manufacturer: '',
+        brand: '',
+        deviceType: 'mobile' as const,
+        hardwareId: '',
+        deviceUniqueId: '',
+        macAddress: '',
+        localIp: '',
+        appName: 'AN POS Mobile',
+        appVersion: '3.0.0',
+      }));
+
+      const res: any = await electronAPI.pair.pair({
+        deviceName: deviceInfo.deviceName || 'AN POS Mobile',
+        deviceUniqueId: deviceInfo.deviceUniqueId || deviceInfo.hardwareId || existingDeviceId,
+        deviceModel: deviceInfo.model,
+        deviceBrand: deviceInfo.brand || deviceInfo.manufacturer,
         connectionKey: key,
+        deviceType: deviceInfo.deviceType,
+        ipAddress: deviceInfo.localIp,
+        macAddress: deviceInfo.macAddress,
+        model: deviceInfo.model,
+        vendor: deviceInfo.manufacturer || deviceInfo.brand,
+        deviceId: existingDeviceId || undefined,
+        hardwareId: deviceInfo.hardwareId,
+        appName: deviceInfo.appName || 'AN POS Mobile',
+        appVersion: deviceInfo.appVersion || '3.0.0',
       });
 
       if (res?.error) {
@@ -409,6 +468,7 @@ export const PairScreen = ({ navigation, route }: any) => {
       const health = await checkServerHealth(normalizedUrl).catch(() => null);
       const shopName = health?.info?.shopName || health?.info?.shop_name || 'AN POS';
       const version = health?.info?.version || '1.0';
+      const assignedDeviceName = res?.deviceName || res?.data?.deviceName || deviceInfo.deviceName || `Desktop (${ip})`;
 
       await session.savePairing(token, deviceId, {
         deviceId,
@@ -416,13 +476,14 @@ export const PairScreen = ({ navigation, route }: any) => {
         ip,
         port,
         shopName,
-        deviceName: `Desktop (${ip})`,
+        deviceName: assignedDeviceName,
         version,
         mode: normalizedUrl.includes('cloud') ? 'cloud' : 'lan',
         pairedAt: new Date().toISOString(),
         lastSeenAt: new Date().toISOString(),
         lastStatus: 'online',
       });
+      await AnposSecureStore.set(STORAGE_KEYS.DEVICE_ID, deviceId).catch(() => {});
       syncEngine.pullUpdates().catch(() => {});
 
       // Success feedback (ui-ux-pro-max)
@@ -468,6 +529,50 @@ export const PairScreen = ({ navigation, route }: any) => {
       } catch {}
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Auto-Fill IP and Port from network via Zeroconf (mDNS) / UDP
+  const handleAutoFillFromNetwork = async () => {
+    if (autoDetecting) return;
+    setAutoDetecting(true);
+    setError('');
+
+    try {
+      // 1. Try mDNS / Zeroconf first (resolves dynamic server_port)
+      const zeroconfResults = await detectViaZeroconf(3000);
+      if (zeroconfResults.length > 0) {
+        const found = zeroconfResults[0];
+        setManualIp(found.ip);
+        setManualPort(String(found.port));
+        try {
+          Vibration.vibrate(50);
+        } catch {}
+        return;
+      }
+
+      // 2. Secondary fallback: UDP Broadcast
+      const udpResults = await detectViaUdpBroadcast(1200);
+      if (udpResults.length > 0) {
+        const found = udpResults[0];
+        setManualIp(found.ip);
+        setManualPort(String(found.port));
+        try {
+          Vibration.vibrate(50);
+        } catch {}
+        return;
+      }
+
+      // 3. If nothing found, provide helper feedback and fill local subnet if empty
+      const sub = await getCurrentSubnet();
+      if (!manualIp || manualIp === `${sub}.`) {
+        setManualIp(`${sub}.`);
+      }
+      setError(t('pair.autoDetectNotFound'));
+    } catch {
+      setError(t('pair.autoDetectNotFound'));
+    } finally {
+      setAutoDetecting(false);
     }
   };
 
@@ -979,6 +1084,35 @@ export const PairScreen = ({ navigation, route }: any) => {
               </View>
             </View>
 
+            {/* Auto-fill from network via Zeroconf (mDNS) */}
+            <TouchableOpacity
+              style={{
+                flexDirection: isRTL ? 'row-reverse' : 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                paddingVertical: 10,
+                paddingHorizontal: 14,
+                backgroundColor: isDark ? 'rgba(96, 165, 250, 0.12)' : 'rgba(37, 99, 235, 0.08)',
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: isDark ? 'rgba(96, 165, 250, 0.25)' : 'rgba(37, 99, 235, 0.2)',
+                marginBottom: 14,
+              }}
+              onPress={handleAutoFillFromNetwork}
+              activeOpacity={0.75}
+              disabled={autoDetecting}
+            >
+              {autoDetecting ? (
+                <ActivityIndicator size="small" color={isDark ? '#60a5fa' : '#2563eb'} />
+              ) : (
+                <Sparkles size={16} color={isDark ? '#60a5fa' : '#2563eb'} />
+              )}
+              <Text style={{ fontSize: 12, fontWeight: '700', color: isDark ? '#60a5fa' : '#2563eb' }}>
+                {autoDetecting ? t('pair.autoDetecting') : t('pair.autoFillFromNetwork')}
+              </Text>
+            </TouchableOpacity>
+
             {/* IP Field */}
             <View style={styles.fieldBlock}>
               <Text style={[styles.fieldLabel, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
@@ -1006,7 +1140,7 @@ export const PairScreen = ({ navigation, route }: any) => {
                 <Code2 size={18} color={colors.text.tertiary} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.textInput, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}
-                  placeholder="3000"
+                  placeholder={t('pair.portPlaceholderDefault')}
                   placeholderTextColor={colors.text.tertiary}
                   value={manualPort}
                   onChangeText={setManualPort}
@@ -1398,11 +1532,8 @@ export const PairScreen = ({ navigation, route }: any) => {
         <DesktopPairingScanner
           onConnect={(scannedUrl, scannedKey) => {
             setShowScanner(false);
-            if (targetDevice && scannedKey) {
-              handleConfirmPairing(scannedKey);
-            } else {
-              handleConnect(scannedUrl, scannedKey);
-            }
+            setPairModalVisible(false);
+            handleConnect(scannedUrl, scannedKey);
           }}
           onManualInput={() => {
             setShowScanner(false);

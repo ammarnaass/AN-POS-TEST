@@ -64,6 +64,8 @@ export async function initSQLiteSchema(driver: AnposSQLiteDriver): Promise<void>
     'ALTER TABLE packs ADD COLUMN min_wholesale_qty INTEGER DEFAULT 1',
     'ALTER TABLE packs ADD COLUMN is_active INTEGER DEFAULT 1',
     "ALTER TABLE packs ADD COLUMN description TEXT DEFAULT ''",
+    'ALTER TABLE packs ADD COLUMN sync_version INTEGER DEFAULT 1',
+    'ALTER TABLE packs ADD COLUMN deleted_at TEXT DEFAULT NULL',
     // customers — Algerian tax and commercial numbers
     "ALTER TABLE customers ADD COLUMN rc TEXT DEFAULT ''",
     "ALTER TABLE customers ADD COLUMN nif TEXT DEFAULT ''",

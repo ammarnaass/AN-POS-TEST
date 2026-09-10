@@ -17,6 +17,71 @@ class AnposNetworkModule(reactContext: ReactApplicationContext) : ReactContextBa
     override fun getName(): String = "AnposNetwork"
 
     @ReactMethod
+    fun getDeviceInfo(promise: Promise) {
+        try {
+            val map = Arguments.createMap()
+            map.putString("model", android.os.Build.MODEL ?: "")
+            map.putString("manufacturer", android.os.Build.MANUFACTURER ?: "")
+            map.putString("brand", android.os.Build.BRAND ?: "")
+
+            var deviceName = ""
+            try {
+                deviceName = android.provider.Settings.Global.getString(context.contentResolver, "device_name") ?: ""
+            } catch (e: Exception) {}
+            if (deviceName.isEmpty()) {
+                try {
+                    val m = android.os.Build.MODEL ?: ""
+                    val b = android.os.Build.MANUFACTURER ?: ""
+                    deviceName = if (m.startsWith(b, ignoreCase = true)) m else "$b $m".trim()
+                } catch (e: Exception) {
+                    deviceName = "Android Device"
+                }
+            }
+            map.putString("deviceName", deviceName)
+
+            var isTablet = false
+            try {
+                val config = context.resources.configuration
+                isTablet = (config.screenLayout and android.content.res.Configuration.SCREENLAYOUT_SIZE_MASK) >= android.content.res.Configuration.SCREENLAYOUT_SIZE_LARGE
+            } catch (e: Exception) {}
+            map.putString("deviceType", if (isTablet) "tablet" else "mobile")
+
+            var hardwareId = ""
+            try {
+                hardwareId = android.provider.Settings.Secure.getString(context.contentResolver, android.provider.Settings.Secure.ANDROID_ID) ?: ""
+            } catch (e: Exception) {}
+            map.putString("hardwareId", hardwareId)
+
+            var mac = ""
+            try {
+                val interfaces = NetworkInterface.getNetworkInterfaces()
+                for (intf in Collections.list(interfaces)) {
+                    if (intf.name.startsWith("wlan") || intf.name.startsWith("eth")) {
+                        val hardwareAddress = intf.hardwareAddress
+                        if (hardwareAddress != null && hardwareAddress.isNotEmpty()) {
+                            val sb = StringBuilder()
+                            for (b in hardwareAddress) {
+                                sb.append(String.format("%02x:", b))
+                            }
+                            if (sb.isNotEmpty()) {
+                                sb.deleteCharAt(sb.length - 1)
+                            }
+                            mac = sb.toString()
+                            break
+                        }
+                    }
+                }
+            } catch (e: Exception) {}
+            map.putString("macAddress", mac)
+            map.putString("localIp", getLocalIPSync())
+
+            promise.resolve(map)
+        } catch (e: Exception) {
+            promise.reject("ERR_DEVICE_INFO", e)
+        }
+    }
+
+    @ReactMethod
     fun getIPAddresses(promise: Promise) {
         try {
             val result = Arguments.createArray()
@@ -216,6 +281,79 @@ class AnposNetworkModule(reactContext: ReactApplicationContext) : ReactContextBa
                     socket?.close()
                 } catch (e: Exception) {}
             }
+        }.start()
+    }
+
+    @ReactMethod
+    fun discoverZeroconf(timeoutMs: Int, promise: Promise) {
+        val actualTimeout = if (timeoutMs > 0) timeoutMs.toLong() else 3500L
+        val nsdManager = context.getSystemService(Context.NSD_SERVICE) as? android.net.nsd.NsdManager
+        if (nsdManager == null) {
+            promise.resolve(Arguments.createArray())
+            return
+        }
+
+        Thread {
+            val results = Arguments.createArray()
+            val seenKeys = HashSet<String>()
+            val lock = Object()
+
+            val discoveryListener = object : android.net.nsd.NsdManager.DiscoveryListener {
+                override fun onDiscoveryStarted(regType: String) {}
+
+                override fun onServiceFound(service: android.net.nsd.NsdServiceInfo) {
+                    try {
+                        nsdManager.resolveService(service, object : android.net.nsd.NsdManager.ResolveListener {
+                            override fun onResolveFailed(serviceInfo: android.net.nsd.NsdServiceInfo, errorCode: Int) {}
+
+                            override fun onServiceResolved(serviceInfo: android.net.nsd.NsdServiceInfo) {
+                                val host = serviceInfo.host?.hostAddress ?: ""
+                                val port = serviceInfo.port
+                                val key = "$host:$port"
+                                synchronized(lock) {
+                                    if (host.isNotEmpty() && !host.startsWith("127.") && !seenKeys.contains(key)) {
+                                        seenKeys.add(key)
+                                        val map = Arguments.createMap()
+                                        map.putString("ip", host)
+                                        map.putInt("port", port)
+                                        map.putString("name", serviceInfo.serviceName ?: "AN POS Desktop")
+                                        results.pushMap(map)
+                                    }
+                                }
+                            }
+                        })
+                    } catch (e: Exception) {}
+                }
+
+                override fun onServiceLost(service: android.net.nsd.NsdServiceInfo) {}
+
+                override fun onDiscoveryStopped(serviceType: String) {}
+
+                override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
+                    try {
+                        nsdManager.stopServiceDiscovery(this)
+                    } catch (e: Exception) {}
+                }
+
+                override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {}
+            }
+
+            try {
+                nsdManager.discoverServices("_anpos._tcp.", android.net.nsd.NsdManager.PROTOCOL_DNS_SD, discoveryListener)
+            } catch (e: Exception) {
+                promise.resolve(Arguments.createArray())
+                return@Thread
+            }
+
+            try {
+                Thread.sleep(actualTimeout)
+            } catch (e: Exception) {}
+
+            try {
+                nsdManager.stopServiceDiscovery(discoveryListener)
+            } catch (e: Exception) {}
+
+            promise.resolve(results)
         }.start()
     }
 }

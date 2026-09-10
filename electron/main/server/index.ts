@@ -24,7 +24,9 @@ import { registerPairRoutes, verifySession } from './routes/pair';
 import { registerDiscoveryRoutes } from './routes/discovery';
 import { registerSyncRoutes } from './routes/sync';
 import { registerSettingsRoutes } from './routes/settings';
+import { registerDevicesRoutes } from './routes/devices';
 import { startDiscoveryListener, stopDiscoveryListener } from '../discoveryUdp';
+import { startBonjourAdvertising, stopBonjourAdvertising } from '../discoveryBonjour';
 
 export interface ServerConfig {
   port?: number;
@@ -113,7 +115,7 @@ export async function startHttpServer(config: ServerConfig = {}): Promise<{ url:
   await server.register(cors, {
     origin: corsOrigins === '*' ? true : corsOrigins.split(',').map((s) => s.trim()),
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'x-session-token', 'x-device-id', 'x-discovery', 'authorization', 'accept'],
+    allowedHeaders: ['Content-Type', 'x-session-token', 'x-device-id', 'x-discovery', 'authorization', 'accept', 'x-app-name', 'x-app-version', 'x-device-name', 'x-device-model', 'x-device-vendor', 'x-device-type', 'x-device-mac'],
     credentials: false,
   });
 
@@ -124,7 +126,10 @@ export async function startHttpServer(config: ServerConfig = {}): Promise<{ url:
     if (
       path.startsWith('/api/health') ||
       path.startsWith('/api/pair') ||
-      path === '/api/discover'
+      path === '/api/discover' ||
+      path.startsWith('/api/devices/connect') ||
+      path.startsWith('/api/devices/register') ||
+      path.startsWith('/api/devices/ping')
     ) {
       return;
     }
@@ -138,9 +143,9 @@ export async function startHttpServer(config: ServerConfig = {}): Promise<{ url:
     if (!valid) {
       return reply.code(401).send({ error: { status: 401, detail: 'جلسة غير صالحة أو منتهية — يجب إعادة الاقتران' } });
     }
-    // تحديث last_seen
+    // تحديث last_seen وتأكيد الحالة الحية (status = online)
     if (deviceId) {
-      execute('UPDATE connected_devices SET last_seen = ?, updated_at = ? WHERE id = ?',
+      execute("UPDATE connected_devices SET status = 'online', last_seen = ?, updated_at = ? WHERE id = ?",
         [new Date().toISOString(), new Date().toISOString(), deviceId]);
     }
   });
@@ -162,6 +167,7 @@ export async function startHttpServer(config: ServerConfig = {}): Promise<{ url:
 
   // ===== تسجيل المسارات =====
   await registerPairRoutes(server);
+  await registerDevicesRoutes(server);
   await registerAuthRoutes(server);
   await registerSettingsRoutes(server);
   await registerCrudRoutes(server);
@@ -209,13 +215,12 @@ export async function startHttpServer(config: ServerConfig = {}): Promise<{ url:
     }
   }
 
-  if (activePort !== port) {
-    try {
-      execute("UPDATE network_settings SET server_port = ? WHERE id = 'default'", [activePort]);
-    } catch {}
-  }
+  try {
+    execute("UPDATE network_settings SET server_port = ? WHERE id = 'default'", [activePort]);
+  } catch {}
 
   try { startDiscoveryListener(); } catch (e) { console.warn('[http] فشل تشغيل مستمع UDP:', e); }
+  try { startBonjourAdvertising(); } catch (e) { console.warn('[http] فشل تشغيل إعلان Bonjour:', e); }
   console.log(`[http] 🚀 خادم AN-POS يعمل على http://${host}:${activePort}`);
   console.log(`[http] عناوين الوصول: ${getLocalIpAddresses().map((ip) => `http://${ip}:${activePort}`).join(', ')}`);
 
@@ -227,7 +232,8 @@ export async function startHttpServer(config: ServerConfig = {}): Promise<{ url:
  */
 export async function stopHttpServer(): Promise<void> {
   if (!serverInstance) return;
-  try { stopDiscoveryListener(); } catch {} 
+  try { stopDiscoveryListener(); } catch {}
+  try { stopBonjourAdvertising(); } catch {} 
   await serverInstance.close();
   serverInstance = null;
   console.log('[http] 🛑 تم إيقاف خادم HTTP');

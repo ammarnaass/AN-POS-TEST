@@ -1,6 +1,5 @@
-// Tab Component: MobileDevicesTab (Refactored from SettingsPage.tsx)
 import React from 'react';
-import { Wifi, Smartphone, Key, RefreshCw, Zap, ListChecks, LogOut, Copy, Check, ShoppingCart, ScanLine, Users, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Wifi, Smartphone, Tablet, Monitor, Trash2, Key, RefreshCw, Zap, ListChecks, LogOut, Copy, Check, ShoppingCart, ScanLine, Users, ShieldCheck, AlertCircle } from 'lucide-react';
 import PairingQR from '../components/PairingQR';
 
 interface MobileDevicesTabProps {
@@ -21,6 +20,7 @@ interface MobileDevicesTabProps {
 
 export default function MobileDevicesTab({
   copiedField,
+  deleteMobileDeviceMutation,
   handleCopyText,
   handleRegenerateKey,
   mobilePhones,
@@ -333,42 +333,109 @@ export default function MobileDevicesTab({
               </div>
 
               {mobilePhones.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {mobilePhones.map((d: any) => (
-                    <div
-                      key={d.id}
-                      className="p-3.5 sm:p-4 rounded-2xl bg-surface-container border border-outline-variant/15 flex items-center justify-between gap-3 shadow-xs"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center border border-emerald-500/20 shrink-0">
-                          <Smartphone className="w-4 h-4 sm:w-5 sm:h-5" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold text-on-surface truncate">{d.device_name || d.deviceName || 'هاتف محمول'}</p>
-                          <div className="flex items-center gap-1.5 text-[10px] text-on-surface-variant font-mono mt-0.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                            <span>متصل</span>
-                            <span>·</span>
-                            <span>{d.last_seen ? new Date(d.last_seen).toLocaleTimeString('ar-DZ') : 'الآن'}</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {mobilePhones.map((d: any) => {
+                    const devType = d.device_type || d.deviceType || 'mobile';
+                    const isTablet = devType === 'tablet';
+                    const isPos = devType === 'pos_terminal' || devType === 'desktop';
+                    const isOnline = d.status === 'online';
+                    const devName = d.device_name || d.deviceName || 'هاتف محمول';
+                    const vendorModel = [d.vendor, d.model].filter(Boolean).join(' · ');
+                    const ip = d.ip_address || d.ipAddress;
+                    const mac = d.mac_address || d.macAddress;
+
+                    return (
+                      <div
+                        key={d.id}
+                        className="p-4 rounded-3xl bg-surface-container border border-outline-variant/20 flex flex-col justify-between gap-3.5 shadow-xs hover:border-primary/30 transition-all"
+                      >
+                        <div className="space-y-2.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center border shadow-inner shrink-0 ${
+                                isOnline ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-surface-container-high text-on-surface-variant border-outline-variant/20'
+                              }`}>
+                                {isTablet ? <Tablet className="w-5 h-5 text-purple-500" /> : isPos ? <Monitor className="w-5 h-5 text-blue-500" /> : <Smartphone className="w-5 h-5" />}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <p className="text-xs font-bold text-on-surface truncate">{devName}</p>
+                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-primary/10 text-primary shrink-0">فريد</span>
+                                </div>
+                                <p className="text-[11px] text-on-surface-variant truncate mt-0.5">
+                                  {vendorModel || (isTablet ? 'جهاز لوحي' : 'هاتف ذكي')}
+                                </p>
+                              </div>
+                            </div>
+
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 inline-flex items-center gap-1 ${
+                              isOnline ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' : 'bg-surface-container-highest text-on-surface-variant'
+                            }`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                              {isOnline ? 'متصل' : 'غير متصل'}
+                            </span>
+                          </div>
+
+                          {/* تفاصيل المعطيات التقنية (IP & MAC) */}
+                          <div className="p-2.5 rounded-xl bg-surface-container-low border border-outline-variant/15 space-y-1 text-[11px] font-mono">
+                            <div className="flex items-center justify-between text-on-surface-variant">
+                              <span className="font-tajawal text-[10px] opacity-75">عنوان IP:</span>
+                              <span className="font-bold text-on-surface">{ip || '-'}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-on-surface-variant">
+                              <span className="font-tajawal text-[10px] opacity-75">عنوان MAC:</span>
+                              <span className="text-[10px] uppercase">{mac || 'غير متوفر'}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-on-surface-variant pt-1 border-t border-outline-variant/10">
+                              <span className="font-tajawal text-[10px] opacity-75">آخر نشاط:</span>
+                              <span className="text-[10px]">{d.last_seen ? new Date(d.last_seen).toLocaleTimeString('ar-DZ') : 'الآن'}</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          try {
-                            await (window as any).electronAPI?.server?.disconnectDevice(d.id);
-                            refetchConnected();
-                          } catch {}
-                        }}
-                        className="p-2 rounded-xl text-red-500 hover:bg-red-500/10 transition-all cursor-pointer"
-                        title="فصل الجهاز"
-                      >
-                        <LogOut className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
+                        <div className="flex items-center justify-between pt-2 border-t border-outline-variant/15">
+                          {isOnline ? (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  await (window as any).electronAPI?.server?.disconnectDevice(d.id);
+                                  refetchConnected();
+                                } catch {}
+                              }}
+                              className="px-3 py-1.5 rounded-xl text-amber-600 hover:bg-amber-500/10 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                              title="فصل الجهاز"
+                            >
+                              <LogOut className="w-3.5 h-3.5" />
+                              <span>فصل الجلسة</span>
+                            </button>
+                          ) : (
+                            <span className="text-[11px] text-on-surface-variant font-medium">جلسة غير نشطة</span>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (confirm(`هل تريد حذف الجهاز "${devName}" نهائياً من سجل الأجهزة المقترنة؟`)) {
+                                if (deleteMobileDeviceMutation) {
+                                  deleteMobileDeviceMutation.mutate(d.id);
+                                } else {
+                                  try {
+                                    await (window as any).electronAPI?.server?.deleteDevice(d.id);
+                                    refetchConnected();
+                                  } catch {}
+                                }
+                              }
+                            }}
+                            className="p-1.5 rounded-xl text-red-500 hover:bg-red-500/10 transition-all cursor-pointer"
+                            title="حذف الجهاز نهائياً"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="py-6 sm:py-8 text-center text-on-surface-variant">

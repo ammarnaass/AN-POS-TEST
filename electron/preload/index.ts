@@ -209,6 +209,14 @@ const electronAPI = {
       ipcRenderer.invoke('server:connected-devices'),
     disconnectDevice: (deviceId: string) =>
       ipcRenderer.invoke('server:disconnect-device', deviceId),
+    deleteDevice: (deviceId: string) =>
+      ipcRenderer.invoke('server:delete-device', deviceId),
+    renameDevice: (deviceId: string, newName: string) =>
+      ipcRenderer.invoke('server:rename-device', { deviceId, newName }),
+    updatePort: (port: number) =>
+      ipcRenderer.invoke('server:update-port', port),
+    refreshAdvertising: () =>
+      ipcRenderer.invoke('server:refresh-advertising'),
   },
 
   // ===== نظام الترخيص والتفعيل (Ed25519) =====

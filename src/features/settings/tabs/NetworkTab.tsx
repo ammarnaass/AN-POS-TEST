@@ -1,6 +1,5 @@
-// Tab Component: NetworkTab (Refactored from SettingsPage.tsx)
 import React from 'react';
-import { Plus, Trash2, Shield, Printer, Smartphone, RefreshCw, Zap, LogOut, Network, ScanLine, ShieldCheck, KeyRound, Activity, Plug, AlertCircle, CheckCircle2, Monitor, Wifi, Cloud, HardDrive, Usb, Bluetooth, Cable } from 'lucide-react';
+import { Plus, Trash2, Shield, Printer, Smartphone, Tablet, RefreshCw, Zap, LogOut, Network, ScanLine, ShieldCheck, KeyRound, Activity, Plug, AlertCircle, CheckCircle2, Monitor, Wifi, Cloud, HardDrive, Usb, Bluetooth, Cable } from 'lucide-react';
 import type { ConnectedDeviceEntity, ConnectedDeviceType, ConnectionType } from '@/infrastructure/database/dexie/db';
 import PairingQR from '../components/PairingQR';
 
@@ -10,6 +9,7 @@ interface NetworkTabProps {
 
 export default function NetworkTab({
   deleteDeviceMutation,
+  deleteMobileDeviceMutation,
   devices,
   handleAddDevice,
   handleSaveSettings,
@@ -49,8 +49,13 @@ export default function NetworkTab({
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="text-xl font-bold font-cairo text-on-surface">الشبكة والاتصال والأجهزة</h2>
-                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-primary/10 text-primary border border-primary/20">
-                      {onlineDevicesCount} جهاز متصل
+                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold border flex items-center gap-1.5 ${
+                      onlineDevicesCount > 0
+                        ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                        : 'bg-surface-container-high text-on-surface-variant border-outline-variant/20'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${onlineDevicesCount > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                      {onlineDevicesCount} نشط حالياً ({mobilePhones.length} مسجل)
                     </span>
                     {settings.syncMode === 'single' ? (
                       <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 flex items-center gap-1.5">
@@ -94,7 +99,7 @@ export default function NetworkTab({
                 { id: 'printer', label: 'الطابعة', Icon: Printer, count: null },
                 { id: 'barcode', label: 'الباركود', Icon: ScanLine, count: null },
                 { id: 'security', label: 'الأمان', Icon: ShieldCheck, count: null },
-                { id: 'devices', label: 'الأجهزة المتصلة', Icon: Plug, count: onlineDevicesCount > 0 ? onlineDevicesCount : (devices.length > 0 ? devices.length : null) },
+                { id: 'devices', label: 'الأجهزة المتصلة', Icon: Plug, count: mobilePhones.length > 0 ? mobilePhones.length : (devices.length > 0 ? devices.length : null) },
               ] as const).map(({ id, label, Icon, count }) => {
                 const active = netSubTab === id;
                 return (
@@ -910,49 +915,237 @@ export default function NetworkTab({
 
             {/* === تبويب 7: الأجهزة المتصلة (Connected Devices) === */}
             {netSubTab === 'devices' && (
-              <div className="space-y-5">
-                {/* الهواتف المحمولة المتصلة حالياً */}
-                {serverStatus?.running && mobilePhones.length > 0 && (
-                  <div className="p-5 rounded-3xl bg-surface-container border border-outline-variant/15 space-y-3">
-                    <div className="flex items-center gap-2.5">
-                      <Smartphone className="w-5 h-5 text-emerald-500" />
-                      <h4 className="text-sm font-bold font-cairo text-on-surface">الهواتف الذكية المتصلة بالخادم</h4>
+              <div className="space-y-6">
+                {/* أجهزة الشبكة المتصلة والمقترنة (هواتف، أجهزة لوحية، نقاط بيع) */}
+                <div className="p-6 rounded-3xl bg-surface-container border border-outline-variant/15 space-y-4">
+                  {/* بطاقات تمييز الأبعاد الثلاثية: الشبكة، الاتصال، والأجهزة */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="p-3.5 rounded-2xl bg-surface-container-high/60 border border-outline-variant/15 flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center">
+                        <Wifi className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-[11px] text-on-surface-variant font-bold">الشبكة والمنافذ</p>
+                        <p className="text-xs font-mono font-black text-on-surface">{serverStatus?.running ? `خادم نشط (${serverStatus.port})` : 'متوقف'}</p>
+                      </div>
                     </div>
 
-                    <div className="space-y-2">
-                      {mobilePhones.map((d: any) => (
-                        <div
-                          key={d.id}
-                          className="flex items-center justify-between p-3 bg-surface-container-low rounded-2xl border border-outline-variant/15"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={`w-2.5 h-2.5 rounded-full ${d.status === 'online' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
-                            <div>
-                              <p className="text-xs font-bold text-on-surface">{d.device_name || d.deviceName}</p>
-                              <p className="text-[11px] text-on-surface-variant font-mono">
-                                {d.last_seen ? new Date(d.last_seen).toLocaleString('ar-DZ') : '-'}
-                              </p>
-                            </div>
-                          </div>
+                    <div className="p-3.5 rounded-2xl bg-surface-container-high/60 border border-outline-variant/15 flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
+                        <Activity className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-[11px] text-on-surface-variant font-bold">حالة الاتصال الحية</p>
+                        <p className="text-xs font-bold text-emerald-600 flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                          {`${mobilePhones.filter((m: any) => m.status === 'online').length} متصل حالياً / ${mobilePhones.filter((m: any) => m.status !== 'online').length} غير نشط`}
+                        </p>
+                      </div>
+                    </div>
 
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              try {
-                                await (window as any).electronAPI?.server?.disconnectDevice(d.id);
-                                refetchConnected();
-                              } catch {}
-                            }}
-                            className="px-3 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 text-xs font-bold transition-all flex items-center gap-1"
-                          >
-                            <LogOut className="w-3.5 h-3.5" />
-                            <span>فصل الجهاز</span>
-                          </button>
-                        </div>
-                      ))}
+                    <div className="p-3.5 rounded-2xl bg-surface-container-high/60 border border-outline-variant/15 flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-purple-500/10 text-purple-600 flex items-center justify-center">
+                        <Smartphone className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-[11px] text-on-surface-variant font-bold">إجمالي الأجهزة المعتمدة</p>
+                        <p className="text-xs font-bold text-on-surface">{`${mobilePhones.length} أجهزة فريدة بدون تكرار`}</p>
+                      </div>
                     </div>
                   </div>
-                )}
+
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant/15">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center border border-emerald-500/20 shadow-inner">
+                        <Smartphone className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="text-sm font-bold font-cairo text-on-surface">أجهزة الشبكة المتصلة والمقترنة ({mobilePhones.length})</h4>
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            {mobilePhones.filter((m: any) => m.status === 'online').length} نشط حالياً
+                          </span>
+                        </div>
+                        <p className="text-xs text-on-surface-variant mt-0.5">
+                          هواتف الكاشير، الأجهزة اللوحية، والمحطات المرتبطة بالنظام محلياً مع ضمان تفرد الأسماء ومنع التكرار
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => refetchConnected?.()}
+                      className="self-start sm:self-auto px-3.5 py-2 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs"
+                      title="تحديث الأجهزة"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>تحديث القائمة</span>
+                    </button>
+                  </div>
+
+                  {mobilePhones.length === 0 ? (
+                    <div className="py-10 text-center text-on-surface-variant">
+                      <Smartphone className="w-10 h-10 mx-auto mb-2.5 opacity-30" />
+                      <p className="text-xs font-bold font-cairo text-on-surface">لا توجد أجهزة شبكة أو هواتف مقترنة حالياً</p>
+                      <p className="text-[11px] opacity-75 mt-1 max-w-md mx-auto leading-relaxed">
+                        امسح رمز الـ QR من تطبيق الهاتف أو اربط محطة جديدة؛ وسيقوم النظام بتحديد معطياتها الخمسة (الاسم الفريد، عنوان الماك، عنوان IP، الطراز، ونوع الجهاز) تلقائياً.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto rounded-2xl border border-outline-variant/15 bg-surface-container shadow-xs">
+                      <table className="w-full text-right text-xs min-w-[700px]">
+                        <thead className="bg-surface-container-high text-on-surface font-bold border-b border-outline-variant/20">
+                          <tr>
+                            <th className="px-4 py-3">اسم الجهاز (فريد)</th>
+                            <th className="px-4 py-3">نوع الجهاز</th>
+                            <th className="px-4 py-3">الطراز والشركة</th>
+                            <th className="px-4 py-3">التطبيق</th>
+                            <th className="px-4 py-3">عنوان IP</th>
+                            <th className="px-4 py-3">عنوان MAC</th>
+                            <th className="px-4 py-3">الحالة</th>
+                            <th className="px-4 py-3">آخر ظهور</th>
+                            <th className="px-4 py-3 text-center">إجراءات</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-outline-variant/15">
+                          {mobilePhones.map((d: any) => {
+                            const devType = d.device_type || d.deviceType || 'mobile';
+                            const isTablet = devType === 'tablet';
+                            const isPos = devType === 'pos_terminal' || devType === 'desktop';
+                            const isOnline = d.status === 'online';
+                            const devName = d.device_name || d.deviceName || 'جهاز شبكة';
+                            const vendorModel = [d.vendor, d.model].filter(Boolean).join(' · ') || 'غير محدد';
+                            const ip = d.ip_address || d.ipAddress || '-';
+                            const mac = d.mac_address || d.macAddress || '-';
+                            const appName = d.app_name || d.appName || '';
+                            const appVersion = d.app_version || d.appVersion || '';
+
+                            return (
+                              <tr key={d.id} className="hover:bg-surface-container-highest/50 transition-colors">
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-2.5">
+                                    <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                                    <div>
+                                      <p className="font-bold text-on-surface">{devName}</p>
+                                      <span className="text-[10px] text-primary/80 font-medium">معتمد فريد</span>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-surface-container-high text-on-surface-variant">
+                                    {isTablet ? (
+                                      <>
+                                        <Tablet className="w-3.5 h-3.5 text-purple-500" />
+                                        <span>جهاز لوحي</span>
+                                      </>
+                                    ) : isPos ? (
+                                      <>
+                                        <Monitor className="w-3.5 h-3.5 text-blue-500" />
+                                        <span>محطة كاشير</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Smartphone className="w-3.5 h-3.5 text-emerald-500" />
+                                        <span>هاتف محمول</span>
+                                      </>
+                                    )}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-on-surface-variant font-medium">
+                                  {vendorModel}
+                                </td>
+                                {/* عمود التطبيق */}
+                                <td className="px-4 py-3">
+                                  {appName ? (
+                                    <div className="space-y-0.5">
+                                      <p className="font-bold text-on-surface text-[11px] leading-tight">{appName}</p>
+                                      {appVersion && (
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-primary/8 text-primary text-[10px] font-mono font-bold">
+                                          v{appVersion}
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="text-on-surface-variant/50 text-[11px] italic">غير معروف</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 font-mono text-xs">
+                                  {ip !== '-' ? (
+                                    <span className="px-2 py-0.5 rounded-md bg-surface-container-highest font-bold text-on-surface">{ip}</span>
+                                  ) : (
+                                    <span className="text-on-surface-variant/60">-</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 font-mono text-[11px] text-on-surface-variant uppercase">
+                                  {mac !== '-' && mac ? (
+                                    <span className="tracking-wide">{mac}</span>
+                                  ) : (
+                                    <span className="opacity-50">غير متوفر</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span
+                                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold inline-flex items-center gap-1.5 ${
+                                      isOnline
+                                        ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'
+                                        : 'bg-surface-container-highest text-on-surface-variant'
+                                    }`}
+                                  >
+                                    <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                                    {isOnline ? 'متصل' : 'غير متصل'}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-on-surface-variant font-mono whitespace-nowrap text-[11px]">
+                                  {d.last_seen ? new Date(d.last_seen).toLocaleString('ar-DZ') : '-'}
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    {isOnline && (
+                                      <button
+                                        type="button"
+                                        onClick={async () => {
+                                          try {
+                                            await (window as any).electronAPI?.server?.disconnectDevice(d.id);
+                                            refetchConnected?.();
+                                          } catch {}
+                                        }}
+                                        className="px-2.5 py-1 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 text-[11px] font-bold transition-all flex items-center gap-1"
+                                        title="فصل الجهاز عن الخادم"
+                                      >
+                                        <LogOut className="w-3 h-3" />
+                                        <span>فصل</span>
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        if (confirm(`هل أنت متأكد من حذف الجهاز "${devName}" نهائياً من النظام؟`)) {
+                                          if (deleteMobileDeviceMutation) {
+                                            deleteMobileDeviceMutation.mutate(d.id);
+                                          } else {
+                                            try {
+                                              await (window as any).electronAPI?.server?.deleteDevice(d.id);
+                                              refetchConnected?.();
+                                            } catch {}
+                                          }
+                                        }
+                                      }}
+                                      className="p-1.5 rounded-xl hover:bg-red-500/10 text-red-500 transition-all"
+                                      title="حذف الجهاز نهائياً"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
 
                 {/* قائمة أجهزة وملحقات نقاط البيع */}
                 <div className="p-6 rounded-3xl bg-surface-container border border-outline-variant/15 space-y-4">

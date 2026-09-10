@@ -192,6 +192,10 @@ export interface TranslationSchema {
     connectFailed: string;
     connectFailedHelp: string;
     portHelp: string;
+    autoFillFromNetwork: string;
+    autoDetecting: string;
+    autoDetectNotFound: string;
+    portPlaceholderDefault: string;
     customPort: string;
     customPortHint: string;
     customPortPlaceholder: string;
