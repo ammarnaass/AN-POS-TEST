@@ -268,6 +268,9 @@ export default function POSPage() {
   // Top Bar dedicated barcode input
   const [barcodeHeaderInput, setBarcodeHeaderInput] = useState('');
 
+  // Active Price Tier: '1' (تجزئة) | '2' (نصف جملة) | '3' (جملة) | '4' (خاص)
+  const [priceTier, setPriceTier] = useState<'1' | '2' | '3' | '4'>('1');
+
   // Toolbar filters & modals
   const [isFeaturedOnly, setIsFeaturedOnly] = useState(false);
   const [showCustomizeModal, setShowCustomizeModal] = useState(false);
@@ -575,7 +578,8 @@ export default function POSPage() {
       packs: packs as any,
       promotions: promotions as any,
       addItem,
-      forceWholesale: isWholesaleActive,
+      forceWholesale: isWholesaleActive || priceTier === '3',
+      priceTier,
       allowNegativeStock: posSettings.allowNegativeStock || posSettings.accountingOnly,
     });
     if (result.added) {
@@ -590,7 +594,7 @@ export default function POSPage() {
         type: 'error',
       });
     }
-  }, [products, packs, promotions, addItem, addNotification, quickMode, isWholesaleActive]);
+  }, [products, packs, promotions, addItem, addNotification, quickMode, isWholesaleActive, priceTier, posSettings]);
 
   useBarcodeScanner({
     onScan: handleExternalScan,
@@ -601,7 +605,7 @@ export default function POSPage() {
   });
 
   const handleAddProduct = useCallback(
-    (product: any) => {
+    (product: any, customPrice?: number) => {
       const isPack = String(product.id).startsWith('pack-') || Boolean(product.isPack);
       if (isPack) {
         const packId = String(product.id).replace('pack-', '');
@@ -653,7 +657,10 @@ export default function POSPage() {
       } else {
         const existing = cart.find((item) => item.productId === product.id && !item.isCustom);
         const newQty = existing ? existing.qty + 1 : 1;
-        const price = resolveUnitPrice(product, newQty, promotions, isWholesaleActive);
+        const isTierCustom = customPrice !== undefined || (priceTier !== '1');
+        const price = customPrice !== undefined
+          ? customPrice
+          : (product.unitPrice ?? resolveUnitPrice(product, newQty, promotions, isWholesaleActive, priceTier));
         addItem({
           productId: product.id,
           name: product.name,
@@ -661,7 +668,8 @@ export default function POSPage() {
           unitPrice: price,
           lineTotal: price,
           batchNumber: product.batchNumber,
-          pricingType: isWholesaleActive ? 'wholesale' : 'retail',
+          isCustom: isTierCustom,
+          pricingType: priceTier === '3' || isWholesaleActive ? 'wholesale' : 'retail',
         });
       }
       playAdded(0.05);
@@ -671,7 +679,7 @@ export default function POSPage() {
         setTimeout(() => scanInputRef.current?.focus(), 100);
       }
     },
-    [addItem, promotions, cart, packs, products, quickMode, isWholesaleActive, posSettings, addNotification]
+    [addItem, promotions, cart, packs, products, quickMode, isWholesaleActive, priceTier, posSettings, addNotification]
   );
 
   const handleUpdateQty = useCallback(
@@ -682,14 +690,14 @@ export default function POSPage() {
         return;
       }
       const product = products.find((p) => p.id === item.productId);
-      if (product && !item.isCustom) {
-        const finalPrice = resolveUnitPrice(product, newQty, promotions, isWholesaleActive);
+      if (product && !item.isCustom && priceTier === '1') {
+        const finalPrice = resolveUnitPrice(product, newQty, promotions, isWholesaleActive, '1');
         updateQty(item.productId, newQty, finalPrice);
       } else {
-        updateQty(item.productId, newQty);
+        updateQty(item.productId, newQty, item.unitPrice);
       }
     },
-    [removeItem, updateQty, products, promotions, isWholesaleActive]
+    [removeItem, updateQty, products, promotions, isWholesaleActive, priceTier]
   );
 
   const handleSuspend = () => {
@@ -1705,7 +1713,7 @@ export default function POSPage() {
       ) : posLayout === 'terminal' ? (
         <TerminalPOSLayout
           cart={cart}
-          onAddToCart={(p) => handleAddProduct(p as any)}
+          onAddToCart={(p, customPrice) => handleAddProduct(p as any, customPrice)}
           onUpdateQty={(productId, qty) => {
             const it = cart.find((c) => c.productId === productId);
             if (it) handleUpdateQty(it, qty);
@@ -1717,11 +1725,10 @@ export default function POSPage() {
             setDiscount(0);
           }}
           onEditPrice={(productId, newPrice) => {
-            const item = cart.find((c) => c.productId === productId);
-            if (item) {
-              updateQty(productId, item.qty, newPrice);
-            }
+            updatePrice(productId, newPrice);
           }}
+          priceTier={priceTier}
+          onSelectPriceTier={setPriceTier}
           saleSummary={saleSummary}
           products={filteredProducts as any}
           allProducts={products as any}

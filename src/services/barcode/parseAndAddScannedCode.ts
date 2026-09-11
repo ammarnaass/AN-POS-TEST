@@ -3,7 +3,7 @@
 // يُستعمل من POSPage و QuickSalePage
 import type { Product, Promotion, CartItem } from '@/types';
 import type { PackEntity } from '@/infrastructure/database/dexie/db';
-import { resolveUnitPrice } from '@/services';
+import { resolveUnitPrice, getProductTierPrice } from '@/services';
 import { searchByBarcode } from './searchByBarcode';
 
 export interface ParseScanContext {
@@ -13,6 +13,7 @@ export interface ParseScanContext {
   addItem: (item: CartItem) => void;
   forceWholesale?: boolean;
   allowNegativeStock?: boolean;
+  priceTier?: '1' | '2' | '3' | '4';
 }
 
 export interface ParseScanResult {
@@ -60,6 +61,16 @@ export async function parseAndAddScannedCode(
   ctx: ParseScanContext,
 ): Promise<ParseScanResult> {
   const code = String(rawCode ?? '').trim();
+
+  const resolveItemPrice = (p: Product) => {
+    if (ctx.priceTier && ctx.priceTier !== '1') {
+      return getProductTierPrice(p, ctx.priceTier);
+    }
+    return resolveUnitPrice(p, 1, ctx.promotions, ctx.forceWholesale, ctx.priceTier);
+  };
+
+  const isTierActive = Boolean(ctx.priceTier && ctx.priceTier !== '1');
+
   // 1) الفحص الفوري في المنتجات النشطة بالذاكرة أولاً (استجابة فورية 0ms دون الحاجة لـ IPC)
   const inMemoryProduct = ctx.products.find(
     (p) => p.status === 'active' && p.barcode && p.barcode.trim() === code
@@ -67,7 +78,7 @@ export async function parseAndAddScannedCode(
   if (inMemoryProduct) {
     const blocked = refusalReason(inMemoryProduct);
     if (blocked) return { added: false, message: blocked.message };
-    const price = resolveUnitPrice(inMemoryProduct, 1, ctx.promotions, ctx.forceWholesale);
+    const price = resolveItemPrice(inMemoryProduct);
     ctx.addItem({
       productId: inMemoryProduct.id,
       name: inMemoryProduct.name,
@@ -75,7 +86,8 @@ export async function parseAndAddScannedCode(
       unitPrice: price,
       lineTotal: price,
       batchNumber: inMemoryProduct.batchNumber,
-      pricingType: ctx.forceWholesale ? 'wholesale' : 'retail',
+      isCustom: isTierActive,
+      pricingType: ctx.priceTier === '3' || ctx.forceWholesale ? 'wholesale' : 'retail',
     });
     return { added: true, kind: 'product', name: inMemoryProduct.name };
   }
@@ -120,7 +132,7 @@ export async function parseAndAddScannedCode(
           p.barcode.toLowerCase() === q),
     );
     if (textMatch) {
-      const price = resolveUnitPrice(textMatch, 1, ctx.promotions, ctx.forceWholesale);
+      const price = resolveItemPrice(textMatch);
       ctx.addItem({
         productId: textMatch.id,
         name: textMatch.name,
@@ -128,7 +140,8 @@ export async function parseAndAddScannedCode(
         unitPrice: price,
         lineTotal: price,
         batchNumber: textMatch.batchNumber,
-        pricingType: ctx.forceWholesale ? 'wholesale' : 'retail',
+        isCustom: isTierActive,
+        pricingType: ctx.priceTier === '3' || ctx.forceWholesale ? 'wholesale' : 'retail',
       });
       return { added: true, kind: 'product', name: textMatch.name };
     }
@@ -139,7 +152,7 @@ export async function parseAndAddScannedCode(
     const p = result.product;
     const blocked = refusalReason(p);
     if (blocked) return { added: false, message: blocked.message };
-    const price = resolveUnitPrice(p as Product, 1, ctx.promotions, ctx.forceWholesale);
+    const price = resolveItemPrice(p as Product);
     ctx.addItem({
       productId: p.id,
       name: p.name,
@@ -147,7 +160,8 @@ export async function parseAndAddScannedCode(
       unitPrice: price,
       lineTotal: price,
       batchNumber: p.batchNumber,
-      pricingType: ctx.forceWholesale ? 'wholesale' : 'retail',
+      isCustom: isTierActive,
+      pricingType: ctx.priceTier === '3' || ctx.forceWholesale ? 'wholesale' : 'retail',
     });
     return { added: true, kind: 'product', name: p.name };
   }

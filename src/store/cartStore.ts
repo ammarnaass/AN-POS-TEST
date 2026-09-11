@@ -47,7 +47,13 @@ export const useCartStore = create<CartState>((set, get) => ({
   updateQty: (productId: string, qty: number, unitPrice?: number) => {
     set(state => ({
       items: state.items.map(i =>
-        i.productId === productId ? { ...i, qty, lineTotal: (unitPrice ?? i.unitPrice) * qty, unitPrice: unitPrice ?? i.unitPrice } : i
+        i.productId === productId ? {
+          ...i,
+          qty,
+          lineTotal: (unitPrice ?? i.unitPrice) * qty,
+          unitPrice: unitPrice ?? i.unitPrice,
+          isCustom: unitPrice !== undefined ? true : i.isCustom,
+        } : i
       ),
     }));
   },
@@ -55,7 +61,12 @@ export const useCartStore = create<CartState>((set, get) => ({
   updatePrice: (productId: string, unitPrice: number) => {
     set(state => ({
       items: state.items.map(i =>
-        i.productId === productId ? { ...i, unitPrice, lineTotal: unitPrice * i.qty } : i
+        i.productId === productId ? {
+          ...i,
+          unitPrice,
+          lineTotal: unitPrice * i.qty,
+          isCustom: true,
+        } : i
       ),
     }));
   },

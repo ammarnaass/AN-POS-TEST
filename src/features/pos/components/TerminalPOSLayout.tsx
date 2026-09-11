@@ -29,10 +29,11 @@ import {
 } from 'lucide-react';
 import type { CartItem, Product, Category } from '@/types';
 import { useThemeStore } from '@/store/themeStore';
+import { getProductTierPrice } from '@/services';
 
 interface TerminalPOSLayoutProps {
   cart: CartItem[];
-  onAddToCart: (product: Product) => void;
+  onAddToCart: (product: Product, customPrice?: number) => void;
   onUpdateQty: (productId: string, qty: number) => void;
   onRemoveFromCart: (productId: string) => void;
   onClearCart: () => void;
@@ -69,6 +70,8 @@ interface TerminalPOSLayoutProps {
   onOpenCustomize: () => void;
   wholesaleMode: boolean;
   toggleWholesaleMode: () => void;
+  priceTier?: '1' | '2' | '3' | '4';
+  onSelectPriceTier?: (tier: '1' | '2' | '3' | '4') => void;
   onSaveAsProforma?: () => void;
   onNewOrder?: () => void;
   onOpenSalesHistory?: () => void;
@@ -125,6 +128,8 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
   onOpenCustomize,
   wholesaleMode,
   toggleWholesaleMode,
+  priceTier: propPriceTier,
+  onSelectPriceTier,
   onSaveAsProforma,
   onNewOrder,
   onOpenSalesHistory,
@@ -144,7 +149,12 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
   const { theme, toggleTheme } = useThemeStore();
 
   // Price tier: 1 = retail, 2 = semi-wholesale, 3 = wholesale, 4 = special
-  const [priceTier, setPriceTier] = useState<'1' | '2' | '3' | '4'>('1');
+  const [internalPriceTier, setInternalPriceTier] = useState<'1' | '2' | '3' | '4'>('1');
+  const priceTier = propPriceTier ?? internalPriceTier;
+  const setPriceTier = (tier: '1' | '2' | '3' | '4') => {
+    setInternalPriceTier(tier);
+    if (onSelectPriceTier) onSelectPriceTier(tier);
+  };
   const [isLockedBarcode, setIsLockedBarcode] = useState(true);
   const [selectedCartRowId, setSelectedCartRowId] = useState<string | null>(null);
   const [tableSearchBarcode, setTableSearchBarcode] = useState('');
@@ -229,6 +239,18 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
         } else if (onOpenKeypad) {
           onOpenKeypad();
         }
+      } else if ((e.altKey || e.ctrlKey) && e.key === '1') {
+        e.preventDefault();
+        handleSelectPriceTier('1');
+      } else if ((e.altKey || e.ctrlKey) && e.key === '2') {
+        e.preventDefault();
+        handleSelectPriceTier('2');
+      } else if ((e.altKey || e.ctrlKey) && e.key === '3') {
+        e.preventDefault();
+        handleSelectPriceTier('3');
+      } else if ((e.altKey || e.ctrlKey) && e.key === '4') {
+        e.preventDefault();
+        handleSelectPriceTier('4');
       }
     };
 
@@ -285,12 +307,7 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
 
   // Helper to calculate price according to active tier
   const getProductPriceByTier = (prod: Product, tier: '1' | '2' | '3' | '4') => {
-    const retail = (prod as any).price ?? prod.retailPrice ?? 0;
-    const wholesale = prod.wholesalePrice && prod.wholesalePrice > 0 ? prod.wholesalePrice : retail;
-    if (tier === '3') return wholesale;
-    if (tier === '2') return Math.round(((retail + wholesale) / 2) * 100) / 100;
-    if (tier === '4') return Math.round(retail * 0.95 * 100) / 100; // Special 5% tier
-    return retail;
+    return getProductTierPrice(prod, tier);
   };
 
   // Handle price tier switch
@@ -302,11 +319,13 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
       if (wholesaleMode) toggleWholesaleMode();
     }
     // Synchronize current cart items to chosen tier
-    if (onEditPrice && allProducts && allProducts.length > 0) {
+    const productList = allProducts && allProducts.length > 0 ? allProducts : products;
+    if (onEditPrice && cart.length > 0) {
       cart.forEach((item) => {
-        const prod = allProducts.find((p) => p.id === item.productId);
+        if (item.isPack) return;
+        const prod = productList.find((p) => p.id === item.productId || (item.barcode && p.barcode === item.barcode));
         if (prod) {
-          const newPrice = getProductPriceByTier(prod, tier);
+          const newPrice = getProductTierPrice(prod, tier);
           if (newPrice > 0) {
             onEditPrice(item.productId, newPrice);
           }
@@ -432,8 +451,27 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
                     المخزون: {priceCheckerResult.product.stockQuantity ?? (priceCheckerResult.product as any).stock ?? 0}
                   </span>
                   <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400 font-bold">
-                    الفئة: {priceTier === '3' ? 'سعر جملة' : priceTier === '2' ? 'نصف جملة' : priceTier === '4' ? 'سعر خاص' : 'سعر تجزئة'}
+                    الفئة: {priceTier === '3' ? 'س 3 (جملة)' : priceTier === '2' ? 'س 2 (نصف جملة)' : priceTier === '4' ? 'س 4 (خاص)' : 'س 1 (تجزئة)'}
                   </span>
+                </div>
+                {/* استعراض مستويات الأسعار الأربعة للمنتج المستعلم عنه */}
+                <div className="grid grid-cols-2 gap-1.5 mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px]">
+                  <div className="flex items-center justify-between p-1.5 rounded bg-slate-50 dark:bg-slate-800/60 font-mono">
+                    <span className="text-slate-500 font-sans">س1 (تجزئة):</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200">{formatMoney(getProductTierPrice(priceCheckerResult.product, '1'))} {currency}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-1.5 rounded bg-slate-50 dark:bg-slate-800/60 font-mono">
+                    <span className="text-slate-500 font-sans">س2 (نصف جملة):</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200">{formatMoney(getProductTierPrice(priceCheckerResult.product, '2'))} {currency}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-1.5 rounded bg-slate-50 dark:bg-slate-800/60 font-mono">
+                    <span className="text-slate-500 font-sans">س3 (جملة):</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200">{formatMoney(getProductTierPrice(priceCheckerResult.product, '3'))} {currency}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-1.5 rounded bg-slate-50 dark:bg-slate-800/60 font-mono">
+                    <span className="text-slate-500 font-sans">س4 (خاص):</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200">{formatMoney(getProductTierPrice(priceCheckerResult.product, '4'))} {currency}</span>
+                  </div>
                 </div>
               </div>
               <div className="text-left bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/60 rounded-xl px-4 py-2 shrink-0">
@@ -459,7 +497,7 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
                     ...priceCheckerResult.product,
                     price: priceCheckerResult.price,
                     retailPrice: priceCheckerResult.price,
-                  });
+                  }, priceCheckerResult.price);
                   setPriceCheckerResult(null);
                 }}
                 className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs"
@@ -756,47 +794,62 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
             {/* Column 1: حقول خيارات فئات الأسعار والطباعة والتركيز */}
             <div className="flex flex-col justify-between text-xs text-slate-600 dark:text-slate-300 gap-1.5 min-w-[250px] flex-1 lg:flex-initial">
               {/* تبديل فئات السعر الأربعة بالمسميات الموحدة */}
-              <div className="flex items-center justify-between gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/80 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
-                <label className="flex items-center gap-1 cursor-pointer" title="سعر التجزئة العادي">
-                  <input
-                    type="radio"
-                    name="price-tier"
-                    checked={priceTier === '1'}
-                    onChange={() => handleSelectPriceTier('1')}
-                    className="text-blue-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
-                  />
-                  <span>س 1 (تجزئة)</span>
-                </label>
-                <label className="flex items-center gap-1 cursor-pointer" title="سعر نصف الجملة">
-                  <input
-                    type="radio"
-                    name="price-tier"
-                    checked={priceTier === '2'}
-                    onChange={() => handleSelectPriceTier('2')}
-                    className="text-blue-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
-                  />
-                  <span>س 2</span>
-                </label>
-                <label className="flex items-center gap-1 cursor-pointer" title="سعر الجملة">
-                  <input
-                    type="radio"
-                    name="price-tier"
-                    checked={priceTier === '3'}
-                    onChange={() => handleSelectPriceTier('3')}
-                    className="text-blue-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
-                  />
-                  <span>س 3 (جملة)</span>
-                </label>
-                <label className="flex items-center gap-1 cursor-pointer" title="سعر خاص للزبائن المميزين">
-                  <input
-                    type="radio"
-                    name="price-tier"
-                    checked={priceTier === '4'}
-                    onChange={() => handleSelectPriceTier('4')}
-                    className="text-blue-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
-                  />
-                  <span>س 4 (خاص)</span>
-                </label>
+              <div className="flex items-center justify-between gap-1 p-1 bg-slate-100 dark:bg-slate-800/90 rounded-xl border border-slate-200 dark:border-slate-700 select-none">
+                <button
+                  type="button"
+                  onClick={() => handleSelectPriceTier('1')}
+                  className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-1.5 rounded-lg transition-all cursor-pointer text-xs font-bold ${
+                    priceTier === '1'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700/60'
+                  }`}
+                  title="سعر التجزئة العادي س1 (Alt+1)"
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${priceTier === '1' ? 'bg-white' : 'bg-blue-500'}`} />
+                  <span>س1 (تجزئة)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSelectPriceTier('2')}
+                  className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-1.5 rounded-lg transition-all cursor-pointer text-xs font-bold ${
+                    priceTier === '2'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700/60'
+                  }`}
+                  title="سعر نصف الجملة س2 (Alt+2)"
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${priceTier === '2' ? 'bg-white' : 'bg-emerald-500'}`} />
+                  <span>س2</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSelectPriceTier('3')}
+                  className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-1.5 rounded-lg transition-all cursor-pointer text-xs font-bold ${
+                    priceTier === '3'
+                      ? 'bg-purple-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700/60'
+                  }`}
+                  title="سعر الجملة س3 (Alt+3)"
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${priceTier === '3' ? 'bg-white' : 'bg-purple-500'}`} />
+                  <span>س3 (جملة)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSelectPriceTier('4')}
+                  className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-1.5 rounded-lg transition-all cursor-pointer text-xs font-bold ${
+                    priceTier === '4'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700/60'
+                  }`}
+                  title="سعر خاص للزبائن المميزين س4 (Alt+4)"
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${priceTier === '4' ? 'bg-white' : 'bg-amber-500'}`} />
+                  <span>س4 (خاص)</span>
+                </button>
               </div>
 
               {/* خيارات الطباعة وتثبيت المؤشر */}
@@ -1022,6 +1075,72 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
                                 </span>
                               )}
                             </div>
+                            {isSelected && !item.isPack && (
+                              <div className="flex items-center gap-1 mt-1.5 flex-wrap" onClick={(e) => e.stopPropagation()}>
+                                <span className="text-[10px] text-slate-400 font-normal">تبديل السعر:</span>
+                                {(() => {
+                                  const productList = allProducts && allProducts.length > 0 ? allProducts : products;
+                                  const prod = productList.find((p) => p.id === item.productId || (item.barcode && p.barcode === item.barcode));
+                                  if (!prod) return null;
+                                  const p1 = getProductTierPrice(prod, '1');
+                                  const p2 = getProductTierPrice(prod, '2');
+                                  const p3 = getProductTierPrice(prod, '3');
+                                  const p4 = getProductTierPrice(prod, '4');
+                                  return (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => onEditPrice && onEditPrice(item.productId, p1)}
+                                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
+                                          item.unitPrice === p1
+                                            ? 'bg-blue-600 text-white shadow-xs'
+                                            : 'bg-slate-100 dark:bg-slate-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-slate-700 dark:text-slate-300'
+                                        }`}
+                                        title="سعر 1 (تجزئة)"
+                                      >
+                                        س1: {formatMoney(p1)}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => onEditPrice && onEditPrice(item.productId, p2)}
+                                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
+                                          item.unitPrice === p2
+                                            ? 'bg-emerald-600 text-white shadow-xs'
+                                            : 'bg-slate-100 dark:bg-slate-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-slate-700 dark:text-slate-300'
+                                        }`}
+                                        title="سعر 2 (نصف جملة)"
+                                      >
+                                        س2: {formatMoney(p2)}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => onEditPrice && onEditPrice(item.productId, p3)}
+                                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
+                                          item.unitPrice === p3
+                                            ? 'bg-purple-600 text-white shadow-xs'
+                                            : 'bg-slate-100 dark:bg-slate-800 hover:bg-purple-100 dark:hover:bg-purple-900/50 text-slate-700 dark:text-slate-300'
+                                        }`}
+                                        title="سعر 3 (جملة)"
+                                      >
+                                        س3: {formatMoney(p3)}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => onEditPrice && onEditPrice(item.productId, p4)}
+                                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
+                                          item.unitPrice === p4
+                                            ? 'bg-amber-600 text-white shadow-xs'
+                                            : 'bg-slate-100 dark:bg-slate-800 hover:bg-amber-100 dark:hover:bg-amber-900/50 text-slate-700 dark:text-slate-300'
+                                        }`}
+                                        title="سعر 4 (خاص / بالفاتورة)"
+                                      >
+                                        س4: {formatMoney(p4)}
+                                      </button>
+                                    </>
+                                  );
+                                })()}
+                              </div>
+                            )}
                           </td>
                           <td className="py-2 px-3 font-mono text-[11px] text-slate-500 dark:text-slate-400">
                             {item.barcode || '—'}
@@ -1172,7 +1291,7 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
                   <button
                     key={prod.id || `qp-${pIdx}`}
                     type="button"
-                    onClick={() => onAddToCart({ ...prod, price, retailPrice: price })}
+                    onClick={() => onAddToCart({ ...prod, price, retailPrice: price }, price)}
                     className="bg-slate-50 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:border-blue-300 dark:hover:border-blue-700 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-lg p-1.5 flex flex-col justify-between items-center text-center shadow-2xs transition group cursor-pointer active:scale-95 min-h-[44px]"
                     title={`إضافة ${prod.name} بسعر ${formatMoney(price)} ${currency}`}
                   >

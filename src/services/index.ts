@@ -58,14 +58,62 @@ export const applyPromotionPrice = (
   return compute(activePromo);
 };
 
+export const getProductTierPrice = (
+  prod: Product | any,
+  tier: '1' | '2' | '3' | '4' = '1'
+): number => {
+  if (!prod) return 0;
+
+  // Price 1: تجزئة (Retail)
+  const p1 = Number(
+    prod.salePrice1 ??
+    prod.sale_price1 ??
+    prod.retailPrice ??
+    prod.retail_price ??
+    prod.price ??
+    0
+  );
+
+  // Price 2: نصف جملة (Semi-wholesale)
+  const rawP2 = Number(prod.salePrice2 ?? prod.sale_price2 ?? 0);
+  const p2 = rawP2 > 0 ? rawP2 : p1;
+
+  // Price 3: جملة (Wholesale)
+  const rawP3 = Number(
+    prod.salePrice3 ??
+    prod.sale_price3 ??
+    prod.wholesalePrice ??
+    prod.wholesale_price ??
+    0
+  );
+  const p3 = rawP3 > 0 ? rawP3 : p1;
+
+  // Price 4: خاص / بالفاتورة (Special / Invoice)
+  const rawP4 = Number(prod.invoicePrice ?? prod.invoice_price ?? 0);
+  const p4 = rawP4 > 0 ? rawP4 : (rawP3 > 0 ? rawP3 : p1);
+
+  switch (tier) {
+    case '1': return p1;
+    case '2': return p2;
+    case '3': return p3;
+    case '4': return p4;
+    default: return p1;
+  }
+};
+
 export const resolveUnitPrice = (
   product: Product,
   qty: number,
   promotions: Parameters<typeof applyPromotionPrice>[1],
-  forceWholesale: boolean = false
+  forceWholesale: boolean = false,
+  priceTier?: '1' | '2' | '3' | '4'
 ): number => {
-  if (forceWholesale && product.wholesalePrice > 0) {
-    return product.wholesalePrice;
+  if (priceTier && priceTier !== '1') {
+    return getProductTierPrice(product, priceTier);
+  }
+  if (forceWholesale) {
+    const ws = Number(product.salePrice3 ?? product.wholesalePrice ?? 0);
+    if (ws > 0) return ws;
   }
   const promoPrice = applyPromotionPrice(product, promotions);
   if (promoPrice !== null) return promoPrice;
