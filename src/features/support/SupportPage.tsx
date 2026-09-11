@@ -40,8 +40,35 @@ import {
   RefreshCw,
   SlidersHorizontal,
   Building2,
-  Lock
+  Lock,
+  ExternalLink
 } from 'lucide-react';
+
+function FacebookIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+    </svg>
+  );
+}
+
+function InstagramIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+    </svg>
+  );
+}
+
+function YoutubeIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+    </svg>
+  );
+}
 
 interface GuideStep {
   title: string;
@@ -916,6 +943,9 @@ export default function SupportPage() {
   const phone2 = '0674 78 48 59';
   const phone2Raw = '0674784859';
   const supportEmail = 'andev20000@gmail.com';
+  const facebookUrl = 'https://www.facebook.com/profile.php?id=61591569137725';
+  const instagramUrl = 'https://www.instagram.com/andev2000?fbclid=IwY2xjawUQkQ9wZG9mBWV4dG4DYWVtAjEwAGJyaWQRMXlGZGpkNEM4MFM1dUtZTkJzcnRjBmFwcF9pZBAyMjIwMzkxNzg4MjAwODkyAAEeAAZWiIYeIuwBhaRc88BIn6Q2ZywC3vbJXcN4G8DuNb0aiUhhlmEnKmJ3Ra8_aem_-OaaqMAitpVBgPx2ePIGLA';
+  const youtubeUrl = 'https://youtube.com/@andev20?si=lEgm3MCiWbede7de';
   const whatsappUrl1 = `https://wa.me/213555220620?text=${encodeURIComponent(
     `السلام عليكم، أحتاج مساعدة في نظام ${shopName} بخصوص نقطة البيع.`
   )}`;
@@ -1084,6 +1114,38 @@ export default function SupportPage() {
                 </button>
               );
             })}
+          </div>
+
+          {/* Social Media Quick Bar */}
+          <div className="flex items-center justify-center gap-2.5 pt-3 flex-wrap text-xs text-on-surface-variant font-medium border-t border-outline-variant/10">
+            <span className="hidden sm:inline-block text-[11px] font-bold">تابعنا وشاهد الشروحات:</span>
+            <a
+              href={facebookUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#1877F2]/10 hover:bg-[#1877F2]/20 text-[#1877F2] font-semibold border border-[#1877F2]/20 transition-all hover:scale-105"
+            >
+              <FacebookIcon className="w-3.5 h-3.5" />
+              <span>فيسبوك</span>
+            </a>
+            <a
+              href={instagramUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-semibold border border-rose-500/20 transition-all hover:scale-105"
+            >
+              <InstagramIcon className="w-3.5 h-3.5" />
+              <span>انستغرام (@andev2000)</span>
+            </a>
+            <a
+              href={youtubeUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#FF0000]/10 hover:bg-[#FF0000]/20 text-[#FF0000] font-semibold border border-[#FF0000]/20 transition-all hover:scale-105"
+            >
+              <YoutubeIcon className="w-3.5 h-3.5" />
+              <span>يوتيوب (@andev20)</span>
+            </a>
           </div>
         </div>
       </div>
@@ -1697,6 +1759,104 @@ export default function SupportPage() {
               </div>
             </div>
           </div>
+
+          {/* Social Media & Official Video Tutorials Section */}
+          <div className="space-y-4 pt-4 border-t border-outline-variant/10">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
+              <div>
+                <h3 className="text-lg font-bold text-on-surface font-cairo flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-primary" />
+                  منصات التواصل الاجتماعي والشروحات المرئية الرسمية
+                </h3>
+                <p className="text-xs text-on-surface-variant">
+                  تابع آخر تحديثات نظام AN POS، شاهد الشروحات العملية بالفيديو، واشترك في قنواتنا الرسمية
+                </p>
+              </div>
+              <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 w-fit">
+                روابط موثقة ورسمية
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Facebook Card */}
+              <div className="glass-card rounded-3xl p-6 border border-[#1877F2]/30 bg-surface-container/70 flex flex-col justify-between space-y-4 hover:border-[#1877F2]/60 hover:shadow-lg transition-all group">
+                <div className="space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-[#1877F2]/10 border border-[#1877F2]/30 flex items-center justify-center text-[#1877F2] mx-auto shadow-sm group-hover:scale-105 transition-transform">
+                    <FacebookIcon className="w-6 h-6" />
+                  </div>
+                  <div className="text-center">
+                    <span className="text-[11px] font-bold text-[#1877F2] uppercase tracking-wider block mb-1">الصفحة الرسمية</span>
+                    <h4 className="text-base font-bold text-on-surface font-cairo">Facebook</h4>
+                  </div>
+                  <p className="text-xs text-on-surface-variant text-center leading-relaxed">
+                    متابعة آخر التحديثات، المقالات الدورية، والإعلانات الرسمية والعروض لمتجر AN POS.
+                  </p>
+                </div>
+                <a
+                  href={facebookUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-2.5 px-4 bg-[#1877F2] hover:bg-[#166fe5] active:scale-[0.98] text-white rounded-xl text-xs font-bold transition-all inline-flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-[#1877F2]/25"
+                >
+                  <FacebookIcon className="w-4 h-4" />
+                  <span>متابعة على Facebook</span>
+                  <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+                </a>
+              </div>
+
+              {/* Instagram Card */}
+              <div className="glass-card rounded-3xl p-6 border border-rose-500/30 bg-surface-container/70 flex flex-col justify-between space-y-4 hover:border-rose-500/60 hover:shadow-lg transition-all group">
+                <div className="space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500/15 via-rose-500/15 to-purple-500/15 border border-rose-500/30 flex items-center justify-center text-rose-600 dark:text-rose-400 mx-auto shadow-sm group-hover:scale-105 transition-transform">
+                    <InstagramIcon className="w-6 h-6" />
+                  </div>
+                  <div className="text-center">
+                    <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider block mb-1">@andev2000</span>
+                    <h4 className="text-base font-bold text-on-surface font-cairo">Instagram</h4>
+                  </div>
+                  <p className="text-xs text-on-surface-variant text-center leading-relaxed">
+                    مقاطع ريلز سريعة، كواليس التطوير، حلول فورية مختصرة، وتجارب مستخدمي النظام الميدانية.
+                  </p>
+                </div>
+                <a
+                  href={instagramUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-2.5 px-4 bg-gradient-to-r from-rose-600 to-purple-600 hover:from-rose-700 hover:to-purple-700 active:scale-[0.98] text-white rounded-xl text-xs font-bold transition-all inline-flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-rose-600/25"
+                >
+                  <InstagramIcon className="w-4 h-4" />
+                  <span>متابعة على Instagram</span>
+                  <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+                </a>
+              </div>
+
+              {/* YouTube Card */}
+              <div className="glass-card rounded-3xl p-6 border border-[#FF0000]/30 bg-surface-container/70 flex flex-col justify-between space-y-4 hover:border-[#FF0000]/60 hover:shadow-lg transition-all group">
+                <div className="space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-[#FF0000]/10 border border-[#FF0000]/30 flex items-center justify-center text-[#FF0000] mx-auto shadow-sm group-hover:scale-105 transition-transform">
+                    <YoutubeIcon className="w-6 h-6" />
+                  </div>
+                  <div className="text-center">
+                    <span className="text-[11px] font-bold text-[#FF0000] uppercase tracking-wider block mb-1">@andev20</span>
+                    <h4 className="text-base font-bold text-on-surface font-cairo">YouTube</h4>
+                  </div>
+                  <p className="text-xs text-on-surface-variant text-center leading-relaxed">
+                    دروس فيديو تفصيلية خطوة بخطوة لشرح كافة إعدادات الكاشير، الطابعات، والشبكة، والمخزون.
+                  </p>
+                </div>
+                <a
+                  href={youtubeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-2.5 px-4 bg-[#FF0000] hover:bg-[#d90000] active:scale-[0.98] text-white rounded-xl text-xs font-bold transition-all inline-flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-[#FF0000]/25"
+                >
+                  <YoutubeIcon className="w-4 h-4" />
+                  <span>مشاهدة على YouTube</span>
+                  <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+                </a>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1809,8 +1969,8 @@ export default function SupportPage() {
       )}
 
       {/* 9. FOOTER */}
-      <div className="glass-card rounded-2xl p-6 border border-outline-variant/15">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-on-surface-variant">
+      <div className="glass-card rounded-2xl p-6 border border-outline-variant/15 space-y-4">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-on-surface-variant border-b border-outline-variant/10 pb-4">
           <div className="flex items-center gap-3 flex-wrap justify-center">
             <span className="font-bold text-on-surface font-cairo">{shopName}</span>
             <span>•</span>
@@ -1818,9 +1978,43 @@ export default function SupportPage() {
             <span>•</span>
             <span className="font-mono font-bold text-primary">v2.4.0 (Enterprise Offline-First)</span>
           </div>
-          <div>
-            <span>© {new Date().getFullYear()} كافة الحقوق محفوظة ومؤمنة محلياً.</span>
+          <div className="flex items-center gap-2 flex-wrap justify-center">
+            <span className="text-[11px] font-medium">قنواتنا الرسمية:</span>
+            <a
+              href={facebookUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-surface-container hover:bg-[#1877F2]/10 text-on-surface-variant hover:text-[#1877F2] border border-outline-variant/20 transition-all text-xs font-semibold"
+              title="صفحة الفيسبوك الرسمية"
+            >
+              <FacebookIcon className="w-3.5 h-3.5" />
+              <span>Facebook</span>
+            </a>
+            <a
+              href={instagramUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-surface-container hover:bg-rose-500/10 text-on-surface-variant hover:text-rose-600 dark:hover:text-rose-400 border border-outline-variant/20 transition-all text-xs font-semibold"
+              title="حساب انستغرام @andev2000"
+            >
+              <InstagramIcon className="w-3.5 h-3.5" />
+              <span>Instagram</span>
+            </a>
+            <a
+              href={youtubeUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-surface-container hover:bg-[#FF0000]/10 text-on-surface-variant hover:text-[#FF0000] border border-outline-variant/20 transition-all text-xs font-semibold"
+              title="قناة يوتيوب @andev20"
+            >
+              <YoutubeIcon className="w-3.5 h-3.5" />
+              <span>YouTube</span>
+            </a>
           </div>
+        </div>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-on-surface-variant">
+          <span>فريق التطوير: AN POS Systems • هاتف الدعم: 0555 22 06 20 / 0674 78 48 59 • بريد: andev20000@gmail.com</span>
+          <span>© {new Date().getFullYear()} كافة الحقوق محفوظة ومؤمنة محلياً.</span>
         </div>
       </div>
     </div>
