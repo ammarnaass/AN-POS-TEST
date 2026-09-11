@@ -160,49 +160,49 @@ export default function NetworkTab({
   };
 
   return (
-    <div className="bg-surface-container-low rounded-3xl border border-outline-variant/20 p-5 sm:p-7 shadow-xs space-y-6 transition-all">
+    <div className="bg-surface-container-low rounded-3xl border border-outline-variant/20 p-4 sm:p-6 lg:p-7 shadow-xs space-y-5 sm:space-y-6 transition-all min-w-0">
       {/* =========================================================================
-          الترويسة: مركز العمليات والاتصال الحي (Live Operations Command Center)
+          الترويسة: مركز العمليات والاتصال الحي المتوافق مع مختلف دقات العرض
           ========================================================================= */}
-      <div className="p-5 sm:p-6 rounded-2xl bg-surface-container border border-outline-variant/15 flex flex-col lg:flex-row lg:items-center justify-between gap-5 relative overflow-hidden">
+      <div className="p-4 sm:p-5 lg:p-6 rounded-2xl bg-surface-container border border-outline-variant/15 flex flex-col xl:flex-row xl:items-center justify-between gap-4 sm:gap-5 relative overflow-hidden">
         {/* خلفية جمالية خافتة */}
         <div className="absolute top-0 left-0 w-80 h-full bg-linear-to-r from-primary/5 via-transparent to-transparent pointer-events-none" />
 
-        <div className="flex items-start sm:items-center gap-4 relative z-1">
-          <div className="w-13 h-13 rounded-2xl bg-primary/10 text-primary flex items-center justify-center border border-primary/20 shadow-inner shrink-0">
-            <Network className="w-7 h-7" />
+        <div className="flex items-start sm:items-center gap-3.5 sm:gap-4 relative z-1 min-w-0">
+          <div className="w-11 h-11 sm:w-13 sm:h-13 rounded-2xl bg-primary/10 text-primary flex items-center justify-center border border-primary/20 shadow-inner shrink-0">
+            <Network className="w-6 h-6 sm:w-7 sm:h-7" />
           </div>
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <h2 className="text-xl sm:text-2xl font-black font-cairo text-on-surface tracking-tight">
+          <div className="space-y-1.5 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-lg sm:text-xl md:text-2xl font-black font-cairo text-on-surface tracking-tight">
                 الشبكة والاتصال والأجهزة
               </h2>
 
               {/* شارة عدد الأجهزة المتصلة */}
-              <span className={`px-3 py-1 rounded-full text-xs font-black border flex items-center gap-2 transition-all ${
+              <span className={`px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-[11px] sm:text-xs font-black border flex items-center gap-1.5 sm:gap-2 transition-all ${
                 onlineDevicesCount > 0
                   ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
                   : 'bg-surface-container-high text-on-surface-variant border-outline-variant/20'
               }`}>
                 <span className={`w-2 h-2 rounded-full ${onlineDevicesCount > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
-                {onlineDevicesCount} نشط حالياً
-                <span className="opacity-60 font-medium">({mobilePhones.length} مسجل)</span>
+                <span>{onlineDevicesCount} نشط</span>
+                <span className="opacity-65 font-normal">({mobilePhones.length} مسجل)</span>
               </span>
 
               {/* شارة حالة الخادم أو وضع التشغيل */}
               {settings.syncMode === 'single' ? (
-                <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30 flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-amber-500" />
+                <span className="px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-[11px] sm:text-xs font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                   وضع جهاز واحد (الاقتران معطّل)
                 </span>
               ) : serverStatus?.running ? (
-                <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-[11px] sm:text-xs font-extrabold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   خادم الشبكة: نشط (منفذ {serverStatus.port})
                 </span>
               ) : (
-                <span className="px-3 py-1 rounded-full text-xs font-medium bg-surface-container-high text-on-surface-variant border border-outline-variant/20 flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-slate-400" />
+                <span className="px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-[11px] sm:text-xs font-medium bg-surface-container-high text-on-surface-variant border border-outline-variant/20 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
                   الخادم المحلي: متوقف
                 </span>
               )}
@@ -213,19 +213,21 @@ export default function NetworkTab({
           </div>
         </div>
 
-        {/* أدوات سريعة في الترويسة: نسخ IP وزر تشغيل/إيقاف الخادم */}
-        <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap relative z-1">
+        {/* أدوات سريعة في الترويسة متكيفة تماماً مع العرض */}
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 w-full xl:w-auto relative z-1">
           {settings.syncMode !== 'single' && (
-            <div className="flex items-center gap-1.5 bg-surface-container-low px-3.5 py-2 rounded-xl border border-outline-variant/20 text-xs font-mono">
-              <Radio className="w-3.5 h-3.5 text-primary shrink-0" />
-              <span className="text-on-surface font-bold">
-                {pairingInfo?.ip || netSettings.serverIp || '127.0.0.1'}:{serverStatus?.port || netSettings.serverPort || 3000}
-              </span>
+            <div className="flex-1 sm:flex-initial flex items-center justify-between sm:justify-start gap-2 bg-surface-container-low px-3.5 py-2 rounded-xl border border-outline-variant/20 text-xs font-mono">
+              <div className="flex items-center gap-1.5 truncate">
+                <Radio className="w-3.5 h-3.5 text-primary shrink-0" />
+                <span className="text-on-surface font-bold truncate">
+                  {pairingInfo?.ip || netSettings.serverIp || '127.0.0.1'}:{serverStatus?.port || netSettings.serverPort || 3000}
+                </span>
+              </div>
               <button
                 type="button"
                 onClick={() => handleCopy(`${pairingInfo?.ip || netSettings.serverIp || '127.0.0.1'}:${serverStatus?.port || netSettings.serverPort || 3000}`, 'header_addr')}
                 title="نسخ عنوان الخادم"
-                className="p-1 hover:bg-surface-container-high rounded-md text-on-surface-variant hover:text-primary transition-colors cursor-pointer mr-1"
+                className="p-1 hover:bg-surface-container-high rounded-md text-on-surface-variant hover:text-primary transition-colors cursor-pointer shrink-0"
               >
                 {copiedKey === 'header_addr' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
               </button>
@@ -236,7 +238,7 @@ export default function NetworkTab({
             type="button"
             onClick={toggleServer}
             disabled={serverLoading || settings.syncMode === 'single'}
-            className={`min-h-[44px] px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-sm shrink-0 cursor-pointer ${
+            className={`w-full sm:w-auto min-h-[44px] px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-sm shrink-0 cursor-pointer ${
               settings.syncMode === 'single'
                 ? 'bg-surface-container-high text-on-surface-variant border border-outline-variant/30 opacity-60 cursor-not-allowed'
                 : serverStatus?.running
@@ -268,9 +270,9 @@ export default function NetworkTab({
       {hasActiveConnections && (
         <div className="flex items-center gap-3 p-4 bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200 rounded-2xl text-xs sm:text-sm font-medium animate-fade-in shadow-xs">
           <AlertCircle className="w-5 h-5 shrink-0 text-amber-600 dark:text-amber-400" />
-          <div className="space-y-0.5">
+          <div className="space-y-0.5 min-w-0">
             <p className="font-bold">حماية الاتصال النشط (قاعدة BR-NET-005):</p>
-            <p className="text-xs opacity-90">
+            <p className="text-xs opacity-90 leading-relaxed">
               يوجد {onlineDevicesCount} جهاز كاشير/هاتف متصل حالياً — تم تأمين إعدادات IP والمنافذ لمنع انقطاع جلسات البيع المباشرة.
             </p>
           </div>
@@ -278,9 +280,10 @@ export default function NetworkTab({
       )}
 
       {/* =========================================================================
-          شريط التبويبات الفرعية (Pill Sub-Navigation Strip)
+          شريط التبويبات الفرعية المتكيف شبكياً مع كافة دقات العرض (Adaptive Sub-Navigation)
+          يتكيف بذكاء: 2 أعمدة للموبايل، 4 أعمدة للتابلت ودقات 1024×768 و 1366×768، و 7 أعمدة لـ 1080p
           ========================================================================= */}
-      <div className="flex gap-1.5 p-1.5 bg-surface-container rounded-2xl border border-outline-variant/20 overflow-x-auto no-scrollbar">
+      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-1.5 sm:gap-2 p-1.5 sm:p-2 bg-surface-container rounded-2xl border border-outline-variant/20">
         {([
           { id: 'mode', label: 'وضع التشغيل', Icon: Monitor, count: null },
           { id: 'lan', label: 'الشبكة المحلية', Icon: Wifi, count: null },
@@ -301,7 +304,7 @@ export default function NetworkTab({
               key={id}
               type="button"
               onClick={() => setNetSubTab(id)}
-              className={`min-h-[44px] flex-1 min-w-[120px] sm:min-w-[140px] flex items-center justify-center gap-2 py-2.5 px-3.5 rounded-xl text-xs sm:text-sm font-bold transition-all select-none cursor-pointer ${
+              className={`min-h-[44px] flex items-center justify-center gap-1.5 sm:gap-2 py-2.5 px-2 sm:px-3 rounded-xl text-xs sm:text-sm font-bold transition-all select-none cursor-pointer ${
                 active
                   ? 'bg-primary text-on-primary shadow-sm scale-[1.01]'
                   : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
@@ -311,7 +314,7 @@ export default function NetworkTab({
               <span className="truncate">{label}</span>
               {count !== null && (
                 <span
-                  className={`px-2 py-0.5 rounded-full text-[11px] font-black shrink-0 ${
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-black shrink-0 ${
                     active ? 'bg-white/20 text-white' : 'bg-surface-container-highest text-on-surface-variant'
                   }`}
                 >
@@ -327,20 +330,20 @@ export default function NetworkTab({
           تبويب 1: وضع التشغيل (Operation Mode)
           ========================================================================= */}
       {netSubTab === 'mode' && (
-        <div className="space-y-5 animate-fade-in">
+        <div className="space-y-4 sm:space-y-5 animate-fade-in">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1">
             <div>
-              <h3 className="text-base font-bold font-cairo text-on-surface">اختر بنية التشغيل المناسبة لمنشأتك</h3>
+              <h3 className="text-sm sm:text-base font-bold font-cairo text-on-surface">اختر بنية التشغيل المناسبة لمنشأتك</h3>
               <p className="text-xs text-on-surface-variant mt-0.5">
                 تحديد ما إذا كان هذا الجهاز يعمل كنقطة بيع مستقلة أو كخادم رئيسي يدعم عدة نقاط كاشير وهواتف
               </p>
             </div>
-            <span className="text-xs text-primary font-bold bg-primary/10 px-3 py-1 rounded-lg border border-primary/20 w-fit">
+            <span className="text-xs text-primary font-bold bg-primary/10 px-3 py-1 rounded-lg border border-primary/20 w-fit shrink-0">
               الوضع المعتمد: {settings.syncMode === 'single' ? 'جهاز واحد مستقل' : settings.syncMode === 'lan' ? 'شبكة محلية LAN' : settings.syncMode}
             </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4">
             {[
               {
                 mode: 'single' as const,
@@ -420,35 +423,35 @@ export default function NetworkTab({
                     if (opt.mode === 'cloud') saveNet({ cloudEnabled: true });
                   }}
                   disabled={!opt.available || hasActiveConnections}
-                  className={`p-5 rounded-3xl border-2 text-right transition-all flex flex-col justify-between gap-5 group relative ${
+                  className={`p-4 sm:p-5 rounded-3xl border-2 text-right transition-all flex flex-col justify-between gap-4 group relative ${
                     isSelected
                       ? 'border-primary bg-primary/5 dark:bg-primary/10 shadow-sm ring-1 ring-primary/30'
                       : 'border-outline-variant/15 bg-surface-container hover:border-primary/40 hover:bg-surface-container-high'
                   } ${!opt.available || hasActiveConnections ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
                 >
-                  <div className="space-y-3.5">
+                  <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <div
-                        className={`w-12 h-12 rounded-2xl flex items-center justify-center border shadow-inner transition-colors ${
+                        className={`w-11 h-11 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center border shadow-inner transition-colors ${
                           isSelected
                             ? 'bg-primary text-on-primary border-primary'
                             : 'bg-surface-container-high text-primary border-outline-variant/20 group-hover:bg-primary/10'
                         }`}
                       >
-                        <OptIcon className="w-6 h-6" />
+                        <OptIcon className="w-5 h-5 sm:w-6 sm:h-6" />
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold border ${opt.badge}`}>
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-extrabold border ${opt.badge}`}>
                           {opt.badgeText}
                         </span>
                         {isSelected && (
-                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                          <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-emerald-500 animate-pulse" />
                         )}
                       </div>
                     </div>
 
                     <div>
-                      <h4 className="text-base font-bold font-cairo text-on-surface">{opt.title}</h4>
+                      <h4 className="text-sm sm:text-base font-bold font-cairo text-on-surface">{opt.title}</h4>
                       <p className="text-xs text-primary font-semibold mt-0.5">{opt.subtitle}</p>
                       <p className="text-xs text-on-surface-variant mt-2 leading-relaxed">{opt.desc}</p>
                     </div>
@@ -458,7 +461,7 @@ export default function NetworkTab({
                       {opt.features.map((feat, idx) => (
                         <div key={idx} className="flex items-center gap-2 text-[11px] text-on-surface-variant">
                           <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-primary' : 'text-slate-400'}`} />
-                          <span>{feat}</span>
+                          <span className="leading-tight">{feat}</span>
                         </div>
                       ))}
                     </div>
@@ -485,16 +488,16 @@ export default function NetworkTab({
           تبويب 2: الشبكة المحلية وخادم الهواتف (LAN)
           ========================================================================= */}
       {netSubTab === 'lan' && (
-        <div className="space-y-6 animate-fade-in">
+        <div className="space-y-5 sm:space-y-6 animate-fade-in">
           {/* تنبيه تحذيري عند العمل في وضع جهاز واحد */}
           {settings.syncMode === 'single' && (
-            <div className="p-5 rounded-3xl bg-amber-500/10 border-2 border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-in shadow-xs">
-              <div className="flex items-start gap-3.5">
-                <div className="w-11 h-11 rounded-2xl bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0 mt-0.5 shadow-inner">
-                  <AlertCircle className="w-6 h-6" />
+            <div className="p-4 sm:p-5 rounded-3xl bg-amber-500/10 border-2 border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-in shadow-xs">
+              <div className="flex items-start gap-3.5 min-w-0">
+                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0 mt-0.5 shadow-inner">
+                  <AlertCircle className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
-                <div className="space-y-1">
-                  <h4 className="text-sm font-bold font-cairo text-amber-900 dark:text-amber-200">
+                <div className="space-y-1 min-w-0">
+                  <h4 className="text-xs sm:text-sm font-bold font-cairo text-amber-900 dark:text-amber-200">
                     وضع خادم الهواتف معطّل — النظام مضبوط حالياً على «جهاز واحد»
                   </h4>
                   <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed font-tajawal">
@@ -509,7 +512,7 @@ export default function NetworkTab({
                   handleSaveSettings({ syncMode: 'lan' });
                   saveNet({ lanEnabled: true });
                 }}
-                className="min-h-[44px] px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs sm:text-sm font-bold font-cairo shadow-sm transition-all whitespace-nowrap cursor-pointer shrink-0"
+                className="w-full sm:w-auto min-h-[44px] px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs sm:text-sm font-bold font-cairo shadow-sm transition-all whitespace-nowrap cursor-pointer shrink-0"
               >
                 التبديل إلى وضع عدة أجهزة الآن
               </button>
@@ -517,15 +520,15 @@ export default function NetworkTab({
           )}
 
           {/* بطاقة خادم الربط السريع ومسح QR */}
-          <div className="p-6 rounded-3xl bg-surface-container border border-outline-variant/15 space-y-5">
+          <div className="p-4 sm:p-6 rounded-3xl bg-surface-container border border-outline-variant/15 space-y-4 sm:space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-outline-variant/15">
-              <div className="flex items-center gap-3.5">
-                <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center border border-primary/20 shadow-inner">
-                  <Smartphone className="w-6 h-6" />
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center border border-primary/20 shadow-inner shrink-0">
+                  <Smartphone className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
-                <div>
-                  <h4 className="text-base font-bold font-cairo text-on-surface">خادم ربط الهواتف ونقاط الكاشير المحمولة</h4>
-                  <p className="text-xs text-on-surface-variant mt-0.5">
+                <div className="min-w-0">
+                  <h4 className="text-sm sm:text-base font-bold font-cairo text-on-surface">خادم ربط الهواتف ونقاط الكاشير المحمولة</h4>
+                  <p className="text-xs text-on-surface-variant mt-0.5 truncate">
                     {settings.syncMode === 'single'
                       ? 'الخادم معطل بحكم وضع التشغيل المستقل (جهاز واحد)'
                       : serverStatus?.running
@@ -539,7 +542,7 @@ export default function NetworkTab({
                 type="button"
                 onClick={toggleServer}
                 disabled={serverLoading || settings.syncMode === 'single'}
-                className={`min-h-[44px] px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer ${
+                className={`w-full sm:w-auto min-h-[44px] px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer shrink-0 ${
                   settings.syncMode === 'single'
                     ? 'bg-surface-container-high text-on-surface-variant border border-outline-variant/30 opacity-60 cursor-not-allowed'
                     : serverStatus?.running
@@ -568,20 +571,20 @@ export default function NetworkTab({
 
             {settings.syncMode !== 'single' && serverStatus?.running && pairingInfo ? (
               <div className="space-y-4 pt-1">
-                <div className="bg-surface-container-low p-5 rounded-2xl border border-outline-variant/15 flex flex-col md:flex-row items-center justify-between gap-6">
+                <div className="bg-surface-container-low p-4 sm:p-5 rounded-2xl border border-outline-variant/15 flex flex-col lg:flex-row items-center lg:items-start justify-between gap-5 sm:gap-6">
                   {/* رمز QR مع عنوان واضح */}
                   <div className="flex flex-col items-center gap-2 shrink-0">
                     <PairingQR data={pairingInfo} subtitle="امسح الرمز بكاميرا تطبيق AN POS للربط اللحظي" />
                   </div>
 
                   {/* بطاقات البيانات السريعة مع زر النسخ المباشر */}
-                  <div className="flex-1 w-full space-y-3">
+                  <div className="flex-1 w-full min-w-0 space-y-3">
                     <h5 className="text-xs font-bold text-on-surface flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-primary" />
+                      <Sparkles className="w-4 h-4 text-primary shrink-0" />
                       <span>بيانات الاتصال اليدوي (إذا تعذر مسح الرمز)</span>
                     </h5>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
                       {/* IP */}
                       <div className="p-3 rounded-xl bg-surface-container border border-outline-variant/20 flex flex-col justify-between gap-1">
                         <span className="text-[11px] text-on-surface-variant font-medium">عنوان IP الخادم</span>
@@ -590,7 +593,7 @@ export default function NetworkTab({
                           <button
                             type="button"
                             onClick={() => handleCopy(pairingInfo.ip, 'pair_ip')}
-                            className="p-1 text-on-surface-variant hover:text-primary rounded-md transition-colors cursor-pointer"
+                            className="p-1 text-on-surface-variant hover:text-primary rounded-md transition-colors cursor-pointer shrink-0"
                             title="نسخ IP"
                           >
                             {copiedKey === 'pair_ip' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
@@ -606,7 +609,7 @@ export default function NetworkTab({
                           <button
                             type="button"
                             onClick={() => handleCopy(String(pairingInfo.port), 'pair_port')}
-                            className="p-1 text-on-surface-variant hover:text-primary rounded-md transition-colors cursor-pointer"
+                            className="p-1 text-on-surface-variant hover:text-primary rounded-md transition-colors cursor-pointer shrink-0"
                             title="نسخ المنفذ"
                           >
                             {copiedKey === 'pair_port' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
@@ -615,13 +618,13 @@ export default function NetworkTab({
                       </div>
 
                       {/* Key */}
-                      <div className="p-3 rounded-xl bg-surface-container border border-outline-variant/20 flex flex-col justify-between gap-1">
+                      <div className="p-3 rounded-xl bg-surface-container border border-outline-variant/20 flex flex-col justify-between gap-1 sm:col-span-2 xl:col-span-1">
                         <span className="text-[11px] text-on-surface-variant font-medium">مفتاح الربط (Key)</span>
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-xs font-mono font-bold text-on-surface truncate">
                             {showConnectionKey ? pairingInfo.key : '••••••••'}
                           </span>
-                          <div className="flex items-center gap-0.5">
+                          <div className="flex items-center gap-0.5 shrink-0">
                             <button
                               type="button"
                               onClick={() => setShowConnectionKey(!showConnectionKey)}
@@ -669,15 +672,15 @@ export default function NetworkTab({
           </div>
 
           {/* إعدادات الشبكة المتقدمة والمنافذ */}
-          <div className="p-6 rounded-3xl bg-surface-container border border-outline-variant/15 space-y-5">
+          <div className="p-4 sm:p-6 rounded-3xl bg-surface-container border border-outline-variant/15 space-y-4 sm:space-y-5">
             <div>
-              <h4 className="text-sm font-bold font-cairo text-on-surface">إعدادات عنوان الخادم والبروتوكول المحلي</h4>
+              <h4 className="text-xs sm:text-sm font-bold font-cairo text-on-surface">إعدادات عنوان الخادم والبروتوكول المحلي</h4>
               <p className="text-xs text-on-surface-variant mt-0.5">
                 تخصيص عنوان IP، المنفذ الافتراضي، البروتوكول الأمني، وسياسة استعادة الاتصال
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
               <div>
                 <label className="block text-xs font-bold text-on-surface mb-1.5">عنوان IP للخادم المحلي</label>
                 <input
@@ -686,7 +689,7 @@ export default function NetworkTab({
                   disabled={hasActiveConnections}
                   onChange={(e) => saveNet({ serverIp: e.target.value })}
                   placeholder="192.168.1.100"
-                  className="w-full px-4 py-2.5 rounded-xl bg-surface-container-low border border-outline-variant/20 text-sm font-mono text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all disabled:opacity-50"
+                  className="w-full px-3.5 sm:px-4 py-2.5 rounded-xl bg-surface-container-low border border-outline-variant/20 text-xs sm:text-sm font-mono text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all disabled:opacity-50 text-right"
                 />
               </div>
 
@@ -698,7 +701,7 @@ export default function NetworkTab({
                   disabled={hasActiveConnections}
                   onChange={(e) => saveNet({ serverPort: Number(e.target.value) })}
                   placeholder="3000"
-                  className="w-full px-4 py-2.5 rounded-xl bg-surface-container-low border border-outline-variant/20 text-sm font-mono text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all disabled:opacity-50"
+                  className="w-full px-3.5 sm:px-4 py-2.5 rounded-xl bg-surface-container-low border border-outline-variant/20 text-xs sm:text-sm font-mono text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all disabled:opacity-50 text-right"
                 />
               </div>
 
@@ -732,12 +735,12 @@ export default function NetworkTab({
                     disabled={hasActiveConnections}
                     onChange={(e) => saveNet({ connectionKey: e.target.value })}
                     placeholder="••••••••••••"
-                    className="w-full px-4 py-2.5 pr-10 rounded-xl bg-surface-container-low border border-outline-variant/20 text-sm font-mono text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all disabled:opacity-50"
+                    className="w-full px-3.5 sm:px-4 py-2.5 pl-10 text-right rounded-xl bg-surface-container-low border border-outline-variant/20 text-xs sm:text-sm font-mono text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all disabled:opacity-50"
                   />
                   <button
                     type="button"
                     onClick={() => setShowConnectionKey(!showConnectionKey)}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface p-1"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface p-1 cursor-pointer"
                   >
                     {showConnectionKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -746,14 +749,14 @@ export default function NetworkTab({
             </div>
 
             {/* إعادة الاتصال التلقائي (BR-NET-003) */}
-            <div className="p-4 bg-surface-container-low rounded-2xl border border-outline-variant/15 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
+            <div className="p-3.5 sm:p-4 bg-surface-container-low rounded-2xl border border-outline-variant/15 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3 min-w-0">
                 <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center border border-primary/20 shrink-0">
                   <RefreshCw className="w-5 h-5" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs sm:text-sm font-bold text-on-surface">إعادة الاتصال التلقائي (قاعدة BR-NET-003)</p>
-                  <p className="text-[11px] sm:text-xs text-on-surface-variant">
+                  <p className="text-[11px] sm:text-xs text-on-surface-variant leading-relaxed">
                     إعادة المحاولة التلقائية كل 5 ثوانٍ عند حدوث أي انقطاع مؤقت في شبكة الـ Wi-Fi
                   </p>
                 </div>
@@ -763,7 +766,7 @@ export default function NetworkTab({
                 type="button"
                 onClick={() => !hasActiveConnections && saveNet({ autoReconnect: !netSettings.autoReconnect })}
                 disabled={hasActiveConnections}
-                className={`relative w-12 h-6 rounded-full transition-all cursor-pointer ${
+                className={`relative w-12 h-6 rounded-full transition-all cursor-pointer shrink-0 ${
                   netSettings.autoReconnect ? 'bg-primary' : 'bg-surface-container-highest'
                 } ${hasActiveConnections ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
@@ -776,12 +779,12 @@ export default function NetworkTab({
             </div>
 
             {/* زر فحص اتصال الخادم التشخيصي */}
-            <div className="pt-2 flex items-center justify-between gap-3 flex-wrap border-t border-outline-variant/15">
+            <div className="pt-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-t border-outline-variant/15">
               <button
                 type="button"
                 onClick={handleTestLan}
                 disabled={!netSettings.serverIp || testingLan !== null}
-                className="min-h-[44px] px-5 py-2.5 bg-primary text-on-primary rounded-xl text-xs sm:text-sm font-bold hover:bg-primary/90 transition-all flex items-center gap-2 shadow-sm disabled:opacity-40 cursor-pointer"
+                className="w-full sm:w-auto min-h-[44px] px-5 py-2.5 bg-primary text-on-primary rounded-xl text-xs sm:text-sm font-bold hover:bg-primary/90 transition-all flex items-center justify-center gap-2 shadow-sm disabled:opacity-40 cursor-pointer"
               >
                 {testingLan === 'ok' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Activity className="w-4 h-4" />}
                 <span>{testingLan === 'ok' ? 'جاري فحص الاتصال واستجابة الخادم...' : 'اختبار استجابة الخادم (Ping Test)'}</span>
@@ -789,8 +792,8 @@ export default function NetworkTab({
 
               {netSettings.lastConnectedAt && (
                 <span className="text-xs text-on-surface-variant flex items-center gap-1.5 font-mono">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                  آخر اتصال ناجح: {new Date(netSettings.lastConnectedAt).toLocaleString('ar-DZ')}
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span>آخر اتصال ناجح: {new Date(netSettings.lastConnectedAt).toLocaleString('ar-DZ')}</span>
                 </span>
               )}
             </div>
@@ -802,15 +805,15 @@ export default function NetworkTab({
           تبويب 3: السيرفر الخارجي والمزامنة (Cloud)
           ========================================================================= */}
       {netSubTab === 'cloud' && (
-        <div className="p-6 rounded-3xl bg-surface-container border border-outline-variant/15 space-y-6 animate-fade-in">
+        <div className="p-4 sm:p-6 rounded-3xl bg-surface-container border border-outline-variant/15 space-y-5 sm:space-y-6 animate-fade-in">
           <div className="pb-1">
-            <h4 className="text-base font-bold font-cairo text-on-surface">إعدادات الربط السحابي ومزامنة الفروع</h4>
+            <h4 className="text-sm sm:text-base font-bold font-cairo text-on-surface">إعدادات الربط السحابي ومزامنة الفروع</h4>
             <p className="text-xs text-on-surface-variant mt-0.5">
               ربط نقطة البيع بقاعدة بيانات سحابية مركزية وبوابات Webhooks لمتابعة المبيعات في الوقت الفعلي
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
             <div className="sm:col-span-2">
               <label className="block text-xs font-bold text-on-surface mb-1.5">عنوان API السحابي (Base API URL)</label>
               <input
@@ -818,7 +821,7 @@ export default function NetworkTab({
                 value={netSettings.apiUrl ?? ''}
                 onChange={(e) => saveNet({ apiUrl: e.target.value })}
                 placeholder="https://api.yourshop.com/v1"
-                className="w-full px-4 py-2.5 rounded-xl bg-surface-container-low border border-outline-variant/20 text-sm font-mono text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                className="w-full px-3.5 sm:px-4 py-2.5 rounded-xl bg-surface-container-low border border-outline-variant/20 text-xs sm:text-sm font-mono text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-right"
               />
             </div>
 
@@ -830,12 +833,12 @@ export default function NetworkTab({
                   value={netSettings.apiKey ?? ''}
                   onChange={(e) => saveNet({ apiKey: e.target.value })}
                   placeholder="sk_live_••••••••"
-                  className="w-full px-4 py-2.5 pr-10 rounded-xl bg-surface-container-low border border-outline-variant/20 text-sm font-mono text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  className="w-full px-3.5 sm:px-4 py-2.5 pl-10 text-right rounded-xl bg-surface-container-low border border-outline-variant/20 text-xs sm:text-sm font-mono text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 />
                 <button
                   type="button"
                   onClick={() => setShowApiKey(!showApiKey)}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface p-1"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface p-1 cursor-pointer"
                 >
                   {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -849,19 +852,19 @@ export default function NetworkTab({
                 value={netSettings.webhookUrl ?? ''}
                 onChange={(e) => saveNet({ webhookUrl: e.target.value })}
                 placeholder="https://yourshop.com/api/webhook"
-                className="w-full px-4 py-2.5 rounded-xl bg-surface-container-low border border-outline-variant/20 text-sm font-mono text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                className="w-full px-3.5 sm:px-4 py-2.5 rounded-xl bg-surface-container-low border border-outline-variant/20 text-xs sm:text-sm font-mono text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-right"
               />
             </div>
           </div>
 
           {/* جدولة المزامنة التلقائية */}
-          <div className="p-5 bg-surface-container-low rounded-2xl border border-outline-variant/15 space-y-4">
+          <div className="p-4 sm:p-5 bg-surface-container-low rounded-2xl border border-outline-variant/15 space-y-4">
             <h5 className="text-xs sm:text-sm font-bold text-on-surface flex items-center gap-2">
-              <RefreshCw className="w-4 h-4 text-primary" />
+              <RefreshCw className="w-4 h-4 text-primary shrink-0" />
               <span>جدولة المزامنة التلقائية وسياسة الرفع السحابي</span>
             </h5>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3.5 sm:gap-4">
               <div className="flex items-center justify-between p-3.5 bg-surface-container rounded-xl border border-outline-variant/15">
                 <div>
                   <span className="text-xs font-bold text-on-surface block">المزامنة التلقائية</span>
@@ -870,7 +873,7 @@ export default function NetworkTab({
                 <button
                   type="button"
                   onClick={() => saveNet({ syncAuto: !netSettings.syncAuto })}
-                  className={`relative w-12 h-6 rounded-full transition-all cursor-pointer ${
+                  className={`relative w-12 h-6 rounded-full transition-all cursor-pointer shrink-0 ${
                     netSettings.syncAuto ? 'bg-primary' : 'bg-surface-container-highest'
                   }`}
                 >
@@ -893,7 +896,7 @@ export default function NetworkTab({
                     onChange={(e) => saveNet({ syncInterval: Number(e.target.value) })}
                     className="w-full px-3 py-2 rounded-xl bg-surface-container border border-outline-variant/20 text-xs font-mono font-bold text-on-surface"
                   />
-                  <div className="flex gap-1">
+                  <div className="flex gap-1 shrink-0">
                     {[5, 15, 30].map(val => (
                       <button
                         key={val}
@@ -912,12 +915,12 @@ export default function NetworkTab({
                 </div>
               </div>
 
-              <div>
+              <div className="sm:col-span-2 xl:col-span-1">
                 <label className="block text-xs font-bold text-on-surface mb-1">نوع المزامنة السحابية</label>
                 <select
                   value={netSettings.syncType}
                   onChange={(e) => saveNet({ syncType: e.target.value as 'full' | 'incremental' })}
-                  className="w-full px-3 py-2 rounded-xl bg-surface-container border border-outline-variant/20 text-xs font-bold text-on-surface"
+                  className="w-full px-3 py-2.5 rounded-xl bg-surface-container border border-outline-variant/20 text-xs font-bold text-on-surface cursor-pointer"
                 >
                   <option value="incremental">مزامنة تدريجية (سريعة واقتصادية)</option>
                   <option value="full">مزامنة كاملة (شاملة لجميع السجلات)</option>
@@ -932,18 +935,18 @@ export default function NetworkTab({
           تبويب 4: الطابعة والملصقات (Hardware Printers)
           ========================================================================= */}
       {netSubTab === 'printer' && (
-        <div className="p-6 rounded-3xl bg-surface-container border border-outline-variant/15 space-y-6 animate-fade-in">
+        <div className="p-4 sm:p-6 rounded-3xl bg-surface-container border border-outline-variant/15 space-y-5 sm:space-y-6 animate-fade-in">
           <div className="pb-1">
-            <h4 className="text-base font-bold font-cairo text-on-surface">إعدادات الطابعات الحرارية والملصقات</h4>
+            <h4 className="text-sm sm:text-base font-bold font-cairo text-on-surface">إعدادات الطابعات الحرارية والملصقات</h4>
             <p className="text-xs text-on-surface-variant mt-0.5">
               تحديد واجهة الاتصال (USB, Network, Bluetooth, COM), السائق المعتمد, دقة الطباعة, ومحاكاة الإيصال
             </p>
           </div>
 
-          {/* نوع واجهة الاتصال الفيزيائية */}
+          {/* نوع واجهة الاتصال الفيزيائية - متكيفة بذكاء عبر مختلف الدقات */}
           <div className="space-y-2.5">
             <label className="block text-xs font-bold text-on-surface">منفذ توصيل الطابعة المعتمد</label>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-2.5">
               {([
                 { id: 'usb', label: 'USB مباشر', sub: 'طابعة الكاشير السلكية', Icon: Usb },
                 { id: 'network', label: 'شبكة IP (LAN)', sub: 'طابعة المطبخ والشبكة', Icon: Network },
@@ -960,19 +963,19 @@ export default function NetworkTab({
                       saveNet({ printerConnection: opt.id as any });
                       setPrinterSavedUnlocked(false);
                     }}
-                    className={`flex flex-col items-center justify-between p-3.5 rounded-2xl border-2 text-center transition-all cursor-pointer ${
+                    className={`flex flex-col items-center justify-between p-3 sm:p-3.5 rounded-2xl border-2 text-center transition-all cursor-pointer ${
                       isSelected
                         ? 'border-primary bg-primary/10 text-primary shadow-xs ring-1 ring-primary/30'
                         : 'border-outline-variant/15 bg-surface-container-low text-on-surface-variant hover:border-primary/40 hover:bg-surface-container-high'
                     }`}
                   >
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-1.5 ${
+                    <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center mb-1.5 ${
                       isSelected ? 'bg-primary text-on-primary' : 'bg-surface-container text-on-surface-variant'
                     }`}>
-                      <opt.Icon className="w-5 h-5" />
+                      <opt.Icon className="w-4 h-4 sm:w-5 sm:h-5" />
                     </div>
-                    <span className="text-xs font-bold text-on-surface">{opt.label}</span>
-                    <span className="text-[10px] text-on-surface-variant mt-0.5">{opt.sub}</span>
+                    <span className="text-xs font-bold text-on-surface leading-tight">{opt.label}</span>
+                    <span className="text-[10px] text-on-surface-variant mt-0.5 leading-tight">{opt.sub}</span>
                   </button>
                 );
               })}
@@ -980,7 +983,7 @@ export default function NetworkTab({
           </div>
 
           {/* إعدادات السائق، الدقة، وحجم الورق */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4 pt-1">
             <div>
               <label className="block text-xs font-bold text-on-surface mb-1.5">لغة وأوامر السائق (Printer Driver)</label>
               <select
@@ -989,7 +992,7 @@ export default function NetworkTab({
                   saveNet({ printerDriver: e.target.value as any });
                   setPrinterSavedUnlocked(false);
                 }}
-                className="w-full px-4 py-2.5 rounded-xl bg-surface-container-low border border-outline-variant/20 text-sm font-bold text-on-surface"
+                className="w-full px-3.5 sm:px-4 py-2.5 rounded-xl bg-surface-container-low border border-outline-variant/20 text-xs sm:text-sm font-bold text-on-surface cursor-pointer"
               >
                 <option value="esc_pos">ESC/POS (طابعات الإيصالات الحرارية القياسية)</option>
                 <option value="zpl">ZPL (طابعات ملصقات الباركود Zebra)</option>
@@ -1005,7 +1008,7 @@ export default function NetworkTab({
                   saveNet({ printerDpi: Number(e.target.value) as any });
                   setPrinterSavedUnlocked(false);
                 }}
-                className="w-full px-4 py-2.5 rounded-xl bg-surface-container-low border border-outline-variant/20 text-sm font-bold text-on-surface"
+                className="w-full px-3.5 sm:px-4 py-2.5 rounded-xl bg-surface-container-low border border-outline-variant/20 text-xs sm:text-sm font-bold text-on-surface cursor-pointer"
               >
                 <option value={203}>203 DPI (الوضوح القياسي الموصى به)</option>
                 <option value={300}>300 DPI (عالي الوضوح للشعارات الدقيقة)</option>
@@ -1013,7 +1016,7 @@ export default function NetworkTab({
               </select>
             </div>
 
-            <div>
+            <div className="sm:col-span-2 lg:col-span-1">
               <label className="block text-xs font-bold text-on-surface mb-1.5">عرض الورق الحراري</label>
               <select
                 value={netSettings.printerPaperSize}
@@ -1021,7 +1024,7 @@ export default function NetworkTab({
                   saveNet({ printerPaperSize: Number(e.target.value) as any });
                   setPrinterSavedUnlocked(false);
                 }}
-                className="w-full px-4 py-2.5 rounded-xl bg-surface-container-low border border-outline-variant/20 text-sm font-bold text-on-surface"
+                className="w-full px-3.5 sm:px-4 py-2.5 rounded-xl bg-surface-container-low border border-outline-variant/20 text-xs sm:text-sm font-bold text-on-surface cursor-pointer"
               >
                 <option value={80}>80 ملم (ورق كاشير قياسي - فواتير تفصيلية)</option>
                 <option value={58}>58 ملم (ورق طابعة محمولة صغيرة)</option>
@@ -1031,23 +1034,23 @@ export default function NetworkTab({
           </div>
 
           {/* محاكاة إيصال الاختبار وأمر الطباعة الفوري */}
-          <div className="p-5 bg-surface-container-low rounded-2xl border border-outline-variant/15 flex flex-col sm:flex-row items-center justify-between gap-6">
-            <div className="space-y-1.5 text-right w-full sm:w-auto">
+          <div className="p-4 sm:p-5 bg-surface-container-low rounded-2xl border border-outline-variant/15 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-6">
+            <div className="space-y-1 text-right min-w-0">
               <h5 className="text-xs sm:text-sm font-bold text-on-surface flex items-center gap-2">
-                <FileText className="w-4 h-4 text-primary" />
+                <FileText className="w-4 h-4 text-primary shrink-0" />
                 <span>فحص كفاءة الرأس الحراري والقطع الآلي</span>
               </h5>
-              <p className="text-xs text-on-surface-variant max-w-md">
+              <p className="text-xs text-on-surface-variant max-w-md leading-relaxed">
                 إرسال إيصال فحص تجريبي يتضمن ترويسة المتجر، جدول أصناف وهمي، باركود الفاتورة، وأمر قاطع الورق التلقائي (Paper Cut).
               </p>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto shrink-0">
+            <div className="w-full sm:w-auto shrink-0">
               <button
                 type="button"
                 onClick={handleTestPrinter}
                 disabled={testingPrinter !== null}
-                className="min-h-[44px] w-full sm:w-auto px-5 py-2.5 bg-primary text-on-primary rounded-xl text-xs sm:text-sm font-bold hover:bg-primary/90 transition-all flex items-center justify-center gap-2 shadow-sm disabled:opacity-40 cursor-pointer"
+                className="w-full sm:w-auto min-h-[44px] px-5 py-2.5 bg-primary text-on-primary rounded-xl text-xs sm:text-sm font-bold hover:bg-primary/90 transition-all flex items-center justify-center gap-2 shadow-sm disabled:opacity-40 cursor-pointer"
               >
                 {testingPrinter === 'ok' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
                 <span>{testingPrinter === 'ok' ? 'جاري إرسال أمر الطباعة...' : 'طباعة إيصال تجريبي (BR-NET-006)'}</span>
@@ -1057,7 +1060,7 @@ export default function NetworkTab({
 
           {netSettings.printerTestedAt && (
             <div className="flex items-center gap-2 text-xs text-on-surface-variant font-mono">
-              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
               <span>آخر طباعة تجريبية ناجحة: {new Date(netSettings.printerTestedAt).toLocaleString('ar-DZ')}</span>
             </div>
           )}
@@ -1068,9 +1071,9 @@ export default function NetworkTab({
           تبويب 5: الباركود والماسح (Barcode & Scanner)
           ========================================================================= */}
       {netSubTab === 'barcode' && (
-        <div className="p-6 rounded-3xl bg-surface-container border border-outline-variant/15 space-y-6 animate-fade-in">
+        <div className="p-4 sm:p-6 rounded-3xl bg-surface-container border border-outline-variant/15 space-y-5 sm:space-y-6 animate-fade-in">
           <div className="pb-1">
-            <h4 className="text-base font-bold font-cairo text-on-surface">صيغة الباركود وسلوك قارئ الباركود (SAFE POS)</h4>
+            <h4 className="text-sm sm:text-base font-bold font-cairo text-on-surface">صيغة الباركود وسلوك قارئ الباركود (SAFE POS)</h4>
             <p className="text-xs text-on-surface-variant mt-0.5">
               تحديد ترميز الباركود المستخدم وتخصيص سرعة واستجابة الماسح الضوئي، مع حقل اختبار حي لقياس الاستجابة
             </p>
@@ -1079,7 +1082,7 @@ export default function NetworkTab({
           {/* شبكة أنواع الباركود مع مؤشرات بصرية */}
           <div className="space-y-2">
             <label className="block text-xs font-bold text-on-surface">ترميز الباركود الافتراضي للنظام</label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
               {[
                 { id: 'code128', label: 'CODE128', desc: 'عام وشامل — فواتير ومنتجات', format: '||| | | || ||' },
                 { id: 'ean13', label: 'EAN-13', desc: 'معياري للمواد الاستهلاكية (13 رقم)', format: '6131234567890' },
@@ -1114,13 +1117,13 @@ export default function NetworkTab({
           </div>
 
           {/* سلوك الماسح الضوئي وإعدادات الاستجابة */}
-          <div className="p-5 bg-surface-container-low rounded-2xl border border-outline-variant/15 space-y-4">
+          <div className="p-4 sm:p-5 bg-surface-container-low rounded-2xl border border-outline-variant/15 space-y-4">
             <h5 className="text-xs sm:text-sm font-bold text-on-surface flex items-center gap-2">
-              <Zap className="w-4 h-4 text-primary" />
+              <Zap className="w-4 h-4 text-primary shrink-0" />
               <span>إعدادات استجابة الماسح الضوئي والحماية</span>
             </h5>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5 sm:gap-4">
               <div className="flex items-center justify-between p-3.5 bg-surface-container rounded-xl border border-outline-variant/15">
                 <div>
                   <span className="text-xs font-bold text-on-surface block">صوت عند المسح</span>
@@ -1129,7 +1132,7 @@ export default function NetworkTab({
                 <button
                   type="button"
                   onClick={() => saveNet({ scannerBeepEnabled: !netSettings.scannerBeepEnabled })}
-                  className={`relative w-11 h-6 rounded-full transition-all cursor-pointer ${
+                  className={`relative w-11 h-6 rounded-full transition-all cursor-pointer shrink-0 ${
                     netSettings.scannerBeepEnabled ? 'bg-primary' : 'bg-surface-container-highest'
                   }`}
                 >
@@ -1146,7 +1149,7 @@ export default function NetworkTab({
                 <select
                   value={netSettings.scannerTerminator}
                   onChange={(e) => saveNet({ scannerTerminator: e.target.value as any })}
-                  className="w-full px-3 py-2.5 rounded-xl bg-surface-container border border-outline-variant/20 text-xs font-bold text-on-surface"
+                  className="w-full px-3 py-2.5 rounded-xl bg-surface-container border border-outline-variant/20 text-xs font-bold text-on-surface cursor-pointer"
                 >
                   <option value="Enter">Enter ↵ (افتراضي وموصى به)</option>
                   <option value="Tab">Tab ⇥ (لقفز الحقول)</option>
@@ -1169,12 +1172,12 @@ export default function NetworkTab({
               <div className="flex items-center justify-between p-3.5 bg-surface-container rounded-xl border border-outline-variant/15">
                 <div>
                   <span className="text-xs font-bold text-on-surface block">إدخال يدوي</span>
-                  <span className="text-[10px] text-on-surface-variant">السماح بالكتابة بلوحة المفاتيح</span>
+                  <span className="text-[10px] text-on-surface-variant">السماح بلوحة المفاتيح</span>
                 </div>
                 <button
                   type="button"
                   onClick={() => saveNet({ scannerAllowManualTypes: !netSettings.scannerAllowManualTypes })}
-                  className={`relative w-11 h-6 rounded-full transition-all cursor-pointer ${
+                  className={`relative w-11 h-6 rounded-full transition-all cursor-pointer shrink-0 ${
                     netSettings.scannerAllowManualTypes ? 'bg-primary' : 'bg-surface-container-highest'
                   }`}
                 >
@@ -1191,15 +1194,15 @@ export default function NetworkTab({
           {/* =========================================================================
               حقل اختبار الماسح الحي التفاعلي (Interactive Live Scanner Test Bench)
               ========================================================================= */}
-          <div className="p-5 bg-surface-container-low rounded-2xl border-2 border-primary/20 space-y-4 relative overflow-hidden">
+          <div className="p-4 sm:p-5 bg-surface-container-low rounded-2xl border-2 border-primary/20 space-y-4 relative overflow-hidden">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 min-w-0">
                 <div className="w-10 h-10 rounded-xl bg-primary/15 text-primary flex items-center justify-center border border-primary/20 shrink-0">
                   <ScanLine className="w-5 h-5" />
                 </div>
-                <div>
-                  <h5 className="text-sm font-bold font-cairo text-on-surface">منصة اختبار استجابة الماسح الضوئي (Live Test Bench)</h5>
-                  <p className="text-xs text-on-surface-variant">
+                <div className="min-w-0">
+                  <h5 className="text-xs sm:text-sm font-bold font-cairo text-on-surface">منصة اختبار استجابة الماسح الضوئي (Live Test Bench)</h5>
+                  <p className="text-xs text-on-surface-variant leading-relaxed">
                     وجّه قارئ الباركود نحو هذا الحقل واضغط الزناد لفحص سرعة القراءة ومفتاح النهاية وتجربة الصوت
                   </p>
                 </div>
@@ -1212,7 +1215,7 @@ export default function NetworkTab({
                     setScannerScanHistory([]);
                     setScannerLastScanned(null);
                   }}
-                  className="text-xs text-rose-500 hover:text-rose-600 font-bold flex items-center gap-1 cursor-pointer w-fit"
+                  className="text-xs text-rose-500 hover:text-rose-600 font-bold flex items-center gap-1 cursor-pointer w-fit shrink-0"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>مسح السجل</span>
@@ -1229,19 +1232,19 @@ export default function NetworkTab({
                   onChange={(e) => setScannerTestInput(e.target.value)}
                   onKeyDown={handleScannerKeyDown}
                   placeholder="انقر هنا ثم امسح أي باركود بالماسح أو اكتب واضغط Enter..."
-                  className="w-full px-4 py-3 pl-12 rounded-xl bg-surface-container border-2 border-dashed border-primary/40 text-sm font-mono text-on-surface focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all text-right"
+                  className="w-full px-4 py-3 pl-12 rounded-xl bg-surface-container border-2 border-dashed border-primary/40 text-xs sm:text-sm font-mono text-on-surface focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all text-right"
                 />
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center gap-2 text-on-surface-variant">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center gap-2 text-on-surface-variant pointer-events-none">
                   <CornerDownLeft className="w-4 h-4 text-primary animate-pulse" />
                 </div>
               </div>
 
               {/* بطاقة نتيجة آخر مسح ضوئي */}
               {scannerLastScanned && (
-                <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fade-in">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <div className="p-3.5 sm:p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fade-in">
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                       <span className="text-xs font-bold text-emerald-800 dark:text-emerald-200">
                         تمت قراءة الباركود بنجاح!
                       </span>
@@ -1253,12 +1256,12 @@ export default function NetworkTab({
                         {scannerLastScanned.isHardware ? '⚡ قارئ ليزري سريع' : '⌨️ إدخال يدوي'}
                       </span>
                     </div>
-                    <div className="text-base font-mono font-black text-on-surface tracking-wider">
+                    <div className="text-sm sm:text-base font-mono font-black text-on-surface tracking-wider truncate">
                       {scannerLastScanned.code}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4 text-xs font-mono text-on-surface-variant">
+                  <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs font-mono text-on-surface-variant shrink-0">
                     <span>⏱️ السرعة: <strong>{scannerLastScanned.durationMs}ms</strong></span>
                     <span>↵ المفتاح: <strong>{scannerLastScanned.terminator}</strong></span>
                     <span>الطول: <strong>{scannerLastScanned.code.length} أحرف</strong></span>
@@ -1287,12 +1290,12 @@ export default function NetworkTab({
           </div>
 
           {/* زر فحص جهاز الماسح الخارجي */}
-          <div className="pt-2 flex items-center justify-between gap-3 flex-wrap border-t border-outline-variant/15">
+          <div className="pt-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-t border-outline-variant/15">
             <button
               type="button"
               onClick={handleTestScanner}
               disabled={testingScanner !== null}
-              className="min-h-[44px] px-5 py-2.5 bg-primary text-on-primary rounded-xl text-xs sm:text-sm font-bold hover:bg-primary/90 transition-all flex items-center gap-2 shadow-sm disabled:opacity-40 cursor-pointer"
+              className="w-full sm:w-auto min-h-[44px] px-5 py-2.5 bg-primary text-on-primary rounded-xl text-xs sm:text-sm font-bold hover:bg-primary/90 transition-all flex items-center justify-center gap-2 shadow-sm disabled:opacity-40 cursor-pointer"
             >
               {testingScanner === 'ok' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ScanLine className="w-4 h-4" />}
               <span>{testingScanner === 'ok' ? 'جاري فحص حالة تعريف الماسح...' : 'اختبار الماسح الضوئي (BR-NET-007)'}</span>
@@ -1300,8 +1303,8 @@ export default function NetworkTab({
 
             {netSettings.scannerTestedAt && (
               <span className="text-xs text-on-surface-variant flex items-center gap-1 font-mono">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                آخر اختبار ناجح: {new Date(netSettings.scannerTestedAt).toLocaleString('ar-DZ')}
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                <span>آخر اختبار ناجح: {new Date(netSettings.scannerTestedAt).toLocaleString('ar-DZ')}</span>
               </span>
             )}
           </div>
@@ -1312,24 +1315,24 @@ export default function NetworkTab({
           تبويب 6: الأمان والتشفير (Security)
           ========================================================================= */}
       {netSubTab === 'security' && (
-        <div className="p-6 rounded-3xl bg-surface-container border border-outline-variant/15 space-y-6 animate-fade-in">
+        <div className="p-4 sm:p-6 rounded-3xl bg-surface-container border border-outline-variant/15 space-y-5 sm:space-y-6 animate-fade-in">
           <div className="pb-1">
-            <h4 className="text-base font-bold font-cairo text-on-surface">إعدادات التشفير وحماية شبكة المتجر</h4>
+            <h4 className="text-sm sm:text-base font-bold font-cairo text-on-surface">إعدادات التشفير وحماية شبكة المتجر</h4>
             <p className="text-xs text-on-surface-variant mt-0.5">
               تأمين الاتصالات بروتوكولياً، منع الوصول غير المصرح به، وتحديد العناوين الموثوقة (IP Whitelist)
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 sm:gap-4">
             {/* OAuth 2.0 */}
-            <div className="flex items-center justify-between p-4 bg-surface-container-low rounded-2xl border border-outline-variant/15">
-              <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between p-4 bg-surface-container-low rounded-2xl border border-outline-variant/15 gap-3">
+              <div className="flex items-center gap-3 min-w-0">
                 <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center border border-primary/20 shrink-0">
                   <KeyRound className="w-5 h-5" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs sm:text-sm font-bold text-on-surface">مصادقة OAuth 2.0</p>
-                  <p className="text-[11px] text-on-surface-variant">التحقق عبر مزود هوية مركزي أو خدمات السحابة</p>
+                  <p className="text-[11px] text-on-surface-variant leading-tight">التحقق عبر مزود هوية مركزي أو خدمات السحابة</p>
                 </div>
               </div>
               <button
@@ -1348,14 +1351,14 @@ export default function NetworkTab({
             </div>
 
             {/* JWT Tokens */}
-            <div className="flex items-center justify-between p-4 bg-surface-container-low rounded-2xl border border-outline-variant/15">
-              <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between p-4 bg-surface-container-low rounded-2xl border border-outline-variant/15 gap-3">
+              <div className="flex items-center gap-3 min-w-0">
                 <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center border border-primary/20 shrink-0">
                   <Shield className="w-5 h-5" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs sm:text-sm font-bold text-on-surface">رموز مصادقة JWT المشفرة</p>
-                  <p className="text-[11px] text-on-surface-variant">توليد رموز وصول مؤقتة لكل جلسة كاشير نشطة</p>
+                  <p className="text-[11px] text-on-surface-variant leading-tight">توليد رموز وصول مؤقتة لكل جلسة كاشير نشطة</p>
                 </div>
               </div>
               <button
@@ -1374,14 +1377,14 @@ export default function NetworkTab({
             </div>
 
             {/* Force HTTPS */}
-            <div className="flex items-center justify-between p-4 bg-surface-container-low rounded-2xl border border-outline-variant/15">
-              <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between p-4 bg-surface-container-low rounded-2xl border border-outline-variant/15 gap-3">
+              <div className="flex items-center gap-3 min-w-0">
                 <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center border border-primary/20 shrink-0">
                   <ShieldCheck className="w-5 h-5" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs sm:text-sm font-bold text-on-surface">إجبار تشفير HTTPS (BR-NET-008)</p>
-                  <p className="text-[11px] text-on-surface-variant">حظر أي اتصالات غير مشفرة بين الخادم والهواتف</p>
+                  <p className="text-[11px] text-on-surface-variant leading-tight">حظر أي اتصالات غير مشفرة بين الخادم والهواتف</p>
                 </div>
               </div>
               <button
@@ -1407,12 +1410,12 @@ export default function NetworkTab({
                 </label>
                 <p className="text-[11px] text-on-surface-variant mb-2">أقصى عدد طلبات مسموح بها بالدقيقة الواحدة لكل هاتف</p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
                 <input
                   type="number"
                   value={netSettings.apiRateLimit}
                   onChange={(e) => saveNet({ apiRateLimit: Number(e.target.value) })}
-                  className="w-full px-4 py-2 rounded-xl bg-surface-container border border-outline-variant/20 text-sm font-mono font-bold text-on-surface"
+                  className="w-full sm:flex-1 px-3.5 sm:px-4 py-2 rounded-xl bg-surface-container border border-outline-variant/20 text-xs sm:text-sm font-mono font-bold text-on-surface"
                 />
                 <div className="flex gap-1 shrink-0">
                   {[60, 120, 300].map(limit => (
@@ -1437,11 +1440,11 @@ export default function NetworkTab({
           {/* =========================================================================
               مدير القائمة البيضاء لعناوين IP (IP Whitelist Chips Manager)
               ========================================================================= */}
-          <div className="p-5 bg-surface-container-low rounded-2xl border border-outline-variant/15 space-y-4">
+          <div className="p-4 sm:p-5 bg-surface-container-low rounded-2xl border border-outline-variant/15 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h5 className="text-xs sm:text-sm font-bold font-cairo text-on-surface flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-primary" />
+                  <Lock className="w-4 h-4 text-primary shrink-0" />
                   <span>القائمة البيضاء لعناوين IP المسموح بها (IP Whitelist)</span>
                 </h5>
                 <p className="text-[11px] text-on-surface-variant mt-0.5">
@@ -1449,7 +1452,7 @@ export default function NetworkTab({
                 </p>
               </div>
 
-              <div className="flex items-center gap-1.5 bg-surface-container p-1 rounded-xl border border-outline-variant/15">
+              <div className="flex items-center gap-1.5 bg-surface-container p-1 rounded-xl border border-outline-variant/15 self-start sm:self-auto">
                 <button
                   type="button"
                   onClick={() => setWhitelistMode('chips')}
@@ -1474,7 +1477,7 @@ export default function NetworkTab({
             {whitelistMode === 'chips' ? (
               <div className="space-y-3">
                 {/* حقل إضافة عنوان جديد */}
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <input
                     type="text"
                     value={newIpInput}
@@ -1486,13 +1489,13 @@ export default function NetworkTab({
                       }
                     }}
                     placeholder="أدخل عنوان IP مثل: 192.168.1.50 واضغط إضافة..."
-                    className="flex-1 px-4 py-2.5 rounded-xl bg-surface-container border border-outline-variant/20 text-xs sm:text-sm font-mono text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    className="flex-1 px-3.5 sm:px-4 py-2.5 rounded-xl bg-surface-container border border-outline-variant/20 text-xs sm:text-sm font-mono text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-right"
                   />
                   <button
                     type="button"
                     onClick={() => addIpToWhitelist(newIpInput)}
                     disabled={!newIpInput.trim()}
-                    className="px-5 py-2.5 bg-primary text-on-primary rounded-xl text-xs font-bold hover:bg-primary/90 transition-all flex items-center gap-1.5 disabled:opacity-40 cursor-pointer"
+                    className="w-full sm:w-auto min-h-[44px] px-5 py-2.5 bg-primary text-on-primary rounded-xl text-xs font-bold hover:bg-primary/90 transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 cursor-pointer shrink-0"
                   >
                     <Plus className="w-4 h-4" />
                     <span>إضافة</span>
@@ -1544,7 +1547,7 @@ export default function NetworkTab({
                 }
                 placeholder="192.168.1.50&#10;192.168.1.51"
                 rows={4}
-                className="w-full px-4 py-2.5 rounded-xl bg-surface-container border border-outline-variant/20 text-xs font-mono text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                className="w-full px-4 py-2.5 rounded-xl bg-surface-container border border-outline-variant/20 text-xs font-mono text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-right"
               />
             )}
           </div>
@@ -1555,7 +1558,7 @@ export default function NetworkTab({
           تبويب 7: الأجهزة المتصلة والمنافذ (Connected Devices & Ports)
           ========================================================================= */}
       {netSubTab === 'devices' && (
-        <div className="animate-fade-in">
+        <div className="animate-fade-in min-w-0">
           <ConnectedDevicesManager
             mobilePhones={mobilePhones}
             devices={devices}

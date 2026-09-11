@@ -1267,7 +1267,7 @@ export default function SettingsPage() {
         </aside>
 
         {/* Content */}
-        <div className="flex-1 max-w-5xl">
+        <div className="flex-1 min-w-0 max-w-5xl">
 
 
         {/* === تفعيل التطبيق (Ed25519 Offline-First) === */}

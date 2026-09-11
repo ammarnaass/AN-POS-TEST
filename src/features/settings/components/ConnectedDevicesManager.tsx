@@ -284,7 +284,7 @@ export default function ConnectedDevicesManager({
   return (
     <div className="space-y-6 animate-fade-in font-tajawal">
       {/* 1. لوحة بطاقات القياس والمؤشرات العلوية (Data-Dense Dashboard KPIs) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3.5 sm:gap-4">
         {/* البطاقة 1: الشبكة والمنافذ */}
         <div className="p-5 rounded-3xl bg-surface-container border border-outline-variant/15 relative overflow-hidden group hover:border-blue-500/30 transition-all shadow-xs">
           <div className="absolute top-0 left-0 w-24 h-24 bg-blue-500/5 rounded-br-full pointer-events-none" />
@@ -497,7 +497,7 @@ export default function ConnectedDevicesManager({
 
         {/* سطر البحث والفلاتر المتقدمة */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-          <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[280px]">
+          <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-0">
             {/* حقل البحث الحي */}
             <div className="relative flex-1 sm:max-w-xs">
               <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 pointer-events-none" />
