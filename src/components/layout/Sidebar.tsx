@@ -48,37 +48,37 @@ interface NavSection {
 
 const menuSections: NavSection[] = [
   {
-    title: 'المبيعات والكاشير',
+    title: 'المبيعات',
     items: [
-      { path: '/pos/quick', label: 'نقطة البيع السريعة', icon: Zap, badge: '⚡ سريع' },
-      { path: '/pos', label: 'نقطة البيع المتقدمة', icon: ShoppingCart, badge: 'PRO' },
-      { path: '/', label: 'لوحة الإحصائيات', icon: LayoutDashboard },
-      { path: '/sales', label: 'سجل الفواتير والمبيعات', icon: Receipt },
-      { path: '/cash', label: 'إدارة الخزينة والصندوق', icon: DollarSign, roles: ['admin', 'cashier'] },
+      { path: '/pos/quick', label: 'الكاشير السريع', icon: Zap, badge: '⚡ سريع' },
+      { path: '/pos', label: 'الكاشير المتقدم', icon: ShoppingCart, badge: 'PRO' },
+      { path: '/', label: 'لوحة التحكم', icon: LayoutDashboard },
+      { path: '/sales', label: 'المبيعات', icon: Receipt },
+      { path: '/cash', label: 'الخزينة', icon: DollarSign, roles: ['admin', 'cashier'] },
     ],
   },
   {
-    title: 'المنتجات والمخزون',
+    title: 'المخزون',
     items: [
-      { path: '/inventory', label: 'إدارة المخزون والبضائع', icon: Package },
-      { path: '/packs', label: 'عبوات الجملة والباقات', icon: Layers },
-      { path: '/categories', label: 'العائلات والتصنيفات', icon: FolderTree },
-      { path: '/barcode/labels', label: 'طباعة الباركود والملصقات', icon: Barcode },
-      { path: '/promotions', label: 'العروض والخصومات', icon: Tag },
+      { path: '/inventory', label: 'المخزون', icon: Package },
+      { path: '/packs', label: 'الباقات', icon: Layers },
+      { path: '/categories', label: 'التصنيفات', icon: FolderTree },
+      { path: '/barcode/labels', label: 'طباعة الباركود', icon: Barcode },
+      { path: '/promotions', label: 'العروض', icon: Tag },
     ],
   },
   {
-    title: 'العملاء والموردين',
+    title: 'جهات الاتصال',
     items: [
-      { path: '/customers', label: 'حسابات العملاء', icon: Users },
-      { path: '/suppliers', label: 'حسابات الموردين', icon: Truck },
+      { path: '/customers', label: 'العملاء', icon: Users },
+      { path: '/suppliers', label: 'الموردون', icon: Truck },
     ],
   },
   {
-    title: 'النظام والإعدادات',
+    title: 'النظام',
     items: [
-      { path: '/settings', label: 'إعدادات النظام والطباعة', icon: Settings },
-      { path: '/support', label: 'المساعدة والدعم الفني', icon: HelpCircle },
+      { path: '/settings', label: 'الإعدادات', icon: Settings },
+      { path: '/support', label: 'الدعم الفني', icon: HelpCircle },
     ],
   },
 ];
