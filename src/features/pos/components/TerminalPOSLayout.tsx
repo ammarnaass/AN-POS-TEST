@@ -158,6 +158,35 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
     setInternalPriceTier(tier);
     if (onSelectPriceTier) onSelectPriceTier(tier);
   }, [onSelectPriceTier]);
+
+  // Helper to calculate price according to active tier
+  const getProductPriceByTier = (prod: Product, tier: '1' | '2' | '3' | '4') => {
+    return getProductTierPrice(prod, tier);
+  };
+
+  // Handle price tier switch
+  const handleSelectPriceTier = useCallback((tier: '1' | '2' | '3' | '4') => {
+    setPriceTier(tier);
+    if (tier === '3') {
+      if (!wholesaleMode) toggleWholesaleMode();
+    } else if (tier === '1') {
+      if (wholesaleMode) toggleWholesaleMode();
+    }
+    // Synchronize current cart items to chosen tier
+    const productList = allProducts && allProducts.length > 0 ? allProducts : products;
+    if (onEditPrice && cart.length > 0) {
+      cart.forEach((item) => {
+        if (item.isPack) return;
+        const prod = productList.find((p) => p.id === item.productId || (item.barcode && p.barcode === item.barcode));
+        if (prod) {
+          const newPrice = getProductTierPrice(prod, tier);
+          if (newPrice > 0) {
+            onEditPrice(item.productId, newPrice);
+          }
+        }
+      });
+    }
+  }, [allProducts, products, cart, onEditPrice, wholesaleMode, toggleWholesaleMode, setPriceTier]);
   const [isLockedBarcode, setIsLockedBarcode] = useState(true);
   const [selectedCartRowId, setSelectedCartRowId] = useState<string | null>(null);
   const [tableSearchBarcode, setTableSearchBarcode] = useState('');
@@ -320,35 +349,6 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
     }
     return list.slice(0, 15);
   }, [products, allProducts, searchQuery]);
-
-  // Helper to calculate price according to active tier
-  const getProductPriceByTier = (prod: Product, tier: '1' | '2' | '3' | '4') => {
-    return getProductTierPrice(prod, tier);
-  };
-
-  // Handle price tier switch
-  const handleSelectPriceTier = useCallback((tier: '1' | '2' | '3' | '4') => {
-    setPriceTier(tier);
-    if (tier === '3') {
-      if (!wholesaleMode) toggleWholesaleMode();
-    } else if (tier === '1') {
-      if (wholesaleMode) toggleWholesaleMode();
-    }
-    // Synchronize current cart items to chosen tier
-    const productList = allProducts && allProducts.length > 0 ? allProducts : products;
-    if (onEditPrice && cart.length > 0) {
-      cart.forEach((item) => {
-        if (item.isPack) return;
-        const prod = productList.find((p) => p.id === item.productId || (item.barcode && p.barcode === item.barcode));
-        if (prod) {
-          const newPrice = getProductTierPrice(prod, tier);
-          if (newPrice > 0) {
-            onEditPrice(item.productId, newPrice);
-          }
-        }
-      });
-    }
-  }, [allProducts, products, cart, onEditPrice, wholesaleMode, toggleWholesaleMode, setPriceTier]);
 
   // Dedicated Price Checker Submit / Scan Handler
   const handleBarcodeOrQuerySubmit = (e?: React.FormEvent) => {
