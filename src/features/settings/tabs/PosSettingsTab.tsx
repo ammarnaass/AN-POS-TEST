@@ -1,6 +1,6 @@
 // Tab Component: PosSettingsTab (Refactored from SettingsPage.tsx)
 import React from 'react';
-import { ShoppingCart, Zap, Package, Bell, BarChart3, CreditCard, ShieldCheck, ArrowLeftRight } from 'lucide-react';
+import { ShoppingCart, Zap, Package, Bell, BarChart3, CreditCard, ShieldCheck, ArrowLeftRight, Star } from 'lucide-react';
 
 interface PosSettingsTabProps {
   [key: string]: any;
@@ -47,6 +47,13 @@ export default function PosSettingsTab({
                     desc: 'إظهار تنبيه بصري للكاشير عند محاولة بيع منتج منتهي الرصيد',
                     icon: Bell,
                     color: 'text-blue-500 bg-blue-500/10',
+                  },
+                  {
+                    key: 'terminalFavoritesMode',
+                    title: 'تفعيل المفضلة والعبوات في تصميم 5 (Terminal)',
+                    desc: 'عرض تصنيفات المفضلة وعبوات الجملة في الشريط السفلي لكاشير تصميم 5 بدلاً من التجزئة',
+                    icon: Star,
+                    color: 'text-amber-500 bg-amber-500/10',
                   },
                   {
                     key: 'averagePricing',

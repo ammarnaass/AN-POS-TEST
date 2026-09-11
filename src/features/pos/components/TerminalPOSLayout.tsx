@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   Check,
   X,
@@ -26,10 +26,13 @@ import {
   AlertCircle,
   CheckCircle2,
   FileText,
+  Star,
 } from 'lucide-react';
 import type { CartItem, Product, Category } from '@/types';
 import { useThemeStore } from '@/store/themeStore';
 import { getProductTierPrice } from '@/services';
+import { useFavoritesStore } from '@/features/favorites/store/useFavoritesStore';
+import { usePOSSessionStore } from '../store/usePOSSessionStore';
 
 interface TerminalPOSLayoutProps {
   cart: CartItem[];
@@ -151,15 +154,27 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
   // Price tier: 1 = retail, 2 = semi-wholesale, 3 = wholesale, 4 = special
   const [internalPriceTier, setInternalPriceTier] = useState<'1' | '2' | '3' | '4'>('1');
   const priceTier = propPriceTier ?? internalPriceTier;
-  const setPriceTier = (tier: '1' | '2' | '3' | '4') => {
+  const setPriceTier = useCallback((tier: '1' | '2' | '3' | '4') => {
     setInternalPriceTier(tier);
     if (onSelectPriceTier) onSelectPriceTier(tier);
-  };
+  }, [onSelectPriceTier]);
   const [isLockedBarcode, setIsLockedBarcode] = useState(true);
   const [selectedCartRowId, setSelectedCartRowId] = useState<string | null>(null);
   const [tableSearchBarcode, setTableSearchBarcode] = useState('');
   const [editingPriceItemId, setEditingPriceItemId] = useState<string | null>(null);
   const [customPriceInput, setCustomPriceInput] = useState('');
+
+  // Favorites & Category Mode Integration
+  const { categories: favoriteCategories, items: favoriteItems } = useFavoritesStore();
+  const { terminalCategoryMode, setTerminalCategoryMode } = usePOSSessionStore();
+  const [selectedFavoriteCatId, setSelectedFavoriteCatId] = useState<string>('ALL');
+
+  const displayedFavoriteItems = useMemo(() => {
+    if (selectedFavoriteCatId === 'ALL') {
+      return favoriteItems;
+    }
+    return favoriteItems.filter((it) => it.categoryId === selectedFavoriteCatId);
+  }, [favoriteItems, selectedFavoriteCatId]);
 
   // Dedicated Price Checker Mode (عارض الأسعار التفاعلي)
   const [isPriceCheckerMode, setIsPriceCheckerMode] = useState(false);
@@ -271,6 +286,7 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
     onOpenKeypad,
     isPriceCheckerMode,
     onNavigateBack,
+    handleSelectPriceTier,
   ]);
 
   // Auto-refocus barcode input if 'العودة للرمز دائماً' is active
@@ -311,7 +327,7 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
   };
 
   // Handle price tier switch
-  const handleSelectPriceTier = (tier: '1' | '2' | '3' | '4') => {
+  const handleSelectPriceTier = useCallback((tier: '1' | '2' | '3' | '4') => {
     setPriceTier(tier);
     if (tier === '3') {
       if (!wholesaleMode) toggleWholesaleMode();
@@ -332,7 +348,7 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
         }
       });
     }
-  };
+  }, [allProducts, products, cart, onEditPrice, wholesaleMode, toggleWholesaleMode, setPriceTier]);
 
   // Dedicated Price Checker Submit / Scan Handler
   const handleBarcodeOrQuerySubmit = (e?: React.FormEvent) => {
@@ -1281,32 +1297,137 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
             </div>
           </div>
 
-          {/* Bottom Section: جدول الأصناف الأكثر مبيعاً + تبويبات الفئات العمودية الكاملة */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2 shadow-2xs flex gap-2 h-44 sm:h-48 shrink-0">
-            {/* شبكة المنتجات السريعة (تتكيف مع مختلف الشاشات) */}
+          {/* Bottom Section: جدول الأصناف الأكثر مبيعاً / المفضلة + تبويبات الفئات */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2 shadow-2xs flex gap-2 h-48 sm:h-52 shrink-0">
+            {/* شبكة الأصناف (منتجات سريعة أو عبوات المفضلة) */}
             <div className="flex-1 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-1.5 overflow-y-auto custom-scrollbar p-0.5">
-              {quickProducts.map((prod, pIdx) => {
-                const price = getProductPriceByTier(prod, priceTier);
-                return (
-                  <button
-                    key={prod.id || `qp-${pIdx}`}
-                    type="button"
-                    onClick={() => onAddToCart({ ...prod, price, retailPrice: price }, price)}
-                    className="bg-slate-50 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:border-blue-300 dark:hover:border-blue-700 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-lg p-1.5 flex flex-col justify-between items-center text-center shadow-2xs transition group cursor-pointer active:scale-95 min-h-[44px]"
-                    title={`إضافة ${prod.name} بسعر ${formatMoney(price)} ${currency}`}
-                  >
-                    <span className="text-[11px] font-bold leading-tight group-hover:text-blue-700 dark:group-hover:text-blue-400 line-clamp-2">
-                      {prod.name}
-                    </span>
-                    <span className="bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-300 font-bold text-[10px] font-mono px-2 py-0.5 rounded-full mt-1">
-                      {formatMoney(price)} {currency}
-                    </span>
-                  </button>
-                );
-              })}
+              {terminalCategoryMode === 'favorites' ? (
+                displayedFavoriteItems.length > 0 ? (
+                  displayedFavoriteItems.map((favItem, fIdx) => {
+                    const isPack = favItem.type === 'pack';
+                    let price = favItem.price;
+                    if (!isPack) {
+                      const matchedProd = allProducts.find((p) => p.id === favItem.itemId);
+                      if (matchedProd) {
+                        price = getProductPriceByTier(matchedProd, priceTier);
+                      }
+                    }
 
-              {/* أزرار حرة إضافية تحاكي "+ منتج حر" في التصميم الأصلي */}
-              {Array.from({ length: Math.max(0, 15 - quickProducts.length) }).map((_, idx) => (
+                    return (
+                      <button
+                        key={favItem.id || `fav-${fIdx}`}
+                        type="button"
+                        onClick={() => {
+                          if (isPack) {
+                            onAddToCart(
+                              {
+                                id: `pack-${favItem.itemId}`,
+                                name: favItem.name,
+                                barcode: favItem.barcode,
+                                retailPrice: favItem.price,
+                                price: favItem.price,
+                                isPack: true,
+                                packId: favItem.itemId,
+                                packPiecesCount: favItem.packQty || 1,
+                              } as any,
+                              favItem.price
+                            );
+                          } else {
+                            const matchedProd = allProducts.find((p) => p.id === favItem.itemId);
+                            if (matchedProd) {
+                              onAddToCart({ ...matchedProd, price, retailPrice: price }, price);
+                            } else {
+                              onAddToCart(
+                                {
+                                  id: favItem.itemId,
+                                  name: favItem.name,
+                                  barcode: favItem.barcode,
+                                  retailPrice: price,
+                                  price,
+                                } as any,
+                                price
+                              );
+                            }
+                          }
+                        }}
+                        className={`rounded-lg p-1.5 flex flex-col justify-between items-center text-center shadow-2xs transition group cursor-pointer active:scale-95 min-h-[46px] border ${
+                          isPack
+                            ? 'bg-emerald-50/50 dark:bg-emerald-950/20 hover:bg-emerald-100/60 dark:hover:bg-emerald-900/40 border-emerald-200 dark:border-emerald-800/60 text-slate-800 dark:text-slate-100'
+                            : 'bg-slate-50 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/40 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100'
+                        }`}
+                        title={`إضافة ${favItem.name} بسعر ${formatMoney(price)} ${currency}`}
+                      >
+                        <div className="w-full flex items-center justify-between gap-1 mb-0.5">
+                          {isPack ? (
+                            <span className="text-[9px] font-bold px-1 rounded bg-emerald-600 text-white truncate max-w-full">
+                              ×{favItem.packQty || 1} {favItem.packUnit || 'عبوة'}
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-bold px-1 rounded bg-blue-600 text-white">
+                              تجزئة
+                            </span>
+                          )}
+                          {favItem.barcode && (
+                            <span className="text-[8px] font-mono text-slate-400 truncate max-w-[50px]">
+                              {favItem.barcode}
+                            </span>
+                          )}
+                        </div>
+
+                        <span className="text-[11px] font-bold leading-tight group-hover:text-emerald-700 dark:group-hover:text-emerald-400 line-clamp-2 w-full text-center">
+                          {favItem.name}
+                        </span>
+
+                        <span
+                          className={`font-bold text-[10px] font-mono px-2 py-0.5 rounded-full mt-1 ${
+                            isPack
+                              ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300'
+                              : 'bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-300'
+                          }`}
+                        >
+                          {formatMoney(price)} {currency}
+                        </span>
+                      </button>
+                    );
+                  })
+                ) : (
+                  <div className="col-span-full flex flex-col items-center justify-center py-6 text-slate-400 text-xs">
+                    <Star className="w-6 h-6 mb-1 text-amber-400 stroke-1" />
+                    <span>لا توجد عبوات أو منتجات في هذا التصنيف المفضل</span>
+                  </div>
+                )
+              ) : (
+                quickProducts.map((prod, pIdx) => {
+                  const price = getProductPriceByTier(prod, priceTier);
+                  return (
+                    <button
+                      key={prod.id || `qp-${pIdx}`}
+                      type="button"
+                      onClick={() => onAddToCart({ ...prod, price, retailPrice: price }, price)}
+                      className="bg-slate-50 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:border-blue-300 dark:hover:border-blue-700 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-lg p-1.5 flex flex-col justify-between items-center text-center shadow-2xs transition group cursor-pointer active:scale-95 min-h-[44px]"
+                      title={`إضافة ${prod.name} بسعر ${formatMoney(price)} ${currency}`}
+                    >
+                      <span className="text-[11px] font-bold leading-tight group-hover:text-blue-700 dark:group-hover:text-blue-400 line-clamp-2">
+                        {prod.name}
+                      </span>
+                      <span className="bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-300 font-bold text-[10px] font-mono px-2 py-0.5 rounded-full mt-1">
+                        {formatMoney(price)} {currency}
+                      </span>
+                    </button>
+                  );
+                })
+              )}
+
+              {/* أزرار حرة إضافية تحاكي "+ منتج حر" */}
+              {Array.from({
+                length: Math.max(
+                  0,
+                  15 -
+                    (terminalCategoryMode === 'favorites'
+                      ? displayedFavoriteItems.length
+                      : quickProducts.length)
+                ),
+              }).map((_, idx) => (
                 <button
                   key={`empty-slot-${idx}`}
                   type="button"
@@ -1319,41 +1440,121 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
               ))}
             </div>
 
-            {/* أزرار الفئات الجانبية القائمة (كاملة وتستوعب جميع الفئات بالسكرول) */}
-            <div className="w-32 sm:w-36 flex flex-col gap-1 border-r border-slate-200 dark:border-slate-800 pr-1.5 overflow-y-auto custom-scrollbar max-h-full">
-              <button
-                type="button"
-                onClick={() => onSelectCategory('ALL')}
-                className={`font-bold text-xs py-2 px-2 rounded-lg transition text-center cursor-pointer shadow-2xs shrink-0 active:scale-95 ${
-                  !selectedCategory || selectedCategory === 'ALL'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700'
-                }`}
-                title="عرض جميع الأصناف دون تصفية"
-              >
-                جميع الأصناف
-              </button>
+            {/* أزرار الفئات الجانبية القائمة مع مبدل الوضع السريع */}
+            <div className="w-36 sm:w-40 flex flex-col gap-1 border-r border-slate-200 dark:border-slate-800 pr-1.5 overflow-y-auto custom-scrollbar max-h-full">
+              {/* مبدل نمط العرض السريع: المفضلة والعبوات ★ | تصنيفات التجزئة 📦 */}
+              <div className="flex items-center gap-1 p-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shrink-0 mb-0.5">
+                <button
+                  type="button"
+                  onClick={() => setTerminalCategoryMode('favorites')}
+                  className={`flex-1 py-1 text-[10px] font-black rounded transition text-center cursor-pointer ${
+                    terminalCategoryMode === 'favorites'
+                      ? 'bg-amber-500 text-white shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                  title="عرض المفضلة والعبوات"
+                >
+                  ★ المفضلة
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTerminalCategoryMode('products')}
+                  className={`flex-1 py-1 text-[10px] font-black rounded transition text-center cursor-pointer ${
+                    terminalCategoryMode === 'products'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                  title="عرض تصنيفات التجزئة"
+                >
+                  📦 التجزئة
+                </button>
+              </div>
 
-              {categories.map((cat, cIdx) => {
-                const catId = typeof cat === 'object' && cat !== null ? (cat as any).id : String(cat);
-                const catName = typeof cat === 'object' && cat !== null ? (cat as any).name : String(cat);
-                const isSelected = selectedCategory === catId;
-                return (
+              {terminalCategoryMode === 'favorites' ? (
+                <>
                   <button
-                    key={catId || `cat-${cIdx}`}
                     type="button"
-                    onClick={() => onSelectCategory(catId)}
-                    className={`font-bold text-xs py-2 px-2 rounded-lg transition text-center truncate cursor-pointer shrink-0 active:scale-95 ${
-                      isSelected
+                    onClick={() => setSelectedFavoriteCatId('ALL')}
+                    className={`font-bold text-xs py-1.5 px-2 rounded-lg transition text-center cursor-pointer shadow-2xs shrink-0 active:scale-95 flex items-center justify-between ${
+                      selectedFavoriteCatId === 'ALL'
+                        ? 'bg-amber-500 text-white shadow-xs'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700'
+                    }`}
+                    title="عرض جميع العبوات المفضلة"
+                  >
+                    <span className="truncate">جميع المفضلة</span>
+                    <span className="text-[10px] font-mono px-1 rounded bg-black/15">
+                      {favoriteItems.length}
+                    </span>
+                  </button>
+
+                  {favoriteCategories.map((favCat) => {
+                    const isSelected = selectedFavoriteCatId === favCat.id;
+                    const catCount = favoriteItems.filter((i) => i.categoryId === favCat.id).length;
+
+                    return (
+                      <button
+                        key={favCat.id}
+                        type="button"
+                        onClick={() => setSelectedFavoriteCatId(favCat.id)}
+                        className={`font-bold text-xs py-1.5 px-2 rounded-lg transition text-center truncate cursor-pointer shrink-0 active:scale-95 flex items-center justify-between gap-1 ${
+                          isSelected
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700'
+                        }`}
+                        title={`تصفية عبوات: ${favCat.name}`}
+                      >
+                        <div className="flex items-center gap-1.5 truncate">
+                          <span
+                            className="w-2 h-2 rounded-full shrink-0"
+                            style={{ backgroundColor: favCat.color || '#059669' }}
+                          />
+                          <span className="truncate">{favCat.name}</span>
+                        </div>
+                        <span className="text-[10px] font-mono px-1 rounded bg-black/15 shrink-0">
+                          {catCount}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => onSelectCategory('ALL')}
+                    className={`font-bold text-xs py-2 px-2 rounded-lg transition text-center cursor-pointer shadow-2xs shrink-0 active:scale-95 ${
+                      !selectedCategory || selectedCategory === 'ALL'
                         ? 'bg-blue-600 text-white shadow-xs'
                         : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700'
                     }`}
-                    title={`تصفية حسب: ${catName}`}
+                    title="عرض جميع الأصناف دون تصفية"
                   >
-                    {catName}
+                    جميع الأصناف
                   </button>
-                );
-              })}
+
+                  {categories.map((cat, cIdx) => {
+                    const catId = typeof cat === 'object' && cat !== null ? (cat as any).id : String(cat);
+                    const catName = typeof cat === 'object' && cat !== null ? (cat as any).name : String(cat);
+                    const isSelected = selectedCategory === catId;
+                    return (
+                      <button
+                        key={catId || `cat-${cIdx}`}
+                        type="button"
+                        onClick={() => onSelectCategory(catId)}
+                        className={`font-bold text-xs py-2 px-2 rounded-lg transition text-center truncate cursor-pointer shrink-0 active:scale-95 ${
+                          isSelected
+                            ? 'bg-blue-600 text-white shadow-xs'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700'
+                        }`}
+                        title={`تصفية حسب: ${catName}`}
+                      >
+                        {catName}
+                      </button>
+                    );
+                  })}
+                </>
+              )}
             </div>
 
             {/* زر المزيد F10 وأيقونة البحث الجانبية */}

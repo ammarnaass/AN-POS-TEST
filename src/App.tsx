@@ -18,6 +18,7 @@ const CashPage = lazy(() => import('@/features/cash/CashPage'));
 const ExpensesPage = lazy(() => import('@/features/expenses/ExpensesPage'));
 const PromotionsPage = lazy(() => import('@/features/promotions/PromotionsPage'));
 const PacksPage = lazy(() => import('@/features/promotions/PacksPage'));
+const FavoritesPage = lazy(() => import('@/features/favorites/FavoritesPage'));
 const SettingsPage = lazy(() => import('@/features/settings/SettingsPage'));
 const Dashboard = lazy(() => import('@/pages/dashboard/DashboardPage'));
 const DeliveryOrders = lazy(() => import('@/features/orders/DeliveryOrdersPage'));
@@ -99,6 +100,7 @@ export default function App() {
               <Route path="expenses" element={<ExpensesPage />} />
               <Route path="promotions" element={<PromotionsPage />} />
               <Route path="packs" element={<PacksPage />} />
+              <Route path="favorites" element={<FavoritesPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="settings/print-templates" element={<PrintTemplatesPage />} />
               <Route path="delivery-orders" element={<DeliveryOrders />} />

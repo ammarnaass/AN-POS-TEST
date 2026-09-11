@@ -29,6 +29,7 @@ import {
   HardDrive,
   ChevronLeft,
   Zap,
+  Star,
   PanelRightClose,
   PanelRightOpen,
 } from 'lucide-react';
@@ -52,6 +53,7 @@ const menuSections: NavSection[] = [
     items: [
       { path: '/pos/quick', label: 'نقطة البيع السريع', icon: Zap, badge: '⚡ سريع' },
       { path: '/pos', label: 'نقطة البيع المتقدمة', icon: ShoppingCart, badge: 'PRO' },
+      { path: '/favorites', label: 'المفضلة', icon: Star, badge: 'سريع ★' },
       { path: '/', label: 'لوحة التحكم', icon: LayoutDashboard },
       { path: '/sales', label: 'المبيعات', icon: Receipt },
       { path: '/cash', label: 'الخزينة', icon: DollarSign, roles: ['admin', 'cashier'] },

@@ -22,6 +22,8 @@ import {
   Sliders,
   Check,
   Terminal,
+  Star,
+  Package,
 } from 'lucide-react';
 import { useThemeStore } from '@/store/themeStore';
 import {
@@ -143,6 +145,7 @@ export const CustomizeLayoutModal: React.FC<CustomizeLayoutModalProps> = ({
   setResolutionScaleMode,
 }) => {
   const { theme, setTheme } = useThemeStore();
+  const { terminalCategoryMode, setTerminalCategoryMode } = usePOSSessionStore();
   const store = usePOSSessionStore();
 
   const activeResolution = screenResolution ?? store.screenResolution;
@@ -644,6 +647,61 @@ export const CustomizeLayoutModal: React.FC<CustomizeLayoutModalProps> = ({
                 }`}
               />
             </button>
+          </div>
+
+          {/* Section: تبويبات الشريط السفلي في تصميم 5 (Terminal POS) */}
+          <div className="p-3.5 rounded-2xl bg-surface-container dark:bg-slate-800/60 border border-outline-variant/15 dark:border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Terminal className="w-4 h-4 text-emerald-500" />
+                <span className="text-xs font-bold text-on-surface dark:text-white">
+                  تبويبات الشريط السفلي في تصميم 5 (Terminal POS)
+                </span>
+              </div>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                تصميم 5
+              </span>
+            </div>
+            <p className="text-[10px] text-on-surface-variant dark:text-slate-400">
+              اختر ما يظهر في شريط الفئات والأصناف السريعة أسفل شاشة كاشير تصميم 5:
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => setTerminalCategoryMode('favorites')}
+                className={`p-3 rounded-xl border text-right transition cursor-pointer flex items-start gap-2.5 ${
+                  terminalCategoryMode === 'favorites'
+                    ? 'border-emerald-500 bg-emerald-50/30 dark:bg-emerald-950/40 shadow-xs ring-1 ring-emerald-500'
+                    : 'border-outline-variant/20 dark:border-slate-700 bg-surface-container-high dark:bg-slate-800'
+                }`}
+              >
+                <Star className={`w-4 h-4 shrink-0 mt-0.5 ${terminalCategoryMode === 'favorites' ? 'text-amber-500 fill-amber-500' : 'text-slate-400'}`} />
+                <div>
+                  <div className="text-xs font-bold text-on-surface dark:text-white">المفضلة وتصنيفات العبوات (★)</div>
+                  <div className="text-[10px] text-on-surface-variant dark:text-slate-400 mt-0.5 leading-relaxed">
+                    عرض تصنيفات المفضلة والعبوات والكراتين السريعة لتسريع خدمة الزبائن
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setTerminalCategoryMode('products')}
+                className={`p-3 rounded-xl border text-right transition cursor-pointer flex items-start gap-2.5 ${
+                  terminalCategoryMode === 'products'
+                    ? 'border-blue-500 bg-blue-50/30 dark:bg-blue-950/40 shadow-xs ring-1 ring-blue-500'
+                    : 'border-outline-variant/20 dark:border-slate-700 bg-surface-container-high dark:bg-slate-800'
+                }`}
+              >
+                <Package className={`w-4 h-4 shrink-0 mt-0.5 ${terminalCategoryMode === 'products' ? 'text-blue-500' : 'text-slate-400'}`} />
+                <div>
+                  <div className="text-xs font-bold text-on-surface dark:text-white">تصنيفات التجزئة القياسية (📦)</div>
+                  <div className="text-[10px] text-on-surface-variant dark:text-slate-400 mt-0.5 leading-relaxed">
+                    عرض تصنيفات المنتجات المعتادة للمتجر والأصناف السريعة
+                  </div>
+                </div>
+              </button>
+            </div>
           </div>
 
           {/* Section 5: تكبير وتصغير الواجهة (Zoom) */}

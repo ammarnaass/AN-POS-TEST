@@ -50,6 +50,7 @@ interface POSSessionState {
   customResolution: { width: number; height: number };
   resolutionScaleMode: ResolutionScaleMode;
   quickMode: boolean;
+  terminalCategoryMode: 'favorites' | 'products';
 
   // Suspended orders
   suspendedOrders: SuspendedOrder[];
@@ -75,6 +76,7 @@ interface POSSessionState {
   setScreenResolution: (res: ScreenResolution | ((prev: ScreenResolution) => ScreenResolution)) => void;
   setCustomResolution: (custom: { width: number; height: number } | ((prev: { width: number; height: number }) => { width: number; height: number })) => void;
   setResolutionScaleMode: (mode: ResolutionScaleMode | ((prev: ResolutionScaleMode) => ResolutionScaleMode)) => void;
+  setTerminalCategoryMode: (mode: 'favorites' | 'products' | ((prev: 'favorites' | 'products') => 'favorites' | 'products')) => void;
   wholesaleMode: boolean;
   setWholesaleMode: (val: boolean | ((prev: boolean) => boolean)) => void;
   toggleWholesaleMode: () => void;
@@ -159,6 +161,14 @@ export const usePOSSessionStore = create<POSSessionState>((set) => ({
       return (saved as ResolutionScaleMode) || 'fit_screen';
     } catch {
       return 'fit_screen';
+    }
+  })(),
+  terminalCategoryMode: (() => {
+    try {
+      const saved = localStorage.getItem('pos_terminal_category_mode');
+      return (saved as 'favorites' | 'products') || 'favorites';
+    } catch {
+      return 'favorites';
     }
   })(),
   wholesaleMode: (() => {
@@ -383,6 +393,17 @@ export const usePOSSessionStore = create<POSSessionState>((set) => ({
         // ignore
       }
       return { resolutionScaleMode: next };
+    }),
+
+  setTerminalCategoryMode: (mode) =>
+    set((state) => {
+      const next = typeof mode === 'function' ? mode(state.terminalCategoryMode) : mode;
+      try {
+        localStorage.setItem('pos_terminal_category_mode', next);
+      } catch {
+        // ignore
+      }
+      return { terminalCategoryMode: next };
     }),
 
   setWholesaleMode: (val) =>
