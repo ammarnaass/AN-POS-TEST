@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
 import MobileNav from '@/components/layout/MobileNav';
@@ -16,6 +16,7 @@ export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user: currentUser, isAuthenticated, logout } = useAuthStore();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const isDeveloper = currentUser?.role === 'developer';
   const [trial, setTrial] = useState(() => getTrialState(currentUser?.role));
@@ -52,6 +53,13 @@ export default function DashboardLayout() {
     return () => clearInterval(timer);
   }, [isDeveloper, currentUser?.role]);
 
+  // عند انتهاء فترة الـ 7 أيام، التوجيه التلقائي الفوري لصفحة الترخيص
+  useEffect(() => {
+    if (isExpiredAndLocked && location.pathname !== '/settings') {
+      navigate('/settings', { replace: true, state: { tab: 'activation' } });
+    }
+  }, [isExpiredAndLocked, location.pathname, navigate]);
+
   useEffect(() => {
     if (showNotification) {
       const timer = setTimeout(() => {
@@ -67,10 +75,12 @@ export default function DashboardLayout() {
     localStorage.setItem('anpos_trial_notif_dismissed', 'true');
   };
 
+  const isOutsideSettings = location.pathname !== '/settings';
+
   return (
     <AuthGuard>
-      {/* نافذة قفل التطبيق وإلزام التفعيل عند انتهاء فترة الـ 7 أيام (لكل الحسابات عدا المطور) */}
-      {isExpiredAndLocked && (
+      {/* نافذة قفل التطبيق تظهر كحاجز أمان إذا كان المستخدم خارج صفحة الترخيص */}
+      {isExpiredAndLocked && isOutsideSettings && (
         <ActivationLockModal onActivated={() => window.location.reload()} />
       )}
 
@@ -79,8 +89,8 @@ export default function DashboardLayout() {
         <TrialNotification onClose={dismissNotification} />
       )}
 
-      <div className={`flex h-screen overflow-hidden bg-background ${isExpiredAndLocked ? 'pointer-events-none select-none blur-[2px]' : ''}`} dir="rtl">
-        <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <div className={`flex h-screen overflow-hidden bg-background ${isExpiredAndLocked && isOutsideSettings ? 'pointer-events-none select-none blur-[2px]' : ''}`} dir="rtl">
+        <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isExpiredAndLocked={isExpiredAndLocked} />
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           {/* شريط التجربة الدائم - لا يُحذف إلا بعد تفعيل الترخيص */}
           {showTrialBanner && <TrialBanner />}

@@ -32,6 +32,7 @@ import {
   Star,
   PanelRightClose,
   PanelRightOpen,
+  Lock,
 } from 'lucide-react';
 
 interface NavItem {
@@ -89,9 +90,10 @@ interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   isPosMode?: boolean;
+  isExpiredAndLocked?: boolean;
 }
 
-export default function Sidebar({ isOpen, onClose, isPosMode = false }: SidebarProps) {
+export default function Sidebar({ isOpen, onClose, isPosMode = false, isExpiredAndLocked = false }: SidebarProps) {
   const { user: currentUser, logout } = useAuthStore();
   const { isCollapsed, toggleCollapse } = useSidebarStore();
   const navigate = useNavigate();
@@ -322,69 +324,89 @@ export default function Sidebar({ isOpen, onClose, isPosMode = false }: SidebarP
                   {section.title}
                 </p>
 
-                {filteredItems.map((item) => (
-                  <NavLink
-                    key={item.path}
-                    to={item.path}
-                    onClick={() => {
-                      if (isPosMode || window.innerWidth < 1024) {
-                        onClose();
+                {filteredItems.map((item) => {
+                  const isItemLocked = isExpiredAndLocked && item.path !== '/settings';
+                  return (
+                    <NavLink
+                      key={item.path}
+                      to={isItemLocked ? '/settings' : item.path}
+                      state={isItemLocked ? { tab: 'activation' } : undefined}
+                      onClick={(e) => {
+                        if (isItemLocked) {
+                          e.preventDefault();
+                          navigate('/settings', { state: { tab: 'activation' } });
+                        }
+                        if (isPosMode || window.innerWidth < 1024) {
+                          onClose();
+                        }
+                      }}
+                      title={!isPosMode && isCollapsed ? item.label : undefined}
+                      className={({ isActive }) =>
+                        `group relative flex items-center rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer ${
+                          !isPosMode && isCollapsed
+                            ? 'lg:justify-center lg:p-2.5 px-3 py-2 justify-between'
+                            : 'justify-between px-3 py-2.5'
+                        } ${
+                          isActive && !isItemLocked
+                            ? 'bg-primary text-on-primary font-bold shadow-md shadow-primary/20 scale-[1.01]'
+                            : isItemLocked
+                            ? 'opacity-40 text-on-surface-variant hover:bg-surface-container/50 cursor-not-allowed'
+                            : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
+                        }`
                       }
-                    }}
-                    title={!isPosMode && isCollapsed ? item.label : undefined}
-                    className={({ isActive }) =>
-                      `group relative flex items-center rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer ${
-                        !isPosMode && isCollapsed
-                          ? 'lg:justify-center lg:p-2.5 px-3 py-2 justify-between'
-                          : 'justify-between px-3 py-2.5'
-                      } ${
-                        isActive
-                          ? 'bg-primary text-on-primary font-bold shadow-md shadow-primary/20 scale-[1.01]'
-                          : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
-                      }`
-                    }
-                  >
-                    {({ isActive }) => (
-                      <>
-                        <div
-                          className={`flex items-center gap-2.5 ${
-                            !isPosMode && isCollapsed ? 'lg:gap-0' : ''
-                          }`}
-                        >
-                          <item.icon
-                            className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${
-                              isActive ? 'text-on-primary stroke-[2.5]' : 'text-on-surface-variant group-hover:text-primary'
-                            }`}
-                          />
-                          <span className={`${!isPosMode && isCollapsed ? 'lg:hidden' : 'inline'}`}>
-                            {item.label}
-                          </span>
-                        </div>
-
-                        {isActive && (
-                          <ChevronLeft
-                            className={`w-3.5 h-3.5 stroke-[3] text-on-primary/80 shrink-0 ${
-                              !isPosMode && isCollapsed ? 'lg:hidden' : 'block'
-                            }`}
-                          />
-                        )}
-
-                        {/* Badge if present and expanded */}
-                        {item.badge && (!isCollapsed || isPosMode) && (
-                          <span
-                            className={`text-[9px] font-mono font-black px-1.5 py-0.5 rounded-md ${
-                              isActive
-                                ? 'bg-black/25 text-white'
-                                : 'bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white'
+                    >
+                      {({ isActive }) => (
+                        <>
+                          <div
+                            className={`flex items-center gap-2.5 ${
+                              !isPosMode && isCollapsed ? 'lg:gap-0' : ''
                             }`}
                           >
-                            {item.badge}
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </NavLink>
-                ))}
+                            {isItemLocked ? (
+                              <Lock className="w-4 h-4 shrink-0 text-rose-500" />
+                            ) : (
+                              <item.icon
+                                className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${
+                                  isActive ? 'text-on-primary stroke-[2.5]' : 'text-on-surface-variant group-hover:text-primary'
+                                }`}
+                              />
+                            )}
+                            <span className={`${!isPosMode && isCollapsed ? 'lg:hidden' : 'inline'}`}>
+                              {item.label}
+                            </span>
+                          </div>
+
+                          {isActive && !isItemLocked && (
+                            <ChevronLeft
+                              className={`w-3.5 h-3.5 stroke-[3] text-on-primary/80 shrink-0 ${
+                                !isPosMode && isCollapsed ? 'lg:hidden' : 'block'
+                              }`}
+                            />
+                          )}
+
+                          {isItemLocked && (!isCollapsed || isPosMode) && (
+                            <span className="text-[9px] font-cairo font-bold text-rose-500 bg-rose-500/10 px-1.5 py-0.5 rounded-md">
+                              مغلق
+                            </span>
+                          )}
+
+                          {/* Badge if present and expanded */}
+                          {!isItemLocked && item.badge && (!isCollapsed || isPosMode) && (
+                            <span
+                              className={`text-[9px] font-mono font-black px-1.5 py-0.5 rounded-md ${
+                                isActive
+                                  ? 'bg-black/25 text-white'
+                                  : 'bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white'
+                              }`}
+                            >
+                              {item.badge}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </NavLink>
+                  );
+                })}
               </div>
             );
           })}

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldAlert, KeyRound, Copy, Check, Upload, LogOut, RefreshCw, Smartphone, ShieldCheck, Calendar, Clock } from 'lucide-react';
+import { ShieldAlert, KeyRound, Copy, Check, Upload, LogOut, RefreshCw, Smartphone, ShieldCheck, Calendar, Clock, Headphones } from 'lucide-react';
 import { fetchLicenseStatus, activateLicenseWithKey, type LicenseStatus } from '@/services/licenseService';
 import { clearTrial, getTrialState, formatTrialDate } from '@/services/trialService';
 import { useAuthStore } from '@/store/authStore';
 import { useNavigate } from 'react-router-dom';
+import SupportChannelsModal from '@/components/license/SupportChannelsModal';
 
 interface Props {
   onActivated?: () => void;
@@ -16,6 +17,7 @@ export default function ActivationLockModal({ onActivated }: Props) {
   const [isActivating, setIsActivating] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [showSupportModal, setShowSupportModal] = useState(false);
   const { logout } = useAuthStore();
   const navigate = useNavigate();
   const [trialState] = useState(() => getTrialState());
@@ -162,7 +164,17 @@ export default function ActivationLockModal({ onActivated }: Props) {
         {/* Key Input & Action Buttons */}
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-bold text-on-surface mb-1.5 font-cairo">كود التفعيل (License Key):</label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold text-on-surface font-cairo">كود التفعيل (License Key):</label>
+              <button
+                type="button"
+                onClick={() => setShowSupportModal(true)}
+                className="flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary/80 transition-colors cursor-pointer font-cairo bg-primary/10 hover:bg-primary/20 px-2.5 py-1 rounded-lg border border-primary/20"
+              >
+                <Headphones className="w-3.5 h-3.5" />
+                <span>تواصل مع الدعم الفني</span>
+              </button>
+            </div>
             <div className="relative">
               <input
                 type="text"
@@ -191,8 +203,24 @@ export default function ActivationLockModal({ onActivated }: Props) {
               <span>استيراد ملف (.lic)</span>
               <input type="file" accept=".lic,.key,.txt" onChange={handleFileUpload} className="hidden" />
             </label>
+
+            <button
+              type="button"
+              onClick={() => setShowSupportModal(true)}
+              className="h-11 px-3.5 border border-primary/30 hover:border-primary/50 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl text-xs font-bold font-cairo transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+            >
+              <Headphones className="w-4 h-4" />
+              <span>قنوات الدعم</span>
+            </button>
           </div>
         </div>
+
+        {/* نافذة قنوات الدعم الفني الشاملة */}
+        <SupportChannelsModal
+          isOpen={showSupportModal}
+          onClose={() => setShowSupportModal(false)}
+          hardwareFingerprint={licenseStatus?.hardwareFingerprint}
+        />
 
         {/* Bottom Bar: Logout Option */}
         <div className="pt-3 border-t border-outline-variant/15 flex items-center justify-between text-xs">

@@ -1,6 +1,7 @@
-import React from 'react';
-import { Upload, Smartphone, RefreshCw, Zap, ShieldCheck, KeyRound, AlertCircle, CheckCircle2, Copy, Check } from 'lucide-react';
+import React, { useState } from 'react';
+import { Upload, Smartphone, RefreshCw, Zap, ShieldCheck, KeyRound, AlertCircle, CheckCircle2, Copy, Check, Headphones, AlertTriangle } from 'lucide-react';
 import { formatTrialDate } from '@/services/trialService';
+import SupportChannelsModal from '@/components/license/SupportChannelsModal';
 
 interface ActivationTabProps {
   activationInput: string;
@@ -15,6 +16,7 @@ interface ActivationTabProps {
   licenseStatus: any;
   setActivationInput: (s: string) => void;
   trial: any;
+  isExpiredAndLocked?: boolean;
   [key: string]: any;
 }
 
@@ -30,19 +32,51 @@ export default function ActivationTab({
   isDeveloper,
   licenseStatus,
   setActivationInput,
-  trial
+  trial,
+  isExpiredAndLocked
 }: ActivationTabProps) {
+  const [showSupportModal, setShowSupportModal] = useState(false);
+  const isLocked = isExpiredAndLocked || (!isDeveloper && licenseStatus?.status !== 'active' && trial?.isExpired);
+
   return (
     <div className="space-y-6">
-            {/* بطاقة حالة الترخيص */}
-            <div className={`glass-card rounded-2xl border p-6 transition-all shadow-sm ${
-              licenseStatus?.status === 'active'
-                ? 'border-emerald-500/30 bg-gradient-to-br from-emerald-500/5 via-surface to-emerald-500/10'
-                : isDeveloper
-                ? 'border-indigo-500/30 bg-gradient-to-br from-indigo-500/5 via-surface to-indigo-500/10'
-                : licenseStatus?.status === 'expired'
-                ? 'border-rose-500/30 bg-gradient-to-br from-rose-500/5 via-surface to-rose-500/10'
-                : licenseStatus?.status === 'tampered'
+      {/* بانر تحذيري عاجل عند انتهاء فترة الـ 7 أيام وإيقاف البرنامج */}
+      {isLocked && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-rose-500/10 border-2 border-rose-500/40 text-rose-600 dark:text-rose-400 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-rose-500/20 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400 animate-pulse" />
+            </div>
+            <div>
+              <h3 className="text-sm sm:text-base font-black font-cairo">
+                توقف البرنامج عن العمل لانتهاء فترة التجربة المجانية (7 أيام)
+              </h3>
+              <p className="text-xs font-tajawal text-rose-700/80 dark:text-rose-300/80 mt-0.5">
+                تم قفل عمليات نقاط البيع والمخزون. للمتابعة واستئناف نشاطك التجاري، أدخل كود التفعيل المخصص أو تواصل مع الدعم الفني فوراً.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowSupportModal(true)}
+            className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold font-cairo transition-all flex items-center gap-2 shadow-md shrink-0 cursor-pointer"
+          >
+            <Headphones className="w-4 h-4" />
+            <span>تواصل مع الدعم الآن</span>
+          </button>
+        </div>
+      )}
+
+      {/* بطاقة حالة الترخيص */}
+      <div className={`glass-card rounded-2xl border p-6 transition-all shadow-sm ${
+        licenseStatus?.status === 'active'
+          ? 'border-emerald-500/30 bg-gradient-to-br from-emerald-500/5 via-surface to-emerald-500/10'
+          : isDeveloper
+          ? 'border-indigo-500/30 bg-gradient-to-br from-indigo-500/5 via-surface to-indigo-500/10'
+          : licenseStatus?.status === 'expired'
+          ? 'border-rose-500/30 bg-gradient-to-br from-rose-500/5 via-surface to-rose-500/10'
+          : licenseStatus?.status === 'tampered'
                 ? 'border-amber-500/30 bg-gradient-to-br from-amber-500/5 via-surface to-amber-500/10'
                 : 'border-primary/20 bg-gradient-to-br from-primary/5 via-surface to-primary/10'
             }`}>
@@ -222,7 +256,17 @@ export default function ActivationTab({
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-label-md text-on-surface mb-2 font-bold">كود التفعيل الرقمي (Digital License Key)</label>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                    <label className="block text-label-md text-on-surface font-bold">كود التفعيل الرقمي (Digital License Key)</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowSupportModal(true)}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary border border-primary/25 text-xs font-bold font-cairo transition-all shadow-sm cursor-pointer shrink-0 self-start sm:self-auto"
+                    >
+                      <Headphones className="w-4 h-4" />
+                      <span>تواصل مع الدعم الفني</span>
+                    </button>
+                  </div>
                   <div className="relative">
                     <textarea
                       rows={3}
@@ -267,6 +311,15 @@ export default function ActivationTab({
 
                   <button
                     type="button"
+                    onClick={() => setShowSupportModal(true)}
+                    className="px-5 py-3 border border-primary/30 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl text-label-md font-bold transition-all flex items-center gap-2 cursor-pointer shadow-sm"
+                  >
+                    <Headphones className="w-4 h-4" />
+                    <span>قنوات الدعم الفني</span>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={async () => {
                       try {
                         const text = await navigator.clipboard.readText();
@@ -290,16 +343,21 @@ export default function ActivationTab({
                 </p>
               </div>
               <button
-                onClick={() => addNotification({
-                  title: 'معلومات الدعم الفني',
-                  message: `بصمة جهازك: ${licenseStatus?.hardwareFingerprint || '—'}. يرجى إرسالها لمزود الخدمة.`,
-                  type: 'info'
-                })}
-                className="px-6 py-3 bg-surface-container-highest hover:bg-primary hover:text-on-primary text-on-surface rounded-xl text-label-md font-bold transition-all shrink-0 border border-outline-variant/20 shadow-sm"
+                type="button"
+                onClick={() => setShowSupportModal(true)}
+                className="px-6 py-3 bg-primary text-on-primary hover:bg-primary/90 rounded-xl text-label-md font-bold transition-all shrink-0 shadow-md flex items-center gap-2 cursor-pointer"
               >
-                طلب ترخيص جديد
+                <Headphones className="w-4 h-4" />
+                <span>طلب ترخيص / تواصل مع الدعم</span>
               </button>
             </div>
+
+            {/* نافذة قنوات الدعم الفني الشاملة */}
+            <SupportChannelsModal
+              isOpen={showSupportModal}
+              onClose={() => setShowSupportModal(false)}
+              hardwareFingerprint={licenseStatus?.hardwareFingerprint}
+            />
           </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router-dom';
 import Sidebar from '@/components/layout/Sidebar';
 import AuthGuard from '@/app/guards/AuthGuard';
 import TrialBanner from '@/components/trial/TrialBanner';
@@ -12,6 +12,7 @@ import { useSidebarStore } from '@/store/sidebarStore';
 export default function PosLayout() {
   const { isOpen, close } = useSidebarStore();
   const { user: currentUser } = useAuthStore();
+  const navigate = useNavigate();
 
   const isDeveloper = currentUser?.role === 'developer';
   const [trial, setTrial] = useState(() => getTrialState(currentUser?.role));
@@ -32,6 +33,13 @@ export default function PosLayout() {
     return () => clearInterval(timer);
   }, [isDeveloper, currentUser?.role]);
 
+  // عند انتهاء فترة التجربة، إغلاق نقطة البيع والتوجه لصفحة الترخيص
+  useEffect(() => {
+    if (isExpiredAndLocked) {
+      navigate('/settings', { replace: true, state: { tab: 'activation' } });
+    }
+  }, [isExpiredAndLocked, navigate]);
+
   return (
     <AuthGuard>
       {/* قفل واجهة نقطة البيع بالكامل عند انتهاء التجربة وإلزام التفعيل */}
@@ -45,7 +53,7 @@ export default function PosLayout() {
 
         <div className="flex-1 flex min-w-0 h-full overflow-hidden">
           {/* On POS screens, the sidebar is an off-canvas drawer that opens when invoked, saving 100% width for cashier */}
-          <Sidebar isOpen={isOpen} onClose={close} isPosMode={true} />
+          <Sidebar isOpen={isOpen} onClose={close} isPosMode={true} isExpiredAndLocked={isExpiredAndLocked} />
           <div className="flex-1 min-w-0 h-full overflow-hidden">
             <Outlet />
           </div>

@@ -17,7 +17,7 @@ import {
   FileText, Printer, Store, Bell, CircleDollarSign, Wifi, Smartphone, Key, RefreshCw,
   Globe, CreditCard, QrCode, HardDrive, Cloud, Monitor, ScrollText,
   Receipt, Tag, LayoutTemplate, Image as ImageIcon, ShoppingCart, Zap,
-  Package, BarChart3, Pencil, ListChecks, LogOut,
+  Package, BarChart3, Pencil, ListChecks, LogOut, Lock,
   // SYS-NET-001: Network & Connection icons
   Network, Server, Usb, Bluetooth, BluetoothConnected, Cable, ScanLine,
   ShieldCheck, KeyRound, Activity, Plug, AlertCircle, CheckCircle2, Cpu,
@@ -447,6 +447,13 @@ export default function SettingsPage() {
   const isDeveloper = currentUser?.role === 'developer';
   const trial = getTrialState(currentUser?.role);
   const isLicenseActive = Boolean(licenseStatus?.isLicensed && licenseStatus?.status === 'active');
+  const isExpiredAndLocked = !isDeveloper && !isLicenseActive && trial.isExpired;
+
+  useEffect(() => {
+    if (isExpiredAndLocked && activeTab !== 'activation') {
+      setActiveTab('activation');
+    }
+  }, [isExpiredAndLocked, activeTab]);
 
   useEffect(() => {
     fetchLicenseStatus().then(setLicenseStatus);
@@ -1191,18 +1198,35 @@ export default function SettingsPage() {
           {tabGroups.flatMap((g) => g.items).map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
+            const isTabDisabled = isExpiredAndLocked && tab.id !== 'activation';
             return (
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  if (isTabDisabled) {
+                    addNotification({
+                      title: 'النظام متوقف',
+                      message: 'انتهت فترة التجربة المجانية (7 أيام). يرجى تفعيل الترخيص أولاً للمتابعة.',
+                      type: 'warning'
+                    });
+                    return;
+                  }
+                  setActiveTab(tab.id);
+                }}
                 className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 cursor-pointer ${
                   isActive
                     ? 'bg-primary text-on-primary shadow-sm shadow-primary/20'
+                    : isTabDisabled
+                    ? 'opacity-40 text-on-surface-variant bg-surface-container/30 cursor-not-allowed'
                     : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container bg-surface-container/60'
                 }`}
               >
-                <Icon className={`w-4 h-4 ${isActive ? 'text-on-primary' : 'text-primary'}`} />
+                {isTabDisabled ? (
+                  <Lock className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                ) : (
+                  <Icon className={`w-4 h-4 ${isActive ? 'text-on-primary' : 'text-primary'}`} />
+                )}
                 <span>{tab.label}</span>
                 {tab.badge && (
                   <span
@@ -1229,33 +1253,54 @@ export default function SettingsPage() {
                   {group.title}
                 </div>
                 <nav className="space-y-1">
-                  {group.items.map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`flex items-center justify-between w-full px-3.5 py-2.5 rounded-2xl transition-all text-xs font-bold cursor-pointer ${
-                        activeTab === tab.id
-                          ? 'bg-primary text-on-primary shadow-md shadow-primary/20 scale-[1.02]'
-                          : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container border border-transparent'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? 'text-on-primary' : 'text-primary'}`} />
-                        <span>{tab.label}</span>
-                      </div>
-                      {tab.badge && (
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                            activeTab === tab.id
-                              ? 'bg-white/20 text-white'
-                              : 'bg-primary/10 text-primary'
-                          }`}
-                        >
-                          {tab.badge}
-                        </span>
-                      )}
-                    </button>
-                  ))}
+                  {group.items.map((tab) => {
+                    const isTabDisabled = isExpiredAndLocked && tab.id !== 'activation';
+                    return (
+                      <button
+                        key={tab.id}
+                        onClick={() => {
+                          if (isTabDisabled) {
+                            addNotification({
+                              title: 'النظام متوقف',
+                              message: 'انتهت فترة التجربة المجانية (7 أيام). يرجى تفعيل الترخيص أولاً للمتابعة.',
+                              type: 'warning'
+                            });
+                            return;
+                          }
+                          setActiveTab(tab.id);
+                        }}
+                        className={`flex items-center justify-between w-full px-3.5 py-2.5 rounded-2xl transition-all text-xs font-bold cursor-pointer ${
+                          activeTab === tab.id
+                            ? 'bg-primary text-on-primary shadow-md shadow-primary/20 scale-[1.02]'
+                            : isTabDisabled
+                            ? 'opacity-40 text-on-surface-variant bg-surface-container/20 cursor-not-allowed border border-transparent'
+                            : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container border border-transparent'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          {isTabDisabled ? (
+                            <Lock className="w-4 h-4 text-rose-500 shrink-0" />
+                          ) : (
+                            <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? 'text-on-primary' : 'text-primary'}`} />
+                          )}
+                          <span>{tab.label}</span>
+                        </div>
+                        {isTabDisabled ? (
+                          <span className="text-[10px] text-rose-500 font-cairo font-bold">مغلق</span>
+                        ) : tab.badge ? (
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                              activeTab === tab.id
+                                ? 'bg-white/20 text-white'
+                                : 'bg-primary/10 text-primary'
+                            }`}
+                          >
+                            {tab.badge}
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
                 </nav>
               </div>
             ))}
@@ -1273,7 +1318,7 @@ export default function SettingsPage() {
 
         {/* === تفعيل التطبيق (Ed25519 Offline-First) === */}
         {activeTab === 'activation' && (
-          <ActivationTab {...{ activationInput, addNotification, copiedFingerprint, handleActivate, handleCopyFingerprint, handleDeactivate, handleFileUpload, isActivating, isDeveloper, licenseStatus, setActivationInput, trial }} />
+          <ActivationTab {...{ activationInput, addNotification, copiedFingerprint, handleActivate, handleCopyFingerprint, handleDeactivate, handleFileUpload, isActivating, isDeveloper, licenseStatus, setActivationInput, trial, isExpiredAndLocked }} />
         )}
 
         {/* === الاعدادات العامة (مُطورة بتصميم استثنائي وتفاعلي) === */}

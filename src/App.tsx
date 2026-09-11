@@ -102,6 +102,7 @@ export default function App() {
               <Route path="packs" element={<PacksPage />} />
               <Route path="favorites" element={<FavoritesPage />} />
               <Route path="settings" element={<SettingsPage />} />
+              <Route path="license" element={<Navigate to="/settings" replace state={{ tab: 'activation' }} />} />
               <Route path="settings/print-templates" element={<PrintTemplatesPage />} />
               <Route path="delivery-orders" element={<DeliveryOrders />} />
               <Route path="support" element={<SupportPage />} />
