@@ -41,6 +41,8 @@ interface ClassicPOSTopBarProps {
   totalUnitsCount: number;
   currency?: string;
   formatMoney: (amount?: number) => string;
+  priceTier?: '1' | '2' | '3' | '4';
+  onSelectPriceTier?: (tier: '1' | '2' | '3' | '4') => void;
 }
 
 export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
@@ -67,6 +69,8 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
   totalUnitsCount,
   currency = 'دج',
   formatMoney,
+  priceTier = '1',
+  onSelectPriceTier,
 }) => {
   const { theme, toggleTheme } = useThemeStore();
 
@@ -145,6 +149,62 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
           <User className="w-3.5 h-3.5 text-primary" />
           <span className="max-w-[90px] truncate">{selectedCustomerName || 'زبون (F6)'}</span>
         </button>
+
+        {/* فئات الأسعار: س1 تجزئة، س2 نصف جملة، س3 جملة، س4 خاص */}
+        <div className="flex items-center bg-surface-container border border-outline-variant/20 rounded-xl p-0.5 gap-0.5 shrink-0 text-xs font-bold h-10">
+          <button
+            type="button"
+            onClick={() => onSelectPriceTier?.('1')}
+            className={`h-8.5 px-2 rounded-lg flex items-center gap-1 transition cursor-pointer text-xs font-bold ${
+              priceTier === '1'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-on-surface hover:bg-surface-container-high'
+            }`}
+            title="سعر التجزئة س1 (Alt+1)"
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${priceTier === '1' ? 'bg-white' : 'bg-blue-500'}`} />
+            <span>س1 (تجزئة)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onSelectPriceTier?.('2')}
+            className={`h-8.5 px-2 rounded-lg flex items-center gap-1 transition cursor-pointer text-xs font-bold ${
+              priceTier === '2'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-on-surface hover:bg-surface-container-high'
+            }`}
+            title="سعر نصف الجملة س2 (Alt+2)"
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${priceTier === '2' ? 'bg-white' : 'bg-emerald-500'}`} />
+            <span>س2</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onSelectPriceTier?.('3')}
+            className={`h-8.5 px-2 rounded-lg flex items-center gap-1 transition cursor-pointer text-xs font-bold ${
+              priceTier === '3'
+                ? 'bg-purple-600 text-white shadow-xs'
+                : 'text-on-surface hover:bg-surface-container-high'
+            }`}
+            title="سعر الجملة س3 (Alt+3)"
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${priceTier === '3' ? 'bg-white' : 'bg-purple-500'}`} />
+            <span>س3 (جملة)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onSelectPriceTier?.('4')}
+            className={`h-8.5 px-2 rounded-lg flex items-center gap-1 transition cursor-pointer text-xs font-bold ${
+              priceTier === '4'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'text-on-surface hover:bg-surface-container-high'
+            }`}
+            title="سعر خاص س4 (Alt+4)"
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${priceTier === '4' ? 'bg-white' : 'bg-amber-500'}`} />
+            <span>س4 (خاص)</span>
+          </button>
+        </div>
 
         {/* تخفيض */}
         <button

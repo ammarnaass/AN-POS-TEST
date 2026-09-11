@@ -11,6 +11,11 @@ interface ClassicPOSLayoutProps {
   onUpdateQty: (productId: string, qty: number) => void;
   onRemoveFromCart: (productId: string) => void;
   onClearCart: () => void;
+  onEditPrice?: (productId: string, newPrice: number) => void;
+  priceTier?: '1' | '2' | '3' | '4';
+  onSelectPriceTier?: (tier: '1' | '2' | '3' | '4') => void;
+  wholesaleMode?: boolean;
+  toggleWholesaleMode?: () => void;
   saleSummary: {
     subtotal: number;
     discountAmount: number;
@@ -56,6 +61,11 @@ export const ClassicPOSLayout: React.FC<ClassicPOSLayoutProps> = ({
   onUpdateQty,
   onRemoveFromCart,
   onClearCart,
+  onEditPrice,
+  priceTier = '1',
+  onSelectPriceTier,
+  wholesaleMode,
+  toggleWholesaleMode,
   saleSummary,
   products,
   allProducts,
@@ -96,7 +106,7 @@ export const ClassicPOSLayout: React.FC<ClassicPOSLayoutProps> = ({
     barcodeInputRef.current?.focus();
   }, [cart.length]);
 
-  // Handle keyboard shortcuts (Ctrl+D to delete selected item, Delete key)
+  // Handle keyboard shortcuts (Ctrl+D to delete selected item, Delete key, Alt+1..4 for tier pricing)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey && e.key.toLowerCase() === 'd') || e.key === 'Delete') {
@@ -108,11 +118,23 @@ export const ClassicPOSLayout: React.FC<ClassicPOSLayoutProps> = ({
           e.preventDefault();
           onRemoveFromCart(cart[cart.length - 1].productId);
         }
+      } else if (e.altKey && e.key === '1') {
+        e.preventDefault();
+        onSelectPriceTier?.('1');
+      } else if (e.altKey && e.key === '2') {
+        e.preventDefault();
+        onSelectPriceTier?.('2');
+      } else if (e.altKey && e.key === '3') {
+        e.preventDefault();
+        onSelectPriceTier?.('3');
+      } else if (e.altKey && e.key === '4') {
+        e.preventDefault();
+        onSelectPriceTier?.('4');
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedCartRowId, cart, onRemoveFromCart]);
+  }, [selectedCartRowId, cart, onRemoveFromCart, onSelectPriceTier]);
 
   const handleDeleteSelectedOrLast = useCallback(() => {
     if (selectedCartRowId) {
@@ -170,6 +192,8 @@ export const ClassicPOSLayout: React.FC<ClassicPOSLayoutProps> = ({
         onOpenKeypad={onOpenKeypad}
         onSaveAsProforma={onSaveAsProforma}
         onSaveAsOrder={onSaveAsOrder}
+        priceTier={priceTier}
+        onSelectPriceTier={onSelectPriceTier}
       />
 
       {/* 2. BARCODE & PRODUCT SEARCH BAR */}
@@ -198,6 +222,9 @@ export const ClassicPOSLayout: React.FC<ClassicPOSLayoutProps> = ({
         subtotal={saleSummary.subtotal}
         discountAmount={saleSummary.discountAmount}
         totalAmount={saleSummary.total}
+        products={products}
+        allProducts={allProducts}
+        onEditPrice={onEditPrice}
       />
 
       {/* 4. BOTTOM SECTION: QUICK ITEMS GRID & CATEGORIES */}
@@ -212,6 +239,7 @@ export const ClassicPOSLayout: React.FC<ClassicPOSLayoutProps> = ({
         userName={userName}
         storeName={storeName}
         isSessionOpen={isSessionOpen}
+        priceTier={priceTier}
       />
     </div>
   );

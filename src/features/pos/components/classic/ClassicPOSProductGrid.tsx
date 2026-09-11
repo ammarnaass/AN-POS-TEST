@@ -1,6 +1,7 @@
 import React from 'react';
 import { Package, Tag, Plus, Layers, Check } from 'lucide-react';
 import type { Product, Category } from '@/types';
+import { getProductTierPrice } from '@/services';
 
 interface ClassicPOSProductGridProps {
   displayedProducts: Product[];
@@ -13,6 +14,7 @@ interface ClassicPOSProductGridProps {
   userName?: string;
   storeName?: string;
   isSessionOpen: boolean;
+  priceTier?: '1' | '2' | '3' | '4';
 }
 
 export const ClassicPOSProductGrid: React.FC<ClassicPOSProductGridProps> = React.memo(({
@@ -26,6 +28,7 @@ export const ClassicPOSProductGrid: React.FC<ClassicPOSProductGridProps> = React
   userName = 'Admin',
   storeName = 'AN POS',
   isSessionOpen,
+  priceTier = '1',
 }) => {
   return (
     <>
@@ -47,7 +50,7 @@ export const ClassicPOSProductGrid: React.FC<ClassicPOSProductGridProps> = React
                     : prod.category) || 'عام';
                 const qty = prod.quantity ?? (prod as any).stock ?? 0;
                 const isOutOfStock = qty <= 0;
-                const price = (prod as any).price ?? prod.retailPrice ?? 0;
+                const price = getProductTierPrice(prod, priceTier);
 
                 return (
                   <button

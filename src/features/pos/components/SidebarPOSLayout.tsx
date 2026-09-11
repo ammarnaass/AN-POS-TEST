@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import type { CartItem, Product, Category } from '@/types';
 import { useThemeStore } from '@/store/themeStore';
+import { getProductTierPrice } from '@/services';
 
 interface SidebarPOSLayoutProps {
   cart: CartItem[];
@@ -72,6 +73,8 @@ interface SidebarPOSLayoutProps {
   onOpenCustomize: () => void;
   wholesaleMode: boolean;
   toggleWholesaleMode: () => void;
+  priceTier?: '1' | '2' | '3' | '4';
+  onSelectPriceTier?: (tier: '1' | '2' | '3' | '4') => void;
   onSaveAsProforma?: () => void;
   onNewOrder?: () => void;
   onOpenSalesHistory?: () => void;
@@ -128,6 +131,8 @@ export const SidebarPOSLayout: React.FC<SidebarPOSLayoutProps> = ({
   onOpenCustomize,
   wholesaleMode,
   toggleWholesaleMode,
+  priceTier: propPriceTier,
+  onSelectPriceTier,
   onSaveAsProforma,
   onNewOrder,
   onOpenSalesHistory,
@@ -155,6 +160,33 @@ export const SidebarPOSLayout: React.FC<SidebarPOSLayoutProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [editingPriceItemId, setEditingPriceItemId] = useState<string | null>(null);
   const [customPriceInput, setCustomPriceInput] = useState('');
+
+  // Active Price Tier ('1' = تجزئة, '2' = نصف جملة, '3' = جملة, '4' = خاص)
+  const [internalPriceTier, setInternalPriceTier] = useState<'1' | '2' | '3' | '4'>('1');
+  const priceTier = propPriceTier ?? internalPriceTier;
+
+  const handleSelectPriceTier = (tier: '1' | '2' | '3' | '4') => {
+    if (onSelectPriceTier) {
+      onSelectPriceTier(tier);
+    } else {
+      setInternalPriceTier(tier);
+      if (tier === '3' && !wholesaleMode) toggleWholesaleMode();
+      if (tier === '1' && wholesaleMode) toggleWholesaleMode();
+      const productList = allProducts && allProducts.length > 0 ? allProducts : products;
+      if (onEditPrice && cart.length > 0) {
+        cart.forEach((item) => {
+          if (item.isPack) return;
+          const prod = productList.find((p) => p.id === item.productId || (item.barcode && p.barcode === item.barcode));
+          if (prod) {
+            const newPrice = getProductTierPrice(prod, tier);
+            if (newPrice > 0) {
+              onEditPrice(item.productId, newPrice);
+            }
+          }
+        });
+      }
+    }
+  };
 
   // Total items and quantity count
   const totalUnitsCount = useMemo(() => cart.reduce((sum, item) => sum + item.qty, 0), [cart]);
@@ -203,12 +235,24 @@ export const SidebarPOSLayout: React.FC<SidebarPOSLayoutProps> = ({
       } else if (e.key === 'F9') {
         e.preventDefault();
         onOpenReturns();
+      } else if (e.altKey && e.key === '1') {
+        e.preventDefault();
+        handleSelectPriceTier('1');
+      } else if (e.altKey && e.key === '2') {
+        e.preventDefault();
+        handleSelectPriceTier('2');
+      } else if (e.altKey && e.key === '3') {
+        e.preventDefault();
+        handleSelectPriceTier('3');
+      } else if (e.altKey && e.key === '4') {
+        e.preventDefault();
+        handleSelectPriceTier('4');
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onSettleSale, onSuspendSale, onOpenSuspended, onClearCart, onToggleAutoPrint, onOpenFreeProduct, onOpenReturns, cart.length]);
+  }, [onSettleSale, onSuspendSale, onOpenSuspended, onClearCart, onToggleAutoPrint, onOpenFreeProduct, onOpenReturns, cart.length, onSelectPriceTier, wholesaleMode, toggleWholesaleMode, allProducts, products, onEditPrice, propPriceTier]);
 
   const handlePriceSubmit = (productId: string) => {
     const num = parseFloat(customPriceInput);
@@ -432,6 +476,71 @@ export const SidebarPOSLayout: React.FC<SidebarPOSLayoutProps> = ({
                         </span>
                       </div>
                     </div>
+
+                    {/* أزرار فئات السعر السريعة للبند (س1 تجزئة، س2 نصف جملة، س3 جملة، س4 خاص) */}
+                    {(() => {
+                      const productList = allProducts && allProducts.length > 0 ? allProducts : products;
+                      const prod = productList.find((p) => p.id === item.productId || (item.barcode && p.barcode === item.barcode));
+                      if (!prod || item.isPack) return null;
+                      const p1 = getProductTierPrice(prod, '1');
+                      const p2 = getProductTierPrice(prod, '2');
+                      const p3 = getProductTierPrice(prod, '3');
+                      const p4 = getProductTierPrice(prod, '4');
+                      const currentPrice = item.price ?? (item as any).unitPrice;
+                      return (
+                        <div className="flex items-center gap-1 flex-wrap pt-1 border-t border-slate-100 dark:border-slate-800/80">
+                          <span className="text-[10px] text-slate-400 font-bold ml-0.5">تبديل السعر:</span>
+                          <button
+                            type="button"
+                            onClick={() => onEditPrice && onEditPrice(item.productId, p1)}
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
+                              currentPrice === p1
+                                ? 'bg-blue-600 text-white shadow-2xs'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-100 dark:hover:bg-blue-900/40 border border-slate-200 dark:border-slate-700'
+                            }`}
+                            title={`س1 (تجزئة): ${formatMoney(p1)}`}
+                          >
+                            س1: {formatMoney(p1)}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onEditPrice && onEditPrice(item.productId, p2)}
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
+                              currentPrice === p2
+                                ? 'bg-emerald-600 text-white shadow-2xs'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 border border-slate-200 dark:border-slate-700'
+                            }`}
+                            title={`س2 (نصف جملة): ${formatMoney(p2)}`}
+                          >
+                            س2: {formatMoney(p2)}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onEditPrice && onEditPrice(item.productId, p3)}
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
+                              currentPrice === p3
+                                ? 'bg-purple-600 text-white shadow-2xs'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-purple-100 dark:hover:bg-purple-900/40 border border-slate-200 dark:border-slate-700'
+                            }`}
+                            title={`س3 (جملة): ${formatMoney(p3)}`}
+                          >
+                            س3: {formatMoney(p3)}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onEditPrice && onEditPrice(item.productId, p4)}
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
+                              currentPrice === p4
+                                ? 'bg-amber-600 text-white shadow-2xs'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-amber-100 dark:hover:bg-amber-900/40 border border-slate-200 dark:border-slate-700'
+                            }`}
+                            title={`س4 (خاص): ${formatMoney(p4)}`}
+                          >
+                            س4: {formatMoney(p4)}
+                          </button>
+                        </div>
+                      );
+                    })()}
 
                     {/* تعديل السعر المباشر إذا كان مفتوحاً */}
                     {isEditingPrice && (
@@ -697,20 +806,61 @@ export const SidebarPOSLayout: React.FC<SidebarPOSLayoutProps> = ({
                 <span>إرجاع (F9)</span>
               </button>
 
-              {/* زر بيع الجملة السريع */}
-              <button
-                type="button"
-                onClick={toggleWholesaleMode}
-                className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl border transition cursor-pointer ${
-                  wholesaleMode
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
-                }`}
-                title="التبديل بين بيع التجزئة وبيع الجملة"
-              >
-                <Layers className="w-4 h-4" />
-                <span>{wholesaleMode ? 'جملة GROS' : 'تجزئة DÉTAIL'}</span>
-              </button>
+              {/* تبديل فئات الأسعار الأربعة: س1 تجزئة، س2 نصف جملة، س3 جملة، س4 خاص */}
+              <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => handleSelectPriceTier('1')}
+                  className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition cursor-pointer text-xs ${
+                    priceTier === '1'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700'
+                  }`}
+                  title="سعر التجزئة س1 (Alt+1)"
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${priceTier === '1' ? 'bg-white' : 'bg-blue-500'}`} />
+                  <span>س1 (تجزئة)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectPriceTier('2')}
+                  className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition cursor-pointer text-xs ${
+                    priceTier === '2'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700'
+                  }`}
+                  title="سعر نصف الجملة س2 (Alt+2)"
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${priceTier === '2' ? 'bg-white' : 'bg-emerald-500'}`} />
+                  <span>س2</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectPriceTier('3')}
+                  className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition cursor-pointer text-xs ${
+                    priceTier === '3'
+                      ? 'bg-purple-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700'
+                  }`}
+                  title="سعر الجملة س3 (Alt+3)"
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${priceTier === '3' ? 'bg-white' : 'bg-purple-500'}`} />
+                  <span>س3 (جملة)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectPriceTier('4')}
+                  className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition cursor-pointer text-xs ${
+                    priceTier === '4'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700'
+                  }`}
+                  title="سعر خاص س4 (Alt+4)"
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${priceTier === '4' ? 'bg-white' : 'bg-amber-500'}`} />
+                  <span>س4 (خاص)</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -771,7 +921,7 @@ export const SidebarPOSLayout: React.FC<SidebarPOSLayoutProps> = ({
                   const stock = product.quantity ?? product.stock ?? 0;
                   const isLowStock = stock > 0 && stock <= 5;
                   const isOutOfStock = stock <= 0;
-                  const activePrice = wholesaleMode && product.wholesalePrice ? product.wholesalePrice : product.price;
+                  const activePrice = getProductTierPrice(product, priceTier);
 
                   return (
                     <div
@@ -844,7 +994,7 @@ export const SidebarPOSLayout: React.FC<SidebarPOSLayoutProps> = ({
                   const stock = product.quantity ?? product.stock ?? 0;
                   const isLowStock = stock > 0 && stock <= 5;
                   const isOutOfStock = stock <= 0;
-                  const activePrice = wholesaleMode && product.wholesalePrice ? product.wholesalePrice : product.price;
+                  const activePrice = getProductTierPrice(product, priceTier);
 
                   return (
                     <article

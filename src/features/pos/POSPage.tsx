@@ -11,7 +11,7 @@ import { useNotificationStore } from '@/store/notificationStore';
 import { generateId } from '@/utils';
 import type { Product, Customer, CartItem, Sale } from '@/types';
 import ImageUpload from '@/components/products/ImageUpload';
-import { calculateSaleTotal, resolveUnitPrice, createSale, generateReceiptHTML } from '@/services';
+import { calculateSaleTotal, resolveUnitPrice, getProductTierPrice, createSale, generateReceiptHTML } from '@/services';
 import { printDocument } from '@/services/print/printService';
 import NotificationDropdown from '@/components/notifications/NotificationDropdown';
 import { useBarcodeScanner } from '@/features/barcode/useBarcodeScanner';
@@ -270,6 +270,30 @@ export default function POSPage() {
 
   // Active Price Tier: '1' (تجزئة) | '2' (نصف جملة) | '3' (جملة) | '4' (خاص)
   const [priceTier, setPriceTier] = useState<'1' | '2' | '3' | '4'>('1');
+
+  const handleSelectPriceTier = useCallback((tier: '1' | '2' | '3' | '4') => {
+    setPriceTier(tier);
+    if (tier === '3') {
+      if (!wholesaleMode) toggleWholesaleMode();
+    } else if (tier === '1') {
+      if (wholesaleMode) toggleWholesaleMode();
+    }
+    const productList = products || [];
+    if (cart.length > 0) {
+      cart.forEach((item) => {
+        if (item.isPack) return;
+        const prod = productList.find(
+          (p) => p.id === item.productId || (item.barcode && p.barcode === item.barcode)
+        );
+        if (prod) {
+          const newPrice = getProductTierPrice(prod, tier);
+          if (newPrice > 0) {
+            updatePrice(item.productId, newPrice);
+          }
+        }
+      });
+    }
+  }, [wholesaleMode, toggleWholesaleMode, products, cart, updatePrice]);
 
   // Toolbar filters & modals
   const [isFeaturedOnly, setIsFeaturedOnly] = useState(false);
@@ -1429,11 +1453,10 @@ export default function POSPage() {
             setDiscount(0);
           }}
           onEditPrice={(productId, newPrice) => {
-            const item = cart.find((c) => c.productId === productId);
-            if (item) {
-              updateQty(productId, item.qty, newPrice);
-            }
+            updatePrice(productId, newPrice);
           }}
+          priceTier={priceTier}
+          onSelectPriceTier={handleSelectPriceTier}
           saleSummary={saleSummary}
           products={filteredProducts as any}
           allProducts={products as any}
@@ -1535,6 +1558,13 @@ export default function POSPage() {
             setSelectedCustomer('');
             setDiscount(0);
           }}
+          onEditPrice={(productId, newPrice) => {
+            updatePrice(productId, newPrice);
+          }}
+          priceTier={priceTier}
+          onSelectPriceTier={handleSelectPriceTier}
+          wholesaleMode={wholesaleMode}
+          toggleWholesaleMode={toggleWholesaleMode}
           saleSummary={saleSummary}
           products={filteredProducts as any}
           allProducts={products as any}
@@ -1618,11 +1648,10 @@ export default function POSPage() {
             setDiscount(0);
           }}
           onEditPrice={(productId, newPrice) => {
-            const item = cart.find((c) => c.productId === productId);
-            if (item) {
-              updateQty(productId, item.qty, newPrice);
-            }
+            updatePrice(productId, newPrice);
           }}
+          priceTier={priceTier}
+          onSelectPriceTier={handleSelectPriceTier}
           saleSummary={saleSummary}
           products={filteredProducts as any}
           allProducts={products as any}
@@ -1728,7 +1757,7 @@ export default function POSPage() {
             updatePrice(productId, newPrice);
           }}
           priceTier={priceTier}
-          onSelectPriceTier={setPriceTier}
+          onSelectPriceTier={handleSelectPriceTier}
           saleSummary={saleSummary}
           products={filteredProducts as any}
           allProducts={products as any}

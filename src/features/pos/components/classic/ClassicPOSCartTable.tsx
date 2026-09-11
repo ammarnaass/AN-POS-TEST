@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ScanLine, Minus, Plus, Trash2, Calculator } from 'lucide-react';
-import type { CartItem } from '@/types';
+import type { CartItem, Product } from '@/types';
+import { getProductTierPrice } from '@/services';
 
 const POSLiveClock = React.memo(() => {
   const [time, setTime] = useState(() => new Date());
@@ -26,6 +27,9 @@ interface ClassicPOSCartTableProps {
   subtotal?: number;
   discountAmount?: number;
   totalAmount?: number;
+  products?: Product[];
+  allProducts?: Product[];
+  onEditPrice?: (productId: string, newPrice: number) => void;
 }
 
 export const ClassicPOSCartTable: React.FC<ClassicPOSCartTableProps> = React.memo(({
@@ -43,6 +47,9 @@ export const ClassicPOSCartTable: React.FC<ClassicPOSCartTableProps> = React.mem
   subtotal,
   discountAmount,
   totalAmount,
+  products,
+  allProducts,
+  onEditPrice,
 }) => {
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-surface border-b border-outline-variant/20 overflow-hidden">
@@ -101,6 +108,70 @@ export const ClassicPOSCartTable: React.FC<ClassicPOSCartTableProps> = React.mem
                           </span>
                         )}
                       </div>
+                      {/* أزرار فئات السعر السريعة للبند (س1، س2، س3، س4) */}
+                      {(() => {
+                        const productList = allProducts && allProducts.length > 0 ? allProducts : (products || []);
+                        const prod = productList.find((p) => p.id === item.productId || (item.barcode && p.barcode === item.barcode));
+                        if (!prod || item.isPack) return null;
+                        const p1 = getProductTierPrice(prod, '1');
+                        const p2 = getProductTierPrice(prod, '2');
+                        const p3 = getProductTierPrice(prod, '3');
+                        const p4 = getProductTierPrice(prod, '4');
+                        const currentPrice = (item as any).unitPrice ?? (item as any).price ?? 0;
+                        return (
+                          <div className="flex items-center gap-1 mt-1 flex-wrap" onClick={(e) => e.stopPropagation()}>
+                            <span className="text-[10px] text-on-surface-variant/70 font-bold">السعر:</span>
+                            <button
+                              type="button"
+                              onClick={() => onEditPrice && onEditPrice(item.productId, p1)}
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
+                                currentPrice === p1
+                                  ? 'bg-blue-600 text-white shadow-2xs'
+                                  : 'bg-surface-container hover:bg-blue-500/20 text-on-surface border border-outline-variant/20'
+                              }`}
+                              title={`س1 (تجزئة): ${formatMoney(p1)}`}
+                            >
+                              س1: {formatMoney(p1)}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onEditPrice && onEditPrice(item.productId, p2)}
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
+                                currentPrice === p2
+                                  ? 'bg-emerald-600 text-white shadow-2xs'
+                                  : 'bg-surface-container hover:bg-emerald-500/20 text-on-surface border border-outline-variant/20'
+                              }`}
+                              title={`س2 (نصف جملة): ${formatMoney(p2)}`}
+                            >
+                              س2: {formatMoney(p2)}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onEditPrice && onEditPrice(item.productId, p3)}
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
+                                currentPrice === p3
+                                  ? 'bg-purple-600 text-white shadow-2xs'
+                                  : 'bg-surface-container hover:bg-purple-500/20 text-on-surface border border-outline-variant/20'
+                              }`}
+                              title={`س3 (جملة): ${formatMoney(p3)}`}
+                            >
+                              س3: {formatMoney(p3)}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onEditPrice && onEditPrice(item.productId, p4)}
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
+                                currentPrice === p4
+                                  ? 'bg-amber-600 text-white shadow-2xs'
+                                  : 'bg-surface-container hover:bg-amber-500/20 text-on-surface border border-outline-variant/20'
+                              }`}
+                              title={`س4 (خاص): ${formatMoney(p4)}`}
+                            >
+                              س4: {formatMoney(p4)}
+                            </button>
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="py-2.5 px-3 font-mono text-on-surface-variant text-[11px]">
                       {(item as any).barcode || productBarcodeMap.get(item.productId) || '—'}
