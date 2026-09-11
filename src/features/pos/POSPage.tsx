@@ -22,6 +22,7 @@ import { POSActionBar } from './components/POSActionBar';
 import { ClassicPOSLayout } from './components/ClassicPOSLayout';
 import { ModernPOSLayout } from './components/ModernPOSLayout';
 import { SidebarPOSLayout } from './components/SidebarPOSLayout';
+import { TerminalPOSLayout } from './components/TerminalPOSLayout';
 import { useOpenCashSession } from '@/features/cash/useOpenCashSession';
 import { usePOSSessionStore } from './store/usePOSSessionStore';
 import { getTrialState } from '@/services/trialService';
@@ -193,8 +194,16 @@ export default function POSPage() {
     setPosLayout,
     showProductImages,
     setShowProductImages,
+    viewMode,
+    setViewMode,
     uiZoom,
     setUiZoom,
+    screenResolution,
+    setScreenResolution,
+    customResolution,
+    setCustomResolution,
+    resolutionScaleMode,
+    setResolutionScaleMode,
     wholesaleMode,
     setWholesaleMode,
     toggleWholesaleMode,
@@ -233,7 +242,6 @@ export default function POSPage() {
 
   const [filterCategory, setFilterCategory] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [addProductForm, setAddProductForm] = useState<Omit<Product, 'id'>>(emptyProduct);
   const [barcodeScanMode, setBarcodeScanMode] = useState(false);
@@ -933,13 +941,95 @@ export default function POSPage() {
   const changeDue = Math.max(0, (paidAmount || saleSummary.total) - saleSummary.total);
   const isPaidSufficient = (paidAmount || 0) >= saleSummary.total;
 
+  // Window size tracking for dynamic resolution matching
+  const [windowSize, setWindowSize] = useState(() => ({
+    width: typeof window !== 'undefined' ? window.innerWidth : 1920,
+    height: typeof window !== 'undefined' ? window.innerHeight : 1080,
+  }));
+
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowSize({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Target resolution dimensions (if preset or custom)
+  const targetDims = useMemo(() => {
+    if (!screenResolution || screenResolution === 'auto') return null;
+    if (screenResolution === 'custom') {
+      return {
+        width: Math.max(600, customResolution?.width || 1920),
+        height: Math.max(400, customResolution?.height || 1080),
+      };
+    }
+    const [w, h] = screenResolution.split('x').map(Number);
+    return {
+      width: w || 1920,
+      height: h || 1080,
+    };
+  }, [screenResolution, customResolution]);
+
+  // Dynamic canvas styling based on resolution and scale mode
+  const canvasStyle = useMemo<React.CSSProperties>(() => {
+    if (!targetDims) {
+      // Auto: pure responsive full-screen
+      return {
+        zoom: `${uiZoom}%`,
+        width: `${10000 / uiZoom}vw`,
+        height: `${10000 / uiZoom}vh`,
+      };
+    }
+
+    if (resolutionScaleMode === 'fixed_canvas') {
+      // Fixed canvas with aspect-ratio centered
+      const scale = Math.min(
+        windowSize.width / targetDims.width,
+        windowSize.height / targetDims.height
+      ) * (uiZoom / 100);
+
+      return {
+        width: `${targetDims.width}px`,
+        height: `${targetDims.height}px`,
+        zoom: `${scale * 100}%`,
+      };
+    }
+
+    // Default: 'fit_screen' (Scale elements according to target resolution width while filling screen)
+    const scaleFactor = windowSize.width / targetDims.width;
+    const effectiveZoom = scaleFactor * (uiZoom / 100) * 100;
+
+    return {
+      zoom: `${effectiveZoom}%`,
+      width: `${10000 / effectiveZoom}vw`,
+      height: `${10000 / effectiveZoom}vh`,
+    };
+  }, [targetDims, resolutionScaleMode, windowSize, uiZoom]);
+
   return (
-    <div className="flex flex-col h-screen w-full overflow-hidden bg-background select-none font-cairo text-on-surface" dir="rtl" style={{ zoom: `${uiZoom}%` }}>
-      {/* ========================================================= */}
-      {/* ZONE 1: TOP HEADER                                        */}
-      {/* ========================================================= */}
-      {posLayout !== 'modern' && posLayout !== 'sidebar' && (
-      <header className="h-16 px-3 sm:px-4 bg-surface-container-lowest/90 backdrop-blur-md border-b border-outline-variant/20 flex items-center justify-between gap-2 sm:gap-3 shrink-0 z-20 shadow-xs">
+    <div
+      className={
+        resolutionScaleMode === 'fixed_canvas' && targetDims
+          ? 'w-screen h-screen overflow-hidden bg-slate-950 flex items-center justify-center select-none p-2'
+          : 'contents'
+      }
+    >
+      <div
+        className={`flex flex-col overflow-hidden bg-background dark:bg-slate-950 select-none font-cairo text-on-surface dark:text-slate-100 ${
+          resolutionScaleMode === 'fixed_canvas' && targetDims ? 'shadow-2xl border border-slate-800 rounded-2xl shrink-0' : ''
+        }`}
+        dir="rtl"
+        style={canvasStyle}
+      >
+        {/* ========================================================= */}
+        {/* ZONE 1: TOP HEADER                                        */}
+        {/* ========================================================= */}
+        {posLayout !== 'modern' && posLayout !== 'sidebar' && posLayout !== 'terminal' && (
+      <header className="h-16 px-3 sm:px-4 bg-surface-container-lowest/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-outline-variant/20 dark:border-slate-800 flex items-center justify-between gap-2 sm:gap-3 shrink-0 z-20 shadow-xs">
         {/* Right Side (RTL): Menu Toggle + Search + Barcode + Trial Badge */}
         <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 max-w-3xl">
           {/* Distinctive Back Button (زر الرجوع المميز) */}
@@ -1187,8 +1277,8 @@ export default function POSPage() {
       {/* ========================================================= */}
       {/* SUBHEADER: CATEGORY & ACTION TOOLBAR                      */}
       {/* ========================================================= */}
-      {posLayout !== 'modern' && posLayout !== 'sidebar' && (
-      <div className="px-3 sm:px-4 py-2 bg-surface-container-low/90 backdrop-blur-xs border-b border-outline-variant/15 flex items-center justify-between gap-2 shrink-0 shadow-2xs relative z-30 overflow-x-auto no-scrollbar touch-scroll">
+      {posLayout !== 'modern' && posLayout !== 'sidebar' && posLayout !== 'terminal' && (
+      <div className="px-3 sm:px-4 py-2 bg-surface-container-low/90 dark:bg-slate-900/90 backdrop-blur-xs border-b border-outline-variant/15 dark:border-slate-800 flex items-center justify-between gap-2 shrink-0 shadow-2xs relative z-30 overflow-x-auto no-scrollbar touch-scroll">
         <div className="flex items-center gap-1.5 sm:gap-2 flex-nowrap sm:flex-wrap shrink-0">
           {/* 1. Advanced Filters Modal Trigger (الفلاتر المتقدمة - الزر الأول) */}
           <button
@@ -1280,7 +1370,7 @@ export default function POSPage() {
       {/* ───────────────────────────────────────────────────────────── */}
       {/* MOBILE VIEW SWITCHER (Visible on screens < md)                */}
       {/* ───────────────────────────────────────────────────────────── */}
-      {posLayout !== 'classic' && posLayout !== 'modern' && posLayout !== 'sidebar' && (
+      {posLayout !== 'classic' && posLayout !== 'modern' && posLayout !== 'sidebar' && posLayout !== 'terminal' && (
         <div className="md:hidden flex items-center bg-surface-container/90 p-1 mx-3 my-1.5 rounded-2xl border border-outline-variant/20 shrink-0 gap-1 shadow-xs">
           <button
             onClick={() => setMobileTab('products')}
@@ -1420,6 +1510,8 @@ export default function POSPage() {
             setKeypadInput(String(item.qty));
             setShowKeypad(true);
           }}
+          viewMode={viewMode}
+          showProductImages={showProductImages}
         />
       ) : posLayout === 'classic' ? (
         <ClassicPOSLayout
@@ -1607,6 +1699,120 @@ export default function POSPage() {
             setKeypadInput(String(item.qty));
             setShowKeypad(true);
           }}
+          viewMode={viewMode}
+          showProductImages={showProductImages}
+        />
+      ) : posLayout === 'terminal' ? (
+        <TerminalPOSLayout
+          cart={cart}
+          onAddToCart={(p) => handleAddProduct(p as any)}
+          onUpdateQty={(productId, qty) => {
+            const it = cart.find((c) => c.productId === productId);
+            if (it) handleUpdateQty(it, qty);
+          }}
+          onRemoveFromCart={(productId) => removeItem(productId)}
+          onClearCart={() => {
+            clearCart();
+            setSelectedCustomer('');
+            setDiscount(0);
+          }}
+          onEditPrice={(productId, newPrice) => {
+            const item = cart.find((c) => c.productId === productId);
+            if (item) {
+              updateQty(productId, item.qty, newPrice);
+            }
+          }}
+          saleSummary={saleSummary}
+          products={filteredProducts as any}
+          allProducts={products as any}
+          categories={availableCategories}
+          selectedCategory={filterCategory}
+          onSelectCategory={(catId) => setFilterCategory(catId === 'ALL' ? '' : catId)}
+          barcodeInput={barcodeHeaderInput}
+          setBarcodeInput={setBarcodeHeaderInput}
+          onBarcodeSubmit={(e) => {
+            e?.preventDefault();
+            if (barcodeHeaderInput.trim()) {
+              handleExternalScan(barcodeHeaderInput.trim());
+              setBarcodeHeaderInput('');
+            }
+          }}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          onSettleSale={() => {
+            if (!isSessionOpen) {
+              setShowSessionWarning(true);
+              return;
+            }
+            if (cart.length === 0) return;
+            setPaidAmount(saleSummary.total);
+            setShowPaymentModal(true);
+          }}
+          onSuspendSale={handleSuspend}
+          onOpenSuspended={() => setShowSuspended(true)}
+          suspendedCount={suspendedOrders.length}
+          onSelectCustomer={() => setShowCustomerSelect(true)}
+          selectedCustomerName={selectedCustomer ? customers.find((c) => c.id === selectedCustomer)?.name || '' : ''}
+          autoPrintReceipt={autoPrintReceipt}
+          onToggleAutoPrint={() => {
+            setAutoPrintReceipt(!autoPrintReceipt);
+            addNotification({
+              title: 'الطباعة التلقائية',
+              message: !autoPrintReceipt ? 'تم تفعيل الطباعة التلقائية للإيصالات' : 'تم إيقاف الطباعة التلقائية',
+              type: 'info',
+            });
+          }}
+          onOpenDiscount={() => setShowDiscountModal(true)}
+          discount={discount}
+          discountType={discountType}
+          onOpenFreeProduct={() => setShowFreeProductModal(true)}
+          onOpenReturns={() => setShowReturnSaleModal(true)}
+          returnMode={returnMode}
+          onOpenCustomize={() => setShowCustomizeModal(true)}
+          wholesaleMode={wholesaleMode}
+          toggleWholesaleMode={() => {
+            toggleWholesaleMode();
+            addNotification({
+              title: !wholesaleMode ? 'وضع الجملة مفعّل (Gros)' : 'وضع التجزئة مفعّل (Détail)',
+              message: !wholesaleMode ? 'تم تفعيل أسعار وفواتير الجملة تلقائياً (Alt+W)' : 'تم العودة إلى أسعار التجزئة العادية (Alt+W)',
+              type: !wholesaleMode ? 'success' : 'info',
+            });
+          }}
+          onSaveAsProforma={() => {
+            if (cart.length === 0) return;
+            setShowSaveAsProformaModal(true);
+          }}
+          onNewOrder={() => {
+            if (cart.length > 0) {
+              clearCart();
+              setSelectedCustomer('');
+              setDiscount(0);
+            }
+          }}
+          onOpenSalesHistory={() => navigate('/sales')}
+          invoiceNumber={1}
+          formatMoney={formatMoney}
+          currency="دج"
+          storeName={settingsOrDefault?.shopName || 'AN POS'}
+          userName={currentUser?.name || 'Admin'}
+          isSessionOpen={isSessionOpen}
+          isSalePending={isSalePending}
+          onToggleFullscreen={toggleFullscreen}
+          isFullscreen={isFullscreen}
+          onNavigateBack={() => navigate('/')}
+          onOpenKeypad={() => {
+            setKeypadTarget('qty');
+            setKeypadInput('');
+            setShowKeypad(true);
+          }}
+          onOpenKeypadForQty={(item) => {
+            setSelectedItemId(item.productId);
+            setKeypadTarget('qty');
+            setKeypadInput(String(item.qty));
+            setShowKeypad(true);
+          }}
+          viewMode={viewMode}
+          showProductImages={showProductImages}
         />
       ) : (
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
@@ -1614,7 +1820,7 @@ export default function POSPage() {
         {/* --------------------------------------------------------- */}
         {/* RIGHT (IN RTL): PRODUCT DISCOVERY AREA (ZONE 2)           */}
         {/* --------------------------------------------------------- */}
-        <main className={`flex-1 flex-col min-w-0 bg-background border-l border-outline-variant/20 overflow-hidden ${
+        <main className={`flex-1 flex-col min-w-0 bg-background dark:bg-slate-950 border-l border-outline-variant/20 dark:border-slate-800 overflow-hidden ${
           mobileTab === 'products' ? 'flex' : 'hidden md:flex'
         }`}>
           
@@ -1651,75 +1857,79 @@ export default function POSPage() {
                     <div
                       key={product.id}
                       onClick={() => !isOutOfStock && handleAddProduct(product as any)}
-                      className={`group relative rounded-3xl bg-surface-container-low/95 backdrop-blur-xs border transition-all duration-300 flex flex-col overflow-hidden cursor-pointer h-72 sm:h-80 select-none shadow-xs hover:shadow-xl hover:border-primary/50 hover:-translate-y-1.5 active:scale-[0.98] ${
+                      className={`group relative rounded-3xl bg-surface-container-low/95 dark:bg-slate-900/95 backdrop-blur-xs border transition-all duration-300 flex flex-col overflow-hidden cursor-pointer ${
+                        showProductImages ? 'h-72 sm:h-80' : 'min-h-[140px]'
+                      } select-none shadow-xs hover:shadow-xl hover:border-primary/50 hover:-translate-y-1.5 active:scale-[0.98] ${
                         isOutOfStock
                           ? 'border-red-500/30 bg-red-500/5 cursor-not-allowed opacity-80'
-                          : 'border-outline-variant/20'
+                          : 'border-outline-variant/20 dark:border-slate-800'
                       }`}
                     >
-                      {/* Top Area: 60% Image & Visual Identity */}
-                      <div className="h-[60%] w-full relative overflow-hidden bg-surface-container/60 shrink-0">
-                        {/* Category Badge (تصنيف المنتج) with Theme Surface Colors */}
-                        <div className="absolute top-2.5 right-2.5 z-10">
-                          <span className="px-2.5 py-1 rounded-xl bg-surface-container-highest/90 backdrop-blur-md border border-outline-variant/30 text-on-surface text-[10px] font-bold flex items-center gap-1.5 shadow-sm">
-                            <Tag className="w-2.5 h-2.5 text-primary" />
-                            <span className="max-w-[90px] truncate">{categoryName}</span>
-                          </span>
-                        </div>
+                      {/* Top Area: Image & Visual Identity */}
+                      {showProductImages && (
+                        <div className="h-[60%] w-full relative overflow-hidden bg-surface-container/60 shrink-0">
+                          {/* Category Badge (تصنيف المنتج) with Theme Surface Colors */}
+                          <div className="absolute top-2.5 right-2.5 z-10">
+                            <span className="px-2.5 py-1 rounded-xl bg-surface-container-highest/90 backdrop-blur-md border border-outline-variant/30 text-on-surface text-[10px] font-bold flex items-center gap-1.5 shadow-sm">
+                              <Tag className="w-2.5 h-2.5 text-primary" />
+                              <span className="max-w-[90px] truncate">{categoryName}</span>
+                            </span>
+                          </div>
 
-                        {/* Stock Status Badge with Theme Surface Colors */}
-                        <div className="absolute top-2.5 left-2.5 z-10">
-                          {isOutOfStock ? (
-                            <span className="px-2.5 py-1 rounded-xl bg-error-container/90 backdrop-blur-md border border-error/30 text-on-error-container text-[10px] font-extrabold shadow-sm">
-                              نفذ
-                            </span>
+                          {/* Stock Status Badge with Theme Surface Colors */}
+                          <div className="absolute top-2.5 left-2.5 z-10">
+                            {isOutOfStock ? (
+                              <span className="px-2.5 py-1 rounded-xl bg-error-container/90 backdrop-blur-md border border-error/30 text-on-error-container text-[10px] font-extrabold shadow-sm">
+                                نفذ
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-1 rounded-xl bg-surface-container-highest/90 backdrop-blur-md border border-outline-variant/30 text-emerald-600 dark:text-emerald-400 text-[10px] font-mono font-bold shadow-sm flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                <span>{product.quantity} {isPack ? 'عبوة' : 'قطع'}</span>
+                              </span>
+                            )}
+                          </div>
+
+                          {/* شارة تمييز عبوة الجملة */}
+                          {isPack && (
+                            <div className="absolute bottom-2.5 right-2.5 z-10">
+                              <span className="px-2.5 py-0.5 rounded-lg bg-primary/95 text-on-primary text-[10px] font-bold shadow-sm flex items-center gap-1 backdrop-blur-xs">
+                                <Package className="w-3 h-3" />
+                                <span>عبوة جملة (×{packPieces})</span>
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Main Product Image or Design-driven Fallback */}
+                          {product.image ? (
+                            <img
+                              src={product.image}
+                              alt={product.name}
+                              className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500 ease-out"
+                            />
                           ) : (
-                            <span className="px-2.5 py-1 rounded-xl bg-surface-container-highest/90 backdrop-blur-md border border-outline-variant/30 text-emerald-600 dark:text-emerald-400 text-[10px] font-mono font-bold shadow-sm flex items-center gap-1">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                              <span>{product.quantity} {isPack ? 'عبوة' : 'قطع'}</span>
-                            </span>
+                            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-surface-container via-surface-container-high/50 to-surface-container-highest/40 text-on-surface-variant/40 group-hover:text-primary/70 transition-colors relative">
+                              <span className="absolute text-5xl sm:text-6xl font-black font-mono text-on-surface/5 select-none pointer-events-none tracking-widest">
+                                {product.name ? product.name.slice(0, 2) : 'AN'}
+                              </span>
+                              <Package className="w-12 h-12 opacity-50 group-hover:scale-110 group-hover:opacity-80 transition-all duration-300 text-primary/70" />
+                            </div>
+                          )}
+
+                          {/* Quick Add Overlay Hint */}
+                          {!isOutOfStock && (
+                            <div className="absolute inset-0 bg-black/25 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center backdrop-blur-[1px] pointer-events-none">
+                              <span className="px-3.5 py-1.5 rounded-full bg-primary text-on-primary font-bold text-xs shadow-xl transform translate-y-2 group-hover:translate-y-0 transition-transform duration-200 flex items-center gap-1.5">
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>إضافة للسلة</span>
+                              </span>
+                            </div>
                           )}
                         </div>
+                      )}
 
-                        {/* شارة تمييز عبوة الجملة */}
-                        {isPack && (
-                          <div className="absolute bottom-2.5 right-2.5 z-10">
-                            <span className="px-2.5 py-0.5 rounded-lg bg-primary/95 text-on-primary text-[10px] font-bold shadow-sm flex items-center gap-1 backdrop-blur-xs">
-                              <Package className="w-3 h-3" />
-                              <span>عبوة جملة (×{packPieces})</span>
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Main Product Image or Design-driven Fallback */}
-                        {product.image ? (
-                          <img
-                            src={product.image}
-                            alt={product.name}
-                            className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500 ease-out"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-surface-container via-surface-container-high/50 to-surface-container-highest/40 text-on-surface-variant/40 group-hover:text-primary/70 transition-colors relative">
-                            <span className="absolute text-5xl sm:text-6xl font-black font-mono text-on-surface/5 select-none pointer-events-none tracking-widest">
-                              {product.name ? product.name.slice(0, 2) : 'AN'}
-                            </span>
-                            <Package className="w-12 h-12 opacity-50 group-hover:scale-110 group-hover:opacity-80 transition-all duration-300 text-primary/70" />
-                          </div>
-                        )}
-
-                        {/* Quick Add Overlay Hint */}
-                        {!isOutOfStock && (
-                          <div className="absolute inset-0 bg-black/25 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center backdrop-blur-[1px] pointer-events-none">
-                            <span className="px-3.5 py-1.5 rounded-full bg-primary text-on-primary font-bold text-xs shadow-xl transform translate-y-2 group-hover:translate-y-0 transition-transform duration-200 flex items-center gap-1.5">
-                              <Plus className="w-3.5 h-3.5" />
-                              <span>إضافة للسلة</span>
-                            </span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Bottom Area: 40% Name, Price & Details */}
-                      <div className="h-[40%] p-3 sm:p-3.5 flex flex-col justify-between bg-surface-container-low/95 border-t border-outline-variant/15 flex-1">
+                      {/* Bottom Area: Name, Price & Details */}
+                      <div className={`${showProductImages ? 'h-[40%]' : 'h-full'} p-3 sm:p-3.5 flex flex-col justify-between bg-surface-container-low/95 border-t border-outline-variant/15 flex-1`}>
                         <div>
                           <h4
                             className="text-xs sm:text-sm font-black text-on-surface line-clamp-1 group-hover:text-primary transition-colors font-cairo leading-snug"
@@ -1892,7 +2102,7 @@ export default function POSPage() {
         {/* --------------------------------------------------------- */}
         {/* LEFT (IN RTL): CART PANEL (ZONES 3 & 4)                   */}
         {/* --------------------------------------------------------- */}
-        <aside className={`bg-surface-container-low/95 backdrop-blur-md flex flex-col h-full shrink-0 shadow-xl border-r border-outline-variant/20 z-10 transition-all duration-200 ${
+        <aside className={`bg-surface-container-low/95 dark:bg-slate-900/95 backdrop-blur-md flex flex-col h-full shrink-0 shadow-xl border-r border-outline-variant/20 dark:border-slate-800 z-10 transition-all duration-200 ${
           mobileTab === 'cart' ? 'flex w-full' : 'hidden md:flex'
         } ${
           posLayout === 'bottom' ? 'md:w-[320px] lg:w-[350px]' : 'md:w-[420px] lg:w-[450px]'
@@ -2202,7 +2412,7 @@ export default function POSPage() {
       {/* ───────────────────────────────────────────────────────────── */}
       {/* FLOATING MOBILE CART SUMMARY BAR (Visible on mobile during product browsing) */}
       {/* ───────────────────────────────────────────────────────────── */}
-      {posLayout !== 'classic' && posLayout !== 'modern' && posLayout !== 'sidebar' && mobileTab === 'products' && cart.length > 0 && (
+      {posLayout !== 'classic' && posLayout !== 'modern' && posLayout !== 'sidebar' && posLayout !== 'terminal' && mobileTab === 'products' && cart.length > 0 && (
         <div className="md:hidden fixed bottom-3 left-3 right-3 z-40 bg-surface-container-high/95 backdrop-blur-xl border border-primary/30 p-3 rounded-2xl shadow-2xl flex items-center justify-between gap-3 animate-in slide-in-from-bottom-5">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-primary text-on-primary flex items-center justify-center font-bold shadow-md shadow-primary/25 relative shrink-0">
@@ -2368,6 +2578,12 @@ export default function POSPage() {
         setShowProductImages={setShowProductImages}
         uiZoom={uiZoom}
         setUiZoom={setUiZoom}
+        screenResolution={screenResolution}
+        setScreenResolution={setScreenResolution}
+        customResolution={customResolution}
+        setCustomResolution={setCustomResolution}
+        resolutionScaleMode={resolutionScaleMode}
+        setResolutionScaleMode={setResolutionScaleMode}
       />
 
       {/* 13. Save as Proforma / Quotation Modal */}
@@ -2502,6 +2718,7 @@ export default function POSPage() {
           }
         }}
       />
+      </div>
     </div>
   );
 }

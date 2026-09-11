@@ -88,6 +88,8 @@ interface SidebarPOSLayoutProps {
   isFullscreen: boolean;
   onNavigateBack: () => void;
   onOpenKeypadForQty?: (item: CartItem) => void;
+  viewMode?: 'grid' | 'list';
+  showProductImages?: boolean;
 }
 
 const ITEMS_PER_PAGE = 20;
@@ -142,6 +144,8 @@ export const SidebarPOSLayout: React.FC<SidebarPOSLayoutProps> = ({
   isFullscreen,
   onNavigateBack,
   onOpenKeypadForQty,
+  viewMode = 'grid',
+  showProductImages = true,
 }) => {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useThemeStore();
@@ -251,7 +255,7 @@ export const SidebarPOSLayout: React.FC<SidebarPOSLayoutProps> = ({
   };
 
   return (
-    <div className="bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 h-screen w-screen overflow-hidden flex flex-col antialiased font-cairo select-none" dir="rtl">
+    <div className="bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 h-full w-full flex-1 overflow-hidden flex flex-col antialiased font-cairo select-none" dir="rtl">
       {/* ========================================================= */}
       {/* 1. GIANT TOTAL HEADER (الشريط الإجمالي المستحق للدفع بالأعلى) */}
       {/* ========================================================= */}
@@ -750,96 +754,173 @@ export const SidebarPOSLayout: React.FC<SidebarPOSLayoutProps> = ({
             })}
           </div>
 
-          {/* شبكة المنتجات (Product Cards Grid) */}
+          {/* شبكة أو قائمة المنتجات (Product Cards Grid or List) */}
           <div
-            className="flex-1 overflow-y-auto p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5 bg-slate-50/50 dark:bg-slate-950/50 custom-scrollbar"
-            data-purpose="products-grid"
+            className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-slate-50/50 dark:bg-slate-950/50"
+            data-purpose="products-container"
           >
             {displayedProducts.length === 0 ? (
-              <div className="col-span-full h-full flex flex-col items-center justify-center text-center p-8 text-slate-400">
+              <div className="h-full flex flex-col items-center justify-center text-center p-8 text-slate-400">
                 <Package className="w-12 h-12 text-slate-300 dark:text-slate-600 mb-2" />
                 <p className="font-bold text-slate-600 dark:text-slate-300 text-sm">لا توجد منتجات مطابقة</p>
                 <p className="text-xs text-slate-400 mt-1">جرّب تغيير التصنيف أو مصطلح البحث</p>
               </div>
-            ) : (
-              displayedProducts.map((product, idx) => {
-                const stock = product.quantity ?? product.stock ?? 0;
-                const isLowStock = stock > 0 && stock <= 5;
-                const isOutOfStock = stock <= 0;
-                const activePrice = wholesaleMode && product.wholesalePrice ? product.wholesalePrice : product.price;
+            ) : viewMode === 'list' ? (
+              <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+                {displayedProducts.map((product) => {
+                  const stock = product.quantity ?? product.stock ?? 0;
+                  const isLowStock = stock > 0 && stock <= 5;
+                  const isOutOfStock = stock <= 0;
+                  const activePrice = wholesaleMode && product.wholesalePrice ? product.wholesalePrice : product.price;
 
-                return (
-                  <article
-                    key={product.id}
-                    onClick={() => onAddToCart(product)}
-                    className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md transition-all flex flex-col justify-between overflow-hidden cursor-pointer group p-3.5"
-                  >
-                    <div>
-                      {/* القسم وحالة المخزون */}
-                      <div className="flex justify-between items-start mb-2 gap-1">
-                        <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-md font-semibold truncate max-w-[100px]">
-                          {product.category || 'عام'}
-                        </span>
+                  return (
+                    <div
+                      key={product.id}
+                      onClick={() => onAddToCart(product)}
+                      className="p-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors flex items-center justify-between gap-3 cursor-pointer select-none group"
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        {showProductImages && (
+                          <div className="w-12 h-12 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center shrink-0 overflow-hidden border border-slate-200/60 dark:border-slate-700/60">
+                            {product.image ? (
+                              <img src={product.image} alt={product.name} className="w-full h-full object-contain p-1" />
+                            ) : (
+                              <Package className="w-5 h-5 text-slate-400" />
+                            )}
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 truncate">
+                              {product.name}
+                            </h4>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold shrink-0">
+                              {product.category || 'عام'}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 font-mono mt-0.5">
+                            {product.barcode || product.sku || 'بدون باركود'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 sm:gap-4 shrink-0">
                         <span
-                          className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold whitespace-nowrap border ${
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full font-mono shrink-0 border ${
                             isOutOfStock
-                              ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800'
+                              ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800'
                               : isLowStock
-                              ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
-                              : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                              ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800'
+                              : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
                           }`}
                         >
                           {isOutOfStock ? 'نفد' : isLowStock ? `${stock} (قليل)` : `${stock} قطعة`}
                         </span>
-                      </div>
 
-                      {/* مجسم / أيقونة أو صورة المنتج */}
-                      <div className="h-28 w-full bg-slate-50 dark:bg-slate-800/60 rounded-xl flex items-center justify-center mb-2.5 group-hover:bg-blue-50/50 dark:group-hover:bg-blue-900/20 transition overflow-hidden">
-                        {product.image ? (
-                          <img
-                            src={product.image}
-                            alt={product.name}
-                            className="w-full h-full object-contain p-2"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${getProductColor(idx)}`}>
-                            <Package className="w-6 h-6" />
+                        <div className="text-left font-mono font-extrabold text-sm text-blue-700 dark:text-blue-400 min-w-[70px]">
+                          {formatMoney(activePrice)}{' '}
+                          <span className="text-[10px] font-sans text-slate-400">{currency}</span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAddToCart(product);
+                          }}
+                          className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 group-hover:bg-blue-600 group-hover:text-white dark:group-hover:bg-blue-600 dark:group-hover:text-white flex items-center justify-center font-bold transition shadow-2xs cursor-pointer active:scale-95"
+                          title="إضافة للسلة"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5">
+                {displayedProducts.map((product, idx) => {
+                  const stock = product.quantity ?? product.stock ?? 0;
+                  const isLowStock = stock > 0 && stock <= 5;
+                  const isOutOfStock = stock <= 0;
+                  const activePrice = wholesaleMode && product.wholesalePrice ? product.wholesalePrice : product.price;
+
+                  return (
+                    <article
+                      key={product.id}
+                      onClick={() => onAddToCart(product)}
+                      className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md transition-all flex flex-col justify-between overflow-hidden cursor-pointer group p-3.5"
+                    >
+                      <div>
+                        {/* القسم وحالة المخزون */}
+                        <div className="flex justify-between items-start mb-2 gap-1">
+                          <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-md font-semibold truncate max-w-[100px]">
+                            {product.category || 'عام'}
+                          </span>
+                          <span
+                            className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold whitespace-nowrap border ${
+                              isOutOfStock
+                                ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800'
+                                : isLowStock
+                                ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                                : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                            }`}
+                          >
+                            {isOutOfStock ? 'نفد' : isLowStock ? `${stock} (قليل)` : `${stock} قطعة`}
+                          </span>
+                        </div>
+
+                        {/* مجسم / أيقونة أو صورة المنتج */}
+                        {showProductImages && (
+                          <div className="h-28 w-full bg-slate-50 dark:bg-slate-800/60 rounded-xl flex items-center justify-center mb-2.5 group-hover:bg-blue-50/50 dark:group-hover:bg-blue-900/20 transition overflow-hidden">
+                            {product.image ? (
+                              <img
+                                src={product.image}
+                                alt={product.name}
+                                className="w-full h-full object-contain p-2"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${getProductColor(idx)}`}>
+                                <Package className="w-6 h-6" />
+                              </div>
+                            )}
                           </div>
                         )}
+
+                        <h4 className="font-black text-slate-800 dark:text-slate-100 text-sm group-hover:text-blue-600 dark:group-hover:text-blue-400 transition truncate leading-snug">
+                          {product.name}
+                        </h4>
+                        <p className="text-[11px] text-slate-400 dark:text-slate-500 font-mono mt-0.5 truncate">
+                          {product.barcode || product.sku || 'بدون باركود'}
+                        </p>
                       </div>
 
-                      <h4 className="font-black text-slate-800 dark:text-slate-100 text-sm group-hover:text-blue-600 dark:group-hover:text-blue-400 transition truncate leading-snug">
-                        {product.name}
-                      </h4>
-                      <p className="text-[11px] text-slate-400 dark:text-slate-500 font-mono mt-0.5 truncate">
-                        {product.barcode || product.sku || 'بدون باركود'}
-                      </p>
-                    </div>
-
-                    <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                      <div>
-                        <span className="text-[10px] text-slate-400 dark:text-slate-500 block leading-none">السعر</span>
-                        <span className="text-base font-black text-slate-900 dark:text-white font-mono">
-                          {formatMoney(activePrice)}{' '}
-                          <span className="text-xs font-normal text-slate-500">{currency}</span>
-                        </span>
+                      <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                        <div>
+                          <span className="text-[10px] text-slate-400 dark:text-slate-500 block leading-none">السعر</span>
+                          <span className="text-base font-black text-slate-900 dark:text-white font-mono">
+                            {formatMoney(activePrice)}{' '}
+                            <span className="text-xs font-normal text-slate-500">{currency}</span>
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAddToCart(product);
+                          }}
+                          className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 group-hover:bg-blue-600 group-hover:text-white dark:group-hover:bg-blue-600 dark:group-hover:text-white flex items-center justify-center transition shadow-xs font-bold text-lg cursor-pointer"
+                          title="إضافة للسلة"
+                        >
+                          +
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onAddToCart(product);
-                        }}
-                        className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 group-hover:bg-blue-600 group-hover:text-white dark:group-hover:bg-blue-600 dark:group-hover:text-white flex items-center justify-center transition shadow-xs font-bold text-lg cursor-pointer"
-                        title="إضافة للسلة"
-                      >
-                        +
-                      </button>
-                    </div>
-                  </article>
-                );
-              })
+                    </article>
+                  );
+                })}
+              </div>
             )}
           </div>
 

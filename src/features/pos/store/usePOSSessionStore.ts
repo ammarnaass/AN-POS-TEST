@@ -4,6 +4,20 @@ import { useCartStore } from '@/store/cartStore';
 
 export type POSPaymentMethod = 'cash' | 'card' | 'transfer' | 'credit';
 
+export type POSLayout = 'sidebar' | 'bottom' | 'classic' | 'modern' | 'terminal';
+
+export type ScreenResolution =
+  | 'auto'
+  | '1920x1080'
+  | '1366x768'
+  | '1280x800'
+  | '1024x768'
+  | '1600x900'
+  | '2560x1440'
+  | 'custom';
+
+export type ResolutionScaleMode = 'fit_screen' | 'fixed_canvas';
+
 export interface SuspendedOrder {
   id: string;
   items: CartItem[];
@@ -28,9 +42,13 @@ interface POSSessionState {
   // Operating modes
   returnMode: boolean;
   autoPrintReceipt: boolean;
-  posLayout: 'sidebar' | 'bottom' | 'classic' | 'modern';
+  posLayout: POSLayout;
+  viewMode: 'grid' | 'list';
   showProductImages: boolean;
   uiZoom: number;
+  screenResolution: ScreenResolution;
+  customResolution: { width: number; height: number };
+  resolutionScaleMode: ResolutionScaleMode;
   quickMode: boolean;
 
   // Suspended orders
@@ -50,9 +68,13 @@ interface POSSessionState {
   setPaidAmount: (amount: number | ((prev: number) => number)) => void;
   setReturnMode: (val: boolean | ((prev: boolean) => boolean)) => void;
   setAutoPrintReceipt: (val: boolean | ((prev: boolean) => boolean)) => void;
-  setPosLayout: (layout: 'sidebar' | 'bottom' | 'classic' | 'modern' | ((prev: 'sidebar' | 'bottom' | 'classic' | 'modern') => 'sidebar' | 'bottom' | 'classic' | 'modern')) => void;
+  setPosLayout: (layout: POSLayout | ((prev: POSLayout) => POSLayout)) => void;
+  setViewMode: (mode: 'grid' | 'list' | ((prev: 'grid' | 'list') => 'grid' | 'list')) => void;
   setShowProductImages: (show: boolean | ((prev: boolean) => boolean)) => void;
   setUiZoom: (zoom: number | ((prev: number) => number)) => void;
+  setScreenResolution: (res: ScreenResolution | ((prev: ScreenResolution) => ScreenResolution)) => void;
+  setCustomResolution: (custom: { width: number; height: number } | ((prev: { width: number; height: number }) => { width: number; height: number })) => void;
+  setResolutionScaleMode: (mode: ResolutionScaleMode | ((prev: ResolutionScaleMode) => ResolutionScaleMode)) => void;
   wholesaleMode: boolean;
   setWholesaleMode: (val: boolean | ((prev: boolean) => boolean)) => void;
   toggleWholesaleMode: () => void;
@@ -86,9 +108,17 @@ export const usePOSSessionStore = create<POSSessionState>((set) => ({
   })(),
   posLayout: (() => {
     try {
-      return (localStorage.getItem('pos_layout_mode') as 'sidebar' | 'bottom' | 'classic' | 'modern') || 'bottom';
+      return (localStorage.getItem('pos_layout_mode') as POSLayout) || 'bottom';
     } catch {
       return 'bottom';
+    }
+  })(),
+  viewMode: (() => {
+    try {
+      const saved = localStorage.getItem('pos_view_mode');
+      return (saved as 'grid' | 'list') || 'grid';
+    } catch {
+      return 'grid';
     }
   })(),
   showProductImages: (() => {
@@ -105,6 +135,30 @@ export const usePOSSessionStore = create<POSSessionState>((set) => ({
       return saved ? Number(saved) : 100;
     } catch {
       return 100;
+    }
+  })(),
+  screenResolution: (() => {
+    try {
+      const saved = localStorage.getItem('pos_screen_resolution');
+      return (saved as ScreenResolution) || 'auto';
+    } catch {
+      return 'auto';
+    }
+  })(),
+  customResolution: (() => {
+    try {
+      const saved = localStorage.getItem('pos_custom_resolution');
+      return saved ? JSON.parse(saved) : { width: 1920, height: 1080 };
+    } catch {
+      return { width: 1920, height: 1080 };
+    }
+  })(),
+  resolutionScaleMode: (() => {
+    try {
+      const saved = localStorage.getItem('pos_resolution_scale_mode');
+      return (saved as ResolutionScaleMode) || 'fit_screen';
+    } catch {
+      return 'fit_screen';
     }
   })(),
   wholesaleMode: (() => {
@@ -265,6 +319,17 @@ export const usePOSSessionStore = create<POSSessionState>((set) => ({
       return { posLayout: next };
     }),
 
+  setViewMode: (mode) =>
+    set((state) => {
+      const next = typeof mode === 'function' ? mode(state.viewMode) : mode;
+      try {
+        localStorage.setItem('pos_view_mode', next);
+      } catch {
+        // ignore
+      }
+      return { viewMode: next };
+    }),
+
   setShowProductImages: (show) =>
     set((state) => {
       const next = typeof show === 'function' ? show(state.showProductImages) : show;
@@ -285,6 +350,39 @@ export const usePOSSessionStore = create<POSSessionState>((set) => ({
         // ignore
       }
       return { uiZoom: next };
+    }),
+
+  setScreenResolution: (res) =>
+    set((state) => {
+      const next = typeof res === 'function' ? res(state.screenResolution) : res;
+      try {
+        localStorage.setItem('pos_screen_resolution', next);
+      } catch {
+        // ignore
+      }
+      return { screenResolution: next };
+    }),
+
+  setCustomResolution: (custom) =>
+    set((state) => {
+      const next = typeof custom === 'function' ? custom(state.customResolution) : custom;
+      try {
+        localStorage.setItem('pos_custom_resolution', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return { customResolution: next };
+    }),
+
+  setResolutionScaleMode: (mode) =>
+    set((state) => {
+      const next = typeof mode === 'function' ? mode(state.resolutionScaleMode) : mode;
+      try {
+        localStorage.setItem('pos_resolution_scale_mode', next);
+      } catch {
+        // ignore
+      }
+      return { resolutionScaleMode: next };
     }),
 
   setWholesaleMode: (val) =>

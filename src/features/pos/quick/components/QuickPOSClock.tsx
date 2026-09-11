@@ -1,24 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { Clock } from 'lucide-react';
 
-export const QuickPOSClock: React.FC = React.memo(() => {
-  const [currentTime, setCurrentTime] = useState(new Date());
+export const QuickPOSClock: React.FC<{ className?: string }> = React.memo(({ className }) => {
+  const [timeStr, setTimeStr] = useState<string>('');
 
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    const update = () => {
+      const now = new Date();
+      let hours = now.getHours();
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      const ampm = hours >= 12 ? 'م' : 'ص';
+      hours = hours % 12 || 12;
+      setTimeStr(`${hours}:${minutes}:${seconds} ${ampm}`);
+    };
+    update();
+    const timer = setInterval(update, 1000);
     return () => clearInterval(timer);
   }, []);
 
   return (
-    <div className="hidden lg:flex items-center gap-1.5 text-xs text-on-surface-variant font-mono px-2">
-      <Clock className="w-3.5 h-3.5" />
-      <span>
-        {currentTime.toLocaleTimeString('ar-DZ', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-        })}
-      </span>
-    </div>
+    <span className={className || 'font-mono text-slate-300 font-medium text-xs'}>
+      {timeStr}
+    </span>
   );
 });

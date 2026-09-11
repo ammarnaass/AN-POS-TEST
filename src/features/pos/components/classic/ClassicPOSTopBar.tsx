@@ -12,7 +12,10 @@ import {
   Calculator,
   FileText,
   FileCheck,
+  Sun,
+  Moon,
 } from 'lucide-react';
+import { useThemeStore } from '@/store/themeStore';
 
 interface ClassicPOSTopBarProps {
   onSettleSale: () => void;
@@ -65,6 +68,8 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
   currency = 'دج',
   formatMoney,
 }) => {
+  const { theme, toggleTheme } = useThemeStore();
+
   return (
     <div className="bg-surface-container-low border-b border-outline-variant/20 p-2 sm:p-2.5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 shrink-0 shadow-sm">
       {/* 1. RIGHT / CENTER (in RTL): ACTIONS TOOLBAR */}
@@ -220,6 +225,25 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
             <span className="hidden sm:inline">لوحة أرقام</span>
           </button>
         )}
+
+        {/* زر تبديل الوضع الليلي / النهاري */}
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className={`h-10 px-2.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0 ${
+            theme === 'dark'
+              ? 'bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/25 text-amber-400'
+              : 'bg-indigo-500/10 hover:bg-indigo-500/20 border-indigo-500/25 text-indigo-600'
+          }`}
+          title={theme === 'dark' ? 'التحويل إلى الوضع النهاري' : 'التحويل إلى الوضع الليلي'}
+        >
+          {theme === 'dark' ? (
+            <Sun className="w-3.5 h-3.5 text-amber-400" />
+          ) : (
+            <Moon className="w-3.5 h-3.5 text-indigo-600" />
+          )}
+          <span className="hidden sm:inline">{theme === 'dark' ? 'نهاري' : 'ليلي'}</span>
+        </button>
       </div>
 
       {/* 2. LEFT (in RTL): UNIFIED SETTLEMENT & DIGITAL DISPLAY BLOCK */}

@@ -517,13 +517,19 @@ export default function QuickPOSPage() {
     addNotification,
   });
 
+  const totalPiecesCount = useMemo(() => {
+    return cart.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
+  }, [cart]);
+
   return (
-    <div className="flex flex-col h-screen w-full bg-surface-container-lowest text-on-surface select-none overflow-hidden font-sans">
+    <div className="bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-sans h-screen flex flex-col overflow-hidden select-none">
       {/* 1. TOP HEADER */}
       <QuickPOSHeader
         shopName={settingsOrDefault.shopName}
         cartCount={cart.length}
+        totalPiecesCount={totalPiecesCount}
         totalAmount={saleSummary.total}
+        appliedDiscount={saleSummary.discountAmount}
         baseCurrency={settingsOrDefault.baseCurrency}
         soundEnabled={soundEnabled}
         onToggleSound={() => setSoundEnabled((prev) => !prev)}
@@ -534,16 +540,18 @@ export default function QuickPOSPage() {
         onOpenSidebar={openSidebar}
         theme={theme}
         onToggleTheme={toggleTheme}
+        cashierName={currentUser?.name || 'محمد العربي'}
+        terminalName={currentSession ? `#POS-${currentSession.id.slice(-2)}` : '#POS-01'}
       />
 
       {/* MOBILE VIEW SWITCHER */}
-      <div className="md:hidden flex items-center bg-surface-container/90 p-1 mx-3 my-1.5 rounded-2xl border border-outline-variant/20 shrink-0 gap-1 shadow-xs">
+      <div className="md:hidden flex items-center bg-white dark:bg-slate-900 p-1 mx-3 my-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 shrink-0 gap-1 shadow-2xs">
         <button
           onClick={() => setMobileTab('catalog')}
           className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
             mobileTab === 'catalog'
-              ? 'bg-amber-500 text-white shadow-sm'
-              : 'text-on-surface-variant hover:text-on-surface'
+              ? 'bg-brand-600 text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
           <Zap className="w-4 h-4" />
@@ -553,8 +561,8 @@ export default function QuickPOSPage() {
           onClick={() => setMobileTab('cart')}
           className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
             mobileTab === 'cart'
-              ? 'bg-amber-500 text-white shadow-sm'
-              : 'text-on-surface-variant hover:text-on-surface'
+              ? 'bg-brand-600 text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
           <ShoppingCart className="w-4 h-4" />
@@ -567,28 +575,9 @@ export default function QuickPOSPage() {
         </button>
       </div>
 
-      {/* 2. BODY SPLIT */}
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
-        <QuickPOSCatalog
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          onSearchClear={() => {
-            setSearchQuery('');
-            searchInputRef.current?.focus();
-          }}
-          searchInputRef={searchInputRef}
-          onSearchKeyDown={handleSearchKeyDown}
-          suspendedOrdersCount={suspendedOrders.length}
-          onOpenHeldSales={() => setShowHeldSalesModal(true)}
-          categories={categories}
-          selectedCategory={selectedCategory}
-          onSelectCategory={setSelectedCategory}
-          totalProductsCount={products.length}
-          filteredProducts={filteredProducts}
-          onAddProduct={handleAddProduct}
-          mobileTab={mobileTab}
-        />
-
+      {/* 2. MAIN CONTENT LAYOUT */}
+      <main className="flex-1 flex overflow-hidden p-3 gap-3">
+        {/* In RTL: Child 1 renders on the RIGHT (Cashier Cart) */}
         <QuickPOSCart
           cart={cart}
           onUpdateQty={updateQty}
@@ -612,7 +601,30 @@ export default function QuickPOSPage() {
           onSwitchMobileTab={setMobileTab}
           baseCurrency={settingsOrDefault.baseCurrency}
         />
-      </div>
+
+        {/* In RTL: Child 2 renders on the LEFT (Product Catalog) */}
+        <QuickPOSCatalog
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          onSearchClear={() => {
+            setSearchQuery('');
+            searchInputRef.current?.focus();
+          }}
+          searchInputRef={searchInputRef}
+          onSearchKeyDown={handleSearchKeyDown}
+          suspendedOrdersCount={suspendedOrders.length}
+          onOpenHeldSales={() => setShowHeldSalesModal(true)}
+          onOpenNewProduct={() => setShowFreeProductModal(true)}
+          categories={categories}
+          selectedCategory={selectedCategory}
+          onSelectCategory={setSelectedCategory}
+          totalProductsCount={products.length}
+          filteredProducts={filteredProducts}
+          onAddProduct={handleAddProduct}
+          mobileTab={mobileTab}
+          baseCurrency={settingsOrDefault.baseCurrency}
+        />
+      </main>
 
       {/* 3. SHARED MODALS */}
       <SuccessModal

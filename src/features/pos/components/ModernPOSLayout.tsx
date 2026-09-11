@@ -87,6 +87,8 @@ interface ModernPOSLayoutProps {
   isFullscreen: boolean;
   onNavigateBack: () => void;
   onOpenKeypadForQty?: (item: CartItem) => void;
+  viewMode?: 'grid' | 'list';
+  showProductImages?: boolean;
 }
 
 const ITEMS_PER_PAGE = 20;
@@ -138,6 +140,8 @@ export const ModernPOSLayout: React.FC<ModernPOSLayoutProps> = ({
   isFullscreen,
   onNavigateBack,
   onOpenKeypadForQty,
+  viewMode = 'grid',
+  showProductImages = true,
 }) => {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useThemeStore();
@@ -212,7 +216,7 @@ export const ModernPOSLayout: React.FC<ModernPOSLayoutProps> = ({
   };
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-slate-100 dark:bg-slate-950 font-cairo select-none" dir="rtl">
+    <div className="h-full w-full flex-1 flex flex-col overflow-hidden bg-slate-100 dark:bg-slate-950 font-cairo select-none" dir="rtl">
       {/* ─── 1. TOP NAVIGATION BAR ─── */}
       <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-2.5 flex items-center justify-between shrink-0 shadow-xs z-20">
         {/* Right side: Logo & Status & Mode switcher */}
@@ -781,6 +785,80 @@ export const ModernPOSLayout: React.FC<ModernPOSLayoutProps> = ({
                 <p className="text-sm font-bold text-slate-700 dark:text-slate-300">لا توجد منتجات تطابق البحث أو التصنيف المختار</p>
                 <p className="text-xs text-slate-400 mt-1">جرّب اختيار تصنيف آخر أو مسح عبارة البحث</p>
               </div>
+            ) : viewMode === 'list' ? (
+              <div className="flex flex-col divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-2xs">
+                {displayedProducts.map((product) => {
+                  const stock = product.stockQuantity ?? (product as any).quantity ?? 0;
+                  const isLowStock = stock > 0 && stock <= 5;
+                  const isOutOfStock = stock <= 0;
+                  const categoryName = typeof product.category === 'object' && product.category
+                    ? product.category.name
+                    : (product.category || 'عام');
+
+                  return (
+                    <div
+                      key={product.id}
+                      onClick={() => onAddToCart(product)}
+                      className="p-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors flex items-center justify-between gap-3 cursor-pointer select-none group"
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        {showProductImages && (
+                          <div className="w-12 h-12 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center shrink-0 overflow-hidden border border-slate-200/60 dark:border-slate-700/60">
+                            {product.image ? (
+                              <img src={product.image} alt={product.name} className="w-full h-full object-contain p-1" />
+                            ) : (
+                              <Package className="w-5 h-5 text-slate-400" />
+                            )}
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 truncate">
+                              {product.name}
+                            </h4>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold shrink-0">
+                              {categoryName}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 font-mono mt-0.5">
+                            {product.barcode || product.sku || '-'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 sm:gap-4 shrink-0">
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full font-mono shrink-0 ${
+                            isOutOfStock
+                              ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400'
+                              : isLowStock
+                              ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400'
+                              : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400'
+                          }`}
+                        >
+                          {stock} قطع
+                        </span>
+
+                        <div className="text-left font-mono font-extrabold text-sm text-blue-700 dark:text-blue-400 min-w-[70px]">
+                          {formatMoney(product.price)} <span className="text-[10px] font-sans text-slate-400">{currency}</span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAddToCart(product);
+                          }}
+                          className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 group-hover:bg-blue-600 group-hover:text-white dark:group-hover:bg-blue-600 dark:group-hover:text-white flex items-center justify-center font-bold transition shadow-2xs cursor-pointer active:scale-95"
+                          title="إضافة للسلة"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5">
                 {displayedProducts.map((product) => {
@@ -817,25 +895,27 @@ export const ModernPOSLayout: React.FC<ModernPOSLayoutProps> = ({
                         </div>
 
                         {/* Product Visual Container (Image or 3D vector box) */}
-                        <div className="w-full h-28 bg-slate-50 dark:bg-slate-900/60 rounded-xl mb-3 flex items-center justify-center overflow-hidden p-2 group-hover:scale-105 transition-transform">
-                          {product.image ? (
-                            <img
-                              src={product.image}
-                              alt={product.name}
-                              className="w-full h-full object-contain"
-                              loading="lazy"
-                            />
-                          ) : (
-                            <svg className="w-12 h-12 stroke-current text-slate-300 dark:text-slate-600" fill="none" viewBox="0 0 24 24">
-                              <path
-                                d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth="1.5"
+                        {showProductImages && (
+                          <div className="w-full h-28 bg-slate-50 dark:bg-slate-900/60 rounded-xl mb-3 flex items-center justify-center overflow-hidden p-2 group-hover:scale-105 transition-transform">
+                            {product.image ? (
+                              <img
+                                src={product.image}
+                                alt={product.name}
+                                className="w-full h-full object-contain"
+                                loading="lazy"
                               />
-                            </svg>
-                          )}
-                        </div>
+                            ) : (
+                              <svg className="w-12 h-12 stroke-current text-slate-300 dark:text-slate-600" fill="none" viewBox="0 0 24 24">
+                                <path
+                                  d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth="1.5"
+                                />
+                              </svg>
+                            )}
+                          </div>
+                        )}
 
                         {/* Product Title & Barcode */}
                         <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 line-clamp-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">

@@ -144,7 +144,7 @@ export const ClassicPOSLayout: React.FC<ClassicPOSLayoutProps> = ({
   );
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-900/40 select-none text-on-surface">
+    <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-100 dark:bg-slate-950 select-none text-slate-800 dark:text-slate-100">
       {/* 1. TOP SECTION: ACTION BUTTONS TOOLBAR + LED DIGITAL DISPLAY */}
       <ClassicPOSTopBar
         onSettleSale={onSettleSale}
