@@ -106,6 +106,7 @@ export const SidebarPOSLayout: React.FC<SidebarPOSLayoutProps> = ({
   onEditPrice,
   saleSummary,
   products,
+  allProducts,
   categories,
   selectedCategory,
   onSelectCategory,
