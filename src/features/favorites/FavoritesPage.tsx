@@ -8,6 +8,7 @@ import { formatMoney } from '@/features/pos/utils/format';
 import {
   useFavoritesStore,
   type FavoriteCategory,
+  type FavoriteItem,
 } from './store/useFavoritesStore';
 import { usePOSSessionStore } from '@/features/pos/store/usePOSSessionStore';
 import {
@@ -65,6 +66,7 @@ export default function FavoritesPage() {
     updateCategory,
     deleteCategory,
     addItemToCategory,
+    updateItem,
     removeItemFromCategory,
     purgeProductItems,
   } = useFavoritesStore();
@@ -105,6 +107,18 @@ export default function FavoritesPage() {
   const [qpIsCustomPrice, setQpIsCustomPrice] = useState<boolean>(false);
   const [qpIsSaving, setQpIsSaving] = useState<boolean>(false);
   const [qpError, setQpError] = useState<string>('');
+
+  // Edit Pack Modal State (تعديل عبوة المفضلة)
+  const [showEditPackModal, setShowEditPackModal] = useState(false);
+  const [editingPackItem, setEditingPackItem] = useState<FavoriteItem | null>(null);
+  const [epName, setEpName] = useState('');
+  const [epPrice, setEpPrice] = useState('');
+  const [epPiecesCount, setEpPiecesCount] = useState<number>(1);
+  const [epUnitName, setEpUnitName] = useState('كرتونة');
+  const [epBarcode, setEpBarcode] = useState('');
+  const [epTargetCatId, setEpTargetCatId] = useState('');
+  const [epIsSaving, setEpIsSaving] = useState(false);
+  const [epError, setEpError] = useState('');
 
   // Fetch packs from SQLite / Dexie
   const { data: packs = [] } = useQuery<PackEntity[]>({
@@ -418,6 +432,115 @@ export default function FavoritesPage() {
       setQpError(err?.message || 'حدث خطأ أثناء حفظ العبوة');
     } finally {
       setQpIsSaving(false);
+    }
+  };
+
+  // Edit Pack Modal Handlers (تعديل عبوة المفضلة)
+  const handleOpenEditPackModal = (item: FavoriteItem) => {
+    setEditingPackItem(item);
+    setEpName(item.name);
+    setEpPrice(String(item.price || 0));
+    setEpPiecesCount(Number(item.packQty || 1));
+    setEpUnitName(item.packUnit || 'كرتونة');
+    setEpBarcode(item.barcode || '');
+    setEpTargetCatId(item.categoryId);
+    setEpError('');
+    setShowEditPackModal(true);
+  };
+
+  const epParentProduct = useMemo(() => {
+    if (!editingPackItem) return null;
+    if (editingPackItem.parentProductId) {
+      return products.find((p) => p.id === editingPackItem.parentProductId) || null;
+    }
+    const foundPack = packs.find(
+      (p) => String(p.id) === String(editingPackItem.itemId) || String(p.id) === String(editingPackItem.id)
+    );
+    if (foundPack && Array.isArray(foundPack.items) && foundPack.items[0]?.productId) {
+      return products.find((p) => p.id === foundPack.items[0].productId) || null;
+    }
+    return null;
+  }, [editingPackItem, products, packs]);
+
+  const handleSaveEditedPack = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPackItem) return;
+
+    const finalName = epName.trim();
+    if (!finalName) {
+      setEpError('يرجى إدخال اسم للعبوة أو الكرتونة');
+      return;
+    }
+    const priceNum = Number(epPrice);
+    if (isNaN(priceNum) || priceNum < 0) {
+      setEpError('يرجى إدخال سعر بيع صحيح للعبوة');
+      return;
+    }
+    const pieces = Math.max(1, Number(epPiecesCount || 1));
+    const targetCat = epTargetCatId || editingPackItem.categoryId;
+    if (!targetCat) {
+      setEpError('يرجى اختيار تصنيف المفضلة');
+      return;
+    }
+
+    setEpIsSaving(true);
+    setEpError('');
+
+    try {
+      const now = new Date().toISOString();
+      const finalBarcode = epBarcode.trim() || undefined;
+      const finalUnit = epUnitName.trim() || 'كرتونة';
+
+      // 1. تحديث العنصر في متجر المفضلة
+      updateItem(editingPackItem.id, {
+        name: finalName,
+        price: priceNum,
+        packQty: pieces,
+        packUnit: finalUnit,
+        barcode: finalBarcode,
+        categoryId: targetCat,
+      });
+
+      // 2. تحديث سجل العبوة المقابل في جدول packs في Dexie و SQLite إن وجد
+      const targetPackId = editingPackItem.itemId || editingPackItem.id;
+      const existingPack = packs.find(
+        (p) => String(p.id) === String(targetPackId) || String(p.id) === String(editingPackItem.id)
+      );
+
+      if (existingPack) {
+        const updatedPackData: PackEntity = {
+          ...existingPack,
+          name: finalName,
+          barcode: finalBarcode || '',
+          packPrice: priceNum,
+          pack_price: priceNum,
+          unitName: finalUnit,
+          piecesCount: pieces,
+          items: Array.isArray(existingPack.items) && existingPack.items.length > 0
+            ? existingPack.items.map((it, idx) => (idx === 0 ? { ...it, qty: pieces } : it))
+            : existingPack.items,
+          updatedAt: now,
+        };
+
+        const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+        if (api?.packs?.update) {
+          try {
+            await api.packs.update(updatedPackData);
+          } catch (err) {
+            console.warn('SQLite packs.update fallback to Dexie:', err);
+          }
+        }
+
+        await db.packs.put(updatedPackData as any);
+        queryClient.invalidateQueries({ queryKey: ['packs'] });
+      }
+
+      setShowEditPackModal(false);
+      setEditingPackItem(null);
+    } catch (err: any) {
+      setEpError(err?.message || 'حدث خطأ أثناء حفظ التعديلات');
+    } finally {
+      setEpIsSaving(false);
     }
   };
 
@@ -817,7 +940,7 @@ export default function FavoritesPage() {
                         </div>
                       </div>
 
-                      {/* Footer: Price & Delete */}
+                      {/* Footer: Price, Edit & Delete */}
                       <div className="flex items-center justify-between pt-2 border-t border-outline-variant/15 dark:border-slate-700/60">
                         <div className="text-right">
                           <span className="text-sm font-black font-mono text-primary dark:text-blue-400">
@@ -826,14 +949,25 @@ export default function FavoritesPage() {
                           <span className="text-[10px] text-on-surface-variant dark:text-slate-400 mr-1">د.ج</span>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() => removeItemFromCategory(item.id)}
-                          className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition cursor-pointer"
-                          title="حذف من هذا التصنيف"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditPackModal(item)}
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-lg transition cursor-pointer"
+                            title="تعديل بيانات وسعر العبوة"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => removeItemFromCategory(item.id)}
+                            className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition cursor-pointer"
+                            title="حذف من هذا التصنيف"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -1449,6 +1583,259 @@ export default function FavoritesPage() {
                 >
                   <Zap className="w-4 h-4 fill-amber-300 text-amber-300" />
                   <span>{qpIsSaving ? 'جارٍ الحفظ...' : '⚡ حفظ وإضافة العبوة للمفضلة'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 4: Edit Pack Modal (تعديل بيانات وسعر العبوة في المفضلة) */}
+      {showEditPackModal && editingPackItem && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-surface-container-low dark:bg-slate-900 border border-outline-variant/20 dark:border-slate-800 rounded-3xl w-full max-w-xl p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-outline-variant/15 dark:border-slate-800 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-500/20 shadow-xs">
+                  <Edit2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold font-cairo text-on-surface dark:text-white flex items-center gap-2">
+                    <span>تعديل بيانات وسعر العبوة</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 font-sans">
+                      المفضلة
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-on-surface-variant dark:text-slate-400 mt-0.5">
+                    تعديل الاسم أو سعة القطع أو سعر البيع أو التصنيف المفضل التابع له
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEditPackModal(false);
+                  setEditingPackItem(null);
+                }}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {epError && (
+              <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 rounded-xl text-xs flex items-center gap-2 shrink-0">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{epError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveEditedPack} className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-4">
+              {/* بطاقة معلومات الصنف الأساسي إن وجد */}
+              {epParentProduct && (
+                <div className="p-3 bg-blue-50/40 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800/60 rounded-2xl flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-blue-900 dark:text-blue-200 truncate">
+                      المنتج الأساسي: {epParentProduct.name}
+                    </div>
+                    <div className="flex items-center gap-3 text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 font-mono">
+                      <span>سعر الحبة تجزئة: <strong className="text-blue-700 dark:text-blue-300">{formatMoney(epParentProduct.retailPrice || (epParentProduct as any).price || 0)} د.ج</strong></span>
+                      <span>المخزون المتاح: <strong className="text-slate-700 dark:text-slate-300">{epParentProduct.quantity ?? 0} قطعة</strong></span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const basePrice = Number(epParentProduct.retailPrice || (epParentProduct as any).price || 0);
+                      const calculated = basePrice * Math.max(1, epPiecesCount);
+                      setEpPrice(String(calculated));
+                    }}
+                    className="text-[11px] font-bold text-blue-700 dark:text-blue-300 hover:underline px-2.5 py-1 bg-white dark:bg-slate-800 rounded-lg border border-blue-200 dark:border-blue-700 shrink-0 cursor-pointer"
+                    title="حساب سعر العبوة تلقائياً: سعر الحبة × عدد القطع"
+                  >
+                    حساب السعر التلقائي
+                  </button>
+                </div>
+              )}
+
+              {/* اسم العبوة */}
+              <div>
+                <label className="block text-xs font-bold text-on-surface-variant dark:text-slate-300 mb-1">
+                  اسم العبوة / الكرتونة: <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={epName}
+                  onChange={(e) => setEpName(e.target.value)}
+                  placeholder="مثال: كرتونة حليب كانديا (6 قطع)..."
+                  className="w-full px-3 py-2 bg-surface-container dark:bg-slate-800 border border-outline-variant/20 dark:border-slate-700 rounded-xl text-xs font-bold text-on-surface dark:text-white focus:outline-none focus:border-primary"
+                  required
+                />
+              </div>
+
+              {/* عدد القطع واسم الوحدة */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-on-surface-variant dark:text-slate-300 mb-1">
+                    عدد القطع في العبوة: <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setEpPiecesCount((prev) => Math.max(1, prev - 1))}
+                      className="w-8 h-8 rounded-lg bg-surface-container dark:bg-slate-800 border border-outline-variant/20 dark:border-slate-700 font-bold text-sm flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      min={1}
+                      value={epPiecesCount}
+                      onChange={(e) => setEpPiecesCount(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="flex-1 px-2 py-1.5 bg-surface-container dark:bg-slate-800 border border-outline-variant/20 dark:border-slate-700 rounded-lg text-xs font-mono font-bold text-center text-on-surface dark:text-white focus:outline-none focus:border-primary"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setEpPiecesCount((prev) => prev + 1)}
+                      className="w-8 h-8 rounded-lg bg-surface-container dark:bg-slate-800 border border-outline-variant/20 dark:border-slate-700 font-bold text-sm flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer"
+                    >
+                      +
+                    </button>
+                  </div>
+                  {/* أزرار سريعة للأعداد الشائعة */}
+                  <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                    {[4, 6, 8, 12, 24, 30].map((num) => (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => setEpPiecesCount(num)}
+                        className={`text-[10px] font-mono px-2 py-0.5 rounded-md border cursor-pointer ${
+                          epPiecesCount === num
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-surface-container dark:bg-slate-800 border-outline-variant/20 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                        }`}
+                      >
+                        {num}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-on-surface-variant dark:text-slate-300 mb-1">
+                    اسم الوحدة / نوع التعبئة:
+                  </label>
+                  <input
+                    type="text"
+                    value={epUnitName}
+                    onChange={(e) => setEpUnitName(e.target.value)}
+                    placeholder="مثال: كرتونة، طرد، باقة..."
+                    className="w-full px-3 py-2 bg-surface-container dark:bg-slate-800 border border-outline-variant/20 dark:border-slate-700 rounded-xl text-xs font-bold text-on-surface dark:text-white focus:outline-none focus:border-primary"
+                  />
+                  <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                    {['كرتونة', 'طرد', 'علبة', 'باقة', 'صندوق', 'كيس', 'ربطة'].map((u) => (
+                      <button
+                        key={u}
+                        type="button"
+                        onClick={() => setEpUnitName(u)}
+                        className={`text-[10px] px-2 py-0.5 rounded-md border cursor-pointer ${
+                          epUnitName === u
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-surface-container dark:bg-slate-800 border-outline-variant/20 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                        }`}
+                      >
+                        {u}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* سعر البيع الإجمالي للعبوة */}
+              <div className="p-3 bg-surface-container dark:bg-slate-800/80 border border-outline-variant/20 dark:border-slate-700/60 rounded-2xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-on-surface-variant dark:text-slate-300 block">
+                    سعر البيع الإجمالي للعبوة (د.ج): <span className="text-rose-500">*</span>
+                  </label>
+                  {Number(epPrice) > 0 && epPiecesCount > 0 && (
+                    <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md">
+                      سعر الحبة داخل العبوة: {formatMoney(Number(epPrice) / epPiecesCount)} د.ج
+                    </span>
+                  )}
+                </div>
+
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="any"
+                    value={epPrice}
+                    onChange={(e) => setEpPrice(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full pl-12 pr-3 py-2.5 bg-surface-container-high dark:bg-slate-900 border border-outline-variant/30 dark:border-slate-700 rounded-xl text-base font-black font-mono text-emerald-600 dark:text-emerald-400 focus:outline-none focus:border-emerald-500"
+                    required
+                  />
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                    د.ج
+                  </span>
+                </div>
+              </div>
+
+              {/* الباركود وتصنيف المفضلة */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-on-surface-variant dark:text-slate-300 mb-1">
+                    باركود العبوة (اختياري):
+                  </label>
+                  <input
+                    type="text"
+                    value={epBarcode}
+                    onChange={(e) => setEpBarcode(e.target.value)}
+                    placeholder="اتركه فارغاً للبيع باللمس..."
+                    className="w-full px-3 py-2 bg-surface-container dark:bg-slate-800 border border-outline-variant/20 dark:border-slate-700 rounded-xl text-xs font-mono text-on-surface dark:text-white focus:outline-none focus:border-primary"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-on-surface-variant dark:text-slate-300 mb-1">
+                    التصنيف المفضل: <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={epTargetCatId}
+                    onChange={(e) => setEpTargetCatId(e.target.value)}
+                    className="w-full px-3 py-2 bg-surface-container dark:bg-slate-800 border border-outline-variant/20 dark:border-slate-700 rounded-xl text-xs font-bold text-on-surface dark:text-white focus:outline-none focus:border-primary"
+                    required
+                  >
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-outline-variant/15 dark:border-slate-800 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditPackModal(false);
+                    setEditingPackItem(null);
+                  }}
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={epIsSaving}
+                  className="px-5 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-xs transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>{epIsSaving ? 'جارٍ الحفظ...' : 'حفظ التعديلات'}</span>
                 </button>
               </div>
             </form>
