@@ -1058,7 +1058,7 @@ export default function POSPage() {
             title="الانتقال إلى نقطة البيع السريعة"
           >
             <Zap className="w-4 h-4 fill-amber-500 text-amber-500" />
-            <span className="font-cairo font-extrabold hidden md:inline">كاشير سريع</span>
+            <span className="font-cairo font-extrabold hidden md:inline">نقطة البيع السريع</span>
             <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-500 text-white shadow-2xs">⚡ FAST</span>
           </button>
 

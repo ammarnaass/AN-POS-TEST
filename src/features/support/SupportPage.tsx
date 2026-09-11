@@ -182,7 +182,7 @@ const GUIDES: InteractiveGuide[] = [
     iconColor: 'text-blue-700 dark:text-blue-400',
     iconBg: 'bg-blue-100 dark:bg-blue-500/15 border-blue-300 dark:border-blue-500/30',
     route: '/pos/advanced',
-    routeLabel: 'فتح الكاشير المتقدم (تصميم 5)',
+    routeLabel: 'فتح نقطة البيع المتقدمة (تصميم 5)',
     proTip: 'شريط العمليات العلوي يجمع أهم وظائف المحطة: الصفحة الرئيسية، صنف حر، فتح الدرج، عارض الأسعار، والحاسبة.',
     shortcuts: [
       { key: 'Esc', label: 'الصفحة الرئيسية' },
@@ -214,15 +214,15 @@ const GUIDES: InteractiveGuide[] = [
   {
     id: 'pos-quick',
     category: 'نقطة البيع (POS) والتصاميم',
-    title: 'الكاشير السريع (Quick POS) لمحطات المسح المتواصل',
+    title: 'نقطة البيع السريع (Quick POS) لمحطات المسح المتواصل',
     shortDesc: 'نمط مسح عالي السرعة مخصص للسوبرماركت والبقالة التي تشهد طوابير انتظار كثيفة.',
     timeEstimate: 'دقيقتان',
     icon: Zap,
     iconColor: 'text-amber-700 dark:text-amber-400',
     iconBg: 'bg-amber-100 dark:bg-amber-500/15 border-amber-300 dark:border-amber-500/30',
     route: '/pos/quick',
-    routeLabel: 'فتح الكاشير السريع',
-    proTip: 'في الكاشير السريع، مسح نفس الباركود مراراً يزيد الكمية تلقائياً ويطبع الوصل فور الضغط على Enter.',
+    routeLabel: 'فتح نقطة البيع السريع',
+    proTip: 'في نقطة البيع السريع، مسح نفس الباركود مراراً يزيد الكمية تلقائياً ويطبع الوصل فور الضغط على Enter.',
     shortcuts: [
       { key: 'Barcode', label: 'مسح متكرر فوري' },
       { key: 'Enter', label: 'تأكيد السداد السريع' },
@@ -570,7 +570,7 @@ const SYSTEM_FEATURES: SystemFeature[] = [
   {
     id: 'feat-quick-pos',
     category: 'نقطة البيع (POS) والتصاميم',
-    title: 'الكاشير السريع (Quick POS)',
+    title: 'نقطة البيع السريع (Quick POS)',
     badge: 'سرعة فائقة',
     desc: 'نمط مسح متواصل ومباشر بالباركود مصمم لمواجهة طوابير الانتظار في السوبرماركت ومحلات البقالة الكبيرة.',
     highlights: ['مسح متكرر لمضاعفة الكمية', 'طباعة فورية', 'حساب الصرف تلقائياً', 'دون لمس الفأرة'],

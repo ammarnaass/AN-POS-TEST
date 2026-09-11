@@ -667,10 +667,10 @@ export const SidebarPOSLayout: React.FC<SidebarPOSLayoutProps> = ({
                 type="button"
                 onClick={() => navigate('/pos/quick')}
                 className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20 border border-amber-200 dark:border-amber-800/60 transition cursor-pointer"
-                title="الانتقال إلى كاشير سريع"
+                title="الانتقال إلى نقطة البيع السريع"
               >
                 <Zap className="w-4 h-4 text-amber-600 dark:text-amber-400 fill-amber-500" />
-                <span>كاشير سريع</span>
+                <span>نقطة البيع السريع</span>
               </button>
 
               <button

@@ -50,8 +50,8 @@ const menuSections: NavSection[] = [
   {
     title: 'المبيعات',
     items: [
-      { path: '/pos/quick', label: 'الكاشير السريع', icon: Zap, badge: '⚡ سريع' },
-      { path: '/pos', label: 'الكاشير المتقدم', icon: ShoppingCart, badge: 'PRO' },
+      { path: '/pos/quick', label: 'نقطة البيع السريع', icon: Zap, badge: '⚡ سريع' },
+      { path: '/pos', label: 'نقطة البيع المتقدمة', icon: ShoppingCart, badge: 'PRO' },
       { path: '/', label: 'لوحة التحكم', icon: LayoutDashboard },
       { path: '/sales', label: 'المبيعات', icon: Receipt },
       { path: '/cash', label: 'الخزينة', icon: DollarSign, roles: ['admin', 'cashier'] },

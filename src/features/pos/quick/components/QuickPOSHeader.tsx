@@ -152,7 +152,7 @@ export const QuickPOSHeader: React.FC<QuickPOSHeaderProps> = React.memo(({
                 {shopName || 'متجر AN POS'}
               </h1>
               <span className="bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-[11px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border border-amber-200/60 dark:border-amber-700/40">
-                ⚡ كاشير سريع
+                ⚡ نقطة البيع السريع
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">

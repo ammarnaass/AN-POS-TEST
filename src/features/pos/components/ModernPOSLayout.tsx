@@ -242,10 +242,10 @@ export const ModernPOSLayout: React.FC<ModernPOSLayoutProps> = ({
               type="button"
               onClick={() => navigate('/pos/quick')}
               className="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-xs flex items-center gap-1.5 hover:bg-blue-50 transition cursor-pointer"
-              title="الانتقال لكاشير سريع"
+              title="الانتقال لنقطة البيع السريع"
             >
               <Zap className="w-4 h-4 fill-current text-blue-600 dark:text-blue-400" />
-              <span>كاشير سريع</span>
+              <span>نقطة البيع السريع</span>
             </button>
             <button
               type="button"

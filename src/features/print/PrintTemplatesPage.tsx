@@ -1665,7 +1665,7 @@ export default function PrintTemplatesPage() {
                 <label className="block text-xs font-bold text-on-surface mb-1.5">اسم القالب</label>
                 <input
                   type="text"
-                  placeholder="مثال: إيصال الكاشير السريع (80mm)"
+                  placeholder="مثال: إيصال نقطة البيع السريع (80mm)"
                   value={newTplName}
                   onChange={(e) => setNewTplName(e.target.value)}
                   className="w-full px-4 py-2.5 rounded-xl bg-surface-container border border-outline-variant/20 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
