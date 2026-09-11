@@ -21,7 +21,7 @@ import {
   Store,
   Eye,
   Calculator,
-  FolderOpen,
+  Home,
   UserCheck,
   AlertCircle,
   CheckCircle2,
@@ -492,16 +492,16 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
         <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-2 sm:px-3 py-1.5 flex items-center justify-between gap-1.5 shadow-2xs shrink-0 flex-wrap lg:flex-nowrap">
           {/* Right Actions: وظائف البيع والأزرار الرئيسية الموحدة */}
           <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap sm:flex-nowrap shrink-0">
-            {/* زر ملف (الرجوع أو القائمة) */}
+            {/* زر الصفحة الرئيسية (Esc) */}
             <button
               type="button"
               onClick={onNavigateBack}
-              className="bg-blue-700 hover:bg-blue-800 text-white px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold shadow-2xs transition-all flex items-center gap-1 cursor-pointer shrink-0 active:scale-95"
-              title="الرجوع إلى القائمة الرئيسية (Esc)"
-              aria-label="الرجوع إلى القائمة الرئيسية"
+              className="bg-blue-700 hover:bg-blue-800 text-white px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 active:scale-95"
+              title="الرجوع إلى الصفحة الرئيسية (Esc)"
+              aria-label="الصفحة الرئيسية"
             >
-              <FolderOpen className="w-3.5 h-3.5" />
-              <span>ملف (Esc)</span>
+              <Home className="w-3.5 h-3.5" />
+              <span>الصفحة الرئيسية (Esc)</span>
             </button>
 
             {/* زر تأكيد البيع (F1) */}
@@ -671,16 +671,16 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
               <span>عارض الأسعار</span>
             </button>
 
-            {/* صنف حر غير مسجل (/ Diver) */}
+            {/* منتج حر غير مسجل (/ Diver) */}
             <button
               type="button"
               onClick={onOpenFreeProduct}
               className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-2.5 py-1.5 rounded-lg text-xs font-bold border border-slate-300 dark:border-slate-700 transition-all flex items-center gap-1 cursor-pointer active:scale-95"
-              title="إضافة سلعة حرة غير مسجلة بالمخزون بالاسم والسعر"
-              aria-label="إضافة صنف حر"
+              title="إضافة منتج حر غير مسجل بالمخزون بالاسم والسعر"
+              aria-label="إضافة منتج حر"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>صنف حر (/ Diver)</span>
+              <span>منتج حر (/ Diver)</span>
             </button>
 
             {/* آلة الحسبة / لوحة الأرقام (ظاهرة دائماً وبدون إخفاء شرطي) */}
@@ -1186,16 +1186,16 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
                 );
               })}
 
-              {/* أزرار حرة إضافية تحاكي "+ إضافة صنف" في التصميم الأصلي */}
+              {/* أزرار حرة إضافية تحاكي "+ منتج حر" في التصميم الأصلي */}
               {Array.from({ length: Math.max(0, 15 - quickProducts.length) }).map((_, idx) => (
                 <button
                   key={`empty-slot-${idx}`}
                   type="button"
                   onClick={onOpenFreeProduct}
                   className="bg-slate-50 dark:bg-slate-800/50 hover:bg-blue-50 dark:hover:bg-blue-950/30 text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 border border-dashed border-slate-200 dark:border-slate-700 rounded-lg p-1 flex items-center justify-center text-xs transition cursor-pointer active:scale-95 min-h-[44px]"
-                  title="إضافة سلعة حرة فورية"
+                  title="إضافة منتج حر فوري"
                 >
-                  + إضافة صنف
+                  + منتج حر
                 </button>
               ))}
             </div>
