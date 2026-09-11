@@ -13,7 +13,7 @@ export interface FavoriteCategory {
 export interface FavoriteItem {
   id: string;
   categoryId: string;
-  type: 'pack' | 'product';
+  type: 'pack';
   itemId: string;
   name: string;
   barcode?: string;
@@ -36,8 +36,10 @@ interface FavoritesState {
 
   // Item actions
   addItemToCategory: (item: Omit<FavoriteItem, 'id' | 'order'>) => void;
+  updateItem: (id: string, updates: Partial<FavoriteItem>) => void;
   removeItemFromCategory: (id: string) => void;
   clearCategoryItems: (categoryId: string) => void;
+  purgeProductItems: () => void;
 }
 
 const DEFAULT_CATEGORIES: FavoriteCategory[] = [
@@ -90,7 +92,7 @@ export const useFavoritesStore = create<FavoritesState>()(
           // Update price or details if already present
           set({
             items: items.map((it) =>
-              it.id === existing.id ? { ...it, ...itemData } : it
+              it.id === existing.id ? { ...it, ...itemData, type: 'pack' as const } : it
             ),
           });
           return;
@@ -100,9 +102,16 @@ export const useFavoritesStore = create<FavoritesState>()(
         const newItem: FavoriteItem = {
           id: `fav-item-${generateId()}`,
           ...itemData,
+          type: 'pack',
           order: categoryItems.length,
         };
         set({ items: [...items, newItem] });
+      },
+
+      updateItem: (id, updates) => {
+        set({
+          items: get().items.map((it) => (it.id === id ? { ...it, ...updates } : it)),
+        });
       },
 
       removeItemFromCategory: (id) => {
@@ -112,9 +121,18 @@ export const useFavoritesStore = create<FavoritesState>()(
       clearCategoryItems: (categoryId) => {
         set({ items: get().items.filter((it) => it.categoryId !== categoryId) });
       },
+
+      purgeProductItems: () => {
+        set({ items: get().items.filter((it) => it.type === 'pack') });
+      },
     }),
     {
       name: 'an_pos_favorites_v1',
+      onRehydrateStorage: () => (state) => {
+        if (state && Array.isArray(state.items)) {
+          state.items = state.items.filter((it: any) => it.type === 'pack');
+        }
+      },
     }
   )
 );

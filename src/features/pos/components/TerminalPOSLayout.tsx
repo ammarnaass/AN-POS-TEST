@@ -27,10 +27,12 @@ import {
   CheckCircle2,
   FileText,
   Star,
+  Package,
 } from 'lucide-react';
 import type { CartItem, Product, Category } from '@/types';
 import { useThemeStore } from '@/store/themeStore';
 import { getProductTierPrice } from '@/services';
+import { useNavigate } from 'react-router-dom';
 import { useFavoritesStore } from '@/features/favorites/store/useFavoritesStore';
 import { usePOSSessionStore } from '../store/usePOSSessionStore';
 
@@ -125,7 +127,7 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
   onOpenDiscount,
   discount,
   discountType,
-  onOpenFreeProduct,
+  onOpenFreeProduct: _onOpenFreeProduct,
   onOpenReturns,
   returnMode,
   onOpenCustomize,
@@ -154,11 +156,6 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
   // Price tier: 1 = retail, 2 = semi-wholesale, 3 = wholesale, 4 = special
   const [internalPriceTier, setInternalPriceTier] = useState<'1' | '2' | '3' | '4'>('1');
   const priceTier = propPriceTier ?? internalPriceTier;
-  const setPriceTier = useCallback((tier: '1' | '2' | '3' | '4') => {
-    setInternalPriceTier(tier);
-    if (onSelectPriceTier) onSelectPriceTier(tier);
-  }, [onSelectPriceTier]);
-
   // Helper to calculate price according to active tier
   const getProductPriceByTier = (prod: Product, tier: '1' | '2' | '3' | '4') => {
     return getProductTierPrice(prod, tier);
@@ -166,44 +163,66 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
 
   // Handle price tier switch
   const handleSelectPriceTier = useCallback((tier: '1' | '2' | '3' | '4') => {
-    setPriceTier(tier);
+    setInternalPriceTier(tier);
+    if (onSelectPriceTier) onSelectPriceTier(tier);
     if (tier === '3') {
       if (!wholesaleMode) toggleWholesaleMode();
-    } else if (tier === '1') {
+    } else {
       if (wholesaleMode) toggleWholesaleMode();
     }
-    // Synchronize current cart items to chosen tier
-    const productList = allProducts && allProducts.length > 0 ? allProducts : products;
-    if (onEditPrice && cart.length > 0) {
-      cart.forEach((item) => {
-        if (item.isPack) return;
-        const prod = productList.find((p) => p.id === item.productId || (item.barcode && p.barcode === item.barcode));
-        if (prod) {
-          const newPrice = getProductTierPrice(prod, tier);
-          if (newPrice > 0) {
-            onEditPrice(item.productId, newPrice);
-          }
-        }
-      });
-    }
-  }, [allProducts, products, cart, onEditPrice, wholesaleMode, toggleWholesaleMode, setPriceTier]);
+  }, [onSelectPriceTier, wholesaleMode, toggleWholesaleMode]);
   const [isLockedBarcode, setIsLockedBarcode] = useState(true);
   const [selectedCartRowId, setSelectedCartRowId] = useState<string | null>(null);
   const [tableSearchBarcode, setTableSearchBarcode] = useState('');
   const [editingPriceItemId, setEditingPriceItemId] = useState<string | null>(null);
   const [customPriceInput, setCustomPriceInput] = useState('');
 
+  const navigate = useNavigate();
   // Favorites & Category Mode Integration
-  const { categories: favoriteCategories, items: favoriteItems } = useFavoritesStore();
+  const { categories: favoriteCategories, items: favoriteItems, purgeProductItems } = useFavoritesStore();
   const { terminalCategoryMode, setTerminalCategoryMode } = usePOSSessionStore();
   const [selectedFavoriteCatId, setSelectedFavoriteCatId] = useState<string>('ALL');
 
+  useEffect(() => {
+    purgeProductItems();
+  }, [purgeProductItems]);
+
+  const packOnlyFavorites = useMemo(() => {
+    return favoriteItems.filter((it) => it.type === 'pack');
+  }, [favoriteItems]);
+
+  const systemPacks = useMemo(() => {
+    const list = (allProducts && allProducts.length > 0 ? allProducts : products) || [];
+    return list.filter((p: any) => Boolean(p.isPack) || 'items' in p);
+  }, [allProducts, products]);
+
+  const fallbackFavoriteItems = useMemo(() => {
+    return systemPacks.map((p: any) => ({
+      id: `sys-pack-${p.id}`,
+      categoryId: 'fav-cat-wholesale',
+      type: 'pack' as const,
+      itemId: String(p.id).replace('pack-', ''),
+      name: p.name,
+      barcode: p.barcode,
+      price: Number(p.retailPrice ?? p.price ?? p.packPrice ?? 0),
+      packQty: Number(p.packPiecesCount ?? p.piecesCount ?? 1),
+      packUnit: p.unitName || 'عبوة',
+      order: 0,
+    }));
+  }, [systemPacks]);
+
+  const activeFavoritesList = useMemo(() => {
+    return packOnlyFavorites.length > 0 ? packOnlyFavorites : fallbackFavoriteItems;
+  }, [packOnlyFavorites, fallbackFavoriteItems]);
+
   const displayedFavoriteItems = useMemo(() => {
     if (selectedFavoriteCatId === 'ALL') {
-      return favoriteItems;
+      return activeFavoritesList;
     }
-    return favoriteItems.filter((it) => it.categoryId === selectedFavoriteCatId);
-  }, [favoriteItems, selectedFavoriteCatId]);
+    const catExists = favoriteCategories.some((c) => c.id === selectedFavoriteCatId);
+    if (!catExists) return activeFavoritesList;
+    return activeFavoritesList.filter((it) => it.categoryId === selectedFavoriteCatId);
+  }, [activeFavoritesList, favoriteCategories, selectedFavoriteCatId]);
 
   // Dedicated Price Checker Mode (عارض الأسعار التفاعلي)
   const [isPriceCheckerMode, setIsPriceCheckerMode] = useState(false);
@@ -336,19 +355,23 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
     [cart]
   );
 
-  // Quick products grid (top 15 products for 3 rows x 5 cols)
+  // Quick products grid for retail products mode (top 15 products for 3 rows x 5 cols)
   const quickProducts = useMemo(() => {
-    let list = products.length > 0 ? products : (allProducts || []);
+    // Strictly retail products - never include packs or cartons in the retail products grid!
+    let list = (products || []).filter((p: any) => !p.isPack && !('items' in p));
+    if (list.length === 0 && (!selectedCategory || selectedCategory === 'ALL')) {
+      list = (allProducts || []).filter((p: any) => !p.isPack && !('items' in p));
+    }
     if (searchQuery && searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       list = list.filter(
         (p) =>
           p.name.toLowerCase().includes(q) ||
-          (p.barcode && p.barcode.includes(q))
+          (p.barcode && p.barcode.toLowerCase().includes(q))
       );
     }
     return list.slice(0, 15);
-  }, [products, allProducts, searchQuery]);
+  }, [products, allProducts, selectedCategory, searchQuery]);
 
   // Dedicated Price Checker Submit / Scan Handler
   const handleBarcodeOrQuerySubmit = (e?: React.FormEvent) => {
@@ -725,18 +748,6 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
               <span>عارض الأسعار</span>
             </button>
 
-            {/* منتج حر غير مسجل (/ Diver) */}
-            <button
-              type="button"
-              onClick={onOpenFreeProduct}
-              className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-2.5 py-1.5 rounded-lg text-xs font-bold border border-slate-300 dark:border-slate-700 transition-all flex items-center gap-1 cursor-pointer active:scale-95"
-              title="إضافة منتج حر غير مسجل بالمخزون بالاسم والسعر"
-              aria-label="إضافة منتج حر"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>منتج حر (/ Diver)</span>
-            </button>
-
             {/* آلة الحسبة / لوحة الأرقام (ظاهرة دائماً وبدون إخفاء شرطي) */}
             <button
               type="button"
@@ -1083,8 +1094,15 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
                             {index + 1}
                           </td>
                           <td className="py-2 px-3 font-bold text-slate-800 dark:text-slate-100 text-xs">
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="truncate">{item.name}</span>
+                              {item.isPack && (
+                                <span className="text-[10px] px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 rounded font-bold shrink-0">
+                                  {item.packMode === 'wholesale_packs'
+                                    ? `عبوة جملة (${item.packUnit || 'طرد'})`
+                                    : `عبوة (${item.packPiecesCount || item.qty} قطع)`}
+                                </span>
+                              )}
                               {(item as any).variantName && (
                                 <span className="text-[10px] px-1.5 py-0.2 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded font-mono font-bold">
                                   {(item as any).variantName}
@@ -1162,30 +1180,48 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
                             {item.barcode || '—'}
                           </td>
                           <td className="py-2 px-3 text-center" onClick={(e) => e.stopPropagation()}>
-                            <div className="inline-flex items-center justify-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5 border border-slate-200 dark:border-slate-700">
-                              <button
-                                type="button"
-                                onClick={() => onUpdateQty(item.productId, item.qty - 1)}
-                                className="w-6 h-6 rounded bg-white dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 flex items-center justify-center cursor-pointer shadow-2xs active:scale-90 transition-all"
-                                title="تقليل الكمية (أو الحذف عند 1)"
-                              >
-                                <Minus className="w-3 h-3" />
-                              </button>
-                              <span
-                                onClick={() => onOpenKeypadForQty && onOpenKeypadForQty(item)}
-                                className="w-8 text-center font-mono font-black text-xs text-blue-700 dark:text-blue-400 cursor-pointer hover:underline"
-                                title="تعديل الكمية عبر اللوحة الرقمية"
-                              >
-                                {item.qty}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => onUpdateQty(item.productId, item.qty + 1)}
-                                className="w-6 h-6 rounded bg-white dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 flex items-center justify-center cursor-pointer shadow-2xs active:scale-90 transition-all"
-                                title="زيادة الكمية"
-                              >
-                                <Plus className="w-3 h-3" />
-                              </button>
+                            <div className="flex flex-col items-center gap-0.5">
+                              <div className="inline-flex items-center justify-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5 border border-slate-200 dark:border-slate-700">
+                                <button
+                                  type="button"
+                                  onClick={() => onUpdateQty(item.productId, item.qty - 1)}
+                                  className="w-6 h-6 rounded bg-white dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 flex items-center justify-center cursor-pointer shadow-2xs active:scale-90 transition-all"
+                                  title={item.isPack && item.packMode === 'wholesale_packs' ? 'تقليل عدد العبوات' : 'تقليل الكمية (أو الحذف عند 1)'}
+                                >
+                                  <Minus className="w-3 h-3" />
+                                </button>
+                                <span
+                                  onClick={() => onOpenKeypadForQty && onOpenKeypadForQty(item)}
+                                  className={`w-8 text-center font-mono font-black text-xs cursor-pointer hover:underline ${
+                                    item.isPack && item.packMode === 'wholesale_packs'
+                                      ? 'text-purple-700 dark:text-purple-400'
+                                      : 'text-blue-700 dark:text-blue-400'
+                                  }`}
+                                  title={item.isPack && item.packMode === 'wholesale_packs' ? 'تعديل عدد العبوات عبر اللوحة الرقمية' : 'تعديل الكمية عبر اللوحة الرقمية'}
+                                >
+                                  {item.qty}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => onUpdateQty(item.productId, item.qty + 1)}
+                                  className="w-6 h-6 rounded bg-white dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 flex items-center justify-center cursor-pointer shadow-2xs active:scale-90 transition-all"
+                                  title={item.isPack && item.packMode === 'wholesale_packs' ? 'زيادة عدد العبوات' : 'زيادة الكمية'}
+                                >
+                                  <Plus className="w-3 h-3" />
+                                </button>
+                              </div>
+                              {item.isPack && item.packMode === 'wholesale_packs' ? (
+                                <div className="text-[10px] font-mono font-bold text-purple-600 dark:text-purple-400 leading-tight">
+                                  <span>{item.qty} {item.packUnit || 'عبوة'}</span>
+                                  <span className="text-[9px] text-slate-400 font-normal mr-1">
+                                    (×{item.packPiecesCount || 1} قطع = {item.qty * (item.packPiecesCount || 1)} قطعة)
+                                  </span>
+                                </div>
+                              ) : item.isPack ? (
+                                <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">
+                                  {item.qty} قطعة
+                                </span>
+                              ) : null}
                             </div>
                           </td>
                           <td className="py-2 px-3 text-left font-mono text-slate-700 dark:text-slate-300 font-bold text-xs" onClick={(e) => e.stopPropagation()}>
@@ -1304,69 +1340,35 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
               {terminalCategoryMode === 'favorites' ? (
                 displayedFavoriteItems.length > 0 ? (
                   displayedFavoriteItems.map((favItem, fIdx) => {
-                    const isPack = favItem.type === 'pack';
-                    let price = favItem.price;
-                    if (!isPack) {
-                      const matchedProd = allProducts.find((p) => p.id === favItem.itemId);
-                      if (matchedProd) {
-                        price = getProductPriceByTier(matchedProd, priceTier);
-                      }
-                    }
+                    const price = favItem.price;
 
                     return (
                       <button
                         key={favItem.id || `fav-${fIdx}`}
                         type="button"
                         onClick={() => {
-                          if (isPack) {
-                            onAddToCart(
-                              {
-                                id: `pack-${favItem.itemId}`,
-                                name: favItem.name,
-                                barcode: favItem.barcode,
-                                retailPrice: favItem.price,
-                                price: favItem.price,
-                                isPack: true,
-                                packId: favItem.itemId,
-                                packPiecesCount: favItem.packQty || 1,
-                              } as any,
-                              favItem.price
-                            );
-                          } else {
-                            const matchedProd = allProducts.find((p) => p.id === favItem.itemId);
-                            if (matchedProd) {
-                              onAddToCart({ ...matchedProd, price, retailPrice: price }, price);
-                            } else {
-                              onAddToCart(
-                                {
-                                  id: favItem.itemId,
-                                  name: favItem.name,
-                                  barcode: favItem.barcode,
-                                  retailPrice: price,
-                                  price,
-                                } as any,
-                                price
-                              );
-                            }
-                          }
+                          onAddToCart(
+                            {
+                              id: `pack-${favItem.itemId}`,
+                              name: favItem.name,
+                              barcode: favItem.barcode,
+                              retailPrice: favItem.price,
+                              price: favItem.price,
+                              isPack: true,
+                              packId: favItem.itemId,
+                              packPiecesCount: favItem.packQty || 1,
+                              packUnit: favItem.packUnit || 'عبوة',
+                            } as any,
+                            favItem.price
+                          );
                         }}
-                        className={`rounded-lg p-1.5 flex flex-col justify-between items-center text-center shadow-2xs transition group cursor-pointer active:scale-95 min-h-[46px] border ${
-                          isPack
-                            ? 'bg-emerald-50/50 dark:bg-emerald-950/20 hover:bg-emerald-100/60 dark:hover:bg-emerald-900/40 border-emerald-200 dark:border-emerald-800/60 text-slate-800 dark:text-slate-100'
-                            : 'bg-slate-50 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/40 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100'
-                        }`}
-                        title={`إضافة ${favItem.name} بسعر ${formatMoney(price)} ${currency}`}
+                        className="bg-emerald-50/50 dark:bg-emerald-950/20 hover:bg-emerald-100/60 dark:hover:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-800/60 text-slate-800 dark:text-slate-100 rounded-lg p-1.5 flex flex-col justify-between items-center text-center shadow-2xs transition group cursor-pointer active:scale-95 min-h-[46px]"
+                        title={`إضافة ${favItem.name} (عبوة ×${favItem.packQty || 1}) بسعر ${formatMoney(price)} ${currency}`}
                       >
                         <div className="w-full flex items-center justify-between gap-1 mb-0.5">
-                          {isPack ? (
-                            <span className="text-[9px] font-bold px-1 rounded bg-emerald-600 text-white truncate max-w-full">
-                              ×{favItem.packQty || 1} {favItem.packUnit || 'عبوة'}
-                            </span>
-                          ) : (
-                            <span className="text-[9px] font-bold px-1 rounded bg-blue-600 text-white">
-                              تجزئة
-                            </span>
-                          )}
+                          <span className="text-[9px] font-bold px-1 rounded bg-emerald-600 text-white truncate max-w-full">
+                            ×{favItem.packQty || 1} {favItem.packUnit || 'عبوة'}
+                          </span>
                           {favItem.barcode && (
                             <span className="text-[8px] font-mono text-slate-400 truncate max-w-[50px]">
                               {favItem.barcode}
@@ -1378,100 +1380,120 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
                           {favItem.name}
                         </span>
 
-                        <span
-                          className={`font-bold text-[10px] font-mono px-2 py-0.5 rounded-full mt-1 ${
-                            isPack
-                              ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300'
-                              : 'bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-300'
-                          }`}
-                        >
+                        <span className="font-bold text-[10px] font-mono px-2 py-0.5 rounded-full mt-1 bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300">
                           {formatMoney(price)} {currency}
                         </span>
                       </button>
                     );
                   })
                 ) : (
-                  <div className="col-span-full flex flex-col items-center justify-center py-6 text-slate-400 text-xs">
+                  <div className="col-span-full flex flex-col items-center justify-center py-5 text-slate-400 text-xs">
                     <Star className="w-6 h-6 mb-1 text-amber-400 stroke-1" />
-                    <span>لا توجد عبوات أو منتجات في هذا التصنيف المفضل</span>
+                    <span>لا توجد عبوات أو كراتين في هذا التصنيف المفضل</span>
+                    <button
+                      type="button"
+                      onClick={() => navigate('/favorites')}
+                      className="mt-2 text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 cursor-pointer bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1 rounded-lg border border-amber-200 dark:border-amber-800"
+                    >
+                      <Plus className="w-3 h-3" />
+                      إدارة وإنشاء عبوات للمفضلة
+                    </button>
                   </div>
                 )
               ) : (
-                quickProducts.map((prod, pIdx) => {
-                  const price = getProductPriceByTier(prod, priceTier);
-                  return (
-                    <button
-                      key={prod.id || `qp-${pIdx}`}
-                      type="button"
-                      onClick={() => onAddToCart({ ...prod, price, retailPrice: price }, price)}
-                      className="bg-slate-50 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:border-blue-300 dark:hover:border-blue-700 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-lg p-1.5 flex flex-col justify-between items-center text-center shadow-2xs transition group cursor-pointer active:scale-95 min-h-[44px]"
-                      title={`إضافة ${prod.name} بسعر ${formatMoney(price)} ${currency}`}
-                    >
-                      <span className="text-[11px] font-bold leading-tight group-hover:text-blue-700 dark:group-hover:text-blue-400 line-clamp-2">
-                        {prod.name}
-                      </span>
-                      <span className="bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-300 font-bold text-[10px] font-mono px-2 py-0.5 rounded-full mt-1">
-                        {formatMoney(price)} {currency}
-                      </span>
-                    </button>
-                  );
-                })
+                quickProducts.length > 0 ? (
+                  quickProducts.map((prod, pIdx) => {
+                    const price = getProductPriceByTier(prod, priceTier);
+                    return (
+                      <button
+                        key={prod.id || `qp-${pIdx}`}
+                        type="button"
+                        onClick={() => onAddToCart({ ...prod, price, retailPrice: price }, price)}
+                        className="bg-slate-50 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:border-blue-300 dark:hover:border-blue-700 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-lg p-1.5 flex flex-col justify-between items-center text-center shadow-2xs transition group cursor-pointer active:scale-95 min-h-[44px]"
+                        title={`إضافة ${prod.name} بسعر ${formatMoney(price)} ${currency}`}
+                      >
+                        <div className="w-full flex items-center justify-between gap-1 mb-0.5">
+                          <span className="text-[9px] font-bold px-1 rounded bg-blue-600 text-white">
+                            تجزئة
+                          </span>
+                          {prod.barcode && (
+                            <span className="text-[8px] font-mono text-slate-400 truncate max-w-[50px]">
+                              {prod.barcode}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[11px] font-bold leading-tight group-hover:text-blue-700 dark:group-hover:text-blue-400 line-clamp-2">
+                          {prod.name}
+                        </span>
+                        <span className="bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-300 font-bold text-[10px] font-mono px-2 py-0.5 rounded-full mt-1">
+                          {formatMoney(price)} {currency}
+                        </span>
+                      </button>
+                    );
+                  })
+                ) : (
+                  <div className="col-span-full flex flex-col items-center justify-center py-8 text-slate-400 text-xs">
+                    <Package className="w-8 h-8 mb-2 text-blue-400 stroke-1" />
+                    <span>لا توجد منتجات تجزئة في هذا التصنيف</span>
+                  </div>
+                )
               )}
-
-              {/* أزرار حرة إضافية تحاكي "+ منتج حر" */}
-              {Array.from({
-                length: Math.max(
-                  0,
-                  15 -
-                    (terminalCategoryMode === 'favorites'
-                      ? displayedFavoriteItems.length
-                      : quickProducts.length)
-                ),
-              }).map((_, idx) => (
-                <button
-                  key={`empty-slot-${idx}`}
-                  type="button"
-                  onClick={onOpenFreeProduct}
-                  className="bg-slate-50 dark:bg-slate-800/50 hover:bg-blue-50 dark:hover:bg-blue-950/30 text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 border border-dashed border-slate-200 dark:border-slate-700 rounded-lg p-1 flex items-center justify-center text-xs transition cursor-pointer active:scale-95 min-h-[44px]"
-                  title="إضافة منتج حر فوري"
-                >
-                  + منتج حر
-                </button>
-              ))}
             </div>
 
             {/* أزرار الفئات الجانبية القائمة مع مبدل الوضع السريع */}
-            <div className="w-36 sm:w-40 flex flex-col gap-1 border-r border-slate-200 dark:border-slate-800 pr-1.5 overflow-y-auto custom-scrollbar max-h-full">
+            <div className="w-40 sm:w-44 flex flex-col gap-1 border-r border-slate-200 dark:border-slate-800 pr-1.5 overflow-y-auto custom-scrollbar max-h-full">
               {/* مبدل نمط العرض السريع: المفضلة والعبوات ★ | تصنيفات التجزئة 📦 */}
-              <div className="flex items-center gap-1 p-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shrink-0 mb-0.5">
+              <div className="flex items-center gap-1 p-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shrink-0 mb-1">
                 <button
                   type="button"
-                  onClick={() => setTerminalCategoryMode('favorites')}
-                  className={`flex-1 py-1 text-[10px] font-black rounded transition text-center cursor-pointer ${
+                  onClick={() => {
+                    setTerminalCategoryMode('favorites');
+                    onSelectCategory('ALL');
+                    setSelectedFavoriteCatId('ALL');
+                  }}
+                  className={`flex-1 py-1.5 px-1 text-[10px] font-black rounded-md transition text-center cursor-pointer flex items-center justify-center gap-1 ${
                     terminalCategoryMode === 'favorites'
                       ? 'bg-amber-500 text-white shadow-xs'
-                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                   }`}
-                  title="عرض المفضلة والعبوات"
+                  title="عرض تصنيفات المفضلة (العبوات فقط)"
                 >
-                  ★ المفضلة
+                  <Star className="w-3 h-3 fill-current" />
+                  <span>العبوات (المفضلة)</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => setTerminalCategoryMode('products')}
-                  className={`flex-1 py-1 text-[10px] font-black rounded transition text-center cursor-pointer ${
+                  onClick={() => {
+                    setTerminalCategoryMode('products');
+                    onSelectCategory('ALL');
+                  }}
+                  className={`flex-1 py-1.5 px-1 text-[10px] font-black rounded-md transition text-center cursor-pointer flex items-center justify-center gap-1 ${
                     terminalCategoryMode === 'products'
                       ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                   }`}
-                  title="عرض تصنيفات التجزئة"
+                  title="عرض تصنيفات التجزئة القياسية"
                 >
-                  📦 التجزئة
+                  <Package className="w-3 h-3" />
+                  <span>التجزئة</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/favorites')}
+                  className="p-1 text-slate-400 hover:text-amber-500 dark:hover:text-amber-400 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition cursor-pointer"
+                  title="إدارة وإنشاء عبوات جديدة للمفضلة"
+                >
+                  <Plus className="w-3.5 h-3.5" />
                 </button>
               </div>
 
               {terminalCategoryMode === 'favorites' ? (
                 <>
+                  <div className="px-1 py-0.5 text-[9px] font-extrabold text-amber-700 dark:text-amber-400 flex items-center justify-between border-b border-amber-200/50 dark:border-amber-900/40 pb-0.5 mb-0.5">
+                    <span>تصنيفات العبوات والمفضلة</span>
+                    <span className="font-mono bg-amber-100 dark:bg-amber-950/60 px-1 rounded">{favoriteCategories.length}</span>
+                  </div>
+
                   <button
                     type="button"
                     onClick={() => setSelectedFavoriteCatId('ALL')}
@@ -1482,15 +1504,15 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
                     }`}
                     title="عرض جميع العبوات المفضلة"
                   >
-                    <span className="truncate">جميع المفضلة</span>
+                    <span className="truncate">جميع العبوات</span>
                     <span className="text-[10px] font-mono px-1 rounded bg-black/15">
-                      {favoriteItems.length}
+                      {activeFavoritesList.length}
                     </span>
                   </button>
 
                   {favoriteCategories.map((favCat) => {
                     const isSelected = selectedFavoriteCatId === favCat.id;
-                    const catCount = favoriteItems.filter((i) => i.categoryId === favCat.id).length;
+                    const catCount = activeFavoritesList.filter((i) => i.categoryId === favCat.id).length;
 
                     return (
                       <button
@@ -1520,17 +1542,25 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
                 </>
               ) : (
                 <>
+                  <div className="px-1 py-0.5 text-[9px] font-extrabold text-blue-700 dark:text-blue-400 flex items-center justify-between border-b border-blue-200/50 dark:border-blue-900/40 pb-0.5 mb-0.5">
+                    <span>تصنيفات منتجات التجزئة</span>
+                    <span className="font-mono bg-blue-100 dark:bg-blue-950/60 px-1 rounded">{categories.length}</span>
+                  </div>
+
                   <button
                     type="button"
                     onClick={() => onSelectCategory('ALL')}
-                    className={`font-bold text-xs py-2 px-2 rounded-lg transition text-center cursor-pointer shadow-2xs shrink-0 active:scale-95 ${
+                    className={`font-bold text-xs py-1.5 px-2 rounded-lg transition text-center cursor-pointer shadow-2xs shrink-0 active:scale-95 flex items-center justify-between ${
                       !selectedCategory || selectedCategory === 'ALL'
                         ? 'bg-blue-600 text-white shadow-xs'
                         : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700'
                     }`}
-                    title="عرض جميع الأصناف دون تصفية"
+                    title="عرض جميع أصناف التجزئة"
                   >
-                    جميع الأصناف
+                    <span>جميع الأصناف</span>
+                    <span className="text-[10px] font-mono px-1 rounded bg-black/15">
+                      {(allProducts && allProducts.length > 0 ? allProducts : products).filter((p: any) => !p.isPack).length}
+                    </span>
                   </button>
 
                   {categories.map((cat, cIdx) => {

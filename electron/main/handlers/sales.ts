@@ -222,6 +222,8 @@ export async function createSale(data: Record<string, unknown>): Promise<{ data:
           ]
         );
 
+        const packMode = String(item.packMode ?? item.pack_mode ?? '');
+
         if (isPack && packId) {
           // فك مكونات الباقة وخصم مخزون كل منتج فرعي
           let packItems: Array<{ productId: string; qty: number }> = [];
@@ -242,7 +244,8 @@ export async function createSale(data: Record<string, unknown>): Promise<{ data:
 
           for (const comp of packItems) {
             if (comp.productId) {
-              const compQtyChange = sign * (comp.qty * qty);
+              const totalPiecesSold = packMode === 'retail_pieces' ? qty : (comp.qty * qty);
+              const compQtyChange = sign * totalPiecesSold;
               updateProductAndMovement(comp.productId, compQtyChange);
             }
           }

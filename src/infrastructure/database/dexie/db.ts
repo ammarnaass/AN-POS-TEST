@@ -283,6 +283,7 @@ export interface SettingsEntity {
   allowNegativeStock?: boolean;
   confirmNoStock?: boolean;
   averagePricing?: boolean;
+  terminalFavoritesMode?: boolean;
   allowCardPayment?: boolean;
   allowTransferPayment?: boolean;
   invoiceTemplate?: 'basic' | 'detailed';

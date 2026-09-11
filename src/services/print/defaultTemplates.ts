@@ -687,6 +687,7 @@ export const wholesaleA4Layout: TemplateLayout = {
         { key: 'name', label: 'تعيين الصنف والعبوة (Désignation)', align: 'right' },
         { key: 'packUnit', label: 'التعبئة (Colisage)', align: 'center' },
         { key: 'packQty', label: 'عدد العبوات (Colis)', align: 'center', format: 'number' },
+        { key: 'piecesPerPack', label: 'قطع/عبوة (Pièces/Colis)', align: 'center', format: 'number' },
         { key: 'qty', label: 'إجمالي القطع (Total Pièces)', align: 'center', format: 'number' },
         { key: 'unitPrice', label: 'سعر الوحدة بالجملة (P.U Gros)', align: 'left', format: 'currency' },
         { key: 'discount', label: 'الخصم (Remise)', align: 'left', format: 'currency' },

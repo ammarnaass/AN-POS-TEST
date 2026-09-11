@@ -10,7 +10,9 @@ export interface CartItem {
   isPack?: boolean;
   packId?: string;
   packQty?: number;
+  packPiecesCount?: number;
   packUnit?: string;
+  packMode?: 'retail_pieces' | 'wholesale_packs';
   pricingType?: 'retail' | 'wholesale' | 'pack';
   batchNumber?: string;
 }

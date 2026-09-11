@@ -1,6 +1,7 @@
 // Tab Component: PosSettingsTab (Refactored from SettingsPage.tsx)
 import React from 'react';
 import { ShoppingCart, Zap, Package, Bell, BarChart3, CreditCard, ShieldCheck, ArrowLeftRight, Star } from 'lucide-react';
+import { usePOSSessionStore } from '@/features/pos/store/usePOSSessionStore';
 
 interface PosSettingsTabProps {
   [key: string]: any;
@@ -107,7 +108,13 @@ export default function PosSettingsTab({
 
                     <button
                       type="button"
-                      onClick={() => handleSaveSettings({ [item.key]: !settings[item.key as keyof typeof settings] })}
+                      onClick={() => {
+                        const newVal = !settings[item.key as keyof typeof settings];
+                        handleSaveSettings({ [item.key]: newVal });
+                        if (item.key === 'terminalFavoritesMode') {
+                          usePOSSessionStore.getState().setTerminalCategoryMode(newVal ? 'favorites' : 'products');
+                        }
+                      }}
                       className={`relative w-12 h-6 rounded-full transition-colors shrink-0 ${
                         settings[item.key as keyof typeof settings] ? 'bg-primary' : 'bg-surface-container-highest border border-outline-variant/30'
                       }`}

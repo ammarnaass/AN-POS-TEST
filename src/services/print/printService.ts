@@ -135,12 +135,37 @@ export async function buildDocumentContext(
   const invoiceItems = sourceItems.map((rawItem) => {
     const item = rawItem as Partial<SaleItemEntity> & Record<string, unknown>;
     const isPackItem = Boolean(item.isPack || (item as any)?.is_pack);
+    const packMode = (item.packMode || (item as any)?.pack_mode) as string | undefined;
+    const piecesPerPack = Number(
+      item.packPiecesCount || (item as any)?.pack_pieces_count || (item as any)?.packQty || (item as any)?.pack_qty || 1
+    );
+
+    let packUnit = String(item.packUnit || (item as any)?.pack_unit || (isPackItem ? 'عبوة' : 'قطعة'));
+    let packQty = 1;
+    let qty = Number(item.qty ?? 0);
+
+    if (isPackItem) {
+      if (packMode === 'wholesale_packs') {
+        // في وضع الجملة: packQty هو عدد العبوات الفعلي، و qty هو إجمالي عدد القطع
+        packQty = Number(item.qty ?? 1);
+        qty = packQty * piecesPerPack;
+      } else if (packMode === 'retail_pieces') {
+        // في وضع التجزئة: qty هو عدد القطع الفعلي المصرح به، و packQty هو عدد العبوات
+        qty = Number(item.qty ?? piecesPerPack);
+        packQty = piecesPerPack > 0 ? Math.max(1, Math.round(qty / piecesPerPack)) : 1;
+      } else {
+        // الوضع الافتراضي
+        packQty = Number(item.packQty || (item as any)?.pack_qty || item.qty || 1);
+      }
+    }
+
     return {
       sku: String(item.sku ?? (item as any)?.code ?? ''),
       name: String(item.name ?? ''),
-      packUnit: String(item.packUnit || (item as any)?.pack_unit || (isPackItem ? 'عبوة' : 'قطعة')),
-      packQty: Number(item.packQty || (item as any)?.pack_qty || (isPackItem ? item.qty : 1)),
-      qty: Number(item.qty ?? 0),
+      packUnit,
+      packQty,
+      piecesPerPack,
+      qty,
       unitPrice: Number(item.unitPrice ?? 0),
       discount: Number(item.discount ?? 0),
       lineTotal: Number(item.lineTotal ?? 0),

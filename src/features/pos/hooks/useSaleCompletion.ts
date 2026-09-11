@@ -32,6 +32,7 @@ interface SaleCompletionParams {
   paidAmount?: number;
   isReturn?: boolean;
   docType?: DocType;
+  priceTier?: '1' | '2' | '3' | '4';
   autoPrint?: boolean;
   note?: string;
   currentSession: { id: string; totalSales?: number; totalReturns?: number } | null;
@@ -57,6 +58,7 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
         paymentMethod,
         isReturn = false,
         docType = 'facture',
+        priceTier,
         currentSession,
         products,
         packs,
@@ -82,7 +84,12 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
       const matchedCustomer = selectedCustomer
         ? customers.find((c) => c.id === selectedCustomer)
         : undefined;
-      const customerName = matchedCustomer?.name || matchedCustomer?.fullname || '';
+      const customerName = matchedCustomer?.name || '';
+      // تحديد نوع الفاتورة بدقة: س3 جملة دائماً wholesale، وس1 و س2 و س4 دائماً بيع عادي facture
+      const isWholesaleSale =
+        priceTier === '3' ||
+        (!['1', '2', '4'].includes(priceTier || '') && docType === 'wholesale');
+      const resolvedDocType: DocType = isWholesaleSale ? 'wholesale' : 'facture';
 
       const baseSale = createSale(
         cart,
@@ -98,7 +105,7 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
         currentSession?.id || '',
         settings as any,
         saleType,
-        docType
+        resolvedDocType
       );
 
       const sale: Sale = {
@@ -155,7 +162,27 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
         // تحديث كاش الفاتورة والمنتجات محلياً فوراً لضمان عدم تأخر الواجهة
         await db.sales.put(sale as any).catch(() => {});
         for (const item of cart) {
-          if (!item.isPack && item.productId && !item.isCustom) {
+          if (item.isPack && item.packId) {
+            const pack = packs.find((p) => p.id === item.packId);
+            if (pack) {
+              const rawItems = Array.isArray(pack.items)
+                ? pack.items
+                : (() => { try { return JSON.parse(pack.items as any) ?? []; } catch { return []; } })();
+              for (const comp of rawItems) {
+                const compProductId = comp.productId ?? comp.product_id;
+                const compQty = Number(comp.qty ?? comp.quantity ?? 1);
+                const product = products.find((p) => p.id === compProductId);
+                if (product) {
+                  const totalPiecesSold = item.packMode === 'retail_pieces' ? item.qty : (compQty * item.qty);
+                  const qtyChange = saleType === 'return' ? Math.abs(totalPiecesSold) : -totalPiecesSold;
+                  const newQuantity = settings?.allowNegativeStock
+                    ? product.quantity + qtyChange
+                    : Math.max(0, product.quantity + qtyChange);
+                  db.products.update(product.id, { quantity: newQuantity }).catch(() => {});
+                }
+              }
+            }
+          } else if (!item.isPack && item.productId) {
             const product = products.find((p) => p.id === item.productId);
             if (product) {
               const qtyChange = saleType === 'return' ? Math.abs(item.qty) : -item.qty;
@@ -198,10 +225,13 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
                     const compQty = Number(comp.qty ?? comp.quantity ?? 1);
                     const product = products.find((p) => p.id === compProductId);
                     if (product) {
+                      const totalPiecesSold = item.packMode === 'retail_pieces'
+                        ? item.qty
+                        : (compQty * item.qty);
                       const qtyChange =
                         saleType === 'return'
-                          ? Math.abs(compQty * item.qty)
-                          : -(compQty * item.qty);
+                          ? Math.abs(totalPiecesSold)
+                          : -totalPiecesSold;
                       const newQuantity = settings?.allowNegativeStock
                         ? product.quantity + qtyChange
                         : Math.max(0, product.quantity + qtyChange);
@@ -224,7 +254,7 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
                 }
               } else {
                 const product = products.find((p) => p.id === item.productId);
-                if (product && !item.isCustom) {
+                if (product) {
                   const qtyChange = saleType === 'return' ? Math.abs(item.qty) : -item.qty;
                   const newQuantity = settings?.allowNegativeStock
                     ? product.quantity + qtyChange
@@ -313,9 +343,13 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
 
       // الطباعة التلقائية عبر محرك الطباعة (بدون تجميد أو نوافذ منبثقة معطلة)
       if (autoPrint && sale) {
+        const isWholesale = sale.docType === 'wholesale';
+        const defaultNormalDoc = (settings as any)?.invoiceTemplate === 'detailed'
+          ? 'sale-invoice'
+          : 'thermal-receipt';
         const printDocType = sale.type === 'return'
           ? 'return-invoice'
-          : (sale.docType === 'wholesale' ? 'wholesale-invoice' : 'thermal-receipt');
+          : (isWholesale ? 'wholesale-invoice' : defaultNormalDoc);
         printDocument(sale.id, printDocType, {
           userId: currentUser?.id ?? '',
           userName: currentUser?.name ?? '',

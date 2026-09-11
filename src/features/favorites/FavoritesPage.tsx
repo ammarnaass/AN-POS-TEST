@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/infrastructure/database/dexie/db';
 import type { PackEntity } from '@/infrastructure/database/dexie/db';
 import type { Product } from '@/types';
+import { generateId } from '@/utils';
 import { formatMoney } from '@/features/pos/utils/format';
 import {
   useFavoritesStore,
@@ -29,6 +30,8 @@ import {
   Terminal,
   Store,
   Filter,
+  AlertCircle,
+  Info,
 } from 'lucide-react';
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -63,7 +66,13 @@ export default function FavoritesPage() {
     deleteCategory,
     addItemToCategory,
     removeItemFromCategory,
+    purgeProductItems,
   } = useFavoritesStore();
+
+  // Auto-clean any legacy product items from favorites
+  useEffect(() => {
+    purgeProductItems();
+  }, [purgeProductItems]);
 
   const { terminalCategoryMode, setTerminalCategoryMode } = usePOSSessionStore();
 
@@ -77,9 +86,25 @@ export default function FavoritesPage() {
   const [catIconInput, setCatIconInput] = useState('Star');
   const [catColorInput, setCatColorInput] = useState('#2563eb');
 
+  const queryClient = useQueryClient();
+
   const [showAddItemsModal, setShowAddItemsModal] = useState(false);
   const [itemTypeTab, setItemTypeTab] = useState<'packs' | 'products'>('packs');
   const [itemSearchQuery, setItemSearchQuery] = useState('');
+
+  // Quick Pack Creation Modal State (إنشاء عبوة سريعة لتصميم 5)
+  const [showQuickPackModal, setShowQuickPackModal] = useState(false);
+  const [qpSelectedProduct, setQpSelectedProduct] = useState<Product | null>(null);
+  const [qpPiecesCount, setQpPiecesCount] = useState<number>(6);
+  const [qpUnitName, setQpUnitName] = useState<string>('كرتونة');
+  const [qpPackName, setQpPackName] = useState<string>('');
+  const [qpPackPrice, setQpPackPrice] = useState<string>('');
+  const [qpBarcode, setQpBarcode] = useState<string>('');
+  const [qpTargetCatId, setQpTargetCatId] = useState<string>('');
+  const [qpSearchQuery, setQpSearchQuery] = useState<string>('');
+  const [qpIsCustomPrice, setQpIsCustomPrice] = useState<boolean>(false);
+  const [qpIsSaving, setQpIsSaving] = useState<boolean>(false);
+  const [qpError, setQpError] = useState<string>('');
 
   // Fetch packs from SQLite / Dexie
   const { data: packs = [] } = useQuery<PackEntity[]>({
@@ -121,9 +146,9 @@ export default function FavoritesPage() {
     },
   });
 
-  // Filtered favorite items to display
+  // Filtered favorite items to display (strictly packs/cartons only)
   const displayedItems = useMemo(() => {
-    let result = items;
+    let result = items.filter((it) => it.type === 'pack');
     if (selectedCatId !== 'ALL') {
       result = result.filter((it) => it.categoryId === selectedCatId);
     }
@@ -192,7 +217,7 @@ export default function FavoritesPage() {
     }
   };
 
-  // Add Item (Pack or Product) to active category
+  // Add Pack to active category
   const handleAddPackToCategory = (pack: PackEntity) => {
     const targetCatId = selectedCatId === 'ALL' ? categories[0]?.id : selectedCatId;
     if (!targetCatId) {
@@ -215,23 +240,6 @@ export default function FavoritesPage() {
       packUnit: pack.unitName || 'طرد',
       parentProductId:
         Array.isArray(pack.items) && pack.items.length > 0 ? pack.items[0]?.productId : undefined,
-    });
-  };
-
-  const handleAddProductToCategory = (prod: Product) => {
-    const targetCatId = selectedCatId === 'ALL' ? categories[0]?.id : selectedCatId;
-    if (!targetCatId) {
-      alert('يرجى إنشاء تصنيف مفضلة أولاً');
-      return;
-    }
-
-    addItemToCategory({
-      categoryId: targetCatId,
-      type: 'product',
-      itemId: prod.id,
-      name: prod.name,
-      barcode: prod.barcode,
-      price: prod.retailPrice || (prod as any).price || 0,
     });
   };
 
@@ -264,6 +272,166 @@ export default function FavoritesPage() {
       )
       .slice(0, 50);
   }, [products, itemSearchQuery]);
+
+  // Quick Pack Helpers (نظام إنشاء العبوات السريعة لتصميم 5)
+  const handleSelectBaseProduct = (prod: Product) => {
+    setQpSelectedProduct(prod);
+    const basePrice = prod.retailPrice || (prod as any).price || 0;
+    const pieces = qpPiecesCount || 6;
+    const unit = qpUnitName || 'كرتونة';
+    setQpPackName(`${unit} ${prod.name} (${pieces} قطع)`);
+    setQpPackPrice(String(basePrice * pieces));
+    setQpIsCustomPrice(false);
+    setQpError('');
+  };
+
+  const handleChangePiecesCount = (count: number) => {
+    const validCount = Math.max(1, count);
+    setQpPiecesCount(validCount);
+    if (qpSelectedProduct) {
+      const basePrice = qpSelectedProduct.retailPrice || (qpSelectedProduct as any).price || 0;
+      const unit = qpUnitName || 'كرتونة';
+      setQpPackName(`${unit} ${qpSelectedProduct.name} (${validCount} قطع)`);
+      if (!qpIsCustomPrice) {
+        setQpPackPrice(String(basePrice * validCount));
+      }
+    }
+  };
+
+  const handleChangeUnitName = (unit: string) => {
+    setQpUnitName(unit);
+    if (qpSelectedProduct) {
+      const pieces = qpPiecesCount || 6;
+      setQpPackName(`${unit} ${qpSelectedProduct.name} (${pieces} قطع)`);
+    }
+  };
+
+  const handleOpenQuickPackModal = (preselectedProduct?: Product) => {
+    const defaultCatId = selectedCatId !== 'ALL' ? selectedCatId : categories[0]?.id || '';
+    setQpTargetCatId(defaultCatId);
+    setQpPiecesCount(6);
+    setQpUnitName('كرتونة');
+    setQpBarcode('');
+    setQpError('');
+    setQpSearchQuery('');
+    setQpIsCustomPrice(false);
+
+    if (preselectedProduct) {
+      handleSelectBaseProduct(preselectedProduct);
+    } else {
+      setQpSelectedProduct(null);
+      setQpPackName('');
+      setQpPackPrice('');
+    }
+
+    setShowQuickPackModal(true);
+  };
+
+  const handleSaveQuickPack = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!qpSelectedProduct) {
+      setQpError('يرجى اختيار منتج التجزئة الأساسي');
+      return;
+    }
+    const catId = qpTargetCatId || categories[0]?.id;
+    if (!catId) {
+      setQpError('يرجى إنشاء تصنيف مفضلة أولاً');
+      return;
+    }
+    if (qpPiecesCount <= 0) {
+      setQpError('عدد القطع يجب أن يكون 1 أو أكثر');
+      return;
+    }
+    const priceNum = Number(qpPackPrice);
+    if (isNaN(priceNum) || priceNum < 0) {
+      setQpError('يرجى إدخال سعر بيع صحيح للعبوة');
+      return;
+    }
+
+    setQpIsSaving(true);
+    setQpError('');
+
+    try {
+      const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+      const newPackId = generateId();
+      const now = new Date().toISOString();
+      const finalName =
+        qpPackName.trim() ||
+        `${qpUnitName} ${qpSelectedProduct.name} (${qpPiecesCount} قطع)`;
+      const finalBarcode = qpBarcode.trim();
+
+      const newPackData: PackEntity = {
+        id: newPackId,
+        name: finalName,
+        barcode: finalBarcode,
+        packPrice: priceNum,
+        pack_price: priceNum,
+        packType: 'bundle',
+        unitName: qpUnitName.trim() || 'كرتونة',
+        piecesCount: qpPiecesCount,
+        minWholesaleQty: 1,
+        items: [
+          {
+            productId: qpSelectedProduct.id,
+            qty: qpPiecesCount,
+            name: qpSelectedProduct.name,
+          },
+        ],
+        status: 'active',
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      // 1. Save to SQLite if Electron API available
+      if (api?.packs?.create) {
+        try {
+          await api.packs.create(newPackData);
+        } catch (err) {
+          console.warn('SQLite packs.create fallback to Dexie:', err);
+        }
+      }
+
+      // 2. Save to Dexie packs table
+      await db.packs.put(newPackData as any);
+
+      // 3. Add directly to Favorite Category
+      addItemToCategory({
+        categoryId: catId,
+        type: 'pack',
+        itemId: newPackId,
+        name: finalName,
+        barcode: finalBarcode || undefined,
+        price: priceNum,
+        packQty: qpPiecesCount,
+        packUnit: qpUnitName.trim() || 'كرتونة',
+        parentProductId: qpSelectedProduct.id,
+      });
+
+      // 4. Invalidate React-Query packs cache
+      queryClient.invalidateQueries({ queryKey: ['packs'] });
+
+      setShowQuickPackModal(false);
+      if (selectedCatId !== 'ALL' && selectedCatId !== catId) {
+        setSelectedCatId(catId);
+      }
+    } catch (err: any) {
+      setQpError(err?.message || 'حدث خطأ أثناء حفظ العبوة');
+    } finally {
+      setQpIsSaving(false);
+    }
+  };
+
+  const filteredModalProducts = useMemo(() => {
+    const q = qpSearchQuery.trim().toLowerCase();
+    if (!q) return products.slice(0, 30);
+    return products
+      .filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          (p.barcode && p.barcode.toLowerCase().includes(q))
+      )
+      .slice(0, 30);
+  }, [products, qpSearchQuery]);
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto select-none" dir="rtl">
@@ -320,6 +488,16 @@ export default function FavoritesPage() {
 
           <button
             type="button"
+            onClick={() => handleOpenQuickPackModal()}
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-2xl font-bold text-sm shadow-sm transition active:scale-95 cursor-pointer"
+            title="إنشاء كرتونة أو باقة بدون باركود من منتج تجزئة موجود"
+          >
+            <Zap className="w-4 h-4 fill-amber-300 text-amber-300" />
+            <span>⚡ إنشاء عبوة سريعة +</span>
+          </button>
+
+          <button
+            type="button"
             onClick={handleOpenNewCategory}
             className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-on-primary px-4 py-2.5 rounded-2xl font-bold text-sm shadow-sm transition active:scale-95 cursor-pointer"
           >
@@ -354,7 +532,7 @@ export default function FavoritesPage() {
               {items.filter((i) => i.type === 'pack').length}
             </div>
             <div className="text-[11px] text-on-surface-variant dark:text-slate-400">
-              العبوات المصنفة
+              العبوات والكراتين بالمفضلة
             </div>
           </div>
         </div>
@@ -365,10 +543,10 @@ export default function FavoritesPage() {
           </div>
           <div>
             <div className="text-xl font-black font-mono text-on-surface dark:text-white">
-              {items.length}
+              {products.length}
             </div>
             <div className="text-[11px] text-on-surface-variant dark:text-slate-400">
-              إجمالي الأصناف بالمفضلة
+              منتجات التجزئة بالمخزن
             </div>
           </div>
         </div>
@@ -421,7 +599,7 @@ export default function FavoritesPage() {
               >
                 <div className="flex items-center gap-2.5">
                   <Star className={`w-4 h-4 ${selectedCatId === 'ALL' ? 'text-white' : 'text-amber-500'}`} />
-                  <span className="text-xs font-bold">جميع الأصناف المفضلة</span>
+                  <span className="text-xs font-bold">جميع العبوات المفضلة</span>
                 </div>
                 <span
                   className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
@@ -430,14 +608,14 @@ export default function FavoritesPage() {
                       : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
                   }`}
                 >
-                  {items.length}
+                  {items.filter((it) => it.type === 'pack').length}
                 </span>
               </button>
 
               {/* Dynamic categories */}
               {categories.map((cat) => {
                 const isSelected = selectedCatId === cat.id;
-                const catItemsCount = items.filter((it) => it.categoryId === cat.id).length;
+                const catItemsCount = items.filter((it) => it.type === 'pack' && it.categoryId === cat.id).length;
                 const IconComponent = (cat.icon && ICON_MAP[cat.icon]) || Star;
 
                 return (
@@ -506,10 +684,10 @@ export default function FavoritesPage() {
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant/15 dark:border-slate-800">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-black text-on-surface dark:text-white">
-                  {selectedCatId === 'ALL' ? 'جميع الأصناف المفضلة' : activeCategory?.name || 'التصنيف المحدد'}
+                  {selectedCatId === 'ALL' ? 'جميع العبوات والكراتين المفضلة' : activeCategory?.name || 'التصنيف المحدد'}
                 </span>
                 <span className="text-xs text-on-surface-variant dark:text-slate-400">
-                  ({displayedItems.length} صنف)
+                  ({displayedItems.length} عبوة)
                 </span>
               </div>
 
@@ -536,6 +714,16 @@ export default function FavoritesPage() {
 
                 <button
                   type="button"
+                  onClick={() => handleOpenQuickPackModal()}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-3 py-2 rounded-xl flex items-center gap-1.5 shadow-xs transition active:scale-95 cursor-pointer shrink-0"
+                  title="إنشاء كرتونة أو باقة بدون باركود من منتج تجزئة"
+                >
+                  <Zap className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
+                  <span>⚡ إنشاء عبوة سريعة</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => {
                     if (categories.length === 0) {
                       alert('يرجى إضافة تصنيف مفضلة أولاً');
@@ -543,10 +731,11 @@ export default function FavoritesPage() {
                     }
                     setShowAddItemsModal(true);
                   }}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-xs transition active:scale-95 cursor-pointer shrink-0"
+                  className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-3 py-2 rounded-xl flex items-center gap-1.5 shadow-xs transition active:scale-95 cursor-pointer shrink-0"
+                  title="إضافة عبوات من المخزن أو تحويل منتجات إلى كراتين"
                 >
-                  <Plus className="w-4 h-4" />
-                  <span>إضافة عبوات للمفضلة +</span>
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>إضافة عبوات</span>
                 </button>
               </div>
             </div>
@@ -558,19 +747,29 @@ export default function FavoritesPage() {
                   <Box className="w-8 h-8 stroke-1" />
                 </div>
                 <h3 className="text-sm font-bold text-on-surface dark:text-white">
-                  لا توجد عبوات أو منتجات في هذا التصنيف حالياً
+                  لا توجد عبوات أو كراتين في هذا التصنيف حالياً
                 </h3>
                 <p className="text-xs text-on-surface-variant dark:text-slate-400 max-w-sm mx-auto">
-                  قم بإضافة العبوات والباقات الترويجية لربطها بهذا التصنيف وظهورها الفوري في كاشير تصميم 5
+                  أنشئ كراتين وعبوات سريعة بدون باركود (مثل 6 علب حليب) لتظهر فورياً كأزرار باللمس في كاشير تصميم 5
                 </p>
-                <button
-                  type="button"
-                  onClick={() => setShowAddItemsModal(true)}
-                  className="mt-2 inline-flex items-center gap-2 bg-primary text-on-primary font-bold text-xs px-4 py-2.5 rounded-xl cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>إضافة عبوة الآن</span>
-                </button>
+                <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenQuickPackModal()}
+                    className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl cursor-pointer shadow-xs transition active:scale-95"
+                  >
+                    <Zap className="w-4 h-4 fill-amber-300 text-amber-300" />
+                    <span>⚡ إنشاء عبوة سريعة (كرتونة)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddItemsModal(true)}
+                    className="inline-flex items-center gap-1.5 bg-surface-container dark:bg-slate-800 text-on-surface dark:text-slate-200 border border-outline-variant/30 font-bold text-xs px-4 py-2.5 rounded-xl cursor-pointer hover:bg-surface-container-high transition active:scale-95"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>إضافة عبوات من المخزن</span>
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
@@ -586,17 +785,10 @@ export default function FavoritesPage() {
                         {/* Type & Category badge */}
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-1.5">
-                            {item.type === 'pack' ? (
-                              <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 font-bold text-[10px] flex items-center gap-1">
-                                <Box className="w-3 h-3" />
-                                <span>عبوة جملة (×{item.packQty || 1})</span>
-                              </span>
-                            ) : (
-                              <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 font-bold text-[10px] flex items-center gap-1">
-                                <Package className="w-3 h-3" />
-                                <span>منتج تجزئة</span>
-                              </span>
-                            )}
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 font-bold text-[10px] flex items-center gap-1">
+                              <Box className="w-3 h-3" />
+                              <span>عبوة / كرتونة (×{item.packQty || 1} {item.packUnit || 'قطعة'})</span>
+                            </span>
                           </div>
 
                           {parentCat && (
@@ -791,18 +983,18 @@ export default function FavoritesPage() {
                         : 'text-on-surface-variant dark:text-slate-400 hover:text-on-surface'
                     }`}
                   >
-                    العبوات والباقات ({packs.length})
+                    العبوات والباقات بالمخزن ({packs.length})
                   </button>
                   <button
                     type="button"
                     onClick={() => setItemTypeTab('products')}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
                       itemTypeTab === 'products'
-                        ? 'bg-blue-600 text-white shadow-xs'
+                        ? 'bg-emerald-700 text-white shadow-xs'
                         : 'text-on-surface-variant dark:text-slate-400 hover:text-on-surface'
                     }`}
                   >
-                    منتجات التجزئة ({products.length})
+                    تحويل منتج إلى كرتونة ⚡ ({products.length})
                   </button>
                 </div>
 
@@ -889,7 +1081,6 @@ export default function FavoritesPage() {
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     {filteredAvailableProducts.map((prod) => {
-                      const isAdded = isItemInSelectedCategory(prod.id);
                       const price = prod.retailPrice || (prod as any).price || 0;
 
                       return (
@@ -902,33 +1093,25 @@ export default function FavoritesPage() {
                             <h5 className="text-xs font-bold text-on-surface dark:text-white truncate">
                               {prod.name}
                             </h5>
-                            <div className="text-xs font-black font-mono text-blue-600 dark:text-blue-400">
-                              {formatMoney(price)} د.ج
+                            <div className="text-xs font-black font-mono text-slate-700 dark:text-slate-300">
+                              سعر الحبة: {formatMoney(price)} د.ج
                             </div>
                           </div>
 
-                          <button
-                            type="button"
-                            onClick={() => handleAddProductToCategory(prod)}
-                            disabled={isAdded}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 shrink-0 cursor-pointer ${
-                              isAdded
-                                ? 'bg-slate-100 dark:bg-slate-700 text-slate-400 cursor-not-allowed'
-                                : 'bg-blue-600 hover:bg-blue-500 text-white shadow-xs active:scale-95'
-                            }`}
-                          >
-                            {isAdded ? (
-                              <>
-                                <Check className="w-3.5 h-3.5" />
-                                <span>مضاف</span>
-                              </>
-                            ) : (
-                              <>
-                                <Plus className="w-3.5 h-3.5" />
-                                <span>إضافة</span>
-                              </>
-                            )}
-                          </button>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowAddItemsModal(false);
+                                handleOpenQuickPackModal(prod);
+                              }}
+                              className="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs active:scale-95 cursor-pointer"
+                              title="تحديد عدد القطع وإنشاء كرتونة سريعة للمفضلة"
+                            >
+                              <Zap className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
+                              <span>⚡ تحويل إلى كرتونة</span>
+                            </button>
+                          </div>
                         </div>
                       );
                     })}
@@ -947,6 +1130,328 @@ export default function FavoritesPage() {
                 إغلاق والعودة
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 3: Quick Pack Creation Modal (إنشاء عبوة سريعة من منتج لتصميم 5) */}
+      {showQuickPackModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-surface-container-low dark:bg-slate-900 border border-outline-variant/20 dark:border-slate-800 rounded-3xl w-full max-w-2xl p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-outline-variant/15 dark:border-slate-800 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-500/20 shadow-xs">
+                  <Zap className="w-5 h-5 fill-amber-400 text-amber-500" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold font-cairo text-on-surface dark:text-white flex items-center gap-2">
+                    <span>إنشاء عبوة سريعة من منتج تجزئة</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 font-sans">
+                      خاص بتصميم 5
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-on-surface-variant dark:text-slate-400 mt-0.5">
+                    تحويل سلع التجزئة إلى كراتين أو باقات (مثل 6 علب حليب) تُباع باللمس بدون باركود مع خصم المخزون التلقائي
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowQuickPackModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {qpError && (
+              <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 rounded-xl text-xs flex items-center gap-2 shrink-0">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{qpError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveQuickPack} className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-4">
+              {/* الخطوة 1: اختيار منتج التجزئة الأساسي */}
+              <div>
+                <label className="block text-xs font-bold text-on-surface-variant dark:text-slate-300 mb-1.5">
+                  1. اختر منتج التجزئة الأساسي المراد إنشاء العبوة منه: <span className="text-rose-500">*</span>
+                </label>
+
+                {qpSelectedProduct ? (
+                  <div className="p-3.5 bg-emerald-50/50 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-800 rounded-2xl flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-base shrink-0 shadow-xs">
+                        <Package className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-on-surface dark:text-white truncate">
+                          {qpSelectedProduct.name}
+                        </div>
+                        <div className="flex items-center gap-3 text-[11px] text-on-surface-variant dark:text-slate-400 mt-0.5">
+                          <span>سعر الحبة: <strong className="text-emerald-600 dark:text-emerald-400 font-mono">{formatMoney(qpSelectedProduct.retailPrice || (qpSelectedProduct as any).price || 0)} د.ج</strong></span>
+                          <span>المخزون المتوفر: <strong className="font-mono text-slate-700 dark:text-slate-300">{qpSelectedProduct.quantity ?? 0} قطعة</strong></span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setQpSelectedProduct(null)}
+                      className="text-xs font-bold text-emerald-700 dark:text-emerald-300 hover:underline px-2.5 py-1 bg-white dark:bg-slate-800 rounded-lg border border-emerald-200 dark:border-emerald-700 shrink-0 cursor-pointer"
+                    >
+                      تغيير المنتج
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        value={qpSearchQuery}
+                        onChange={(e) => setQpSearchQuery(e.target.value)}
+                        placeholder="ابحث باسم المنتج أو الباركود (مثال: حليب، ماء، زبادي)..."
+                        className="w-full pl-3 pr-9 py-2 bg-surface-container dark:bg-slate-800 border border-outline-variant/20 dark:border-slate-700 rounded-xl text-xs text-on-surface dark:text-white focus:outline-none focus:border-primary"
+                        autoFocus
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-44 overflow-y-auto custom-scrollbar border border-outline-variant/15 dark:border-slate-800 rounded-2xl p-2 bg-surface-container/50 dark:bg-slate-800/40">
+                      {filteredModalProducts.length === 0 ? (
+                        <div className="col-span-full py-6 text-center text-xs text-slate-400">
+                          لا توجد نتائج مطابقة
+                        </div>
+                      ) : (
+                        filteredModalProducts.map((p) => {
+                          const pPrice = p.retailPrice || (p as any).price || 0;
+                          return (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => handleSelectBaseProduct(p)}
+                              className="p-2.5 rounded-xl border border-outline-variant/15 dark:border-slate-700/60 bg-surface-container dark:bg-slate-800 hover:border-emerald-500 hover:bg-emerald-50/30 dark:hover:bg-emerald-950/30 text-right transition cursor-pointer flex items-center justify-between gap-2 group"
+                            >
+                              <div className="min-w-0">
+                                <div className="text-xs font-bold text-on-surface dark:text-white truncate group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
+                                  {p.name}
+                                </div>
+                                <div className="text-[10px] text-slate-400 font-mono">
+                                  {p.barcode || 'بدون باركود'} · متبقي: {p.quantity ?? 0}
+                                </div>
+                              </div>
+                              <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 shrink-0">
+                                {formatMoney(pPrice)} د.ج
+                              </span>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* الخطوة 2 و 3: عدد القطع ووحدة التعبئة */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                {/* عدد القطع في العبوة */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-on-surface-variant dark:text-slate-300">
+                      2. عدد القطع المصرح بها في العبوة: <span className="text-rose-500">*</span>
+                    </label>
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                      يُخصم من المخزون
+                    </span>
+                  </div>
+
+                  <input
+                    type="number"
+                    min="1"
+                    value={qpPiecesCount}
+                    onChange={(e) => handleChangePiecesCount(parseInt(e.target.value) || 1)}
+                    className="w-full px-3 py-2 bg-surface-container dark:bg-slate-800 border border-outline-variant/20 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-on-surface dark:text-white focus:outline-none focus:border-primary"
+                    required
+                  />
+
+                  {/* أزرار سريعة للقطع */}
+                  <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                    {[3, 4, 6, 12, 24, 30, 48].map((count) => (
+                      <button
+                        key={count}
+                        type="button"
+                        onClick={() => handleChangePiecesCount(count)}
+                        className={`px-2 py-1 text-[10px] font-bold rounded-lg border transition cursor-pointer ${
+                          qpPiecesCount === count
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                            : 'bg-surface-container dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-outline-variant/20 dark:border-slate-700 hover:border-slate-400'
+                        }`}
+                      >
+                        ×{count}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* اسم وحدة العبوة */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-on-surface-variant dark:text-slate-300 block">
+                    3. مسمى وحدة العبوة:
+                  </label>
+
+                  <input
+                    type="text"
+                    value={qpUnitName}
+                    onChange={(e) => handleChangeUnitName(e.target.value)}
+                    placeholder="مثال: كرتونة، طرد، باقة..."
+                    className="w-full px-3 py-2 bg-surface-container dark:bg-slate-800 border border-outline-variant/20 dark:border-slate-700 rounded-xl text-xs text-on-surface dark:text-white focus:outline-none focus:border-primary"
+                  />
+
+                  {/* أزرار سريعة للوحدات */}
+                  <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                    {['كرتونة', 'طرد', 'باقة', 'شدة', 'صندوق', 'علبة'].map((unit) => (
+                      <button
+                        key={unit}
+                        type="button"
+                        onClick={() => handleChangeUnitName(unit)}
+                        className={`px-2 py-1 text-[10px] font-bold rounded-lg border transition cursor-pointer ${
+                          qpUnitName === unit
+                            ? 'bg-primary text-on-primary border-primary shadow-2xs'
+                            : 'bg-surface-container dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-outline-variant/20 dark:border-slate-700 hover:border-slate-400'
+                        }`}
+                      >
+                        {unit}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* الخطوة 4 و 5: اسم العبوة في الكاشير وسعر البيع */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                {/* اسم العبوة */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-on-surface-variant dark:text-slate-300 block">
+                    4. الاسم الظاهر على زر الكاشير: <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={qpPackName}
+                    onChange={(e) => setQpPackName(e.target.value)}
+                    placeholder="مثال: كرتون حليب (6 علب)"
+                    className="w-full px-3 py-2 bg-surface-container dark:bg-slate-800 border border-outline-variant/20 dark:border-slate-700 rounded-xl text-xs font-bold text-on-surface dark:text-white focus:outline-none focus:border-primary"
+                    required
+                  />
+                  <p className="text-[10px] text-slate-400">
+                    هذا الاسم يظهر على بطاقة الشريط السفلي لكاشير تصميم 5
+                  </p>
+                </div>
+
+                {/* سعر بيع العبوة */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-on-surface-variant dark:text-slate-300">
+                      5. سعر بيع العبوة (د.ج): <span className="text-rose-500">*</span>
+                    </label>
+                    {qpSelectedProduct && (
+                      <span className="text-[10px] font-mono text-slate-400">
+                        تلقائي: {formatMoney((qpSelectedProduct.retailPrice || (qpSelectedProduct as any).price || 0) * qpPiecesCount)} د.ج
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={qpPackPrice}
+                    onChange={(e) => {
+                      setQpPackPrice(e.target.value);
+                      setQpIsCustomPrice(true);
+                    }}
+                    placeholder="سعر البيع الإجمالي للعبوة"
+                    className="w-full px-3 py-2 bg-surface-container dark:bg-slate-800 border border-outline-variant/20 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 focus:outline-none focus:border-primary"
+                    required
+                  />
+                  {qpSelectedProduct && Number(qpPackPrice) < (qpSelectedProduct.retailPrice || (qpSelectedProduct as any).price || 0) * qpPiecesCount && (
+                    <div className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                      ★ سعر تشجيعي بتخفيض {formatMoney(((qpSelectedProduct.retailPrice || (qpSelectedProduct as any).price || 0) * qpPiecesCount) - Number(qpPackPrice))} د.ج للكرتونة
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* الخطوة 6 و 7: الباركود الاختياري وتصنيف المفضلة */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                {/* باركود العبوة */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-on-surface-variant dark:text-slate-300">
+                      6. باركود العبوة (اختياري):
+                    </label>
+                    <span className="text-[10px] text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                      يترك فارغاً للبيع باللمس
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    value={qpBarcode}
+                    onChange={(e) => setQpBarcode(e.target.value)}
+                    placeholder="اتركه فارغاً إذا كانت العبوة بدون باركود..."
+                    className="w-full px-3 py-2 bg-surface-container dark:bg-slate-800 border border-outline-variant/20 dark:border-slate-700 rounded-xl text-xs font-mono text-on-surface dark:text-white focus:outline-none focus:border-primary"
+                  />
+                </div>
+
+                {/* تصنيف المفضلة المستهدف */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-on-surface-variant dark:text-slate-300 block">
+                    7. إضافة العبوة إلى تصنيف المفضلة: <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={qpTargetCatId}
+                    onChange={(e) => setQpTargetCatId(e.target.value)}
+                    className="w-full px-3 py-2 bg-surface-container dark:bg-slate-800 border border-outline-variant/20 dark:border-slate-700 rounded-xl text-xs font-bold text-on-surface dark:text-white focus:outline-none focus:border-primary"
+                    required
+                  >
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* بطاقة توضيحية لآلية الخصم والسرعة */}
+              <div className="p-3 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40 text-[11px] text-amber-900 dark:text-amber-300 flex items-start gap-2.5">
+                <Info className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+                <div className="space-y-0.5 leading-relaxed">
+                  <span className="font-bold block">ملاحظة تشغيلية لكاشير تصميم 5:</span>
+                  <span>
+                    هذه العبوة ستظهر كزر لمس مباشر في الشريط السفلي. عند النقر عليها، ستُضاف فوراً بدون باركود بالسعر المحدد، وعند إتمام الفاتورة، سيقوم النظام تلقائياً بخصم <strong>{qpPiecesCount} قطع</strong> من رصيد المنتج الأصلي في المخزن.
+                  </span>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-outline-variant/15 dark:border-slate-800 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowQuickPackModal(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={qpIsSaving || !qpSelectedProduct}
+                  className="px-5 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl shadow-xs transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Zap className="w-4 h-4 fill-amber-300 text-amber-300" />
+                  <span>{qpIsSaving ? 'جارٍ الحفظ...' : '⚡ حفظ وإضافة العبوة للمفضلة'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

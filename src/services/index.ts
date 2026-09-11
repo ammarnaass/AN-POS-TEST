@@ -21,10 +21,12 @@ export const calculateSaleTotal = (
 };
 
 export const applyWholesalePrice = (product: Product, qty: number): number => {
-  if (product.wholesaleMinQty > 0 && qty >= product.wholesaleMinQty) {
-    return product.wholesalePrice;
+  const wsPrice = Number(product.wholesalePrice || (product as any).wholesale_price || (product as any).salePrice3 || 0);
+  const rtPrice = Number(product.retailPrice || (product as any).retail_price || (product as any).salePrice1 || (product as any).price || 0);
+  if (product.wholesaleMinQty > 0 && qty >= product.wholesaleMinQty && wsPrice > 0) {
+    return wsPrice;
   }
-  return product.retailPrice;
+  return rtPrice > 0 ? rtPrice : Number(product.retailPrice || 0);
 };
 
 export const applyPromotionPrice = (
@@ -66,30 +68,30 @@ export const getProductTierPrice = (
 
   // Price 1: تجزئة (Retail)
   const p1 = Number(
-    prod.salePrice1 ??
-    prod.sale_price1 ??
-    prod.retailPrice ??
-    prod.retail_price ??
-    prod.price ??
+    prod.salePrice1 ||
+    prod.sale_price1 ||
+    prod.retailPrice ||
+    prod.retail_price ||
+    prod.price ||
     0
   );
 
   // Price 2: نصف جملة (Semi-wholesale)
-  const rawP2 = Number(prod.salePrice2 ?? prod.sale_price2 ?? 0);
+  const rawP2 = Number(prod.salePrice2 || prod.sale_price2 || 0);
   const p2 = rawP2 > 0 ? rawP2 : p1;
 
   // Price 3: جملة (Wholesale)
   const rawP3 = Number(
-    prod.salePrice3 ??
-    prod.sale_price3 ??
-    prod.wholesalePrice ??
-    prod.wholesale_price ??
+    prod.salePrice3 ||
+    prod.sale_price3 ||
+    prod.wholesalePrice ||
+    prod.wholesale_price ||
     0
   );
   const p3 = rawP3 > 0 ? rawP3 : p1;
 
   // Price 4: خاص / بالفاتورة (Special / Invoice)
-  const rawP4 = Number(prod.invoicePrice ?? prod.invoice_price ?? 0);
+  const rawP4 = Number(prod.invoicePrice || prod.invoice_price || prod.salePrice4 || prod.sale_price4 || 0);
   const p4 = rawP4 > 0 ? rawP4 : (rawP3 > 0 ? rawP3 : p1);
 
   switch (tier) {
@@ -112,7 +114,7 @@ export const resolveUnitPrice = (
     return getProductTierPrice(product, priceTier);
   }
   if (forceWholesale) {
-    const ws = Number(product.salePrice3 ?? product.wholesalePrice ?? 0);
+    const ws = Number(product.salePrice3 || (product as any).sale_price3 || product.wholesalePrice || (product as any).wholesale_price || 0);
     if (ws > 0) return ws;
   }
   const promoPrice = applyPromotionPrice(product, promotions);

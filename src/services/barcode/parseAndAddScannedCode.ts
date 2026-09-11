@@ -14,6 +14,7 @@ export interface ParseScanContext {
   forceWholesale?: boolean;
   allowNegativeStock?: boolean;
   priceTier?: '1' | '2' | '3' | '4';
+  posLayout?: string;
 }
 
 export interface ParseScanResult {
@@ -69,8 +70,6 @@ export async function parseAndAddScannedCode(
     return resolveUnitPrice(p, 1, ctx.promotions, ctx.forceWholesale, ctx.priceTier);
   };
 
-  const isTierActive = Boolean(ctx.priceTier && ctx.priceTier !== '1');
-
   // 1) الفحص الفوري في المنتجات النشطة بالذاكرة أولاً (استجابة فورية 0ms دون الحاجة لـ IPC)
   const inMemoryProduct = ctx.products.find(
     (p) => p.status === 'active' && p.barcode && p.barcode.trim() === code
@@ -86,7 +85,7 @@ export async function parseAndAddScannedCode(
       unitPrice: price,
       lineTotal: price,
       batchNumber: inMemoryProduct.batchNumber,
-      isCustom: isTierActive,
+      isCustom: false,
       pricingType: ctx.priceTier === '3' || ctx.forceWholesale ? 'wholesale' : 'retail',
     });
     return { added: true, kind: 'product', name: inMemoryProduct.name };
@@ -103,18 +102,40 @@ export async function parseAndAddScannedCode(
       ? inMemoryPack.items
       : (() => { try { return JSON.parse(inMemoryPack.items as any) ?? []; } catch { return []; } })();
     const pQty = inMemoryPack.piecesCount || rawItems.reduce((s: number, it: any) => s + (Number(it.qty ?? it.quantity ?? 0)), 0) || 1;
-    ctx.addItem({
-      productId: `pack-${inMemoryPack.id}`,
-      name: inMemoryPack.name,
-      qty: 1,
-      unitPrice: inMemoryPack.packPrice,
-      lineTotal: inMemoryPack.packPrice,
-      isPack: true,
-      packId: inMemoryPack.id,
-      packQty: pQty,
-      packUnit: inMemoryPack.unitName || 'طرد',
-      pricingType: 'pack',
-    });
+    const isTerminal = ctx.posLayout === 'terminal';
+    const isWholesale = ctx.forceWholesale || ctx.priceTier === '3';
+    if (isTerminal && !isWholesale) {
+      const piecePrice = pQty > 0 ? (inMemoryPack.packPrice / pQty) : inMemoryPack.packPrice;
+      ctx.addItem({
+        productId: `pack-${inMemoryPack.id}`,
+        name: inMemoryPack.name,
+        qty: pQty,
+        unitPrice: piecePrice,
+        lineTotal: inMemoryPack.packPrice,
+        isPack: true,
+        packId: inMemoryPack.id,
+        packQty: 1,
+        packPiecesCount: pQty,
+        packUnit: inMemoryPack.unitName || 'عبوة',
+        packMode: 'retail_pieces',
+        pricingType: 'retail',
+      });
+    } else {
+      ctx.addItem({
+        productId: `pack-${inMemoryPack.id}`,
+        name: inMemoryPack.name,
+        qty: 1,
+        unitPrice: inMemoryPack.packPrice,
+        lineTotal: inMemoryPack.packPrice,
+        isPack: true,
+        packId: inMemoryPack.id,
+        packQty: 1,
+        packPiecesCount: pQty,
+        packUnit: inMemoryPack.unitName || 'طرد',
+        packMode: isTerminal ? 'wholesale_packs' : undefined,
+        pricingType: isWholesale ? 'wholesale' : 'pack',
+      });
+    }
     return { added: true, kind: 'pack', name: inMemoryPack.name };
   }
 
@@ -140,7 +161,7 @@ export async function parseAndAddScannedCode(
         unitPrice: price,
         lineTotal: price,
         batchNumber: textMatch.batchNumber,
-        isCustom: isTierActive,
+        isCustom: false,
         pricingType: ctx.priceTier === '3' || ctx.forceWholesale ? 'wholesale' : 'retail',
       });
       return { added: true, kind: 'product', name: textMatch.name };
@@ -160,7 +181,7 @@ export async function parseAndAddScannedCode(
       unitPrice: price,
       lineTotal: price,
       batchNumber: p.batchNumber,
-      isCustom: isTierActive,
+      isCustom: false,
       pricingType: ctx.priceTier === '3' || ctx.forceWholesale ? 'wholesale' : 'retail',
     });
     return { added: true, kind: 'product', name: p.name };

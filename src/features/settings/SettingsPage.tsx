@@ -89,6 +89,7 @@ export default function SettingsPage() {
     allowNegativeStock: Boolean((rawSettings as any)?.allowNegativeStock ?? (rawSettings as any)?.allow_negative_stock),
     confirmNoStock: Boolean((rawSettings as any)?.confirmNoStock ?? (rawSettings as any)?.confirm_no_stock ?? true),
     averagePricing: Boolean((rawSettings as any)?.averagePricing ?? (rawSettings as any)?.average_pricing),
+    terminalFavoritesMode: Boolean((rawSettings as any)?.terminalFavoritesMode ?? (rawSettings as any)?.terminal_favorites_mode ?? true),
     allowCardPayment: Boolean((rawSettings as any)?.allowCardPayment ?? (rawSettings as any)?.allow_card_payment),
     allowTransferPayment: Boolean((rawSettings as any)?.allowTransferPayment ?? (rawSettings as any)?.allow_transfer_payment),
     allowSelfRegistration: ((rawSettings as any)?.allowSelfRegistration ?? (rawSettings as any)?.allow_self_registration ?? 1) !== 0 && ((rawSettings as any)?.allowSelfRegistration ?? (rawSettings as any)?.allow_self_registration) !== false,

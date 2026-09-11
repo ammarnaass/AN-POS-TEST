@@ -275,13 +275,31 @@ export default function POSPage() {
     setPriceTier(tier);
     if (tier === '3') {
       if (!wholesaleMode) toggleWholesaleMode();
-    } else if (tier === '1') {
+    } else {
       if (wholesaleMode) toggleWholesaleMode();
     }
     const productList = products || [];
     if (cart.length > 0) {
       cart.forEach((item) => {
-        if (item.isPack) return;
+        if (item.isPack) {
+          if (posLayout === 'terminal') {
+            const pieces = Number(item.packPiecesCount || item.packQty || 1);
+            if (tier === '3' && item.packMode === 'retail_pieces') {
+              const packCount = Math.max(1, Math.round(item.qty / pieces));
+              const packPrice = (item.unitPrice || 0) * pieces;
+              item.packMode = 'wholesale_packs';
+              item.pricingType = 'wholesale';
+              updateQty(item.productId, packCount, packPrice);
+            } else if (tier !== '3' && item.packMode === 'wholesale_packs') {
+              const pieceQty = item.qty * pieces;
+              const piecePrice = pieces > 0 ? ((item.unitPrice || 0) / pieces) : item.unitPrice;
+              item.packMode = 'retail_pieces';
+              item.pricingType = 'retail';
+              updateQty(item.productId, pieceQty, piecePrice);
+            }
+          }
+          return;
+        }
         const prod = productList.find(
           (p) => p.id === item.productId || (item.barcode && p.barcode === item.barcode)
         );
@@ -293,7 +311,7 @@ export default function POSPage() {
         }
       });
     }
-  }, [wholesaleMode, toggleWholesaleMode, products, cart, updatePrice]);
+  }, [wholesaleMode, toggleWholesaleMode, products, cart, updatePrice, updateQty, posLayout]);
 
   // Toolbar filters & modals
   const [isFeaturedOnly, setIsFeaturedOnly] = useState(false);
@@ -602,9 +620,10 @@ export default function POSPage() {
       packs: packs as any,
       promotions: promotions as any,
       addItem,
-      forceWholesale: isWholesaleActive || priceTier === '3',
+      forceWholesale: priceTier === '3' || (!['1', '2', '4'].includes(priceTier) && isWholesaleActive),
       priceTier,
       allowNegativeStock: posSettings.allowNegativeStock || posSettings.accountingOnly,
+      posLayout,
     });
     if (result.added) {
       playAdded(0.08);
@@ -618,7 +637,7 @@ export default function POSPage() {
         type: 'error',
       });
     }
-  }, [products, packs, promotions, addItem, addNotification, quickMode, isWholesaleActive, priceTier, posSettings]);
+  }, [products, packs, promotions, addItem, addNotification, quickMode, isWholesaleActive, priceTier, posSettings, posLayout]);
 
   useBarcodeScanner({
     onScan: handleExternalScan,
@@ -633,13 +652,24 @@ export default function POSPage() {
       const isPack = String(product.id).startsWith('pack-') || Boolean(product.isPack);
       if (isPack) {
         const packId = String(product.id).replace('pack-', '');
-        const pack = packs.find((p) => p.id === packId);
-        if (!pack) return;
-        const items = Array.isArray(pack.items)
-          ? pack.items
-          : (() => { try { return JSON.parse(pack.items as any) ?? []; } catch { return []; } })();
+        const pack = packs.find((p) => String(p.id) === String(packId));
+        // Fallback to product data if pack is not in the packs state
+        const packObj = pack || {
+          id: packId,
+          name: product.name,
+          packPrice: customPrice ?? product.price ?? product.retailPrice ?? 0,
+          piecesCount: product.packPiecesCount || 1,
+          unitName: product.packUnit || 'عبوة',
+          items: [],
+        };
+        const items = Array.isArray(packObj.items)
+          ? packObj.items
+          : (() => { try { return JSON.parse((packObj as any).items as any) ?? []; } catch { return []; } })();
         const firstComp = items[0];
-        const pQty = Number(pack.piecesCount || firstComp?.qty || firstComp?.quantity || 1);
+        const pQty = Number(packObj.piecesCount || firstComp?.qty || firstComp?.quantity || 1);
+        const effectivePackPrice = customPrice !== undefined && customPrice > 0
+          ? customPrice
+          : Number(packObj.packPrice ?? product.price ?? product.retailPrice ?? 0);
 
         // التحقق من المخزون المتوفر إذا كان البيع بالسالب غير مسموح
         if (!posSettings.allowNegativeStock && !posSettings.accountingOnly && firstComp?.productId) {
@@ -660,41 +690,83 @@ export default function POSPage() {
             addNotification({
               title: 'تنبيه المخزون',
               type: 'warning',
-              message: `المخزون غير كافٍ! المتاح من "${parentProd?.name || pack.name}": ${availablePieces} قطعة (${availablePacks} عبوة).`,
+              message: `المخزون غير كافٍ! المتاح من "${parentProd?.name || packObj.name}": ${availablePieces} قطعة (${availablePacks} عبوة).`,
             });
             return;
           }
         }
 
-        addItem({
-          productId: `pack-${packId}`,
-          name: pack.name,
-          qty: 1,
-          unitPrice: pack.packPrice,
-          lineTotal: pack.packPrice,
-          isPack: true,
-          packId: packId,
-          packQty: pQty,
-          packUnit: pack.unitName || 'طرد',
-          pricingType: 'pack',
-        });
+        const isTerminal = posLayout === 'terminal';
+        const isWholesaleTier = priceTier === '3' || (!['1', '2', '4'].includes(priceTier) && isWholesaleActive);
+
+        if (isTerminal && !isWholesaleTier) {
+          // تصميم 5 في وضع التجزئة (س1، س2، س4):
+          // الكمية تكتب عدد القطع المصرح بها في العبوة
+          const existing = cart.find((item) => (item.productId === `pack-${packId}` || (item.isPack && item.packId === packId)));
+          const piecePrice = pQty > 0 ? (effectivePackPrice / pQty) : effectivePackPrice;
+          if (existing) {
+            updateQty(existing.productId, existing.qty + pQty, existing.unitPrice);
+          } else {
+            addItem({
+              productId: `pack-${packId}`,
+              name: packObj.name,
+              qty: pQty,
+              unitPrice: piecePrice,
+              lineTotal: effectivePackPrice,
+              isPack: true,
+              packId: packId,
+              packQty: 1,
+              packPiecesCount: pQty,
+              packUnit: packObj.unitName || 'عبوة',
+              packMode: 'retail_pieces',
+              pricingType: 'retail',
+            });
+          }
+        } else {
+          // وضع الجملة س3 (أو التصاميم الأخرى):
+          const existing = cart.find((item) => (item.productId === `pack-${packId}` || (item.isPack && item.packId === packId)));
+          if (existing) {
+            updateQty(existing.productId, existing.qty + 1, existing.unitPrice);
+          } else {
+            addItem({
+              productId: `pack-${packId}`,
+              name: packObj.name,
+              qty: 1,
+              unitPrice: effectivePackPrice,
+              lineTotal: effectivePackPrice,
+              isPack: true,
+              packId: packId,
+              packQty: 1,
+              packPiecesCount: pQty,
+              packUnit: packObj.unitName || 'طرد',
+              packMode: isTerminal ? 'wholesale_packs' : undefined,
+              pricingType: isWholesaleTier ? 'wholesale' : 'pack',
+            });
+          }
+        }
       } else {
-        const existing = cart.find((item) => item.productId === product.id && !item.isCustom);
-        const newQty = existing ? existing.qty + 1 : 1;
-        const isTierCustom = customPrice !== undefined || (priceTier !== '1');
-        const price = customPrice !== undefined
-          ? customPrice
-          : (product.unitPrice ?? resolveUnitPrice(product, newQty, promotions, isWholesaleActive, priceTier));
-        addItem({
-          productId: product.id,
-          name: product.name,
-          qty: 1,
-          unitPrice: price,
-          lineTotal: price,
-          batchNumber: product.batchNumber,
-          isCustom: isTierCustom,
-          pricingType: priceTier === '3' || isWholesaleActive ? 'wholesale' : 'retail',
-        });
+        const existing = cart.find((item) => item.productId === product.id && (customPrice === undefined ? !item.isCustom : item.unitPrice === customPrice));
+        if (existing) {
+          const newQty = existing.qty + 1;
+          const resolvedPrice = customPrice !== undefined
+            ? customPrice
+            : (existing.isCustom ? existing.unitPrice : resolveUnitPrice(product, newQty, promotions, isWholesaleActive, priceTier));
+          updateQty(existing.productId, newQty, resolvedPrice);
+        } else {
+          const price = customPrice !== undefined
+            ? customPrice
+            : (product.unitPrice ?? resolveUnitPrice(product, 1, promotions, isWholesaleActive, priceTier));
+          addItem({
+            productId: product.id,
+            name: product.name,
+            qty: 1,
+            unitPrice: price,
+            lineTotal: price,
+            batchNumber: product.batchNumber,
+            isCustom: customPrice !== undefined,
+            pricingType: priceTier === '3' || (!['1', '2', '4'].includes(priceTier) && isWholesaleActive) ? 'wholesale' : 'retail',
+          });
+        }
       }
       playAdded(0.05);
       setSearchQuery('');
@@ -703,7 +775,7 @@ export default function POSPage() {
         setTimeout(() => scanInputRef.current?.focus(), 100);
       }
     },
-    [addItem, promotions, cart, packs, products, quickMode, isWholesaleActive, priceTier, posSettings, addNotification]
+    [addItem, updateQty, promotions, cart, packs, products, quickMode, isWholesaleActive, priceTier, posSettings, posLayout, addNotification]
   );
 
   const handleUpdateQty = useCallback(
@@ -813,11 +885,16 @@ export default function POSPage() {
     if (!isSessionOpen) { setShowSessionWarning(true); return; }
     
     const dbPaymentMethod = paymentMethod === 'credit' ? 'credit' : 'cash';
+    // تحديد نوع الفاتورة حسب نوع السعر: س3 جملة تطبع فاتورة الجملة (wholesale)، وس1 وس2 وس4 تطبع فاتورة البيع العادية (facture)
+    const isWholesaleTier = priceTier === '3' || (!['1', '2', '4'].includes(priceTier) && isWholesaleActive);
+    const saleDocType: DocType = isWholesaleTier ? 'wholesale' : 'facture';
+
     completeSale({
       cart, discount, discountType, selectedCustomer, paymentMethod: dbPaymentMethod,
       isReturn: returnMode, currentSession, settings: settingsOrDefault,
       products: products as any[], packs: packs as any[], customers: customers as any[],
-      docType: isWholesaleActive ? 'wholesale' : 'facture',
+      docType: saleDocType,
+      priceTier,
     });
   };
 
@@ -931,7 +1008,11 @@ export default function POSPage() {
     onOpenSessionWarning: () => setShowSessionWarning(true),
     onOpenCustomize: () => setShowCustomizeModal(true),
     onOpenDiscount: () => setShowDiscountModal(true),
-    onToggleWholesale: toggleWholesaleMode,
+    onToggleWholesale: () => {
+      const next = !wholesaleMode;
+      toggleWholesaleMode();
+      handleSelectPriceTier(next ? '3' : '1');
+    },
     onUpdateQty: handleUpdateQty,
     onRemoveItem: removeItem,
     addNotification,
@@ -1097,11 +1178,13 @@ export default function POSPage() {
           {/* Wholesale Mode Toggle Button (زر تبديل وضع بيع الجملة) */}
           <button
             onClick={() => {
+              const willBeWholesale = !wholesaleMode;
               toggleWholesaleMode();
+              handleSelectPriceTier(willBeWholesale ? '3' : '1');
               addNotification({
-                title: !wholesaleMode ? 'وضع الجملة مفعّل (Gros)' : 'وضع التجزئة مفعّل (Détail)',
-                message: !wholesaleMode ? 'تم تفعيل أسعار وفواتير الجملة تلقائياً (Alt+W)' : 'تم العودة إلى أسعار التجزئة العادية (Alt+W)',
-                type: !wholesaleMode ? 'success' : 'info',
+                title: willBeWholesale ? 'وضع الجملة مفعّل (Gros)' : 'وضع التجزئة مفعّل (Détail)',
+                message: willBeWholesale ? 'تم تفعيل أسعار وفواتير الجملة تلقائياً (Alt+W)' : 'تم العودة إلى أسعار التجزئة العادية (Alt+W)',
+                type: willBeWholesale ? 'success' : 'info',
               });
             }}
             className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-2xs hover:shadow-xs active:scale-95 cursor-pointer shrink-0 ${
