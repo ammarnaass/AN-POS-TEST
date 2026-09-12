@@ -25,6 +25,7 @@ import { registerDiscoveryRoutes } from './routes/discovery';
 import { registerSyncRoutes } from './routes/sync';
 import { registerSettingsRoutes } from './routes/settings';
 import { registerDevicesRoutes } from './routes/devices';
+import { registerPosRoutes } from './routes/pos';
 import { startDiscoveryListener, stopDiscoveryListener } from '../discoveryUdp';
 import { startBonjourAdvertising, stopBonjourAdvertising } from '../discoveryBonjour';
 
@@ -177,6 +178,7 @@ export async function startHttpServer(config: ServerConfig = {}): Promise<{ url:
   await registerMiscRoutes(server);
   await registerDiscoveryRoutes(server);
   await registerSyncRoutes(server);
+  await registerPosRoutes(server);
 
   // ===== health =====
   server.get('/api/health', async () => ({

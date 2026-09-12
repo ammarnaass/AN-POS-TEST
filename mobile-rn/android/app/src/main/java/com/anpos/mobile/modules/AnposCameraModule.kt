@@ -11,6 +11,14 @@ import android.provider.MediaStore
 import android.util.Base64
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.graphics.drawable.GradientDrawable
+import android.util.TypedValue
+import android.view.Gravity
+import android.view.KeyEvent
+import android.view.View
+import android.widget.LinearLayout
+import android.widget.TextView
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
@@ -41,6 +49,8 @@ class AnposCameraModule(reactContext: ReactApplicationContext) :
     private var cameraExecutor: ExecutorService? = null
     private var previewView: PreviewView? = null
     private var overlayFrame: FrameLayout? = null
+    private var activeCamera: Camera? = null
+    private var isTorchOn: Boolean = false
 
     private var imagePickerPromise: Promise? = null
 
@@ -51,6 +61,14 @@ class AnposCameraModule(reactContext: ReactApplicationContext) :
     override fun getName(): String = "AnposCamera"
 
     override fun getConstants(): MutableMap<String, Any> = mutableMapOf()
+
+    private fun dpToPx(dp: Float): Int {
+        return TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            dp,
+            reactApplicationContext.resources.displayMetrics
+        ).toInt()
+    }
 
     @ReactMethod
     fun requestPermission(promise: Promise) {
@@ -99,6 +117,8 @@ class AnposCameraModule(reactContext: ReactApplicationContext) :
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
                 )
+                isFocusableInTouchMode = true
+                isClickable = true
             }
 
             previewView = PreviewView(activity).apply {
@@ -107,8 +127,179 @@ class AnposCameraModule(reactContext: ReactApplicationContext) :
                     ViewGroup.LayoutParams.MATCH_PARENT
                 )
             }
-
             overlayFrame!!.addView(previewView)
+
+            // معالجة زر الرجوع الفعلي في هاتف أندرويد
+            overlayFrame!!.requestFocus()
+            overlayFrame!!.setOnKeyListener { _, keyCode, event ->
+                if (keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) {
+                    stopScanInternal()
+                    emitScanClosed()
+                    true
+                } else {
+                    false
+                }
+            }
+
+            // واجهة التحكم الأصلية فوق الكاميرا (Native Controls Overlay)
+            val controlsContainer = FrameLayout(activity).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+            }
+
+            // 1. الشريط العلوي (أزرار الخروج والفلاش والعنوان)
+            val topBar = LinearLayout(activity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                val padH = dpToPx(16f)
+                val padV = dpToPx(14f)
+                setPadding(padH, padV, padH, padV)
+                val bg = GradientDrawable().apply {
+                    setColor(Color.parseColor("#D90F172A")) // Slate 900
+                    cornerRadius = 0f
+                }
+                background = bg
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    gravity = Gravity.TOP
+                    topMargin = dpToPx(24f)
+                }
+            }
+
+            // زر الخروج العلوي البارز
+            val closeBtnBg = GradientDrawable().apply {
+                setColor(Color.parseColor("#40FFFFFF"))
+                cornerRadius = dpToPx(20f).toFloat()
+            }
+            val closeBtn = TextView(activity).apply {
+                text = "✕  خروج"
+                setTextColor(Color.WHITE)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+                setPadding(dpToPx(14f), dpToPx(8f), dpToPx(14f), dpToPx(8f))
+                background = closeBtnBg
+                setOnClickListener {
+                    stopScanInternal()
+                    emitScanClosed()
+                }
+            }
+            topBar.addView(closeBtn)
+
+            // عنوان القارئ في الوسط
+            val titleView = TextView(activity).apply {
+                text = "قارئ الباركود عن بُعد"
+                setTextColor(Color.WHITE)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+                gravity = Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+            topBar.addView(titleView)
+
+            // زر تشغيل/إطفاء الفلاش
+            val torchBtnBg = GradientDrawable().apply {
+                setColor(Color.parseColor("#40FFFFFF"))
+                cornerRadius = dpToPx(20f).toFloat()
+            }
+            val torchBtn = TextView(activity).apply {
+                text = "⚡ كشاف"
+                setTextColor(Color.WHITE)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                setPadding(dpToPx(14f), dpToPx(8f), dpToPx(14f), dpToPx(8f))
+                background = torchBtnBg
+                setOnClickListener {
+                    activeCamera?.let { cam ->
+                        isTorchOn = !isTorchOn
+                        try {
+                            cam.cameraControl.enableTorch(isTorchOn)
+                            text = if (isTorchOn) "💡 إطفاء" else "⚡ كشاف"
+                            torchBtnBg.setColor(if (isTorchOn) Color.parseColor("#F59E0B") else Color.parseColor("#40FFFFFF"))
+                            setTextColor(if (isTorchOn) Color.BLACK else Color.WHITE)
+                        } catch (e: Exception) {}
+                    }
+                }
+            }
+            topBar.addView(torchBtn)
+            controlsContainer.addView(topBar)
+
+            // 2. إطار التركيز المرئي (Viewfinder Reticle)
+            val reticleFrame = FrameLayout(activity).apply {
+                val reticleW = dpToPx(280f)
+                val reticleH = dpToPx(180f)
+                layoutParams = FrameLayout.LayoutParams(reticleW, reticleH).apply {
+                    gravity = Gravity.CENTER
+                }
+                val reticleBg = GradientDrawable().apply {
+                    setColor(Color.TRANSPARENT)
+                    setStroke(dpToPx(3f), Color.parseColor("#0EA5E9")) // Sky blue 500
+                    cornerRadius = dpToPx(16f).toFloat()
+                }
+                background = reticleBg
+            }
+            controlsContainer.addView(reticleFrame)
+
+            // نص إرشادي أسفل إطار التركيز
+            val guideText = TextView(activity).apply {
+                text = "وجّه الكاميرا نحو باركود المنتج ليُضاف لنقطة البيع"
+                setTextColor(Color.parseColor("#E2E8F0"))
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                gravity = Gravity.CENTER
+                val padH = dpToPx(16f)
+                val padV = dpToPx(8f)
+                setPadding(padH, padV, padH, padV)
+                val guideBg = GradientDrawable().apply {
+                    setColor(Color.parseColor("#CC000000"))
+                    cornerRadius = dpToPx(12f).toFloat()
+                }
+                background = guideBg
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    gravity = Gravity.CENTER
+                    topMargin = dpToPx(140f)
+                }
+            }
+            controlsContainer.addView(guideText)
+
+            // 3. زر سفلي إضافي كبير للعودة
+            val bottomBar = LinearLayout(activity).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    gravity = Gravity.BOTTOM
+                    bottomMargin = dpToPx(32f)
+                }
+            }
+
+            val bigExitBtnBg = GradientDrawable().apply {
+                setColor(Color.parseColor("#DC2626")) // Red 600
+                cornerRadius = dpToPx(24f).toFloat()
+            }
+            val bigExitBtn = TextView(activity).apply {
+                text = "✕   إنهاء المسح والعودة للشاشة الرئيسية"
+                setTextColor(Color.WHITE)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+                gravity = Gravity.CENTER
+                setPadding(dpToPx(28f), dpToPx(14f), dpToPx(28f), dpToPx(14f))
+                background = bigExitBtnBg
+                setOnClickListener {
+                    stopScanInternal()
+                    emitScanClosed()
+                }
+            }
+            bottomBar.addView(bigExitBtn)
+            controlsContainer.addView(bottomBar)
+
+            overlayFrame!!.addView(controlsContainer)
             root.addView(overlayFrame)
 
             bindCamera(activity as LifecycleOwner)
@@ -167,7 +358,7 @@ class AnposCameraModule(reactContext: ReactApplicationContext) :
 
             try {
                 cameraProvider?.unbindAll()
-                cameraProvider?.bindToLifecycle(
+                activeCamera = cameraProvider?.bindToLifecycle(
                     lifecycleOwner,
                     CameraSelector.DEFAULT_BACK_CAMERA,
                     preview,
@@ -189,6 +380,14 @@ class AnposCameraModule(reactContext: ReactApplicationContext) :
             .emit("onBarcodeScan", params)
     }
 
+    private fun emitScanClosed() {
+        try {
+            reactApplicationContext
+                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                .emit("onBarcodeScannerClose", Arguments.createMap())
+        } catch (e: Exception) {}
+    }
+
     private fun mapBarcodeFormat(format: Int): String = when (format) {
         Barcode.FORMAT_QR_CODE -> "qr"
         Barcode.FORMAT_EAN_13 -> "ean13"
@@ -203,6 +402,14 @@ class AnposCameraModule(reactContext: ReactApplicationContext) :
     private fun stopScanInternal() {
         val activity = getCurrentActivity() ?: return
         activity.runOnUiThread {
+            try {
+                if (isTorchOn) {
+                    activeCamera?.cameraControl?.enableTorch(false)
+                }
+            } catch (e: Exception) {}
+            isTorchOn = false
+            activeCamera = null
+
             try {
                 cameraProvider?.unbindAll()
             } catch (e: Exception) {}

@@ -9,7 +9,9 @@ import { useNotificationStore } from '@/store/notificationStore';
 import { useSidebarStore } from '@/store/sidebarStore';
 import { usePOSSessionStore } from '@/features/pos/store/usePOSSessionStore';
 import { useBarcodeScanner } from '@/features/barcode/useBarcodeScanner';
+import { useMobileScanner } from './hooks/useMobileScanner';
 import { useSaleCompletion } from '@/features/pos/hooks/useSaleCompletion';
+import { parseAndAddScannedCode } from '@/services/barcode/parseAndAddScannedCode';
 import { calculateSaleTotal } from '@/services';
 import { printDocument } from '@/services/print/printService';
 import { generateId } from '@/utils';
@@ -231,33 +233,54 @@ export default function QuickPOSPage() {
     playBeep();
   }, [addItem, playBeep]);
 
-  const handleBarcodeScan = useCallback((code: string) => {
-    const cleanCode = code.trim().toLowerCase();
-    const found = products.find(
-      (p) =>
-        (p.barcode && p.barcode.toLowerCase() === cleanCode) ||
-        (p.sku && p.sku.toLowerCase() === cleanCode) ||
-        p.name.toLowerCase() === cleanCode
-    );
+  const handleBarcodeScan = useCallback(
+    async (code: string, scanQty = 1, extraData?: { fromMobile?: boolean; product?: any }) => {
+      const cleanCode = code.trim();
+      if (!cleanCode) return;
+      const effectiveQty = Math.max(1, Number(scanQty) || 1);
 
-    if (found) {
-      handleAddProduct(found);
-      setSearchQuery('');
-      playBeep();
-    } else {
-      addNotification({
-        title: 'المنتج غير موجود',
-        message: `لم يتم العثور على باركود: ${code}`,
-        type: 'warning',
+      const result = await parseAndAddScannedCode(cleanCode, {
+        products: products as any,
+        packs: packs as any,
+        promotions: [],
+        addItem,
+        qty: effectiveQty,
       });
-    }
-  }, [products, handleAddProduct, playBeep, addNotification]);
 
-  // Barcode Scanner Listener
+      if (result.added) {
+        setSearchQuery('');
+        playBeep();
+        if (extraData?.fromMobile) {
+          addNotification({
+            title: '📱 مسح عبر الهاتف',
+            message: `تمت إضافة "${result.name || code}" (${effectiveQty}×) مباشرة إلى السلة`,
+            type: 'success',
+          });
+        }
+      } else {
+        addNotification({
+          title: extraData?.fromMobile ? '📱 مسح عبر الهاتف: غير موجود' : 'المنتج غير موجود',
+          message: `${result.message ?? 'لم يتم العثور على باركود'}: ${code}`,
+          type: 'warning',
+        });
+      }
+    },
+    [products, packs, addItem, playBeep, addNotification, setSearchQuery]
+  );
+
+  // Barcode Scanner Listener (USB / Keyboard)
   useBarcodeScanner({
     onScan: (barcode) => {
       handleBarcodeScan(barcode);
     },
+  });
+
+  // Mobile Scanner Listener (Phone via LAN / SSE)
+  useMobileScanner({
+    onScan: (barcode, qty, extra) => {
+      handleBarcodeScan(barcode, qty, extra);
+    },
+    enabled: true,
   });
 
   // Search filter

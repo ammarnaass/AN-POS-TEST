@@ -258,6 +258,9 @@ export interface CartItem {
   qty: number;
   unitPrice: number;
   lineTotal: number;
+  price?: number;
+  unit?: string;
+  barcode?: string;
   batchNumber?: string;
   isCustom?: boolean;
   isPack?: boolean;

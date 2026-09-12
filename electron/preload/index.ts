@@ -262,6 +262,21 @@ const electronAPI = {
     exportRawDb: () =>
       ipcRenderer.invoke('backup:exportRawDb'),
   },
+
+  // ===== قارئ الباركود عن بُعد عبر الهاتف =====
+  // يُطلق الحدث 'pos:barcode-scan' من main process عند استقبال مسح من الهاتف
+  pos: {
+    onMobileScan: (callback: (data: { barcode: string; deviceName?: string }) => void) => {
+      const listener = (_event: any, data: any) => callback(data);
+      ipcRenderer.on('pos:barcode-scan', listener);
+      return () => {
+        ipcRenderer.removeListener('pos:barcode-scan', listener);
+      };
+    },
+    offMobileScan: () => {
+      ipcRenderer.removeAllListeners('pos:barcode-scan');
+    },
+  },
 };
 
 try {

@@ -16,15 +16,18 @@ import { useBarcodeScanner } from '@/features/barcode/useBarcodeScanner';
 import { categoriesApi, type Category } from '@/services/api/categoriesApi';
 import ImageUpload from '@/components/products/ImageUpload';
 import {
-  Plus, Search, Trash2, Upload, Download, X, Package,
+  Plus, Search, Trash2, Upload, X, Package,
   ToggleLeft, ToggleRight, DollarSign, Barcode, AlertTriangle, Zap,
   Box, ChevronLeft, ChevronRight, ScanLine, Tag, Settings,
   LayoutGrid, List as ListIcon, TrendingUp,
   ArrowUpDown, ShieldAlert,
   Edit2 as EditIcon, Printer as PrintIcon, RefreshCw, ExternalLink,
-  Layers
+  Layers, FileSpreadsheet, FileText
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import ProductExportModal from './ProductExportModal';
+import SupplierInvoicePdfModal from '@/features/suppliers/SupplierInvoicePdfModal';
+import type { Supplier } from '@/types';
 
 const emptyProduct: Omit<Product, 'id'> = {
   name: '', barcode: '', sku: '', category: '', unit: 'قطعة',
@@ -74,6 +77,14 @@ export default function InventoryPage() {
   useQuery({
     queryKey: ['settings'],
     queryFn: () => db.settings.get('default'),
+  });
+
+  const { data: suppliers = [] } = useQuery<Supplier[]>({
+    queryKey: ['suppliers'],
+    queryFn: async () => {
+      const s = await db.suppliers.toArray();
+      return s as unknown as Supplier[];
+    },
   });
 
   const addMutation = useMutation({
@@ -142,6 +153,8 @@ export default function InventoryPage() {
   const [formData, setFormData] = useState<Omit<Product, 'id'>>(emptyProduct);
   const [inventoryTab, setInventoryTab] = useState<'products' | 'barcode-report'>('products');
   const [showBulkGenerate, setShowBulkGenerate] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [showPdfInvoiceModal, setShowPdfInvoiceModal] = useState(false);
   const [barcodeScanMode, setBarcodeScanMode] = useState(false);
   const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -416,26 +429,7 @@ export default function InventoryPage() {
   };
 
   const handleExport = () => {
-    const exportData = filteredProducts.map((p) => ({
-      'الاسم': p.name,
-      'الباركود': p.barcode || '',
-      'SKU': p.sku || '',
-      'الفئة': typeof p.category === 'object' && p.category !== null ? (p.category as any).name : (p.category || ''),
-      'الوحدة': p.unit || 'قطعة',
-      'سعر التكلفة': p.costPrice || 0,
-      'سعر التجزئة': p.retailPrice || 0,
-      'سعر الجملة': p.wholesalePrice || 0,
-      'الكمية': p.quantity || 0,
-      'حد التنبيه': p.lowStockThreshold || 0,
-      'الحالة': p.status === 'active' ? 'نشط' : 'غير نشط',
-      'تاريخ الصلاحية': p.expiryDate || '',
-      'رقم الدفعة': p.batchNumber || '',
-    }));
-
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'المخزون');
-    XLSX.writeFile(wb, `AN_POS_Inventory_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    setShowExportModal(true);
   };
 
   const handleAddNewCategory = async () => {
@@ -573,10 +567,19 @@ export default function InventoryPage() {
             <button
               onClick={handleExport}
               className="flex items-center gap-2 bg-surface-container border border-outline-variant/20 px-4 py-2.5 rounded-xl text-on-surface-variant hover:bg-surface-container-high hover:border-outline-variant/40 transition-all text-body-sm font-medium active:scale-95 shadow-sm cursor-pointer"
-              title="تصدير القائمة الحالية إلى ملف Excel"
+              title="تصدير جدول المنتجات (Excel / CSV)"
             >
-              <Download className="w-4 h-4 text-emerald-500" />
-              <span>تصدير Excel</span>
+              <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
+              <span>تصدير Excel / CSV</span>
+            </button>
+
+            <button
+              onClick={() => setShowPdfInvoiceModal(true)}
+              className="flex items-center gap-2 bg-surface-container border border-outline-variant/20 px-3.5 py-2.5 rounded-xl text-on-surface-variant hover:bg-surface-container-high hover:border-outline-variant/40 transition-all text-body-sm font-medium active:scale-95 shadow-sm cursor-pointer"
+              title="إدخال بضاعة المخزون من فاتورة مورد PDF"
+            >
+              <FileText className="w-4 h-4 text-primary" />
+              <span>فاتورة مورد (PDF)</span>
             </button>
 
             <button
@@ -1736,6 +1739,26 @@ export default function InventoryPage() {
 
       {showBulkGenerate && (
         <BulkAssignBarcodesModalWrapper onClose={() => setShowBulkGenerate(false)} />
+      )}
+
+      {showExportModal && (
+        <ProductExportModal
+          open={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          allProducts={products}
+          filteredProducts={filteredProducts}
+          categories={categories}
+        />
+      )}
+
+      {showPdfInvoiceModal && (
+        <SupplierInvoicePdfModal
+          open={showPdfInvoiceModal}
+          onClose={() => setShowPdfInvoiceModal(false)}
+          products={products as any}
+          suppliers={suppliers}
+          categories={categories as any}
+        />
       )}
     </div>
   );

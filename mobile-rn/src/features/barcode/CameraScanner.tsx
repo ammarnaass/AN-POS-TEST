@@ -175,14 +175,20 @@ export const CameraScanner = ({
       }
     };
 
+    const handleCloseEvent = () => {
+      onClose();
+    };
+
     const sub1 = CameraEventEmitter.addListener('onBarcodeScan', handleCodeEvent);
     const sub2 = CameraEventEmitter.addListener('onBarcodeScanned', handleCodeEvent);
+    const subClose = CameraEventEmitter.addListener('onBarcodeScannerClose', handleCloseEvent);
 
     startCamera();
 
     return () => {
       sub1.remove();
       sub2.remove();
+      subClose.remove();
       AnposCamera.stopScan();
     };
   }, [manualMode, mode, onClose, onScan]);

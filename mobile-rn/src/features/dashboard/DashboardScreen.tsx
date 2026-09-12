@@ -46,6 +46,7 @@ import {
   Lock,
   Unlock,
   Sliders,
+  MonitorSmartphone,
 } from 'lucide-react-native';
 import { db, ensureInit } from '@/lib/db';
 import CameraScanner from '@/features/barcode/CameraScanner';
@@ -664,6 +665,38 @@ export const DashboardScreen = ({ navigation }: any) => {
             <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('dashboard.quickSaleSub')}</Text>
           </TouchableOpacity>
         </View>
+
+        {/* ── بطاقة قارئ POS عن بُعد (عريضة ومميزة) ── */}
+        <TouchableOpacity
+          style={[
+            styles.remoteScannerCard,
+            {
+              backgroundColor: isDark ? 'rgba(37, 99, 235, 0.15)' : '#eff6ff',
+              borderColor: isDark ? 'rgba(37, 99, 235, 0.4)' : colors.primary[200],
+              flexDirection: isRTL ? 'row-reverse' : 'row',
+            },
+          ]}
+          onPress={() => navigation.navigate('RemoteScanner')}
+          activeOpacity={0.82}
+        >
+          <View
+            style={[
+              styles.remoteScannerIconWrap,
+              { backgroundColor: isDark ? 'rgba(37, 99, 235, 0.25)' : colors.primary[100] },
+            ]}
+          >
+            <ScanBarcode size={28} color={colors.primary[600]} />
+          </View>
+          <View style={[styles.remoteScannerTextCol, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+            <Text style={[styles.remoteScannerTitle, { color: colors.primary[700] }]}>
+              قارئ POS عن بُعد
+            </Text>
+            <Text style={[styles.remoteScannerSub, { color: colors.primary[500] }]}>
+              امسح الباركود بالهاتف → يُضاف مباشرة لسلة الكمبيوتر
+            </Text>
+          </View>
+          <MonitorSmartphone size={20} color={colors.primary[400]} style={{ marginStart: 'auto' }} />
+        </TouchableOpacity>
 
         <View style={[styles.hubGrid, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
           {/* Sales History */}
@@ -1366,6 +1399,40 @@ const styles = StyleSheet.create({
   },
   chevron: {
     marginLeft: 4,
+  },
+
+  // Remote POS Scanner Card
+  remoteScannerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.md + 4,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.xl,
+    borderWidth: 1.5,
+    marginBottom: spacing.xs,
+    ...shadows.xs,
+  },
+  remoteScannerIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: radii.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  remoteScannerTextCol: {
+    flex: 1,
+    gap: 3,
+  },
+  remoteScannerTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    fontFamily: 'Cairo',
+  },
+  remoteScannerSub: {
+    fontSize: 12,
+    fontFamily: 'Cairo',
+    lineHeight: 18,
   },
 });
 

@@ -72,6 +72,10 @@ export const getProductTierPrice = (
     prod.sale_price1 ||
     prod.retailPrice ||
     prod.retail_price ||
+    prod.salePrice ||
+    prod.sale_price ||
+    prod.unitPrice ||
+    prod.unit_price ||
     prod.price ||
     0
   );
@@ -86,6 +90,7 @@ export const getProductTierPrice = (
     prod.sale_price3 ||
     prod.wholesalePrice ||
     prod.wholesale_price ||
+    prod.wholesale ||
     0
   );
   const p3 = rawP3 > 0 ? rawP3 : p1;

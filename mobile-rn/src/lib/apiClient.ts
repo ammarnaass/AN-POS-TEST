@@ -472,7 +472,40 @@ export const electronAPI = {
         4000
       )
     ),
+
+  // ===== قارئ الباركود عن بُعد → نقطة البيع على الكمبيوتر =====
+  pos: {
+    /**
+     * إرسال باركود ممسوح من الهاتف ليُضاف مباشرة لسلة نقطة البيع على الكمبيوتر
+     * @returns product إذا وُجد المنتج في قاعدة البيانات
+     */
+    scan: (barcode: string, qty: number = 1) =>
+      apiCall<{
+        success: boolean;
+        found: boolean;
+        barcode: string;
+        message?: string;
+        product?: {
+          id: string;
+          name: string;
+          price: number;
+          quantity: number;
+        } | null;
+      }>('POST', '/api/pos/scan', { barcode: barcode.trim(), qty }, 5000),
+
+    /**
+     * التحقق من أن نافذة POS مفتوحة على الكمبيوتر
+     */
+    status: () =>
+      apiCall<{ ok: boolean; posOpen: boolean; timestamp: string }>(
+        'GET',
+        '/api/pos/status',
+        undefined,
+        4000
+      ),
+  },
 };
+
 
 let _cachedServerUrl: string | null = null;
 let _cachedToken: string | null = null;

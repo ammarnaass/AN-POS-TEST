@@ -1,6 +1,6 @@
 // parseAndAddScannedCode — BARCODE-MGMT-001
 // منطق مشترك مستخرج: يحول كود ماسح/بحث → إضافة للسلة عبر searchByBarcode
-// يُستعمل من POSPage و QuickSalePage
+// يُستعمل من POSPage و QuickSalePage و الماسح عن بُعد من الهاتف
 import type { Product, Promotion, CartItem } from '@/types';
 import type { PackEntity } from '@/infrastructure/database/dexie/db';
 import { resolveUnitPrice, getProductTierPrice } from '@/services';
@@ -8,13 +8,14 @@ import { searchByBarcode } from './searchByBarcode';
 
 export interface ParseScanContext {
   products: Product[];
-  packs: PackEntity[];
-  promotions: Promotion[];
+  packs?: PackEntity[];
+  promotions?: Promotion[];
   addItem: (item: CartItem) => void;
   forceWholesale?: boolean;
   allowNegativeStock?: boolean;
   priceTier?: '1' | '2' | '3' | '4';
   posLayout?: string;
+  qty?: number;
 }
 
 export interface ParseScanResult {
@@ -22,6 +23,8 @@ export interface ParseScanResult {
   message?: string;
   kind?: 'product' | 'pack';
   name?: string;
+  qty?: number;
+  price?: number;
 }
 
 interface SaleRefusedReason {
@@ -62,17 +65,18 @@ export async function parseAndAddScannedCode(
   ctx: ParseScanContext,
 ): Promise<ParseScanResult> {
   const code = String(rawCode ?? '').trim();
+  const qtyToAdd = Math.max(1, Number(ctx.qty) || 1);
 
   const resolveItemPrice = (p: Product) => {
     if (ctx.priceTier && ctx.priceTier !== '1') {
       return getProductTierPrice(p, ctx.priceTier);
     }
-    return resolveUnitPrice(p, 1, ctx.promotions, ctx.forceWholesale, ctx.priceTier);
+    return resolveUnitPrice(p, qtyToAdd, ctx.promotions ?? [], ctx.forceWholesale, ctx.priceTier);
   };
 
-  // 1) الفحص الفوري في المنتجات النشطة بالذاكرة أولاً (استجابة فورية 0ms دون الحاجة لـ IPC)
+  // 1) الفحص الفوري في المنتجات بالذاكرة أولاً (استجابة فورية 0ms دون الحاجة لـ IPC)
   const inMemoryProduct = ctx.products.find(
-    (p) => p.status === 'active' && p.barcode && p.barcode.trim() === code
+    (p) => p.barcode && p.barcode.trim() === code
   );
   if (inMemoryProduct) {
     const blocked = refusalReason(inMemoryProduct);
@@ -81,19 +85,23 @@ export async function parseAndAddScannedCode(
     ctx.addItem({
       productId: inMemoryProduct.id,
       name: inMemoryProduct.name,
-      qty: 1,
+      qty: qtyToAdd,
       unitPrice: price,
-      lineTotal: price,
+      price: price,
+      lineTotal: price * qtyToAdd,
+      barcode: inMemoryProduct.barcode,
+      unit: inMemoryProduct.unit,
       batchNumber: inMemoryProduct.batchNumber,
       isCustom: false,
       pricingType: ctx.priceTier === '3' || ctx.forceWholesale ? 'wholesale' : 'retail',
     });
-    return { added: true, kind: 'product', name: inMemoryProduct.name };
+    return { added: true, kind: 'product', name: inMemoryProduct.name, qty: qtyToAdd, price };
   }
 
   // 2) الفحص الفوري في الباقات بالذاكرة
-  const inMemoryPack = ctx.packs.find(
-    (pk) => pk.status === 'active' && pk.barcode && pk.barcode.trim() === code
+  const packsList = ctx.packs || [];
+  const inMemoryPack = packsList.find(
+    (pk) => pk.barcode && pk.barcode.trim() === code
   );
   if (inMemoryPack) {
     const blocked = packRefusalReason(inMemoryPack, ctx.products, ctx.allowNegativeStock);
@@ -106,15 +114,18 @@ export async function parseAndAddScannedCode(
     const isWholesale = ctx.forceWholesale || ctx.priceTier === '3';
     if (isTerminal && !isWholesale) {
       const piecePrice = pQty > 0 ? (inMemoryPack.packPrice / pQty) : inMemoryPack.packPrice;
+      const totalPieces = pQty * qtyToAdd;
       ctx.addItem({
         productId: `pack-${inMemoryPack.id}`,
         name: inMemoryPack.name,
-        qty: pQty,
+        qty: totalPieces,
         unitPrice: piecePrice,
-        lineTotal: inMemoryPack.packPrice,
+        price: piecePrice,
+        lineTotal: inMemoryPack.packPrice * qtyToAdd,
+        barcode: inMemoryPack.barcode,
         isPack: true,
         packId: inMemoryPack.id,
-        packQty: 1,
+        packQty: qtyToAdd,
         packPiecesCount: pQty,
         packUnit: inMemoryPack.unitName || 'عبوة',
         packMode: 'retail_pieces',
@@ -124,19 +135,21 @@ export async function parseAndAddScannedCode(
       ctx.addItem({
         productId: `pack-${inMemoryPack.id}`,
         name: inMemoryPack.name,
-        qty: 1,
+        qty: qtyToAdd,
         unitPrice: inMemoryPack.packPrice,
-        lineTotal: inMemoryPack.packPrice,
+        price: inMemoryPack.packPrice,
+        lineTotal: inMemoryPack.packPrice * qtyToAdd,
+        barcode: inMemoryPack.barcode,
         isPack: true,
         packId: inMemoryPack.id,
-        packQty: 1,
+        packQty: qtyToAdd,
         packPiecesCount: pQty,
         packUnit: inMemoryPack.unitName || 'طرد',
         packMode: isTerminal ? 'wholesale_packs' : undefined,
         pricingType: isWholesale ? 'wholesale' : 'pack',
       });
     }
-    return { added: true, kind: 'pack', name: inMemoryPack.name };
+    return { added: true, kind: 'pack', name: inMemoryPack.name, qty: qtyToAdd, price: inMemoryPack.packPrice };
   }
 
   // 3) البحث في قاعدة البيانات (للباركودات المرتبطة والـ variants والـ batches)
@@ -157,14 +170,17 @@ export async function parseAndAddScannedCode(
       ctx.addItem({
         productId: textMatch.id,
         name: textMatch.name,
-        qty: 1,
+        qty: qtyToAdd,
         unitPrice: price,
-        lineTotal: price,
+        price: price,
+        lineTotal: price * qtyToAdd,
+        barcode: textMatch.barcode,
+        unit: textMatch.unit,
         batchNumber: textMatch.batchNumber,
         isCustom: false,
         pricingType: ctx.priceTier === '3' || ctx.forceWholesale ? 'wholesale' : 'retail',
       });
-      return { added: true, kind: 'product', name: textMatch.name };
+      return { added: true, kind: 'product', name: textMatch.name, qty: qtyToAdd, price };
     }
     return { added: false, message: 'لم يُعثر على المنتج' };
   }
@@ -177,14 +193,17 @@ export async function parseAndAddScannedCode(
     ctx.addItem({
       productId: p.id,
       name: p.name,
-      qty: 1,
+      qty: qtyToAdd,
       unitPrice: price,
-      lineTotal: price,
+      price: price,
+      lineTotal: price * qtyToAdd,
+      barcode: p.barcode,
+      unit: p.unit,
       batchNumber: p.batchNumber,
       isCustom: false,
       pricingType: ctx.priceTier === '3' || ctx.forceWholesale ? 'wholesale' : 'retail',
     });
-    return { added: true, kind: 'product', name: p.name };
+    return { added: true, kind: 'product', name: p.name, qty: qtyToAdd, price };
   }
 
   if (result.kind === 'pack' && result.pack) {
@@ -198,17 +217,20 @@ export async function parseAndAddScannedCode(
     ctx.addItem({
       productId: `pack-${pk.id}`,
       name: pk.name,
-      qty: 1,
+      qty: qtyToAdd,
       unitPrice: pk.packPrice,
-      lineTotal: pk.packPrice,
+      price: pk.packPrice,
+      lineTotal: pk.packPrice * qtyToAdd,
+      barcode: pk.barcode,
       isPack: true,
       packId: pk.id,
-      packQty: pQty,
+      packQty: pQty * qtyToAdd,
       packUnit: pk.unitName || 'طرد',
       pricingType: 'pack',
     });
-    return { added: true, kind: 'pack', name: pk.name };
+    return { added: true, kind: 'pack', name: pk.name, qty: qtyToAdd, price: pk.packPrice };
   }
 
   return { added: false, message: 'غير معروف' };
 }
+

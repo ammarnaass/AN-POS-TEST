@@ -12,6 +12,7 @@ import {
   Sun,
   Moon,
   LogOut,
+  ScanBarcode,
 } from 'lucide-react-native';
 import DashboardScreen from '@/features/dashboard/DashboardScreen';
 import POSScreen from '@/features/pos/PoSScreen';
@@ -161,6 +162,19 @@ export const HomeTabs = ({ navigation }: any) => {
         </View>
 
         <View style={styles.headerRight}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('RemoteScanner')}
+            style={[
+              styles.iconBtn,
+              {
+                backgroundColor: isDark ? 'rgba(37, 99, 235, 0.2)' : colors.primary[50],
+                borderColor: isDark ? 'rgba(37, 99, 235, 0.4)' : colors.primary[200],
+              },
+            ]}
+            activeOpacity={0.7}
+          >
+            <ScanBarcode size={17} color={colors.primary[600]} />
+          </TouchableOpacity>
           <SyncIndicator />
           <TouchableOpacity
             onPress={toggleTheme}

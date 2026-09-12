@@ -38,6 +38,11 @@ import {
   type BackupInspectionResult,
 } from '@/services/backup/backupService';
 import { db } from '@/lib/db';
+import {
+  exportProductsToFile,
+  type ProductExportFormat,
+  type ProductExportTemplate,
+} from '@/services/products/productExportService';
 
 interface ExportBackupTabProps {
   handleExportBackup?: () => Promise<void>;
@@ -56,6 +61,8 @@ export default function ExportBackupTab({ handleExportExcel: propExportExcel }: 
   const [exportingFull, setExportingFull] = useState(false);
   const [exportingDb, setExportingDb] = useState(false);
   const [exportingCsv, setExportingCsv] = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
+  const [exportTemplate, setExportTemplate] = useState<ProductExportTemplate>('inventory_audit');
 
   // حالة نافذة فحص واسترجاع النسخة
   const [inspectionResult, setInspectionResult] = useState<BackupInspectionResult | null>(null);
@@ -139,45 +146,53 @@ export default function ExportBackupTab({ handleExportExcel: propExportExcel }: 
     }
   };
 
-  // تصدير المنتجات إلى CSV / Excel
-  const handleCsvExport = async () => {
-    if (propExportExcel) {
+  // تصدير المنتجات إلى Excel أو CSV باحترافية
+  const handleExportProducts = async (format: ProductExportFormat) => {
+    if (propExportExcel && format === 'xlsx') {
       return propExportExcel();
     }
-    setExportingCsv(true);
-    try {
-      const products = await db.products.toArray();
-      const csvHeader = 'الاسم,الباركود,التصنيف,سعر التكلفة,سعر الجملة,سعر التجزئة,الكمية,الحد الأدنى\n';
-      const csvRows = products
-        .map(
-          (p: any) =>
-            `"${p.name || ''}","${p.barcode || ''}","${p.category || ''}",${p.costPrice || 0},${
-              p.wholesalePrice || 0
-            },${p.retailPrice || 0},${p.quantity || 0},${p.lowStockThreshold || 0}`
-        )
-        .join('\n');
 
-      const blob = new Blob(['\uFEFF' + csvHeader + csvRows], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `products-export-${new Date().toISOString().slice(0, 10)}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
+    if (format === 'xlsx') setExportingExcel(true);
+    else setExportingCsv(true);
+
+    try {
+      const [products, categories] = await Promise.all([
+        db.products.toArray(),
+        db.categories.toArray().catch(() => []),
+      ]);
+
+      if (!products || products.length === 0) {
+        addNotification({
+          title: 'تنبيه',
+          message: 'لا توجد منتجات مسجلة في قاعدة البيانات لتصديرها.',
+          type: 'warning',
+        });
+        return;
+      }
+
+      const result = await exportProductsToFile(products as any, {
+        format,
+        template: exportTemplate,
+        categories: categories as any,
+      });
 
       addNotification({
-        title: 'تم التصدير',
-        message: 'تم تصدير المنتجات إلى ملف Excel بنجاح',
+        title: 'تم التصدير بنجاح',
+        message: `تم تصدير ${result.count} منتج إلى ملف ${
+          format === 'xlsx' ? 'Microsoft Excel (.xlsx)' : 'CSV (.csv)'
+        } بنجاح.`,
         type: 'success',
       });
     } catch (err: any) {
+      console.error('Failed to export products:', err);
       addNotification({
-        title: 'خطأ',
-        message: err?.message || 'فشل تصدير المنتجات',
+        title: 'خطأ في التصدير',
+        message: err?.message || 'فشل تصدير قائمة المنتجات',
         type: 'error',
       });
     } finally {
-      setExportingCsv(false);
+      if (format === 'xlsx') setExportingExcel(false);
+      else setExportingCsv(false);
     }
   };
 
@@ -465,31 +480,84 @@ export default function ExportBackupTab({ handleExportExcel: propExportExcel }: 
           {/* كارت تصدير Excel / CSV */}
           <div className="flex flex-col justify-between p-6 rounded-2xl border border-outline-variant/25 bg-surface hover:border-outline-variant/50 transition-all shadow-sm">
             <div>
-              <div className="p-3 w-fit rounded-xl bg-emerald-500/10 text-emerald-500 mb-4">
-                <FileSpreadsheet className="w-6 h-6" />
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 w-fit rounded-xl bg-emerald-500/10 text-emerald-500">
+                  <FileSpreadsheet className="w-6 h-6" />
+                </div>
+                <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                  Excel & CSV
+                </span>
               </div>
               <h3 className="text-base font-bold text-on-surface mb-2">جدول المنتجات (Excel / CSV)</h3>
               <p className="text-xs text-on-surface-variant mb-4 leading-relaxed">
                 تصدير قائمة المنتجات فقط كجدول بيانات متوافق مع Microsoft Excel أو برامج الجرد لمراجعة الأسعار والكميات.
               </p>
 
+              {/* اختيار نمط الأعمدة والحقول */}
+              <div className="mb-4">
+                <label className="text-xs font-semibold text-on-surface block mb-1.5">نمط الجدول والحقول:</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setExportTemplate('inventory_audit')}
+                    className={`p-2 rounded-xl text-xs font-medium border text-center transition-all cursor-pointer ${
+                      exportTemplate === 'inventory_audit'
+                        ? 'border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-bold'
+                        : 'border-outline-variant/30 text-on-surface-variant hover:bg-surface-variant/30'
+                    }`}
+                  >
+                    مراجعة الجرد والأسعار (الأساسي)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExportTemplate('comprehensive')}
+                    className={`p-2 rounded-xl text-xs font-medium border text-center transition-all cursor-pointer ${
+                      exportTemplate === 'comprehensive'
+                        ? 'border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-bold'
+                        : 'border-outline-variant/30 text-on-surface-variant hover:bg-surface-variant/30'
+                    }`}
+                  >
+                    شامل لكافة تفاصيل المنتجات
+                  </button>
+                </div>
+              </div>
+
               <div className="p-3 rounded-xl bg-surface-variant/30 border border-outline-variant/20 mb-6 text-xs text-on-surface-variant space-y-1">
                 <p className="font-semibold text-on-surface flex items-center gap-1.5">
                   <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500" />
-                  حقول الجدول
+                  {exportTemplate === 'inventory_audit' ? 'حقول مراجعة الجرد والأسعار' : 'الحقول الشاملة'}
                 </p>
-                <p className="text-[11px]">الاسم، الباركود، التصنيف، سعر التكلفة، الجملة، التجزئة، والكمية.</p>
+                <p className="text-[11px] leading-relaxed">
+                  {exportTemplate === 'inventory_audit'
+                    ? 'الاسم، الباركود، التصنيف، سعر التكلفة، الجملة، التجزئة، والكمية.'
+                    : 'الاسم، الباركود، SKU، التصنيف، الوحدة، التكلفة، الجملة، التجزئة، الكمية، إجمالي القيم، هامش الربح، الصلاحية، الدفعة، الرف، الحالة...'}
+                </p>
               </div>
             </div>
 
-            <button
-              onClick={handleCsvExport}
-              disabled={exportingCsv}
-              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl border border-outline-variant/30 hover:bg-surface-variant/40 text-on-surface font-semibold text-xs transition-all active:scale-98 disabled:opacity-50"
-            >
-              <Download className="w-4 h-4 text-emerald-500" />
-              {exportingCsv ? 'جاري التصدير...' : 'تصدير المنتجات لـ Excel'}
-            </button>
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => handleExportProducts('xlsx')}
+                disabled={exportingExcel}
+                className="flex items-center justify-center gap-2 py-3 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-all active:scale-98 disabled:opacity-50 shadow-sm cursor-pointer"
+                title="تصدير ملف Microsoft Excel (.xlsx) منظم"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                {exportingExcel ? 'جاري التصدير...' : 'تصدير لـ Excel'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleExportProducts('csv')}
+                disabled={exportingCsv}
+                className="flex items-center justify-center gap-2 py-3 px-3 rounded-xl border border-outline-variant/40 hover:bg-surface-variant/50 text-on-surface font-semibold text-xs transition-all active:scale-98 disabled:opacity-50 cursor-pointer"
+                title="تصدير ملف CSV (.csv) متوافق مع برامج الجرد"
+              >
+                <Download className="w-4 h-4 text-emerald-600" />
+                {exportingCsv ? 'جاري التصدير...' : 'تصدير CSV'}
+              </button>
+            </div>
           </div>
         </div>
       </div>

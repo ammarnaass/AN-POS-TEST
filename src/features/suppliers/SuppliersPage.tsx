@@ -13,6 +13,7 @@ import {
   ShieldAlert
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import SupplierInvoicePdfModal from './SupplierInvoicePdfModal';
 
 type Tab = 'suppliers' | 'invoices' | 'statement';
 
@@ -38,6 +39,11 @@ export default function SuppliersPage() {
   const { data: purchaseItems = [] } = useQuery({
     queryKey: ['purchaseItems'],
     queryFn: () => db.purchase_items.toArray(),
+  });
+
+  const { data: categories = [] } = useQuery({
+    queryKey: ['categories'],
+    queryFn: () => db.categories.toArray(),
   });
 
   const { data: settings } = useQuery({
@@ -96,6 +102,8 @@ export default function SuppliersPage() {
 
   // Purchase Invoice Creator Modal
   const [showPurchaseInvoice, setShowPurchaseInvoice] = useState<string | null>(null);
+  const [showPdfInvoiceModal, setShowPdfInvoiceModal] = useState(false);
+  const [selectedSupplierForPdf, setSelectedSupplierForPdf] = useState<string | undefined>(undefined);
   const [invoiceItems, setInvoiceItems] = useState<SaleItem[]>([]);
   const [paidAmount, setPaidAmount] = useState(0);
   const [productSearchQuery, setProductSearchQuery] = useState('');
@@ -834,6 +842,19 @@ export default function SuppliersPage() {
           >
             <Download className="w-4 h-4 text-emerald-600" />
             <span>تصدير Excel</span>
+          </button>
+
+          {/* Import Supplier Invoice PDF */}
+          <button
+            onClick={() => {
+              setSelectedSupplierForPdf(undefined);
+              setShowPdfInvoiceModal(true);
+            }}
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-gradient-to-r from-primary to-primary-container text-on-primary hover:opacity-95 px-4 py-2.5 rounded-xl text-xs font-black transition-all shadow-xs hover:shadow-md active:scale-95 cursor-pointer"
+            title="إدخال بضاعة المخزون من فاتورة مورد PDF"
+          >
+            <FileText className="w-4 h-4" />
+            <span>استيراد فاتورة توريد (PDF)</span>
           </button>
 
           {/* Add Supplier Button */}
@@ -2111,6 +2132,20 @@ export default function SuppliersPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {showPdfInvoiceModal && (
+        <SupplierInvoicePdfModal
+          open={showPdfInvoiceModal}
+          onClose={() => {
+            setShowPdfInvoiceModal(false);
+            setSelectedSupplierForPdf(undefined);
+          }}
+          products={products as any}
+          suppliers={suppliers}
+          categories={categories as any}
+          preselectedSupplierId={selectedSupplierForPdf}
+        />
       )}
     </div>
   );

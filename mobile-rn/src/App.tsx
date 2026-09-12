@@ -56,6 +56,7 @@ import BarcodeLabelsScreen from '@/features/barcode/BarcodeLabelsScreen';
 import UsersScreen from '@/features/settings/UsersScreen';
 import BackupRestoreScreen from '@/features/settings/BackupRestoreScreen';
 import StoreSettingsScreen from '@/features/settings/StoreSettingsScreen';
+import RemoteScannerScreen from '@/features/pos/RemoteScannerScreen';
 
 import { ToastContainer } from '@/components/ui';
 
@@ -170,6 +171,9 @@ export default function App() {
             <Stack.Screen name="Users" component={UsersScreen} />
             <Stack.Screen name="BackupRestore" component={BackupRestoreScreen} />
             <Stack.Screen name="StoreSettings" component={StoreSettingsScreen} />
+
+            {/* قارئ الباركود عن بُعد → نقطة البيع */}
+            <Stack.Screen name="RemoteScanner" component={RemoteScannerScreen} />
           </Stack.Navigator>
           <ToastContainer />
         </NavigationContainer>

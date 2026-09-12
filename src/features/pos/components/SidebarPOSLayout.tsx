@@ -446,7 +446,8 @@ export const SidebarPOSLayout: React.FC<SidebarPOSLayoutProps> = ({
               </div>
             ) : (
               cart.map((item, index) => {
-                const lineTotal = item.price * item.qty;
+                const itemPrice = item.unitPrice ?? (item as any).price ?? 0;
+                const lineTotal = item.lineTotal ?? (itemPrice * item.qty);
                 const isEditingPrice = editingPriceItemId === item.productId;
 
                 return (
@@ -464,7 +465,7 @@ export const SidebarPOSLayout: React.FC<SidebarPOSLayoutProps> = ({
                             {item.name}
                           </h3>
                           <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                            {formatMoney(item.price)} {currency} × {item.qty} {item.unit || 'قطعة'}
+                            {formatMoney(itemPrice)} {currency} × {item.qty} {item.unit || item.packUnit || 'قطعة'}
                           </span>
                         </div>
                       </div>
@@ -487,7 +488,7 @@ export const SidebarPOSLayout: React.FC<SidebarPOSLayoutProps> = ({
                       const p2 = getProductTierPrice(prod, '2');
                       const p3 = getProductTierPrice(prod, '3');
                       const p4 = getProductTierPrice(prod, '4');
-                      const currentPrice = item.price ?? (item as any).unitPrice;
+                      const currentPrice = item.unitPrice ?? (item as any).price ?? 0;
                       return (
                         <div className="flex items-center gap-1 flex-wrap pt-1 border-t border-slate-100 dark:border-slate-800/80">
                           <span className="text-[10px] text-slate-400 font-bold ml-0.5">تبديل السعر:</span>
@@ -495,7 +496,7 @@ export const SidebarPOSLayout: React.FC<SidebarPOSLayoutProps> = ({
                             type="button"
                             onClick={() => onEditPrice && onEditPrice(item.productId, p1)}
                             className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
-                              currentPrice === p1
+                              Math.abs(currentPrice - p1) < 0.001
                                 ? 'bg-blue-600 text-white shadow-2xs'
                                 : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-100 dark:hover:bg-blue-900/40 border border-slate-200 dark:border-slate-700'
                             }`}
@@ -507,7 +508,7 @@ export const SidebarPOSLayout: React.FC<SidebarPOSLayoutProps> = ({
                             type="button"
                             onClick={() => onEditPrice && onEditPrice(item.productId, p2)}
                             className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
-                              currentPrice === p2
+                              Math.abs(currentPrice - p2) < 0.001
                                 ? 'bg-emerald-600 text-white shadow-2xs'
                                 : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 border border-slate-200 dark:border-slate-700'
                             }`}
@@ -519,7 +520,7 @@ export const SidebarPOSLayout: React.FC<SidebarPOSLayoutProps> = ({
                             type="button"
                             onClick={() => onEditPrice && onEditPrice(item.productId, p3)}
                             className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
-                              currentPrice === p3
+                              Math.abs(currentPrice - p3) < 0.001
                                 ? 'bg-purple-600 text-white shadow-2xs'
                                 : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-purple-100 dark:hover:bg-purple-900/40 border border-slate-200 dark:border-slate-700'
                             }`}
@@ -531,7 +532,7 @@ export const SidebarPOSLayout: React.FC<SidebarPOSLayoutProps> = ({
                             type="button"
                             onClick={() => onEditPrice && onEditPrice(item.productId, p4)}
                             className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
-                              currentPrice === p4
+                              Math.abs(currentPrice - p4) < 0.001
                                 ? 'bg-amber-600 text-white shadow-2xs'
                                 : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-amber-100 dark:hover:bg-amber-900/40 border border-slate-200 dark:border-slate-700'
                             }`}
@@ -589,7 +590,7 @@ export const SidebarPOSLayout: React.FC<SidebarPOSLayoutProps> = ({
                         type="button"
                         onClick={() => {
                           setEditingPriceItemId(item.productId);
-                          setCustomPriceInput(String(item.price));
+                          setCustomPriceInput(String(itemPrice));
                         }}
                         className="text-blue-600 dark:text-blue-400 text-[11px] font-medium hover:underline bg-white dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700 cursor-pointer"
                       >
