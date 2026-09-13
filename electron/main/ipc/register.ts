@@ -47,6 +47,7 @@ export function registerIpcHandlers(): void {
     { table: 'customers', searchFields: ['name', 'phone'] },
     { table: 'suppliers', searchFields: ['name', 'phone'] },
     { table: 'expenses', searchFields: ['label', 'category'], listOrder: 'date DESC' },
+    { table: 'payments', listOrder: 'date DESC' },
     { table: 'promotions' },
     { table: 'capital_entries', listOrder: 'date DESC' },
     { table: 'users', searchFields: ['name', 'username'] },

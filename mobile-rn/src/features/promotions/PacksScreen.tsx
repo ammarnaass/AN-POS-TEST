@@ -32,6 +32,7 @@ import {
 import CameraScanner from '@/features/barcode/CameraScanner';
 import { generateEAN13 } from '@/lib/barcodeSvg';
 import { db, ensureInit } from '@/lib/db';
+import { syncEngine } from '@/lib/syncEngine';
 import { generateId } from '@shared/utils';
 import type { Pack, Product } from '@shared/types';
 import { useTheme } from '@/theme';
@@ -211,7 +212,7 @@ export const PacksScreen = ({ navigation }: any) => {
       const piecesCount = selectedItems.reduce((sum, item) => sum + (Number(item.qty) || 1), 0);
 
       if (editingPackId) {
-        await db.packs.update(editingPackId, {
+        const patchData = {
           name: packName.trim(),
           barcode: packBarcode.trim() || undefined,
           price: priceNum,
@@ -225,10 +226,13 @@ export const PacksScreen = ({ navigation }: any) => {
           is_active: 1,
           sync_version: 1,
           updated_at: nowIso,
-        } as any);
+        };
+        await db.packs.update(editingPackId, patchData as any);
+        await syncEngine.enqueue('update', 'packs', editingPackId, patchData).catch(() => {});
       } else {
-        await db.packs.add({
-          id: generateId(),
+        const newPackId = generateId();
+        const newPackData = {
+          id: newPackId,
           name: packName.trim(),
           barcode: packBarcode.trim() || generateEAN13(),
           price: priceNum,
@@ -243,7 +247,9 @@ export const PacksScreen = ({ navigation }: any) => {
           sync_version: 1,
           created_at: nowIso,
           updated_at: nowIso,
-        } as any);
+        };
+        await db.packs.add(newPackData as any);
+        await syncEngine.enqueue('create', 'packs', newPackId, newPackData).catch(() => {});
       }
 
       setModalVisible(false);
@@ -269,6 +275,7 @@ export const PacksScreen = ({ navigation }: any) => {
         onPress: async () => {
           try {
             await db.packs.delete(pack.id);
+            await syncEngine.enqueue('delete', 'packs', pack.id, {}).catch(() => {});
             await loadPacksData();
           } catch {
             Alert.alert(t('common.error'), t('common.error'));

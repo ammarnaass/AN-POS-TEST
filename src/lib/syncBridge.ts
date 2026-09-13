@@ -86,6 +86,12 @@ export function initSyncBridge(): () => void {
             await db.categories.put(res.data as any);
           }
         }
+        if (api.categories?.list) {
+          const res = await api.categories.list();
+          if (Array.isArray(res?.data) && res.data.length > 0) {
+            await db.categories.bulkPut(res.data as any);
+          }
+        }
       }
 
       // ===== 4. جدول العملاء (customers) =====

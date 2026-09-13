@@ -1,43 +1,39 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { db } from '@/infrastructure/database/dexie/db';
 import { useCartStore } from '@/store/cartStore';
 import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useSidebarStore } from '@/store/sidebarStore';
 import { usePOSSessionStore } from '@/features/pos/store/usePOSSessionStore';
-import { useBarcodeScanner } from '@/features/barcode/useBarcodeScanner';
-import { useMobileScanner } from './hooks/useMobileScanner';
-import { useSaleCompletion } from '@/features/pos/hooks/useSaleCompletion';
-import { parseAndAddScannedCode } from '@/services/barcode/parseAndAddScannedCode';
 import { calculateSaleTotal } from '@/services';
-import { printDocument } from '@/services/print/printService';
-import { generateId } from '@/utils';
-import type { Product, Customer, Sale, CartItem } from '@/types';
+import type { Product, CartItem } from '@/types';
 import { Zap, ShoppingCart } from 'lucide-react';
-
-// Subcomponents
-import { QuickPOSHeader } from './quick/components/QuickPOSHeader';
-import { QuickPOSCatalog } from './quick/components/QuickPOSCatalog';
-import { QuickPOSCart } from './quick/components/QuickPOSCart';
-import { usePOSKeyboardShortcuts } from './hooks/usePOSKeyboardShortcuts';
-
-// Shared Modals
-import {
-  SuccessModal,
-  SuspendedOrdersModal,
-  QuickCustomerModal,
-  OpenSessionModal,
-  FreeProductModal,
-  ShortcutsGuideModal,
-} from './modals';
 import { formatMoney } from './utils/format';
+
+// Domain Services, Hooks & Types
+import {
+  useQuickPOSData,
+  useQuickPOSScanner,
+  useQuickPOSSuspendedOrders,
+  useQuickPOSCheckout,
+  playQuickPOSBeep,
+  calculateTotalPieces,
+  type QuickPOSMobileTab,
+} from './quick';
+
+// Decomposed Subcomponents
+import {
+  QuickPOSHeader,
+  QuickPOSCart,
+  QuickPOSCatalog,
+  QuickPOSModals,
+} from './quick';
+
+import { usePOSKeyboardShortcuts } from './hooks/usePOSKeyboardShortcuts';
 
 export default function QuickPOSPage() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const { items: cart, addItem, removeItem, updateQty, clear: clearCart } = useCartStore();
   const { user: currentUser } = useAuthStore();
   const { theme, toggleTheme } = useThemeStore();
@@ -57,15 +53,13 @@ export default function QuickPOSPage() {
   const setAutoPrintReceipt = usePOSSessionStore((s) => s.setAutoPrintReceipt);
 
   // Local UI States
-  const [mobileTab, setMobileTab] = useState<'catalog' | 'cart'>('catalog');
+  const [mobileTab, setMobileTab] = useState<QuickPOSMobileTab>('catalog');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [cashTendered, setCashTendered] = useState<number>(0);
   const [soundEnabled, setSoundEnabled] = useState(true);
 
-  // Modals visibility
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [completedSale, setCompletedSale] = useState<Sale | null>(null);
+  // Modals Visibility State
   const [showHeldSalesModal, setShowHeldSalesModal] = useState(false);
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
   const [showOpenSessionModal, setShowOpenSessionModal] = useState(false);
@@ -74,132 +68,27 @@ export default function QuickPOSPage() {
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Focus search bar on mount and after cart updates
-  useEffect(() => {
-    searchInputRef.current?.focus();
-  }, [cart.length, showSuccessModal]);
+  // 1. Data Layer Hook
+  const {
+    products,
+    packs,
+    categories,
+    customers,
+    allSessions,
+    currentSession,
+    isSessionOpen,
+    suspendedOrders,
+    settingsOrDefault,
+  } = useQuickPOSData();
 
-  // Audio Beep
-  const playBeep = useCallback(() => {
-    if (!soundEnabled) return;
-    try {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      const ctx = new AudioCtx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, ctx.currentTime);
-      gain.gain.setValueAtTime(0.12, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.08);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.08);
-    } catch {
-      // Audio not supported
-    }
-  }, [soundEnabled]);
+  // 2. Calculations
+  const saleSummary = useMemo(() => {
+    return calculateSaleTotal(cart, discount, discountType, settingsOrDefault.tvaRate);
+  }, [cart, discount, discountType, settingsOrDefault.tvaRate]);
 
-  // Database Queries
-  const { data: products = [] } = useQuery<Product[]>({
-    queryKey: ['products'],
-    queryFn: async () => {
-      const list = await db.products.toArray();
-      return list.filter((p: Product) => p.status === 'active' || !p.status);
-    },
-    staleTime: 1000 * 60 * 5,
-  });
-
-  const { data: packs = [] } = useQuery({
-    queryKey: ['packs'],
-    queryFn: () => db.packs.toArray(),
-  });
-
-  const { data: rawCategories = [] } = useQuery<any[]>({
-    queryKey: ['categories'],
-    queryFn: async () => {
-      try {
-        const [cats, prods] = await Promise.all([
-          db.categories.toArray().catch(() => []),
-          db.products.toArray().catch(() => []),
-        ]);
-        const all = new Set<string>();
-        if (Array.isArray(cats)) {
-          cats.forEach((c: any) => {
-            const name = typeof c === 'object' && c !== null ? c.name : c;
-            if (name && typeof name === 'string' && name.trim()) all.add(name.trim());
-          });
-        }
-        if (Array.isArray(prods)) {
-          prods.forEach((p: any) => {
-            const cat = typeof p.category === 'object' && p.category !== null ? p.category.name : p.category;
-            if (cat && typeof cat === 'string' && cat.trim()) all.add(cat.trim());
-          });
-        }
-        return Array.from(all);
-      } catch {
-        return [];
-      }
-    },
-    staleTime: 1000 * 60 * 5,
-  });
-
-  const categories = useMemo(() => {
-    const set = new Set<string>();
-    if (Array.isArray(rawCategories)) {
-      rawCategories.forEach((c: any) => {
-        const name = typeof c === 'object' && c !== null ? c.name : c;
-        if (name && typeof name === 'string' && name.trim()) set.add(name.trim());
-      });
-    }
-    if (Array.isArray(products)) {
-      products.forEach((p: any) => {
-        const cat = typeof p.category === 'object' && p.category !== null ? p.category.name : p.category;
-        if (cat && typeof cat === 'string' && cat.trim()) set.add(cat.trim());
-      });
-    }
-    return Array.from(set);
-  }, [rawCategories, products]);
-
-  const { data: customers = [] } = useQuery<Customer[]>({
-    queryKey: ['customers'],
-    queryFn: () => db.customers.toArray(),
-    staleTime: 1000 * 60 * 5,
-  });
-
-  const { data: allSessions = [] } = useQuery({
-    queryKey: ['cashSessions'],
-    queryFn: () => db.cash_sessions.toArray(),
-  });
-
-  const currentSession = useMemo(() => {
-    return allSessions.find((s: any) => s.status === 'open') || null;
-  }, [allSessions]);
-
-  const isSessionOpen = currentSession !== null;
-
-  const { data: suspendedOrders = [] } = useQuery({
-    queryKey: ['suspendedOrders'],
-    queryFn: () => db.suspended_orders.toArray(),
-  });
-
-  const { data: rawSettings } = useQuery({
-    queryKey: ['settings'],
-    queryFn: () => db.settings.get('default'),
-    staleTime: 1000 * 60 * 10,
-  });
-
-  const settingsOrDefault = useMemo(() => ({
-    tvaRate: Number(rawSettings?.tvaRate ?? (rawSettings as any)?.tva_rate ?? 0),
-    invoicePrefix: rawSettings?.invoicePrefix ?? 'INV-',
-    baseCurrency: rawSettings?.baseCurrency ?? 'دج',
-    shopName: rawSettings?.shopName ?? 'AN POS',
-    phone: rawSettings?.phone ?? '',
-    receiptFooter: rawSettings?.receiptFooter ?? 'شكراً لزيارتكم',
-    allowNegativeStock: rawSettings?.allowNegativeStock ?? true,
-    allowCardPayment: Boolean((rawSettings as any)?.allowCardPayment ?? false),
-    allowTransferPayment: Boolean((rawSettings as any)?.allowTransferPayment ?? false),
-  }), [rawSettings]);
+  const totalPiecesCount = useMemo(() => {
+    return calculateTotalPieces(cart);
+  }, [cart]);
 
   // Auto-reset payment method to cash if disabled in settings
   useEffect(() => {
@@ -210,11 +99,6 @@ export default function QuickPOSPage() {
     }
   }, [paymentMethod, settingsOrDefault.allowCardPayment, settingsOrDefault.allowTransferPayment, setPaymentMethod]);
 
-  // Sale Calculations
-  const saleSummary = useMemo(() => {
-    return calculateSaleTotal(cart, discount, discountType, settingsOrDefault.tvaRate);
-  }, [cart, discount, discountType, settingsOrDefault.tvaRate]);
-
   // Sync cash tendered with total if 0
   useEffect(() => {
     if (cashTendered === 0 && saleSummary.total > 0) {
@@ -222,66 +106,84 @@ export default function QuickPOSPage() {
     }
   }, [saleSummary.total, cashTendered]);
 
-  const handleAddProduct = useCallback((product: Product) => {
-    addItem({
-      productId: product.id,
-      name: product.name,
-      unitPrice: product.retailPrice,
-      qty: 1,
-      lineTotal: product.retailPrice,
-    });
-    playBeep();
-  }, [addItem, playBeep]);
+  // 3. Checkout Hook (ACID, Thermal Receipt, Notifications)
+  const {
+    handleQuickPay,
+    isSalePending,
+    completedSale,
+    showSuccessModal,
+    setShowSuccessModal,
+  } = useQuickPOSCheckout({
+    cart,
+    clearCart,
+    discount,
+    setDiscount,
+    discountType,
+    selectedCustomer,
+    setSelectedCustomer,
+    paymentMethod,
+    autoPrintReceipt,
+    settingsOrDefault,
+    currentSession,
+    isSessionOpen,
+    products,
+    packs,
+    customers,
+    currentUser,
+    setCashTendered,
+    onOpenSessionWarning: () => setShowOpenSessionModal(true),
+    addNotification,
+  });
 
-  const handleBarcodeScan = useCallback(
-    async (code: string, scanQty = 1, extraData?: { fromMobile?: boolean; product?: any }) => {
-      const cleanCode = code.trim();
-      if (!cleanCode) return;
-      const effectiveQty = Math.max(1, Number(scanQty) || 1);
+  // 4. Suspended Orders Hook
+  const {
+    handleHoldSale,
+    handleRestoreHeldSale,
+    handleDeleteHeldSale,
+  } = useQuickPOSSuspendedOrders({
+    cart,
+    clearCart,
+    addItem,
+    setSelectedCustomer,
+    setDiscount,
+    setDiscountType,
+    addNotification,
+  });
 
-      const result = await parseAndAddScannedCode(cleanCode, {
-        products: products as any,
-        packs: packs as any,
-        promotions: [],
-        addItem,
-        qty: effectiveQty,
+  const onHoldCurrentSale = useCallback(() => {
+    handleHoldSale(selectedCustomer, discount, discountType, customers, currentUser?.name);
+  }, [handleHoldSale, selectedCustomer, discount, discountType, customers, currentUser?.name]);
+
+  // 5. Barcode Scanner Hook (USB + Mobile SSE + 400ms Debounce)
+  const { handleBarcodeScan } = useQuickPOSScanner({
+    products,
+    packs,
+    allowNegativeStock: settingsOrDefault.allowNegativeStock,
+    addItem,
+    playBeep: () => playQuickPOSBeep(soundEnabled),
+    onClearSearch: () => setSearchQuery(''),
+    addNotification,
+  });
+
+  // 6. User Interactions
+  const handleAddProduct = useCallback(
+    (product: Product) => {
+      addItem({
+        productId: product.id,
+        name: product.name,
+        unitPrice: product.retailPrice,
+        qty: 1,
+        lineTotal: product.retailPrice,
       });
-
-      if (result.added) {
-        setSearchQuery('');
-        playBeep();
-        if (extraData?.fromMobile) {
-          addNotification({
-            title: '📱 مسح عبر الهاتف',
-            message: `تمت إضافة "${result.name || code}" (${effectiveQty}×) مباشرة إلى السلة`,
-            type: 'success',
-          });
-        }
-      } else {
-        addNotification({
-          title: extraData?.fromMobile ? '📱 مسح عبر الهاتف: غير موجود' : 'المنتج غير موجود',
-          message: `${result.message ?? 'لم يتم العثور على باركود'}: ${code}`,
-          type: 'warning',
-        });
-      }
+      playQuickPOSBeep(soundEnabled);
     },
-    [products, packs, addItem, playBeep, addNotification, setSearchQuery]
+    [addItem, soundEnabled]
   );
 
-  // Barcode Scanner Listener (USB / Keyboard)
-  useBarcodeScanner({
-    onScan: (barcode) => {
-      handleBarcodeScan(barcode);
-    },
-  });
-
-  // Mobile Scanner Listener (Phone via LAN / SSE)
-  useMobileScanner({
-    onScan: (barcode, qty, extra) => {
-      handleBarcodeScan(barcode, qty, extra);
-    },
-    enabled: true,
-  });
+  // Focus search bar on mount, after cart changes, and modal closes
+  useEffect(() => {
+    searchInputRef.current?.focus();
+  }, [cart.length, showSuccessModal]);
 
   // Search filter
   const filteredProducts = useMemo(() => {
@@ -304,181 +206,33 @@ export default function QuickPOSPage() {
     return list;
   }, [products, selectedCategory, searchQuery]);
 
-  // Sale Completion Hook (Atomic ACID)
-  const { completeSale, isPending: isSalePending } = useSaleCompletion(
-    settingsOrDefault,
-    (sale) => {
-      setCompletedSale(sale);
-      setShowSuccessModal(true);
-      clearCart();
-      setDiscount(0);
-      setCashTendered(0);
-      setSelectedCustomer('');
-      queryClient.invalidateQueries({ queryKey: ['products'] });
-      queryClient.invalidateQueries({ queryKey: ['sales'] });
+  // Search input Enter key handler
+  const handleSearchKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter' && searchQuery.trim()) {
+        e.preventDefault();
+        const query = searchQuery.trim();
 
-      if (autoPrintReceipt) {
-        printDocument(sale.id, 'thermal-receipt', {
-          userId: currentUser?.id || '',
-          userName: currentUser?.name || '',
-          copies: 1,
-        });
+        const exactProduct = products.find(
+          (p) => (p.barcode && p.barcode.trim() === query) || (p.sku && p.sku.trim() === query)
+        );
+        const exactPack = packs.find(
+          (pk: any) => pk.barcode && pk.barcode.trim() === query
+        );
+
+        if (exactProduct || exactPack) {
+          handleBarcodeScan(query);
+        } else if (filteredProducts.length === 1) {
+          handleBarcodeScan(filteredProducts[0].barcode || filteredProducts[0].name);
+        } else {
+          handleBarcodeScan(query);
+        }
       }
-
-      addNotification({
-        title: 'تم تسجيل البيع السريع بنجاح',
-        message: `فاتورة #${sale.number} بمبلغ ${formatMoney(sale.total)} دج`,
-        type: 'success',
-      });
-    }
+    },
+    [searchQuery, filteredProducts, products, packs, handleBarcodeScan]
   );
 
-  // Quick Pay Trigger
-  const handleQuickPay = useCallback(() => {
-    if (cart.length === 0 || isSalePending) return;
-    if (!isSessionOpen) {
-      setShowOpenSessionModal(true);
-      return;
-    }
-    if (paymentMethod === 'credit' && !selectedCustomer) {
-      addNotification({
-        title: 'تنبيه العميل',
-        message: 'يجب اختيار زبون مسجل لعملية البيع بالآجل (الديون).',
-        type: 'warning',
-      });
-      return;
-    }
-
-    completeSale({
-      cart,
-      discount,
-      discountType,
-      selectedCustomer,
-      paymentMethod: paymentMethod === 'credit' ? 'credit' : 'cash',
-      isReturn: false,
-      currentSession,
-      settings: settingsOrDefault,
-      products: products as any[],
-      packs: packs as any[],
-      customers: customers as any[],
-    });
-  }, [
-    cart,
-    isSalePending,
-    isSessionOpen,
-    paymentMethod,
-    selectedCustomer,
-    completeSale,
-    discount,
-    discountType,
-    currentSession,
-    settingsOrDefault,
-    products,
-    packs,
-    customers,
-    addNotification,
-  ]);
-
-  // Hold Sale
-  const handleHoldSale = useCallback(() => {
-    if (cart.length === 0) return;
-    const subtotal = cart.reduce((acc, it) => acc + (it.lineTotal || (it.unitPrice * it.qty) || 0), 0);
-    const discountAmount = discountType === 'percent'
-      ? (subtotal * (discount || 0)) / 100
-      : (discount || 0);
-    const total = Math.max(0, subtotal - discountAmount);
-    const custObj = customers.find((c: any) => c.id === selectedCustomer);
-
-    const newOrder = {
-      id: generateId(),
-      items: cart.map((it) => ({
-        productId: it.productId,
-        name: it.name,
-        qty: Number(it.qty || 1),
-        unitPrice: Number(it.unitPrice || 0),
-        lineTotal: Number(it.lineTotal || (Number(it.qty || 1) * Number(it.unitPrice || 0))),
-        isCustom: it.isCustom,
-        isPack: it.isPack,
-        packId: it.packId,
-        batchNumber: it.batchNumber,
-      })),
-      total,
-      subtotal,
-      customerId: selectedCustomer || '',
-      customerName: custObj?.name || '',
-      discount: discount || 0,
-      discountType: discountType || 'percent',
-      createdAt: new Date().toISOString(),
-      note: '',
-      createdBy: currentUser?.name || '',
-    };
-
-    db.suspended_orders.add(newOrder).then(() => {
-      queryClient.invalidateQueries({ queryKey: ['suspendedOrders'] });
-      clearCart();
-      setSelectedCustomer('');
-      setDiscount(0);
-      addNotification({
-        title: 'تم تعليق البيع',
-        message: `تم حفظ ${cart.length} أصناف بقيمة ${total.toLocaleString('ar-DZ')} د.ج في الفواتير المعلقة`,
-        type: 'info',
-      });
-    });
-  }, [cart, selectedCustomer, discount, discountType, customers, currentUser?.name, clearCart, setSelectedCustomer, setDiscount, queryClient, addNotification]);
-
-  // Restore Held Sale
-  const handleRestoreHeldSale = useCallback((order: any) => {
-    clearCart();
-    const rawItems = order.items;
-    const items = Array.isArray(rawItems)
-      ? rawItems
-      : (typeof rawItems === 'string' ? (() => { try { return JSON.parse(rawItems); } catch { return []; } })() : []);
-
-    for (const item of items) {
-      addItem({
-        productId: item.productId,
-        name: item.name,
-        qty: Number(item.qty || 1),
-        unitPrice: Number(item.unitPrice || 0),
-        lineTotal: Number(item.lineTotal || (Number(item.qty || 1) * Number(item.unitPrice || 0))),
-        isCustom: item.isCustom,
-        isPack: item.isPack,
-        packId: item.packId,
-        batchNumber: item.batchNumber,
-      });
-    }
-    setSelectedCustomer(order.customerId || '');
-    setDiscount(order.discount || 0);
-    setDiscountType(order.discountType || 'percent');
-    db.suspended_orders.delete(order.id).then(() => {
-      queryClient.invalidateQueries({ queryKey: ['suspendedOrders'] });
-    });
-    setShowHeldSalesModal(false);
-    addNotification({ title: 'تم استرجاع الفاتورة', message: 'تم تحميل الأصناف للسلة بنجاح', type: 'success' });
-  }, [clearCart, addItem, setSelectedCustomer, setDiscount, setDiscountType, queryClient, addNotification]);
-
-  // Delete Held Sale
-  const handleDeleteHeldSale = useCallback((orderId: string) => {
-    db.suspended_orders.delete(orderId).then(() => {
-      queryClient.invalidateQueries({ queryKey: ['suspendedOrders'] });
-      addNotification({ title: 'تم الحذف', message: 'تم حذف الفاتورة المعلقة بنجاح', type: 'info' });
-    });
-  }, [queryClient, addNotification]);
-
-  // Search input Enter key handler
-  const handleSearchKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && searchQuery.trim()) {
-      e.preventDefault();
-      if (filteredProducts.length === 1) {
-        handleAddProduct(filteredProducts[0]);
-        setSearchQuery('');
-      } else {
-        handleBarcodeScan(searchQuery);
-      }
-    }
-  }, [searchQuery, filteredProducts, handleAddProduct, handleBarcodeScan]);
-
-  // Unified Global Keyboard Shortcuts Listener (F1 - F12)
+  // 7. Global Keyboard Shortcuts Listener (F1 - F12)
   usePOSKeyboardShortcuts({
     cart,
     selectedItemId: null,
@@ -506,7 +260,7 @@ export default function QuickPOSPage() {
       searchInputRef.current?.focus();
     },
     onOpenPayment: handleQuickPay,
-    onSuspendSale: handleHoldSale,
+    onSuspendSale: onHoldCurrentSale,
     onOpenSuspended: () => setShowHeldSalesModal(true),
     onClearCart: () => {
       clearCart();
@@ -539,10 +293,6 @@ export default function QuickPOSPage() {
     onRemoveItem: removeItem,
     addNotification,
   });
-
-  const totalPiecesCount = useMemo(() => {
-    return cart.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
-  }, [cart]);
 
   return (
     <div className="bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-sans h-screen flex flex-col overflow-hidden select-none">
@@ -606,7 +356,7 @@ export default function QuickPOSPage() {
           onUpdateQty={updateQty}
           onRemoveItem={removeItem}
           onClearCart={clearCart}
-          onHoldSale={handleHoldSale}
+          onHoldSale={onHoldCurrentSale}
           customers={customers}
           selectedCustomer={selectedCustomer}
           onSelectCustomer={setSelectedCustomer}
@@ -650,44 +400,32 @@ export default function QuickPOSPage() {
       </main>
 
       {/* 3. SHARED MODALS */}
-      <SuccessModal
-        isOpen={showSuccessModal}
-        onClose={() => {
+      <QuickPOSModals
+        showSuccessModal={showSuccessModal}
+        onCloseSuccessModal={() => {
           setShowSuccessModal(false);
           searchInputRef.current?.focus();
         }}
         completedSale={completedSale}
-      />
-
-      <SuspendedOrdersModal
-        isOpen={showHeldSalesModal}
-        onClose={() => setShowHeldSalesModal(false)}
-        orders={suspendedOrders}
+        showHeldSalesModal={showHeldSalesModal}
+        onCloseHeldSalesModal={() => setShowHeldSalesModal(false)}
+        suspendedOrders={suspendedOrders}
         onResumeOrder={(orderId) => {
           const order = suspendedOrders.find((o: any) => o.id === orderId);
-          if (order) handleRestoreHeldSale(order);
+          if (order) handleRestoreHeldSale(order, () => setShowHeldSalesModal(false));
         }}
         onDeleteOrder={handleDeleteHeldSale}
-      />
-
-      <QuickCustomerModal
-        isOpen={showAddCustomerModal}
-        onClose={() => setShowAddCustomerModal(false)}
+        showAddCustomerModal={showAddCustomerModal}
+        onCloseAddCustomerModal={() => setShowAddCustomerModal(false)}
         onSelectCustomer={(id) => {
           setSelectedCustomer(id);
           setShowAddCustomerModal(false);
         }}
-      />
-
-      <OpenSessionModal
-        isOpen={showOpenSessionModal}
-        onClose={() => setShowOpenSessionModal(false)}
-        existingSessionsCount={allSessions.length}
-      />
-
-      <FreeProductModal
-        isOpen={showFreeProductModal}
-        onClose={() => setShowFreeProductModal(false)}
+        showOpenSessionModal={showOpenSessionModal}
+        onCloseOpenSessionModal={() => setShowOpenSessionModal(false)}
+        allSessionsCount={allSessions.length}
+        showFreeProductModal={showFreeProductModal}
+        onCloseFreeProductModal={() => setShowFreeProductModal(false)}
         onAddCustomItem={(item: CartItem) => {
           addItem(item);
           setShowFreeProductModal(false);
@@ -697,11 +435,8 @@ export default function QuickPOSPage() {
             type: 'success',
           });
         }}
-      />
-
-      <ShortcutsGuideModal
-        isOpen={showShortcutsModal}
-        onClose={() => setShowShortcutsModal(false)}
+        showShortcutsModal={showShortcutsModal}
+        onCloseShortcutsModal={() => setShowShortcutsModal(false)}
       />
     </div>
   );

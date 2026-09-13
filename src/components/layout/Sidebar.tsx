@@ -64,7 +64,7 @@ const menuSections: NavSection[] = [
     title: 'المخزون',
     items: [
       { path: '/inventory', label: 'المخزون', icon: Package },
-      { path: '/packs', label: 'الباقات', icon: Layers },
+      { path: '/packs', label: 'الباقات والحزم', icon: Layers },
       { path: '/categories', label: 'التصنيفات', icon: FolderTree },
       { path: '/barcode/labels', label: 'طباعة الباركود', icon: Barcode },
       { path: '/promotions', label: 'العروض', icon: Tag },

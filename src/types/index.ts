@@ -132,6 +132,11 @@ export interface Customer {
   nif?: string;
   nis?: string;
   address?: string;
+  notes?: string;
+  createdAt?: string;
+  created_at?: string;
+  updatedAt?: string;
+  updated_at?: string;
 }
 
 export interface Supplier {

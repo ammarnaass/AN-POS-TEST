@@ -15,6 +15,7 @@ import {
   getTableColumns,
   serializeValue,
   toSnakeKey,
+  notifyTableChange,
 } from '../../handlers/db-utils';
 import { createSale, updateSale, removeSale } from '../../handlers/sales';
 import {
@@ -121,6 +122,140 @@ function applySyncOperation(
     if (entity === 'sale_items' && operation === 'create') {
       const existing = queryOne('SELECT id FROM sale_items WHERE id = ?', [localId]);
       if (existing) {
+        return { success: true };
+      }
+    }
+
+    // ===== معالجة مخصصة للفئات (Categories) مع حماية فريدة للاسم وربط المنتجات =====
+    if (entity === 'categories') {
+      const catName = String(payload.name || '').trim();
+      if (!catName) {
+        return { success: true };
+      }
+
+      if (operation === 'create') {
+        const existingById = queryOne('SELECT id, name FROM categories WHERE id = ?', [localId]);
+        if (existingById) {
+          updateRow('categories', localId, payload);
+          notifyTableChange('categories', 'update', localId);
+          return { success: true };
+        }
+
+        const existingByName = queryOne(
+          'SELECT id, name FROM categories WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))',
+          [catName]
+        );
+        if (existingByName) {
+          // الاسم موجود مسبقاً بمعرف مختلف — نحدث الفئة القائمة ونربط أي منتجات تابعة للمعرف المحلي
+          updateRow('categories', existingByName.id as string, payload);
+          execute('UPDATE products SET category_id = ?, category = ? WHERE category_id = ?', [
+            existingByName.id,
+            catName,
+            localId,
+          ]);
+          notifyTableChange('categories', 'update', existingByName.id as string);
+          return { success: true };
+        }
+
+        createRow('categories', { ...payload, id: localId });
+        notifyTableChange('categories', 'create', localId);
+        return { success: true };
+      }
+
+      if (operation === 'update') {
+        const existingById = queryOne('SELECT id, name FROM categories WHERE id = ?', [localId]);
+        if (existingById) {
+          updateRow('categories', localId, payload);
+          notifyTableChange('categories', 'update', localId);
+          return { success: true };
+        }
+        const existingByName = queryOne(
+          'SELECT id, name FROM categories WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))',
+          [catName]
+        );
+        if (existingByName) {
+          updateRow('categories', existingByName.id as string, payload);
+          notifyTableChange('categories', 'update', existingByName.id as string);
+          return { success: true };
+        }
+        createRow('categories', { ...payload, id: localId });
+        notifyTableChange('categories', 'create', localId);
+        return { success: true };
+      }
+
+      if (operation === 'delete') {
+        removeRow('categories', localId);
+        notifyTableChange('categories', 'delete', localId);
+        return { success: true };
+      }
+    }
+
+    // ===== معالجة مخصصة للمنتجات (Products) لضمان تسجيل وتحديث الفئات تلقائياً في المخزون =====
+    if (entity === 'products') {
+      const rawCategoryName = String(
+        payload.category ?? payload.category_name ?? payload.categoryName ?? ''
+      ).trim();
+
+      if (rawCategoryName && rawCategoryName !== 'عام' && rawCategoryName.toLowerCase() !== 'general') {
+        // فحص وجود الفئة في جدول categories
+        const existingCat = queryOne(
+          'SELECT id, name FROM categories WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))',
+          [rawCategoryName]
+        );
+
+        if (existingCat) {
+          payload.category = existingCat.name;
+          payload.category_id = existingCat.id;
+          payload.categoryId = existingCat.id;
+        } else {
+          // الفئة غير موجودة: إنشاؤها فوراً في جدول categories لضمان ظهورها في التصنيفات وشاشات المخزون
+          const newCatId = (payload.category_id as string) || (payload.categoryId as string) || randomUUID();
+          const nowIso = new Date().toISOString();
+          try {
+            execute(
+              'INSERT INTO categories (id, name, parent_id, description, icon, color, created_at, updated_at) VALUES (?, ?, NULL, ?, ?, ?, ?, ?)',
+              [newCatId, rawCategoryName, '', 'Tag', '#3B82F6', nowIso, nowIso]
+            );
+            notifyTableChange('categories', 'create', newCatId);
+          } catch {
+            const fallbackCat = queryOne(
+              'SELECT id, name FROM categories WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))',
+              [rawCategoryName]
+            );
+            if (fallbackCat) {
+              payload.category = fallbackCat.name;
+              payload.category_id = fallbackCat.id;
+              payload.categoryId = fallbackCat.id;
+            }
+          }
+          if (!payload.category_id) {
+            payload.category_id = newCatId;
+            payload.categoryId = newCatId;
+          }
+        }
+      }
+
+      if (operation === 'create') {
+        const existing = queryOne('SELECT id FROM products WHERE id = ?', [localId]);
+        if (existing) {
+          updateRow('products', localId, payload);
+          notifyTableChange('products', 'update', localId);
+          return { success: true };
+        }
+        createRow('products', { ...payload, id: localId });
+        notifyTableChange('products', 'create', localId);
+        return { success: true };
+      }
+
+      if (operation === 'update') {
+        updateRow('products', localId, payload);
+        notifyTableChange('products', 'update', localId);
+        return { success: true };
+      }
+
+      if (operation === 'delete') {
+        removeRow('products', localId);
+        notifyTableChange('products', 'delete', localId);
         return { success: true };
       }
     }

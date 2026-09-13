@@ -63,13 +63,16 @@ export async function listPayments(opts?: { partyId?: string; partyType?: string
 export async function createPayment(data: Record<string, unknown>): Promise<{ data: Record<string, unknown> }> {
   const id = (data.id as string) || randomUUID();
   const now = new Date().toISOString();
+  const partyId = String(data.partyId || data.party_id || data.customerId || data.customer_id || '');
+  const partyType = String(data.partyType || data.party_type || 'customer');
+  const customerId = String(data.customerId || data.customer_id || partyId || '');
   execute(
     'INSERT INTO payments (id, date, party_type, party_id, customer_id, amount, type, method, note, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [
-      id, data.date || now, data.partyType || 'customer', data.partyId || '',
-      data.customerId || data.partyId || '', data.amount || 0,
-      data.type || 'debit', data.method || 'cash', data.note || '',
-      data.createdBy || '', now,
+      id, data.date || now, partyType, partyId,
+      customerId, Number(data.amount) || 0,
+      data.type || 'credit', data.method || 'cash', data.note || '',
+      data.createdBy || data.created_by || '', now,
     ]
   );
   return { data: { id, ...data } };

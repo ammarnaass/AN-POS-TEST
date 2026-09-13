@@ -168,6 +168,28 @@ describe('parseAndAddScannedCode', () => {
     expect(cartItems).toHaveLength(0);
   });
 
+  it('يسمح بالبيع إذا نفد المخزون وكان البيع بالسالب مسموحاً (allowNegativeStock: true)', async () => {
+    const outOfStockProd: Product = {
+      ...mockProduct,
+      id: 'prod-out-allowed',
+      barcode: '777000111',
+      quantity: 0,
+    };
+
+    const res = await parseAndAddScannedCode('777000111', {
+      products: [outOfStockProd],
+      addItem,
+      allowNegativeStock: true,
+      qty: 1,
+    });
+
+    expect(res.added).toBe(true);
+    expect(res.kind).toBe('product');
+    expect(cartItems).toHaveLength(1);
+    expect(cartItems[0].productId).toBe('prod-out-allowed');
+    expect(cartItems[0].qty).toBe(1);
+  });
+
   it('يجد المنتج عبر searchByBarcode في قاعدة البيانات عند عدم وجوده بالذاكرة الفورية', async () => {
     // المنتج موجود في Dexie (تمت إضافته في beforeEach) لكن ليس في مصفوفة products الممررة
     const res = await parseAndAddScannedCode('6130001112223', {

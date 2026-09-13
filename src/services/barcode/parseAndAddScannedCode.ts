@@ -31,9 +31,9 @@ interface SaleRefusedReason {
   message: string;
 }
 
-function refusalReason(p: Product): SaleRefusedReason | null {
+function refusalReason(p: Product, allowNegativeStock?: boolean): SaleRefusedReason | null {
   if (p.status !== 'active') return { message: 'المنتج موقوف مؤقتاً' };
-  if (p.quantity <= 0) return { message: 'نفد المخزون' };
+  if (!allowNegativeStock && (p.quantity ?? 0) <= 0) return { message: 'نفد المخزون' };
   return null;
 }
 
@@ -79,7 +79,7 @@ export async function parseAndAddScannedCode(
     (p) => p.barcode && p.barcode.trim() === code
   );
   if (inMemoryProduct) {
-    const blocked = refusalReason(inMemoryProduct);
+    const blocked = refusalReason(inMemoryProduct, ctx.allowNegativeStock);
     if (blocked) return { added: false, message: blocked.message };
     const price = resolveItemPrice(inMemoryProduct);
     ctx.addItem({
@@ -160,7 +160,7 @@ export async function parseAndAddScannedCode(
     const textMatch = ctx.products.find(
       (p) =>
         p.status === 'active' &&
-        p.quantity > 0 &&
+        (ctx.allowNegativeStock || (p.quantity ?? 0) > 0) &&
         (p.name.toLowerCase() === q ||
           p.name.toLowerCase().startsWith(q) ||
           p.barcode.toLowerCase() === q),
@@ -187,7 +187,7 @@ export async function parseAndAddScannedCode(
 
   if (result.kind === 'product' && result.product) {
     const p = result.product;
-    const blocked = refusalReason(p);
+    const blocked = refusalReason(p, ctx.allowNegativeStock);
     if (blocked) return { added: false, message: blocked.message };
     const price = resolveItemPrice(p as Product);
     ctx.addItem({
@@ -224,7 +224,8 @@ export async function parseAndAddScannedCode(
       barcode: pk.barcode,
       isPack: true,
       packId: pk.id,
-      packQty: pQty * qtyToAdd,
+      packQty: qtyToAdd,
+      packPiecesCount: pQty,
       packUnit: pk.unitName || 'طرد',
       pricingType: 'pack',
     });

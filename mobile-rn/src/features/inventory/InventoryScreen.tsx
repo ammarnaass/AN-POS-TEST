@@ -101,17 +101,20 @@ export const InventoryScreen = ({ navigation }: any) => {
         };
       });
 
-      let finalCategories = allCategories;
-      if (finalCategories.length === 0) {
-        const uniqueCatNames = Array.from(
-          new Set(mappedProducts.map((p) => p.category).filter(Boolean))
-        );
-        finalCategories = uniqueCatNames.map((name, idx) => ({
-          id: `cat_${idx}_${name}`,
+      let finalCategories = [...allCategories];
+      const existingCatNames = new Set(allCategories.map((c) => c.name.trim().toLowerCase()));
+      const missingCatNames = Array.from(
+        new Set(mappedProducts.map((p) => p.category?.trim()).filter(Boolean))
+      ).filter((name) => !existingCatNames.has(name.toLowerCase()));
+
+      for (let i = 0; i < missingCatNames.length; i++) {
+        const name = missingCatNames[i];
+        finalCategories.push({
+          id: `cat_auto_${i}_${name}`,
           name,
           color: '#3b82f6',
           icon: 'Tag',
-        }));
+        } as any);
       }
 
       setProducts(mappedProducts);

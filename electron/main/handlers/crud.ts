@@ -14,6 +14,7 @@ import {
   notifyTableChange,
   type Row,
 } from './db-utils';
+import { ensureCategoryExists } from './products';
 
 export interface CrudConfig {
   table: string;
@@ -46,6 +47,7 @@ const TABLE_ALIASES: Record<string, string> = {
   purchase: 'purchases',
   print_template: 'print_templates',
   connected_device: 'connected_devices',
+  payment: 'payments',
 };
 
 export function resolveTableName(tableName: string): string {
@@ -255,9 +257,17 @@ function normalizePayloadForTable(
     if (data.barcode !== undefined) normalized.barcode = String(data.barcode);
     if (data.sku !== undefined) normalized.sku = String(data.sku);
     if (data.category !== undefined || data.category_name !== undefined || data.categoryName !== undefined) {
-      normalized.category = String(data.category ?? data.category_name ?? data.categoryName ?? '');
+      const catName = String(data.category ?? data.category_name ?? data.categoryName ?? '').trim();
+      normalized.category = catName;
+      if (catName && catName !== 'عام' && catName.toLowerCase() !== 'general') {
+        const prefId = (data.categoryId ?? data.category_id) ? String(data.categoryId ?? data.category_id) : undefined;
+        const catId = ensureCategoryExists(catName, prefId);
+        if (catId) {
+          normalized.category_id = catId;
+        }
+      }
     }
-    if (data.categoryId !== undefined || data.category_id !== undefined) {
+    if ((data.categoryId !== undefined || data.category_id !== undefined) && !normalized.category_id) {
       normalized.category_id = (data.categoryId ?? data.category_id) ? String(data.categoryId ?? data.category_id) : null;
     }
     if (data.unit !== undefined) normalized.unit = String(data.unit);
@@ -274,6 +284,26 @@ function normalizePayloadForTable(
     }
     if (data.warehouseId !== undefined || data.warehouse_id !== undefined) {
       normalized.warehouse_id = String(data.warehouseId ?? data.warehouse_id ?? '');
+    }
+  }
+
+  if (tableName === 'payments') {
+    const cid = data.customerId ?? data.customer_id ?? data.partyId ?? data.party_id;
+    if (cid !== undefined && cid !== null) {
+      const strCid = String(cid);
+      normalized.customer_id = strCid;
+      normalized.party_id = strCid;
+    }
+    const pType = data.partyType ?? data.party_type;
+    normalized.party_type = pType ? String(pType) : 'customer';
+    if (data.amount !== undefined && data.amount !== null) {
+      normalized.amount = Number(data.amount) || 0;
+    }
+    if (data.type !== undefined && data.type !== null) normalized.type = String(data.type);
+    if (data.method !== undefined && data.method !== null) normalized.method = String(data.method);
+    if (data.note !== undefined && data.note !== null) normalized.note = String(data.note || '');
+    if (data.createdBy !== undefined || data.created_by !== undefined) {
+      normalized.created_by = String(data.createdBy ?? data.created_by ?? '');
     }
   }
 

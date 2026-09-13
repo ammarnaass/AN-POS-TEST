@@ -27,6 +27,7 @@ import {
 } from 'lucide-react-native';
 import { db, ensureInit } from '@/lib/db';
 import { generateId } from '@shared/utils';
+import { syncEngine } from '@/lib/syncEngine';
 import type { Category } from '@shared/types';
 import { useTheme } from '@/theme';
 import { useI18n } from '@/store/i18nStore';
@@ -129,22 +130,27 @@ export const CategoriesScreen = ({ navigation }: any) => {
       const nowIso = new Date().toISOString();
 
       if (editingCategory) {
-        await db.categories.update(editingCategory.id, {
+        const updatePayload = {
           name: name.trim(),
           description: description.trim(),
           color: selectedColor,
           updated_at: nowIso,
-        });
+        };
+        await db.categories.update(editingCategory.id, updatePayload);
+        await syncEngine.enqueue('update', 'categories', editingCategory.id, updatePayload);
       } else {
-        await db.categories.add({
-          id: generateId(),
+        const newCatId = generateId();
+        const createPayload = {
+          id: newCatId,
           name: name.trim(),
           description: description.trim(),
           color: selectedColor,
           icon: 'FolderTree',
           created_at: nowIso,
           updated_at: nowIso,
-        });
+        };
+        await db.categories.add(createPayload);
+        await syncEngine.enqueue('create', 'categories', newCatId, createPayload);
       }
 
       setModalVisible(false);
@@ -173,6 +179,7 @@ export const CategoriesScreen = ({ navigation }: any) => {
         onPress: async () => {
           try {
             await db.categories.delete(category.id);
+            await syncEngine.enqueue('delete', 'categories', category.id, { id: category.id });
             await loadCategories();
           } catch {
             Alert.alert(t('common.error'), t('common.error'));

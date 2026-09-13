@@ -64,6 +64,33 @@ export function transformProductFromDB(row: Row): Record<string, unknown> {
 }
 
 /**
+ * التأكد من وجود الفئة في جدول categories وإنشاؤها تلقائياً إن لم تكن موجودة
+ */
+export function ensureCategoryExists(categoryName?: string, preferredId?: string | null): string | null {
+  const trimmed = String(categoryName || '').trim();
+  if (!trimmed || trimmed === 'عام' || trimmed.toLowerCase() === 'general') return null;
+
+  const existing = queryOne('SELECT id, name FROM categories WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))', [trimmed]);
+  if (existing) {
+    return existing.id as string;
+  }
+
+  const newId = preferredId || randomUUID();
+  const now = new Date().toISOString();
+  try {
+    execute(
+      'INSERT INTO categories (id, name, parent_id, description, icon, color, created_at, updated_at) VALUES (?, ?, NULL, ?, ?, ?, ?, ?)',
+      [newId, trimmed, '', 'Tag', '#3B82F6', now, now]
+    );
+    notifyTableChange('categories', 'create', newId);
+    return newId;
+  } catch {
+    const retry = queryOne('SELECT id FROM categories WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))', [trimmed]);
+    return retry ? (retry.id as string) : null;
+  }
+}
+
+/**
  * تحويل كائن الواجهة (camelCase) إلى حقول SQLite (snake_case)
  */
 function normalizeProductForDB(raw: Record<string, unknown>): Record<string, unknown> {
@@ -72,8 +99,13 @@ function normalizeProductForDB(raw: Record<string, unknown>): Record<string, unk
   if (raw.name !== undefined) norm.name = String(raw.name).trim();
   if (raw.barcode !== undefined) norm.barcode = String(raw.barcode).trim();
   if (raw.sku !== undefined) norm.sku = String(raw.sku).trim();
-  if (raw.category !== undefined) norm.category = String(raw.category).trim();
-  if (raw.categoryId !== undefined || raw.category_id !== undefined) {
+  if (raw.category !== undefined) {
+    norm.category = String(raw.category).trim();
+    const catId = ensureCategoryExists(norm.category as string, (raw.categoryId ?? raw.category_id) as string);
+    if (catId) {
+      norm.category_id = catId;
+    }
+  } else if (raw.categoryId !== undefined || raw.category_id !== undefined) {
     norm.category_id = raw.categoryId ?? raw.category_id ?? null;
   }
   if (raw.type !== undefined) norm.type = String(raw.type).trim();

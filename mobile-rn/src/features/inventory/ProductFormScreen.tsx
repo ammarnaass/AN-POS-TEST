@@ -521,13 +521,17 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
     if (!trimmed) return;
     try {
       const newId = generateId();
+      const nowIso = new Date().toISOString();
       const catObj = {
         id: newId,
         name: trimmed,
         color: colors.primary[600] || '#3b82f6',
         icon: 'Tag',
+        created_at: nowIso,
+        updated_at: nowIso,
       };
       await db.categories.add(catObj);
+      await syncEngine.enqueue('create', 'categories', newId, catObj);
       setCategories((prev) => [...prev, catObj as any]);
       setForm((prev) => ({
         ...prev,
@@ -581,14 +585,41 @@ export const ProductFormScreen = ({ navigation, route }: any) => {
 
       const finalProductId = productId || generateId();
 
+      // Ensure category is registered in local db and sync queue
+      let finalCategoryName = form.category.trim() || 'عام';
+      let finalCategoryId = form.categoryId || '';
+
+      if (finalCategoryName && finalCategoryName !== 'عام' && finalCategoryName.toLowerCase() !== 'general') {
+        const matchedCat = categories.find(
+          (c) => c.name.trim().toLowerCase() === finalCategoryName.toLowerCase()
+        );
+        if (matchedCat) {
+          finalCategoryId = matchedCat.id;
+          finalCategoryName = matchedCat.name;
+        } else {
+          finalCategoryId = finalCategoryId || generateId();
+          const newCatObj = {
+            id: finalCategoryId,
+            name: finalCategoryName,
+            color: colors.primary[600] || '#3b82f6',
+            icon: 'Tag',
+            created_at: nowIso,
+            updated_at: nowIso,
+          };
+          await db.categories.add(newCatObj).catch(() => {});
+          await syncEngine.enqueue('create', 'categories', finalCategoryId, newCatObj);
+          setCategories((prev) => [...prev, newCatObj as any]);
+        }
+      }
+
       const productPayload: any = {
         name: form.name.trim(),
         productName: form.name.trim(),
         barcode: finalBarcode,
         sku: form.sku.trim() || form.barcode.trim() || `PRD-${Math.floor(1000 + Math.random() * 9000)}`,
-        category: form.category.trim() || 'عام',
-        category_id: form.categoryId || '',
-        categoryId: form.categoryId || '',
+        category: finalCategoryName,
+        category_id: finalCategoryId,
+        categoryId: finalCategoryId,
         unit: form.unit || 'قطعة',
         retail_price: retailVal,
         retailPrice: retailVal,

@@ -75,15 +75,19 @@ export function useBarcodeScanner(opts: UseScannerOptions) {
       const code = buf.map((k) => k.key).join('');
       bufferRef.current = [];
 
-      // معايير الكشف:
-      //   - رمز نهاية (terminator) واضح: اقبل قبل minLength فقط
-      //   - burst سريع: متوسط الفترة تحت BURST_AVG_INTERVAL_MS
-      const isFastBurst = avgInterval < BURST_AVG_INTERVAL_MS || reason === 'terminator';
-      if (code.length < settingsRef.current.minLength) {
-        // قصير جداً → ربما كتابة يدوية
-        if (reason !== 'terminator') return;
+      const inForm = isFormElement(document.activeElement);
+      const isFastBurst = avgInterval < BURST_AVG_INTERVAL_MS;
+
+      // إذا كان التركيز داخل حقل إدخال، لا نقبل الباركود إلا إذا كان سريعاً جداً (ماسح أجهزة HID)
+      if (inForm && !isFastBurst) {
+        return;
       }
-      if (!isFastBurst && reason !== 'terminator') return;
+
+      if (code.length < settingsRef.current.minLength) {
+        return;
+      }
+
+      if (!isFastBurst && reason === 'burst') return;
 
       // تأكّد أن الأحرف مقبولة (alphanumeric + رموز شائعة في الباركود)
       if (!/^[A-Za-z0-9\-./_]+$/.test(code)) return;
@@ -119,13 +123,28 @@ export function useBarcodeScanner(opts: UseScannerOptions) {
         (term === 'Enter' && e.key === 'Enter') ||
         (term === 'Tab' && e.key === 'Tab');
       if (isTerminator && bufferRef.current.length > 0) {
-        e.preventDefault();
-        const last = bufferRef.current[bufferRef.current.length - 1];
-        // المنهي ليس جزءاً من الباركود
-        if (last && last.key !== e.key) {
-          flush('terminator');
+        const buf = bufferRef.current;
+        const totalTime = buf.length > 1 ? buf[buf.length - 1].time - buf[0].time : 0;
+        const avgInterval = buf.length > 1 ? totalTime / (buf.length - 1) : 999;
+        const isFastBurst = avgInterval < BURST_AVG_INTERVAL_MS;
+        const isMinLength = buf.length >= settingsRef.current.minLength;
+        const inForm = isFormElement(document.activeElement);
+
+        // إذا كان ماسحاً سريعاً ومستوفياً للشروط أو خارج حقول الإدخال:
+        // نوقف انتشار الحدث (capture) لمنع تكرار الإدخال في حقول النصوص أو إرسال النماذج
+        if (!inForm || (isFastBurst && isMinLength)) {
+          e.preventDefault();
+          e.stopPropagation();
+          const last = buf[buf.length - 1];
+          if (last && last.key !== e.key) {
+            flush('terminator');
+          }
+          return;
+        } else {
+          // كتابة يدوية عادية داخل حقل إدخال: تفريغ الـ buffer وترك الحدث يمر لحقل الإدخال
+          bufferRef.current = [];
+          return;
         }
-        return;
       }
 
       // burst إجباري إذا تجاوز الـ buffer حدّاً معيناً وتوقف بعد فترة قصيرة
@@ -136,10 +155,10 @@ export function useBarcodeScanner(opts: UseScannerOptions) {
       bufferRef.current = [];
     };
 
-    window.addEventListener('keydown', handleKeyDown as EventListener);
+    window.addEventListener('keydown', handleKeyDown as EventListener, true);
     window.addEventListener('blur', handleBlur);
     return () => {
-      window.removeEventListener('keydown', handleKeyDown as EventListener);
+      window.removeEventListener('keydown', handleKeyDown as EventListener, true);
       window.removeEventListener('blur', handleBlur);
     };
   }, [enabled, respectInputFocus]);
