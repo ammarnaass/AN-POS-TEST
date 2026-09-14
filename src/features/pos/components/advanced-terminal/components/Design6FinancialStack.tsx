@@ -36,35 +36,35 @@ export const Design6FinancialStack: React.FC<Design6FinancialStackProps> = ({
   const initials = userName.slice(0, 2);
 
   return (
-    <div className="w-[320px] bg-[#070b14] border-r border-slate-800/80 p-3 flex flex-col justify-between select-none shrink-0">
+    <div className="w-[320px] bg-slate-50 dark:bg-[#070b14] border-r border-slate-200 dark:border-slate-800/80 p-3 flex flex-col justify-between select-none shrink-0 transition-colors">
       {/* 1. Financial Cards Stack */}
       <div className="flex flex-col gap-2">
         {/* Card 1: المبلغ */}
-        <div className="bg-[#0b1222] border border-slate-800 rounded-xl p-2.5 flex items-center justify-between shadow-xs">
+        <div className="bg-white dark:bg-[#0b1222] border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 flex items-center justify-between shadow-xs">
           <div className="flex items-baseline gap-1 font-mono">
-            <span className="text-lg font-black text-white">
+            <span className="text-lg font-black text-slate-900 dark:text-white">
               {formatMoney(subtotal)}
             </span>
-            <span className="text-xs font-bold text-slate-400">{currency}</span>
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">{currency}</span>
           </div>
-          <span className="text-xs font-bold text-slate-300">المبلغ</span>
+          <span className="text-xs font-bold text-slate-700 dark:text-slate-300">المبلغ</span>
         </div>
 
         {/* Card 2: الخصم */}
         <button
           type="button"
           onClick={onOpenDiscount}
-          className="bg-[#0b1222] hover:bg-[#0f172a] border border-slate-800 rounded-xl p-2.5 flex items-center justify-between shadow-xs cursor-pointer transition-all"
+          className="bg-white hover:bg-slate-100 dark:bg-[#0b1222] dark:hover:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 flex items-center justify-between shadow-xs cursor-pointer transition-all"
           title="تحديد نسبة أو قيمة التخفيض (F6)"
         >
           <div className="flex items-baseline gap-1 font-mono">
-            <span className={`text-lg font-black ${discountAmount > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+            <span className={`text-lg font-black ${discountAmount > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
               {formatMoney(discountAmount)}
             </span>
-            <span className="text-xs font-bold text-slate-400">{currency}</span>
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">{currency}</span>
           </div>
-          <div className="flex items-center gap-1.5 text-slate-300">
-            <span className="bg-slate-800 text-[10px] text-slate-400 px-1 py-0.5 rounded font-mono">
+          <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+            <span className="bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-600 dark:text-slate-400 px-1 py-0.5 rounded font-mono">
               %
             </span>
             <span className="text-xs font-bold">الخصم</span>
@@ -72,39 +72,39 @@ export const Design6FinancialStack: React.FC<Design6FinancialStackProps> = ({
         </button>
 
         {/* Card 3: الصافي الإجمالي (شامل الرسوم) */}
-        <div className="bg-[#0c1a32] border-2 border-[#1e40af] rounded-xl p-3 flex items-center justify-between shadow-md">
+        <div className="bg-sky-50 dark:bg-[#0c1a32] border-2 border-sky-300 dark:border-[#1e40af] rounded-xl p-3 flex items-center justify-between shadow-xs dark:shadow-md">
           <div className="flex items-baseline gap-1 font-mono">
-            <span className="text-2xl font-black text-[#38bdf8] drop-shadow-[0_0_12px_rgba(56,189,248,0.3)]">
+            <span className="text-2xl font-black text-sky-800 dark:text-[#38bdf8] drop-shadow-[0_0_12px_rgba(56,189,248,0.3)]">
               {formatMoney(totalAmount)}
             </span>
-            <span className="text-xs font-black text-[#38bdf8]">{currency}</span>
+            <span className="text-xs font-black text-sky-700 dark:text-[#38bdf8]">{currency}</span>
           </div>
           <div className="text-right">
-            <div className="text-xs font-black text-white leading-tight">الصافي الإجمالي</div>
-            <div className="text-[10px] text-sky-300/80 leading-tight mt-0.5">شامل الرسوم</div>
+            <div className="text-xs font-black text-slate-900 dark:text-white leading-tight">الصافي الإجمالي</div>
+            <div className="text-[10px] text-sky-700 dark:text-sky-300/80 leading-tight mt-0.5">شامل الرسوم</div>
           </div>
         </div>
 
         {/* Card 4: المقبوض (المدفوع) */}
-        <div className="bg-[#121622] border border-[#f59e0b]/50 rounded-xl p-2.5 flex items-center justify-between shadow-xs">
-          <div className="bg-[#0c101c] border border-[#f59e0b]/80 rounded-lg px-2.5 py-0.5 flex items-baseline gap-1 font-mono">
-            <span className="text-base font-black text-[#fbbf24]">
+        <div className="bg-amber-50 dark:bg-[#121622] border border-amber-300 dark:border-[#f59e0b]/50 rounded-xl p-2.5 flex items-center justify-between shadow-xs">
+          <div className="bg-white dark:bg-[#0c101c] border border-amber-400 dark:border-[#f59e0b]/80 rounded-lg px-2.5 py-0.5 flex items-baseline gap-1 font-mono">
+            <span className="text-base font-black text-amber-700 dark:text-[#fbbf24]">
               {formatMoney(paidAmount)}
             </span>
-            <span className="text-[11px] font-bold text-[#fbbf24]/80">{currency}</span>
+            <span className="text-[11px] font-bold text-amber-600 dark:text-[#fbbf24]/80">{currency}</span>
           </div>
-          <span className="text-xs font-bold text-[#fbbf24]">المقبوض (المدفوع)</span>
+          <span className="text-xs font-bold text-amber-800 dark:text-[#fbbf24]">المقبوض (المدفوع)</span>
         </div>
 
         {/* Card 5: الفكة (المسترجع) */}
-        <div className="bg-[#062419] border border-[#10b981]/50 rounded-xl p-2.5 flex items-center justify-between shadow-xs">
+        <div className="bg-emerald-50 dark:bg-[#062419] border border-emerald-300 dark:border-[#10b981]/50 rounded-xl p-2.5 flex items-center justify-between shadow-xs">
           <div className="flex items-baseline gap-1 font-mono">
-            <span className="text-xl font-black text-[#34d399] drop-shadow-[0_0_10px_rgba(52,211,153,0.3)]">
+            <span className="text-xl font-black text-emerald-700 dark:text-[#34d399] drop-shadow-[0_0_10px_rgba(52,211,153,0.3)]">
               {formatMoney(changeAmount)}
             </span>
-            <span className="text-xs font-black text-[#34d399]">{currency}</span>
+            <span className="text-xs font-black text-emerald-600 dark:text-[#34d399]">{currency}</span>
           </div>
-          <span className="text-xs font-black text-[#34d399]">الفكة (المسترجع)</span>
+          <span className="text-xs font-black text-emerald-800 dark:text-[#34d399]">الفكة (المسترجع)</span>
         </div>
 
         {/* Primary Pay/Settle Action (F1) */}
@@ -130,21 +130,21 @@ export const Design6FinancialStack: React.FC<Design6FinancialStackProps> = ({
           <button
             type="button"
             onClick={() => onSetDenomination(2000)}
-            className="h-10 bg-[#141b2d] hover:bg-[#1e293b] active:scale-95 text-slate-100 font-mono font-bold text-xs rounded-lg border border-slate-700/80 shadow-xs cursor-pointer transition-all flex items-center justify-center"
+            className="h-10 bg-white hover:bg-slate-100 text-slate-800 dark:bg-[#141b2d] dark:hover:bg-[#1e293b] dark:text-slate-100 active:scale-95 font-mono font-bold text-xs rounded-lg border border-slate-300 dark:border-slate-700/80 shadow-xs cursor-pointer transition-all flex items-center justify-center"
           >
             2000 دج
           </button>
           <button
             type="button"
             onClick={() => onSetDenomination(1000)}
-            className="h-10 bg-[#141b2d] hover:bg-[#1e293b] active:scale-95 text-slate-100 font-mono font-bold text-xs rounded-lg border border-slate-700/80 shadow-xs cursor-pointer transition-all flex items-center justify-center"
+            className="h-10 bg-white hover:bg-slate-100 text-slate-800 dark:bg-[#141b2d] dark:hover:bg-[#1e293b] dark:text-slate-100 active:scale-95 font-mono font-bold text-xs rounded-lg border border-slate-300 dark:border-slate-700/80 shadow-xs cursor-pointer transition-all flex items-center justify-center"
           >
             1000 دج
           </button>
           <button
             type="button"
             onClick={() => onSetDenomination(500)}
-            className="h-10 bg-[#141b2d] hover:bg-[#1e293b] active:scale-95 text-slate-100 font-mono font-bold text-xs rounded-lg border border-slate-700/80 shadow-xs cursor-pointer transition-all flex items-center justify-center"
+            className="h-10 bg-white hover:bg-slate-100 text-slate-800 dark:bg-[#141b2d] dark:hover:bg-[#1e293b] dark:text-slate-100 active:scale-95 font-mono font-bold text-xs rounded-lg border border-slate-300 dark:border-slate-700/80 shadow-xs cursor-pointer transition-all flex items-center justify-center"
           >
             500 دج
           </button>
@@ -152,25 +152,25 @@ export const Design6FinancialStack: React.FC<Design6FinancialStackProps> = ({
       </div>
 
       {/* 2. Cashier Shift & Support Card Footer */}
-      <div className="pt-2 border-t border-slate-800/80">
+      <div className="pt-2 border-t border-slate-200 dark:border-slate-800/80">
         <div className="flex items-center justify-between gap-2 mb-1.5">
-          <span className="bg-[#0d2818] border border-emerald-600/50 text-emerald-400 font-mono font-bold text-[11px] px-2 py-0.5 rounded-md">
+          <span className="bg-emerald-50 border border-emerald-300 text-emerald-800 dark:bg-[#0d2818] dark:border-emerald-600/50 dark:text-emerald-400 font-mono font-bold text-[11px] px-2 py-0.5 rounded-md">
             {boxName}
           </span>
           <div className="flex items-center gap-2">
             <div className="text-right">
-              <div className="text-[10px] text-slate-400 leading-tight">المستخدم:</div>
-              <div className="text-xs font-black text-white leading-tight">{userName}</div>
+              <div className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">المستخدم:</div>
+              <div className="text-xs font-black text-slate-900 dark:text-white leading-tight">{userName}</div>
             </div>
-            <div className="w-7 h-7 rounded-full bg-[#1e293b] border border-slate-700 flex items-center justify-center text-xs font-black text-cyan-400">
+            <div className="w-7 h-7 rounded-full bg-slate-200 dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 flex items-center justify-center text-xs font-black text-cyan-800 dark:text-cyan-400">
               {initials}
             </div>
           </div>
         </div>
 
-        <div className="flex items-center justify-between text-[11px] text-slate-400 bg-[#0b1222] border border-slate-800 rounded-lg px-2.5 py-1">
-          <span className="font-mono text-slate-300 font-bold tracking-wider">{supportPhone}</span>
-          <div className="flex items-center gap-1 text-amber-400">
+        <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 bg-white dark:bg-[#0b1222] border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1 shadow-2xs">
+          <span className="font-mono text-slate-800 dark:text-slate-300 font-bold tracking-wider">{supportPhone}</span>
+          <div className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
             <span>الدعم الفني:</span>
             <Headphones className="w-3.5 h-3.5" />
           </div>

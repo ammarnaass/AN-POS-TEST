@@ -112,19 +112,19 @@ export const Design6FavoritesPad: React.FC<Design6FavoritesPadProps> = ({
   const paginatedItems = currentList.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   return (
-    <div className="w-full bg-[#070b14] border-t border-slate-800 p-2 select-none shrink-0">
+    <div className="w-full bg-slate-50 dark:bg-[#070b14] border-t border-slate-200 dark:border-slate-800 p-2 select-none shrink-0 max-h-[195px] overflow-hidden transition-colors">
       {/* Header Bar: Modes Switcher, Categories Filter, Pagination */}
       <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
         {/* Right: Title & Mode Toggle (المفضلة ★ vs التجزئة 📦) */}
         <div className="flex items-center gap-2">
           {/* Main Title Badge */}
-          <div className="flex items-center gap-1.5 text-xs font-black text-slate-300 ml-1">
+          <div className="flex items-center gap-1.5 text-xs font-black text-slate-800 dark:text-slate-300 ml-1">
             <span>الأزرار السريعة والمفضلة (FAV)</span>
-            <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+            <Star className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 fill-amber-400" />
           </div>
 
           {/* Mode Switcher Tabs */}
-          <div className="flex items-center gap-1 bg-[#0b1222] p-1 rounded-xl border border-slate-700/80 shadow-inner">
+          <div className="flex items-center gap-1 bg-slate-200/80 dark:bg-[#0b1222] p-1 rounded-xl border border-slate-300 dark:border-slate-700/80 shadow-inner">
             {/* 1. المفضلة والعبوات */}
             <button
               type="button"
@@ -135,7 +135,7 @@ export const Design6FavoritesPad: React.FC<Design6FavoritesPadProps> = ({
               className={`px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeMode === 'favorites'
                   ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 shadow-md scale-102'
-                  : 'text-slate-400 hover:text-white'
+                  : 'text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white'
               }`}
               title="عرض الأصناف المحفوظة في المفضلة والعبوات"
             >
@@ -162,7 +162,7 @@ export const Design6FavoritesPad: React.FC<Design6FavoritesPadProps> = ({
               className={`px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeMode === 'products'
                   ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md scale-102'
-                  : 'text-slate-400 hover:text-white'
+                  : 'text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white'
               }`}
               title="عرض السلع الفردية من كتالوج التجزئة"
             >
@@ -185,8 +185,8 @@ export const Design6FavoritesPad: React.FC<Design6FavoritesPadProps> = ({
               onClick={() => setSelectedFavoriteCatId('ALL')}
               className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition-all cursor-pointer shrink-0 border ${
                 selectedFavoriteCatId === 'ALL'
-                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
-                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                  ? 'bg-amber-100 text-amber-900 border-amber-400 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/50'
+                  : 'bg-white border-slate-200 text-slate-700 hover:text-slate-950 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400 dark:hover:text-white'
               }`}
             >
               الكل
@@ -198,8 +198,8 @@ export const Design6FavoritesPad: React.FC<Design6FavoritesPadProps> = ({
                 onClick={() => setSelectedFavoriteCatId(cat.id)}
                 className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition-all cursor-pointer shrink-0 border ${
                   selectedFavoriteCatId === cat.id
-                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
-                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                    ? 'bg-amber-100 text-amber-900 border-amber-400 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/50'
+                    : 'bg-white border-slate-200 text-slate-700 hover:text-slate-950 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400 dark:hover:text-white'
                 }`}
               >
                 {cat.name}
@@ -214,22 +214,22 @@ export const Design6FavoritesPad: React.FC<Design6FavoritesPadProps> = ({
             <button
               type="button"
               onClick={handleOpenFavorites}
-              className="hidden sm:flex items-center gap-1 text-[11px] font-bold text-amber-400 hover:text-amber-300 bg-amber-950/40 hover:bg-amber-900/60 border border-amber-700/50 px-2 py-1 rounded-lg transition-colors cursor-pointer"
+              className="hidden sm:flex items-center gap-1 text-[11px] font-bold text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/60 border border-amber-300 dark:border-amber-700/50 px-2 py-1 rounded-lg transition-colors cursor-pointer"
               title="الانتقال إلى صفحة إدارة العبوات والمفضلة"
             >
-              <Plus className="w-3 h-3 stroke-[3]" />
+              <Plus className="w-3.5 h-3.5 stroke-[3]" />
               <span>إدارة المفضلة</span>
             </button>
           )}
 
           {/* Pagination Trigger */}
-          <div className="flex items-center gap-1.5 bg-[#0e1424] border border-slate-800 rounded-lg px-2 py-0.5 text-xs text-slate-300 font-mono">
+          <div className="flex items-center gap-1.5 bg-white dark:bg-[#0e1424] border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-0.5 text-xs text-slate-700 dark:text-slate-300 font-mono shadow-2xs">
             <button
               type="button"
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={safePage === 1}
               className={`p-0.5 rounded cursor-pointer ${
-                safePage === 1 ? 'opacity-30' : 'hover:bg-slate-800 text-cyan-400'
+                safePage === 1 ? 'opacity-30' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-cyan-600 dark:text-cyan-400'
               }`}
               title="الصفحة السابقة"
             >
@@ -243,7 +243,7 @@ export const Design6FavoritesPad: React.FC<Design6FavoritesPadProps> = ({
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={safePage >= totalPages}
               className={`p-0.5 rounded cursor-pointer ${
-                safePage >= totalPages ? 'opacity-30' : 'hover:bg-slate-800 text-cyan-400'
+                safePage >= totalPages ? 'opacity-30' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-cyan-600 dark:text-cyan-400'
               }`}
               title="الصفحة التالية"
             >
@@ -272,47 +272,49 @@ export const Design6FavoritesPad: React.FC<Design6FavoritesPadProps> = ({
               key={item.id || `fav-item-${idx}`}
               type="button"
               onClick={() => onSelectFavorite(item)}
-              className={`h-[54px] rounded-xl p-1.5 flex flex-col justify-between items-center text-center transition-all cursor-pointer active:scale-95 border ${
+              className={`h-[68px] rounded-xl p-1.5 flex flex-col justify-between items-center text-center transition-all cursor-pointer active:scale-95 border ${
                 isCrimson
                   ? 'bg-gradient-to-b from-[#be123c] to-[#9f1239] hover:brightness-110 border-rose-500 text-white shadow-[0_0_10px_rgba(190,18,60,0.5)]'
                   : activeMode === 'favorites'
-                  ? 'bg-gradient-to-b from-[#0b1a20] to-[#0d222a] hover:from-[#112d38] hover:to-[#163847] border-teal-600/50 hover:border-teal-400 text-slate-100 shadow-xs'
-                  : 'bg-gradient-to-b from-[#0e1628] to-[#121c33] hover:from-[#172342] hover:to-[#1a284c] border-slate-700 hover:border-blue-500 text-slate-100 shadow-xs'
+                  ? 'bg-gradient-to-b from-teal-50 to-teal-100/70 hover:from-teal-100 hover:to-teal-200/80 border-teal-300 text-slate-900 shadow-xs dark:bg-gradient-to-b dark:from-[#0b1a20] dark:to-[#0d222a] dark:hover:from-[#112d38] dark:hover:to-[#163847] dark:border-teal-600/50 dark:hover:border-teal-400 dark:text-slate-100'
+                  : 'bg-gradient-to-b from-blue-50 to-indigo-100/70 hover:from-blue-100 hover:to-indigo-200/80 border-blue-200 text-slate-900 shadow-xs dark:bg-gradient-to-b dark:from-[#0e1628] dark:to-[#121c33] dark:hover:from-[#172342] dark:hover:to-[#1a284c] dark:border-slate-700 dark:hover:border-blue-500 dark:text-slate-100'
               }`}
               title={`إضافة ${item.name} (${priceVal} دج)`}
             >
-              <div className="w-full flex items-center justify-between text-[9px] font-mono leading-tight px-0.5">
+              <div className="w-full flex items-center justify-between text-[9px] font-mono leading-tight px-0.5 shrink-0">
                 <span
                   className={`font-black px-1 rounded-xs truncate max-w-[70px] ${
                     isCrimson
                       ? 'text-rose-200'
                       : isPackItem
-                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                      : 'bg-blue-600/30 text-blue-300'
+                      ? 'bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/30'
+                      : 'bg-blue-100 text-blue-900 dark:bg-blue-600/30 dark:text-blue-300'
                   }`}
                 >
                   {labelText}
                 </span>
                 <span
                   className={`font-black font-mono ${
-                    isCrimson ? 'text-white' : isPackItem ? 'text-emerald-400' : 'text-cyan-400'
+                    isCrimson ? 'text-white' : isPackItem ? 'text-emerald-700 dark:text-emerald-400' : 'text-cyan-700 dark:text-cyan-400'
                   }`}
                 >
                   {priceVal} دج
                 </span>
               </div>
-              <span className="text-[11px] font-bold leading-tight line-clamp-1 w-full px-0.5 mt-0.5">
-                {item.name}
-              </span>
+              <div className="w-full flex-1 flex items-center justify-center px-0.5">
+                <span className="text-[10.5px] font-bold leading-snug line-clamp-2 w-full text-center">
+                  {item.name || 'منتج'}
+                </span>
+              </div>
             </button>
           );
         })}
 
         {/* Empty placeholder slots if less than 8 items on page */}
         {paginatedItems.length === 0 && (
-          <div className="col-span-full flex flex-col items-center justify-center py-6 text-slate-400 text-xs bg-[#0b1222]/50 border border-slate-800 rounded-xl">
-            <Star className="w-6 h-6 mb-1 text-amber-400 stroke-1" />
-            <span className="font-bold text-slate-300">
+          <div className="col-span-full flex flex-col items-center justify-center py-6 text-slate-500 dark:text-slate-400 text-xs bg-slate-50 dark:bg-[#0b1222]/50 border border-slate-200 dark:border-slate-800 rounded-xl">
+            <Star className="w-6 h-6 mb-1 text-amber-500 dark:text-amber-400 stroke-1" />
+            <span className="font-bold text-slate-700 dark:text-slate-300">
               {activeMode === 'favorites'
                 ? 'لا توجد عبوات أو كراتين في المفضلة حالياً'
                 : 'لا توجد منتجات تجزئة متوفرة'}
@@ -321,7 +323,7 @@ export const Design6FavoritesPad: React.FC<Design6FavoritesPadProps> = ({
               <button
                 type="button"
                 onClick={handleOpenFavorites}
-                className="mt-2 text-xs font-bold text-amber-300 hover:underline flex items-center gap-1 bg-amber-950/60 px-3 py-1 rounded-lg border border-amber-700/60 cursor-pointer"
+                className="mt-2 text-xs font-bold text-amber-800 dark:text-amber-300 hover:underline flex items-center gap-1 bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/60 px-3 py-1 rounded-lg border border-amber-300 dark:border-amber-700/60 cursor-pointer transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>إضافة وإنشاء عبوات للمفضلة</span>

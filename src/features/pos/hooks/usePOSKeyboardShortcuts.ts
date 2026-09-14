@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import type { CartItem } from '@/types';
 
 export interface UsePOSKeyboardShortcutsProps {
+  enabled?: boolean;
   cart: CartItem[];
   selectedItemId?: string | null;
   isSessionOpen: boolean;
@@ -37,6 +38,7 @@ export interface UsePOSKeyboardShortcutsProps {
 }
 
 export function usePOSKeyboardShortcuts({
+  enabled = true,
   cart,
   selectedItemId,
   isSessionOpen,
@@ -69,6 +71,7 @@ export function usePOSKeyboardShortcuts({
   addNotification,
 }: UsePOSKeyboardShortcutsProps) {
   useEffect(() => {
+    if (!enabled) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       // 1. Always handle Escape to close any open modal
       if (e.key === 'Escape') {
@@ -327,6 +330,7 @@ export function usePOSKeyboardShortcuts({
     onOpenShortcuts,
     onUpdateQty,
     onRemoveItem,
+    enabled,
     addNotification,
   ]);
 }

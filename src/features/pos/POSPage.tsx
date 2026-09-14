@@ -410,6 +410,7 @@ export default function POSPage() {
               qty: pQty,
               unitPrice: piecePrice,
               lineTotal: effectivePackPrice,
+              barcode: packObj.barcode || product.barcode || parentProd?.barcode || '',
               isPack: true,
               packId: packId,
               packQty: 1,
@@ -432,6 +433,7 @@ export default function POSPage() {
               qty: 1,
               unitPrice: effectivePackPrice,
               lineTotal: effectivePackPrice,
+              barcode: packObj.barcode || product.barcode || parentProd?.barcode || '',
               isPack: true,
               packId: packId,
               packQty: 1,
@@ -468,6 +470,8 @@ export default function POSPage() {
             qty: 1,
             unitPrice: price,
             lineTotal: price,
+            barcode: product.barcode || '',
+            unit: product.unit,
             batchNumber: product.batchNumber,
             isCustom: customPrice !== undefined,
             pricingType:
@@ -572,6 +576,8 @@ export default function POSPage() {
         qty: Number(item.qty || 1),
         unitPrice: Number(item.unitPrice || 0),
         lineTotal: Number(item.lineTotal || Number(item.qty || 1) * Number(item.unitPrice || 0)),
+        barcode: item.barcode || '',
+        unit: item.unit,
         isCustom: item.isCustom,
         isPack: item.isPack,
         packId: item.packId,
@@ -659,6 +665,8 @@ export default function POSPage() {
         qty: item.qty,
         unitPrice: item.unitPrice,
         lineTotal: item.lineTotal,
+        barcode: (item as any).barcode || '',
+        unit: item.unit,
       });
     }
     modals.setShowReturnSaleModal(false);
@@ -672,6 +680,7 @@ export default function POSPage() {
 
   // Keyboard Shortcuts Hook
   usePOSKeyboardShortcuts({
+    enabled: posLayout !== 'advanced',
     cart,
     selectedItemId,
     isSessionOpen,
@@ -1085,7 +1094,9 @@ export default function POSPage() {
           setIsFeaturedOnly={setIsFeaturedOnly}
           onClearAllFilters={handleClearAllFilters}
           onConfirmPayment={async (paid, custId, method) => {
-            setPaidAmount(paid);
+            if (typeof paid === 'number' && !isNaN(paid)) {
+              setPaidAmount(paid);
+            }
             if (custId) setSelectedCustomer(custId);
             if (method) setPaymentMethod(method);
             await handleExecutePayment();

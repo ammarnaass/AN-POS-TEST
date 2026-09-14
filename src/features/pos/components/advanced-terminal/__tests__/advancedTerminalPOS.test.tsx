@@ -87,7 +87,7 @@ describe('AdvancedTerminalPOSLayout (تصميم 6 - نقطة البيع المت
     onNavigateBack: vi.fn(),
   };
 
-  it('renders all 10 top functional buttons with exact labels and shortcuts', () => {
+  it('renders top operational functional buttons with exact labels, shortcuts, and verified flexy hidden', () => {
     render(<AdvancedTerminalPOSLayout {...defaultProps} />);
 
     // 1. تأكيد ودفع F1
@@ -122,9 +122,9 @@ describe('AdvancedTerminalPOSLayout (تصميم 6 - نقطة البيع المت
     expect(screen.getByText('تعريفة 1')).toBeInTheDocument();
     expect(screen.getByText('تجزئة')).toBeInTheDocument();
 
-    // 9. تعبئة رصيد (فليكسي نت)
-    expect(screen.getByText('تعبئة رصيد')).toBeInTheDocument();
-    expect(screen.getByText('فليكسي نت')).toBeInTheDocument();
+    // 9. التحقق من إخفاء زر تعبئة رصيد فليكسي
+    expect(screen.queryByText('تعبئة رصيد')).not.toBeInTheDocument();
+    expect(screen.queryByText('فليكسي نت')).not.toBeInTheDocument();
 
     // 10. قفل المحطة
     expect(screen.getByText('قفل المحطة')).toBeInTheDocument();
@@ -285,10 +285,10 @@ describe('AdvancedTerminalPOSLayout (تصميم 6 - نقطة البيع المت
   it('provides screen compatibility features: navigation back, fullscreen toggle, customization, and top bar collapse', () => {
     render(<AdvancedTerminalPOSLayout {...defaultProps} />);
 
-    // 1. زر الرجوع
-    const backBtn = screen.getByTitle('الرجوع إلى الصفحة الرئيسية (Esc)');
-    expect(backBtn).toBeInTheDocument();
-    fireEvent.click(backBtn);
+    // 1. زر الرجوع (موجود في الشريط العلوي + الشريط الجانبي الأيسر)
+    const backBtns = screen.getAllByTitle('الرجوع إلى الصفحة الرئيسية (Esc)');
+    expect(backBtns.length).toBeGreaterThanOrEqual(1);
+    fireEvent.click(backBtns[0]);
     expect(defaultProps.onNavigateBack).toHaveBeenCalled();
 
     // 2. زر تكبير الواجهة / ملء الشاشة
@@ -309,13 +309,207 @@ describe('AdvancedTerminalPOSLayout (تصميم 6 - نقطة البيع المت
     fireEvent.click(collapseBtn);
 
     // التحقق من ظهور الشريط المضغوط البديل
-    expect(screen.getByTitle('إظهار شريط الأوامر العلوي الكامل (F1-F12)')).toBeInTheDocument();
+    expect(screen.getByTitle('إظهار شريط الأوامر الكامل (F1-F12)')).toBeInTheDocument();
 
     // استعادة الشريط الكامل
-    const expandBtn = screen.getByTitle('إظهار شريط الأوامر العلوي الكامل (F1-F12)');
+    const expandBtn = screen.getByTitle('إظهار شريط الأوامر الكامل (F1-F12)');
     fireEvent.click(expandBtn);
 
     // التأكد من عودة شريط F1-F12
     expect(screen.getByText('وصل جديد')).toBeInTheDocument();
+  });
+
+  it('activates price edit mode and allows inline price updates via F4', () => {
+    const onEditPrice = vi.fn();
+    render(<AdvancedTerminalPOSLayout {...defaultProps} onEditPrice={onEditPrice} />);
+
+    // 1. النقر على زر F4 السعر
+    const priceBtn = screen.getByTitle('تعديل سعر الصنف المحدد في السلة (F4)');
+    expect(priceBtn).toBeInTheDocument();
+    fireEvent.click(priceBtn);
+
+    // 2. يظهر حقل إدخال السعر في جدول المبيعات
+    const confirmPriceBtn = screen.getByTitle('تأكيد السعر (Enter)');
+    expect(confirmPriceBtn).toBeInTheDocument();
+
+    // 3. النقر على تأكيد السعر يستدعي onEditPrice
+    fireEvent.click(confirmPriceBtn);
+    expect(onEditPrice).toHaveBeenCalled();
+  });
+
+  it('opens product search modal when clicking search button F10', () => {
+    render(<AdvancedTerminalPOSLayout {...defaultProps} />);
+
+    // 1. زر بحث السلع F10 في الشريط الجانبي
+    const searchBtn = screen.getByTitle('البحث السريع واستعراض قائمة السلع (F10)');
+    expect(searchBtn).toBeInTheDocument();
+    fireEvent.click(searchBtn);
+
+    // 2. تظهر نافذة بحث واستعراض السلع والمواد
+    expect(screen.getByText('بحث واستعراض السلع والمواد')).toBeInTheDocument();
+
+    // 3. إغلاق النافذة
+    const closeBtn = screen.getByTitle('إغلاق (Esc)');
+    fireEvent.click(closeBtn);
+    expect(screen.queryByText('بحث واستعراض السلع والمواد')).not.toBeInTheDocument();
+  });
+
+  it('triggers onOpenAddProduct when clicking add button with empty input', () => {
+    const onOpenAddProduct = vi.fn();
+    render(<AdvancedTerminalPOSLayout {...defaultProps} onOpenAddProduct={onOpenAddProduct} />);
+
+    // زر إضافة (+) والحقل فارغ
+    const addBtn = screen.getByTitle('إضافة منتج جديد للمحل');
+    expect(addBtn).toBeInTheDocument();
+    fireEvent.click(addBtn);
+
+    expect(onOpenAddProduct).toHaveBeenCalled();
+  });
+
+  it('handles F1-F12 and modal Escape keyboard shortcuts correctly', () => {
+    const onSettleSale = vi.fn();
+    const onOpenReturns = vi.fn();
+    const onOpenFreeProduct = vi.fn();
+    const onOpenDiscount = vi.fn();
+    const onClearCart = vi.fn();
+    const onNewOrder = vi.fn();
+    const onOpenSuspended = vi.fn();
+    const onNavigateBack = vi.fn();
+
+    render(
+      <AdvancedTerminalPOSLayout
+        {...defaultProps}
+        onSettleSale={onSettleSale}
+        onOpenReturns={onOpenReturns}
+        onOpenFreeProduct={onOpenFreeProduct}
+        onOpenDiscount={onOpenDiscount}
+        onClearCart={onClearCart}
+        onNewOrder={onNewOrder}
+        onOpenSuspended={onOpenSuspended}
+        onNavigateBack={onNavigateBack}
+        suspendedCount={3}
+      />
+    );
+
+    // F1 -> onSettleSale
+    fireEvent.keyDown(window, { key: 'F1' });
+    expect(onSettleSale).toHaveBeenCalledTimes(1);
+
+    // F2 -> onOpenReturns
+    fireEvent.keyDown(window, { key: 'F2' });
+    expect(onOpenReturns).toHaveBeenCalledTimes(1);
+
+    // F5 -> onOpenFreeProduct
+    fireEvent.keyDown(window, { key: 'F5' });
+    expect(onOpenFreeProduct).toHaveBeenCalledTimes(1);
+
+    // F6 -> onOpenDiscount
+    fireEvent.keyDown(window, { key: 'F6' });
+    expect(onOpenDiscount).toHaveBeenCalledTimes(1);
+
+    // F7 -> Quick Settle (also calls onSettleSale)
+    fireEvent.keyDown(window, { key: 'F7' });
+    expect(onSettleSale).toHaveBeenCalledTimes(2);
+
+    // F8 -> onClearCart
+    fireEvent.keyDown(window, { key: 'F8' });
+    expect(onClearCart).toHaveBeenCalledTimes(1);
+
+    // F9 -> onNewOrder
+    fireEvent.keyDown(window, { key: 'F9' });
+    expect(onNewOrder).toHaveBeenCalledTimes(1);
+
+    // F12 -> onOpenSuspended (since suspendedCount > 0)
+    fireEvent.keyDown(window, { key: 'F12' });
+    expect(onOpenSuspended).toHaveBeenCalledTimes(1);
+
+    // F10 -> Opens Product Search Modal
+    fireEvent.keyDown(window, { key: 'F10' });
+    expect(screen.getByText('بحث واستعراض السلع والمواد')).toBeInTheDocument();
+
+    // Escape while modal is open -> Closes modal and DOES NOT call onNavigateBack
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByText('بحث واستعراض السلع والمواد')).not.toBeInTheDocument();
+    expect(onNavigateBack).not.toHaveBeenCalled();
+
+    // Escape when no modal is open -> Calls onNavigateBack
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onNavigateBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders and supports toggling between Day (Light) and Night (Dark) mode', () => {
+    render(<AdvancedTerminalPOSLayout {...defaultProps} />);
+
+    // 1. Check Day/Night toggle button exists in full top bar
+    const themeBtn = screen.getByTitle(/التحويل إلى الوضع (النهاري|الليلي)/);
+    expect(themeBtn).toBeInTheDocument();
+
+    // 2. Click to toggle
+    fireEvent.click(themeBtn);
+
+    // 3. Now collapse the top bar
+    const collapseBtn = screen.getByTitle('إخفاء الشريط العلوي لتكبير مساحة الشاشة');
+    fireEvent.click(collapseBtn);
+
+    // 4. Check Day/Night toggle button exists in collapsed top bar and can be clicked
+    const collapsedThemeBtn = screen.getByTitle(/التحويل إلى الوضع (النهاري|الليلي)/);
+    expect(collapsedThemeBtn).toBeInTheDocument();
+    fireEvent.click(collapsedThemeBtn);
+  });
+
+  it('correctly retrieves and displays barcodes for cart items including items missing direct barcode', () => {
+    const productsWithBarcodes: Product[] = [
+      {
+        id: 'prod-juice',
+        name: 'عصير رامي برتقال 1 لتر',
+        barcode: '6130999888',
+        sku: 'RAMY-ORANGE',
+        retailPrice: 150,
+      } as any,
+    ];
+
+    const cartWithoutDirectBarcode: CartItem[] = [
+      {
+        productId: 'prod-juice',
+        name: 'عصير رامي برتقال 1 لتر',
+        qty: 1,
+        unitPrice: 150,
+        lineTotal: 150,
+        // barcode is missing intentionally to test dynamic retrieval
+      } as any,
+    ];
+
+    render(
+      <AdvancedTerminalPOSLayout
+        {...defaultProps}
+        cart={cartWithoutDirectBarcode}
+        products={productsWithBarcodes}
+        allProducts={productsWithBarcodes}
+      />
+    );
+
+    // The table should dynamically resolve and display the barcode '6130999888'
+    expect(screen.getByText('6130999888')).toBeInTheDocument();
+  });
+
+  it('triggers onSettleSale when Enter is pressed on empty barcode input and cart has items', () => {
+    const onSettleSale = vi.fn();
+    const onOpenAddProduct = vi.fn();
+
+    render(
+      <AdvancedTerminalPOSLayout
+        {...defaultProps}
+        cart={mockCart}
+        onSettleSale={onSettleSale}
+        onOpenAddProduct={onOpenAddProduct}
+        barcodeInput=""
+      />
+    );
+
+    const barcodeField = screen.getByPlaceholderText('مسح الباركود أو ادخل اسم السلعة...');
+    fireEvent.submit(barcodeField.closest('form')!);
+
+    expect(onSettleSale).toHaveBeenCalledTimes(1);
+    expect(onOpenAddProduct).not.toHaveBeenCalled();
   });
 });

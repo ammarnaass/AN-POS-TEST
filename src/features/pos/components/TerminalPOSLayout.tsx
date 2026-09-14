@@ -176,19 +176,36 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
   }, [allProducts, products]);
 
   const fallbackFavoriteItems = useMemo(() => {
-    return systemPacks.map((p: any) => ({
-      id: `sys-pack-${p.id}`,
-      categoryId: 'fav-cat-wholesale',
+    if (systemPacks.length > 0) {
+      return systemPacks.map((p: any) => ({
+        id: `sys-pack-${p.id}`,
+        categoryId: 'fav-cat-wholesale',
+        type: 'pack' as const,
+        itemId: String(p.id).replace('pack-', ''),
+        name: p.name,
+        barcode: p.barcode,
+        price: Number(p.retailPrice ?? p.price ?? p.packPrice ?? 0),
+        packQty: Number(p.packPiecesCount ?? p.piecesCount ?? 1),
+        packUnit: p.unitName || 'عبوة',
+        order: 0,
+      }));
+    }
+
+    // بديل ذكي: عند عدم وجود حزم مجمعة معرفة، ملء المفضلة بأول 18 منتج من المتجر لتكون الشاشة جاهزة للتشغيل السريع
+    const available = (allProducts && allProducts.length > 0 ? allProducts : products) || [];
+    return available.slice(0, 18).map((p: any, idx: number) => ({
+      id: `fav-smart-${p.id || idx}`,
+      categoryId: idx % 3 === 0 ? 'fav-cat-drinks' : idx % 3 === 1 ? 'fav-cat-wholesale' : 'fav-cat-quick',
       type: 'pack' as const,
-      itemId: String(p.id).replace('pack-', ''),
-      name: p.name,
+      itemId: String(p.id),
+      name: p.name || (p as any).productName || 'منتج مفضل',
       barcode: p.barcode,
-      price: Number(p.retailPrice ?? p.price ?? p.packPrice ?? 0),
-      packQty: Number(p.packPiecesCount ?? p.piecesCount ?? 1),
-      packUnit: p.unitName || 'عبوة',
-      order: 0,
+      price: Number(p.retailPrice ?? p.price ?? 0),
+      packQty: 1,
+      packUnit: p.unit || 'قطعة',
+      order: idx,
     }));
-  }, [systemPacks]);
+  }, [systemPacks, allProducts, products]);
 
   const activeFavoritesList = useMemo(() => {
     return packOnlyFavorites.length > 0 ? packOnlyFavorites : fallbackFavoriteItems;
@@ -348,7 +365,7 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
     [cart]
   );
 
-  // Quick products grid for retail products mode (top 15 products for 3 rows x 5 cols)
+  // Quick products grid for retail products mode (top 18 products for 3 rows x 6 cols)
   const quickProducts = useMemo(() => {
     let list = (products || []).filter((p: any) => !p.isPack && !('items' in p));
     if (list.length === 0 && (!selectedCategory || selectedCategory === 'ALL')) {
@@ -362,7 +379,7 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
           (p.barcode && p.barcode.toLowerCase().includes(q))
       );
     }
-    return list.slice(0, 15);
+    return list.slice(0, 18);
   }, [products, allProducts, selectedCategory, searchQuery]);
 
   // Dedicated Price Checker Submit / Scan Handler

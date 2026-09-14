@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { CheckCircle2, Printer, Plus } from 'lucide-react';
 import { formatNumber } from '../utils/format';
 import { printDocument } from '@/services/print/printService';
@@ -15,6 +15,49 @@ export const SuccessModal: React.FC<SuccessModalProps> = ({
   onClose,
   completedSale,
 }) => {
+  // Self-contained keyboard shortcuts for sale completion
+  useEffect(() => {
+    if (!isOpen || !completedSale) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // 1. Enter or Escape: Close modal and start new sale
+      if (e.key === 'Enter' || e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+        return;
+      }
+
+      // 2. 'P' or 'p' or F1: Print thermal receipt
+      if (e.key === 'p' || e.key === 'P' || e.key === 'F1') {
+        e.preventDefault();
+        e.stopPropagation();
+        printDocument(completedSale.id, 'thermal-receipt', {
+          userId: '',
+          userName: '',
+          copies: 1,
+        });
+        return;
+      }
+
+      // 3. F2: Print invoice (wholesale or A4 sale invoice)
+      if (e.key === 'F2') {
+        e.preventDefault();
+        e.stopPropagation();
+        const docType = completedSale.docType === 'wholesale' ? 'wholesale-invoice' : 'sale-invoice';
+        printDocument(completedSale.id, docType, {
+          userId: '',
+          userName: '',
+          copies: 1,
+        });
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [isOpen, completedSale, onClose]);
+
   if (!isOpen || !completedSale) return null;
 
   return (
@@ -65,9 +108,10 @@ export const SuccessModal: React.FC<SuccessModalProps> = ({
                     });
                   }}
                   className="py-3 rounded-xl bg-primary/10 hover:bg-primary/20 border border-primary/25 text-xs font-bold text-primary flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                  title="طباعة فاتورة الجملة (F2)"
                 >
                   <Printer className="w-4 h-4" />
-                  <span>طباعة فاتورة الجملة</span>
+                  <span>فاتورة جملة (F2)</span>
                 </button>
 
                 <button
@@ -79,9 +123,10 @@ export const SuccessModal: React.FC<SuccessModalProps> = ({
                     });
                   }}
                   className="py-3 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-xs font-bold text-on-surface flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                  title="وصل حراري (P / F1)"
                 >
                   <Printer className="w-4 h-4" />
-                  <span>وصل حراري (Ticket)</span>
+                  <span>وصل حراري (P/F1)</span>
                 </button>
               </>
             ) : (
@@ -95,9 +140,10 @@ export const SuccessModal: React.FC<SuccessModalProps> = ({
                     });
                   }}
                   className="py-3 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-xs font-bold text-on-surface flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                  title="طباعة الإيصال (P / F1)"
                 >
                   <Printer className="w-4 h-4" />
-                  <span>طباعة الإيصال</span>
+                  <span>إيصال حراري (P/F1)</span>
                 </button>
 
                 <button
@@ -109,9 +155,10 @@ export const SuccessModal: React.FC<SuccessModalProps> = ({
                     });
                   }}
                   className="py-3 rounded-xl bg-primary/10 hover:bg-primary/20 border border-primary/25 text-xs font-bold text-primary flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                  title="فاتورة بيع عادية A4 (F2)"
                 >
                   <Printer className="w-4 h-4" />
-                  <span>فاتورة بيع عادية (A4)</span>
+                  <span>فاتورة A4 (F2)</span>
                 </button>
               </>
             )}
@@ -123,10 +170,11 @@ export const SuccessModal: React.FC<SuccessModalProps> = ({
             autoFocus
           >
             <Plus className="w-4 h-4" />
-            <span>بيع جديد (Enter)</span>
+            <span>بيع جديد (Enter / Esc)</span>
           </button>
         </div>
       </div>
     </div>
   );
 };
+

@@ -174,7 +174,7 @@ export const POSModalsContainer: React.FC<POSModalsContainerProps> = ({
         setSelectedCustomer={setSelectedCustomer}
         customers={customers}
         onOpenAddCustomer={() => modals.setShowAddCustomer(true)}
-        onConfirmPayment={onConfirmPayment}
+        onConfirmPayment={() => onConfirmPayment(paidAmount, selectedCustomer, paymentMethod)}
         isPending={isSalePending}
         allowCardPayment={posSettings.allowCardPayment}
         allowTransferPayment={posSettings.allowTransferPayment}

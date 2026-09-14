@@ -1,5 +1,5 @@
 import React from 'react';
-import { Star, Plus, Package, Search, MoreVertical } from 'lucide-react';
+import { Star, Plus, Package } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { Product, Category } from '@/types';
 
@@ -64,13 +64,14 @@ export const TerminalPOSFavoritesGrid: React.FC<TerminalPOSFavoritesGridProps> =
   const navigate = useNavigate();
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2.5 shadow-2xs flex gap-2.5 h-52 sm:h-56 shrink-0">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-2 shadow-2xs flex gap-2 h-56 sm:h-60 shrink-0 select-none">
       {/* شبكة الأصناف والعبوات (ممتدة لتستفيد من المساحة الكاملة) */}
-      <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 overflow-y-auto custom-scrollbar p-0.5">
+      <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 overflow-y-auto custom-scrollbar p-0.5 content-start">
         {terminalCategoryMode === 'favorites' ? (
           displayedFavoriteItems.length > 0 ? (
             displayedFavoriteItems.map((favItem, fIdx) => {
               const price = favItem.price;
+              const favName = favItem.name || (favItem as any).itemName || 'عبوة مفضلة';
 
               return (
                 <button
@@ -79,40 +80,51 @@ export const TerminalPOSFavoritesGrid: React.FC<TerminalPOSFavoritesGridProps> =
                   onClick={() => {
                     onAddToCart(
                       {
-                        id: `pack-${favItem.itemId}`,
-                        name: favItem.name,
+                        id: `pack-${favItem.itemId || favItem.id}`,
+                        name: favName,
                         barcode: favItem.barcode,
                         retailPrice: favItem.price,
                         price: favItem.price,
                         isPack: true,
-                        packId: favItem.itemId,
+                        packId: favItem.itemId || favItem.id,
                         packPiecesCount: favItem.packQty || 1,
                         packUnit: favItem.packUnit || 'عبوة',
                       } as any,
                       favItem.price
                     );
                   }}
-                  className="bg-emerald-50/60 dark:bg-emerald-950/30 hover:bg-emerald-100/70 dark:hover:bg-emerald-900/50 border border-emerald-200/80 dark:border-emerald-800/70 text-slate-800 dark:text-slate-100 rounded-xl p-2 flex flex-col justify-between items-center text-center shadow-2xs hover:shadow-xs transition-all group cursor-pointer active:scale-95 min-h-[58px]"
-                  title={`إضافة ${favItem.name} (عبوة ×${favItem.packQty || 1}) بسعر ${formatMoney(price)} ${currency}`}
+                  className="bg-emerald-50/60 dark:bg-emerald-950/30 hover:bg-emerald-100/70 dark:hover:bg-emerald-900/50 border border-emerald-200/80 dark:border-emerald-800/70 hover:border-emerald-400 dark:hover:border-emerald-600 text-slate-800 dark:text-slate-100 rounded-xl p-2 flex flex-col justify-between items-center text-center shadow-2xs hover:shadow-xs transition-all group cursor-pointer active:scale-95 h-[84px] min-h-[84px] shrink-0"
+                  title={`إضافة ${favName} (عبوة ×${favItem.packQty || 1}) بسعر ${formatMoney(price)} ${currency}`}
                 >
-                  <div className="w-full flex items-center justify-between gap-1 mb-1">
-                    <span className="text-[10px] font-extrabold px-1.5 py-0.2 rounded bg-emerald-600 text-white truncate max-w-full">
+                  {/* الرأس: عداد العبوة + الباركود */}
+                  <div className="w-full flex items-center justify-between gap-1 shrink-0 h-4 text-[10px]">
+                    <span className="font-extrabold px-1.5 py-0.2 rounded bg-emerald-600/90 text-white truncate max-w-[80px] leading-tight">
                       ×{favItem.packQty || 1} {favItem.packUnit || 'عبوة'}
                     </span>
-                    {favItem.barcode && (
-                      <span className="text-[9px] font-mono text-slate-400 dark:text-slate-400 truncate max-w-[55px]">
+                    {favItem.barcode ? (
+                      <span className="font-mono text-[9px] text-slate-400 dark:text-slate-400 truncate max-w-[55px]" dir="ltr">
                         {favItem.barcode}
+                      </span>
+                    ) : (
+                      <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-mono font-bold">
+                        مفضلة
                       </span>
                     )}
                   </div>
 
-                  <span className="text-xs font-bold leading-tight group-hover:text-emerald-700 dark:group-hover:text-emerald-300 line-clamp-2 w-full text-center my-0.5">
-                    {favItem.name}
-                  </span>
+                  {/* الوسط: اسم المنتج (واضح بسطرين ولا ينكمش أبداً) */}
+                  <div className="w-full flex-1 flex items-center justify-center py-0.5 min-h-[34px] overflow-hidden">
+                    <span className="text-xs sm:text-[12.5px] font-bold leading-snug group-hover:text-emerald-700 dark:group-hover:text-emerald-300 line-clamp-2 w-full text-center text-slate-800 dark:text-slate-100 block break-words">
+                      {favName}
+                    </span>
+                  </div>
 
-                  <span className="font-bold text-xs font-mono px-2.5 py-0.5 rounded-full mt-1 bg-emerald-100 dark:bg-emerald-900/70 text-emerald-800 dark:text-emerald-200">
-                    {formatMoney(price)} {currency}
-                  </span>
+                  {/* التذييل: قرص السعر البارز */}
+                  <div className="w-full flex items-center justify-center shrink-0 h-5">
+                    <span className="font-black text-xs font-mono px-2.5 py-0.5 rounded-full leading-none bg-emerald-100/90 dark:bg-emerald-900/70 text-emerald-800 dark:text-emerald-200">
+                      {formatMoney(price)} {currency}
+                    </span>
+                  </div>
                 </button>
               );
             })
@@ -134,30 +146,45 @@ export const TerminalPOSFavoritesGrid: React.FC<TerminalPOSFavoritesGridProps> =
           quickProducts.length > 0 ? (
             quickProducts.map((prod, pIdx) => {
               const price = getProductPriceByTier(prod, priceTier);
+              const prodName = prod.name || (prod as any).productName || (prod as any).name_ar || 'منتج';
+
               return (
                 <button
                   key={prod.id || `qp-${pIdx}`}
                   type="button"
                   onClick={() => onAddToCart({ ...prod, price, retailPrice: price }, price)}
-                  className="bg-slate-50 dark:bg-slate-800/90 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:border-blue-300 dark:hover:border-blue-700 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-xl p-2 flex flex-col justify-between items-center text-center shadow-2xs hover:shadow-xs transition-all group cursor-pointer active:scale-95 min-h-[56px]"
-                  title={`إضافة ${prod.name} بسعر ${formatMoney(price)} ${currency}`}
+                  className="bg-slate-50/90 dark:bg-slate-800/80 hover:bg-blue-50/80 dark:hover:bg-blue-950/40 border border-slate-200/90 dark:border-slate-700/80 hover:border-blue-400 dark:hover:border-blue-600 text-slate-800 dark:text-slate-100 rounded-xl p-2 flex flex-col justify-between items-center text-center shadow-2xs hover:shadow-xs transition-all group cursor-pointer active:scale-95 h-[84px] min-h-[84px] shrink-0"
+                  title={`إضافة ${prodName} بسعر ${formatMoney(price)} ${currency}`}
                 >
-                  <div className="w-full flex items-center justify-between gap-1 mb-1">
-                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-blue-600 text-white">
+                  {/* الرأس: بادج تجزئة + الباركود */}
+                  <div className="w-full flex items-center justify-between gap-1 shrink-0 h-4 text-[10px]">
+                    <span className="font-extrabold px-1.5 py-0.2 rounded bg-blue-600/90 text-white leading-tight">
                       تجزئة
                     </span>
-                    {prod.barcode && (
-                      <span className="text-[9px] font-mono text-slate-400 dark:text-slate-400 truncate max-w-[55px]">
+                    {prod.barcode ? (
+                      <span className="font-mono text-[9px] text-slate-400 dark:text-slate-400 truncate max-w-[60px]" dir="ltr">
                         {prod.barcode}
+                      </span>
+                    ) : (
+                      <span className="text-[9px] text-slate-400 font-mono">
+                        {prod.unit || 'قطعة'}
                       </span>
                     )}
                   </div>
-                  <span className="text-xs font-bold leading-tight group-hover:text-blue-700 dark:group-hover:text-blue-300 line-clamp-2 my-0.5">
-                    {prod.name}
-                  </span>
-                  <span className="bg-blue-100 dark:bg-blue-900/70 text-blue-800 dark:text-blue-200 font-bold text-xs font-mono px-2.5 py-0.5 rounded-full mt-1">
-                    {formatMoney(price)} {currency}
-                  </span>
+
+                  {/* الوسط: اسم المنتج (واضح بسطرين ولا ينكمش أبداً) */}
+                  <div className="w-full flex-1 flex items-center justify-center py-0.5 min-h-[34px] overflow-hidden">
+                    <span className="text-xs sm:text-[12.5px] font-bold leading-snug group-hover:text-blue-600 dark:group-hover:text-blue-400 line-clamp-2 w-full text-center text-slate-800 dark:text-slate-100 block break-words">
+                      {prodName}
+                    </span>
+                  </div>
+
+                  {/* التذييل: قرص السعر البارز */}
+                  <div className="w-full flex items-center justify-center shrink-0 h-5">
+                    <span className="bg-blue-100/90 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200 font-black text-xs font-mono px-2.5 py-0.5 rounded-full leading-none">
+                      {formatMoney(price)} {currency}
+                    </span>
+                  </div>
                 </button>
               );
             })
@@ -296,20 +323,35 @@ export const TerminalPOSFavoritesGrid: React.FC<TerminalPOSFavoritesGridProps> =
             {categories.map((cat, cIdx) => {
               const catId = typeof cat === 'object' && cat !== null ? (cat as any).id : String(cat);
               const catName = typeof cat === 'object' && cat !== null ? (cat as any).name : String(cat);
-              const isSelected = selectedCategory === catId;
+              const isSelected = selectedCategory === catId || selectedCategory === catName;
+              const prodList = (allProducts && allProducts.length > 0 ? allProducts : products) || [];
+              const catCount = prodList.filter(
+                (p: any) =>
+                  !p.isPack &&
+                  (p.categoryId === catId ||
+                    (p as any).category_id === catId ||
+                    p.category === catName ||
+                    p.category === catId)
+              ).length;
+
               return (
                 <button
                   key={catId || `cat-${cIdx}`}
                   type="button"
                   onClick={() => onSelectCategory(catId)}
-                  className={`font-bold text-xs py-2 px-2.5 rounded-xl transition text-center truncate cursor-pointer shrink-0 active:scale-95 ${
+                  className={`font-bold text-xs py-2 px-2.5 rounded-xl transition text-center truncate cursor-pointer shrink-0 active:scale-95 flex items-center justify-between gap-1 ${
                     isSelected
                       ? 'bg-blue-600 text-white shadow-xs'
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700'
                   }`}
                   title={`تصفية حسب: ${catName}`}
                 >
-                  {catName}
+                  <span className="truncate">{catName}</span>
+                  {catCount > 0 && (
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-black/15 shrink-0">
+                      {catCount}
+                    </span>
+                  )}
                 </button>
               );
             })}

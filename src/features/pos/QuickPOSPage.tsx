@@ -171,6 +171,7 @@ export default function QuickPOSPage() {
       addItem({
         productId: product.id,
         name: product.name,
+        barcode: product.barcode || '',
         unitPrice: product.retailPrice,
         qty: 1,
         lineTotal: product.retailPrice,

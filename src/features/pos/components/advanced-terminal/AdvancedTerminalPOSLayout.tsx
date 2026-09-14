@@ -9,9 +9,12 @@ import {
   XCircle,
   FilePlus2,
   Zap,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import type { Product } from '@/types';
 import type { AdvancedTerminalPOSLayoutProps } from './types';
+import { useThemeStore } from '@/store/themeStore';
 import { Design6TopActionsBar } from './components/Design6TopActionsBar';
 import { Design6LiveDisplayBanner } from './components/Design6LiveDisplayBanner';
 import { Design6LeftToolsSidebar } from './components/Design6LeftToolsSidebar';
@@ -22,6 +25,7 @@ import { Design6FavoritesPad } from './components/Design6FavoritesPad';
 import { Design6SystemStatusBar } from './components/Design6SystemStatusBar';
 import { Design6FlexyModal } from './modals/Design6FlexyModal';
 import { Design6TerminalLockModal } from './modals/Design6TerminalLockModal';
+import { Design6ProductSearchModal } from './modals/Design6ProductSearchModal';
 import { useDesign6Shortcuts } from './hooks/useDesign6Shortcuts';
 import { useDesign6TouchNavigation } from './hooks/useDesign6TouchNavigation';
 import { useDesign6CashCalculator } from './hooks/useDesign6CashCalculator';
@@ -64,6 +68,10 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
   onOpenKeypadForQty,
   onToggleFullscreen,
   isFullscreen = false,
+  categories = [],
+  searchQuery,
+  setSearchQuery,
+  onOpenAddProduct,
 }) => {
   // Local state
   const [selectedCartRowId, setSelectedCartRowId] = useState<string | null>(
@@ -73,6 +81,8 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
   const [isLocked, setIsLocked] = useState<boolean>(false);
   const [isFlexyOpen, setIsFlexyOpen] = useState<boolean>(false);
   const [isTopBarCollapsed, setIsTopBarCollapsed] = useState<boolean>(false);
+  const [editingPriceItemId, setEditingPriceItemId] = useState<string | null>(null);
+  const [isProductSearchOpen, setIsProductSearchOpen] = useState<boolean>(false);
 
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const quantityInputRef = useRef<HTMLInputElement>(null);
@@ -120,19 +130,28 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
   }, []);
 
   const handleFocusPrice = useCallback(() => {
-    if (selectedCartRowId && onEditPrice) {
-      const item = cart.find((i) => i.productId === selectedCartRowId);
-      if (item) {
-        onEditPrice(item.productId, item.unitPrice);
-      }
+    if (cart.length === 0) return;
+    const targetId = selectedCartRowId || cart[cart.length - 1]?.productId;
+    if (targetId) {
+      setSelectedCartRowId(targetId);
+      setEditingPriceItemId(targetId);
     }
-  }, [selectedCartRowId, cart, onEditPrice]);
+  }, [selectedCartRowId, cart]);
 
   const handleDeleteSelectedRow = useCallback(() => {
     if (selectedCartRowId) {
       onRemoveFromCart(selectedCartRowId);
     }
   }, [selectedCartRowId, onRemoveFromCart]);
+
+  const isAnyModalOpen = isProductSearchOpen || isLocked || isFlexyOpen || editingPriceItemId !== null;
+
+  const handleCloseModals = useCallback(() => {
+    setIsProductSearchOpen(false);
+    setEditingPriceItemId(null);
+    setIsFlexyOpen(false);
+    setIsLocked(false);
+  }, []);
 
   // Register all F1-F12 and arrow shortcuts
   useDesign6Shortcuts({
@@ -143,9 +162,12 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
     onSettleSale,
     onQuickSettle: handleQuickSettle,
     onSuspendSale,
+    onOpenSuspended,
+    suspendedCount,
     onClearCart,
     onOpenDiscount,
-    onOpenProductCatalog: onOpenCustomize,
+    onOpenMiscProduct: onOpenFreeProduct,
+    onOpenProductCatalog: () => setIsProductSearchOpen(true),
     onLockTerminal: () => setIsLocked(true),
     onToggleFullscreen,
     onNavigateBack,
@@ -155,6 +177,8 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
     onArrowLeft: handleArrowLeft,
     onArrowRight: handleArrowRight,
     onConfirm: handleConfirm,
+    isAnyModalOpen,
+    onCloseModals: handleCloseModals,
   });
 
   // Favorites & Category Mode Integration (from useFavoritesStore and usePOSSessionStore)
@@ -241,7 +265,10 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
         products.find((p) => p.id === targetId || p.name.trim() === favItem.name?.trim());
 
       if (matched) {
-        onAddToCart(matched, favItem.price || matched.retailPrice);
+        onAddToCart(
+          { ...matched, barcode: matched.barcode || favItem.barcode || '' },
+          favItem.price || matched.retailPrice
+        );
       } else {
         const tempProduct: Product = {
           id: favItem.id || `adhoc-${Date.now()}`,
@@ -293,10 +320,13 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
     }
   };
 
+  // Theme store integration
+  const { theme, toggleTheme } = useThemeStore();
+
   return (
     <div
       dir="rtl"
-      className="flex flex-col h-full w-full flex-1 bg-[#050811] text-slate-100 font-sans select-none overflow-hidden"
+      className="flex flex-col h-full w-full flex-1 bg-slate-100 dark:bg-[#050811] text-slate-900 dark:text-slate-100 font-sans select-none overflow-hidden transition-colors"
     >
       {/* 1. Top F1-F12 Actions Bar or Collapsed Header */}
       {!isTopBarCollapsed ? (
@@ -313,7 +343,6 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
           onOpenSuspended={onOpenSuspended}
           suspendedCount={suspendedCount}
           onLockTerminal={() => setIsLocked(true)}
-          onOpenProductCatalog={onOpenCustomize}
           priceTier={priceTier}
           onCyclePriceTier={handleCyclePriceTier}
           onOpenFlexyModal={() => setIsFlexyOpen(true)}
@@ -324,98 +353,97 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
           isFullscreen={isFullscreen}
           onOpenCustomize={onOpenCustomize}
           onToggleCollapse={() => setIsTopBarCollapsed(true)}
+          theme={theme}
+          onToggleTheme={toggleTheme}
         />
       ) : (
-        <div className="w-full bg-[#070b14] border-b border-slate-800/80 px-2.5 py-1.5 flex items-center justify-between gap-2 text-xs select-none shrink-0">
-          <div className="flex items-center gap-2">
+        <div className="w-full bg-white dark:bg-[#070b14] border-b border-slate-200 dark:border-slate-800/80 px-2.5 py-1.5 flex items-center justify-between gap-2 text-xs select-none shrink-0 transition-colors">
+          {/* Right: Toggle + Primary Action */}
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={() => setIsTopBarCollapsed(false)}
-              className="flex items-center gap-1.5 bg-blue-900/50 hover:bg-blue-800/70 active:scale-95 text-blue-300 border border-blue-700/60 px-2.5 py-1 rounded-lg text-xs font-bold cursor-pointer transition-colors"
-              title="إظهار شريط الأوامر العلوي الكامل (F1-F12)"
+              className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-900/50 hover:bg-blue-100 dark:hover:bg-blue-800/70 active:scale-95 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700/60 px-2.5 py-1 rounded-lg text-xs font-bold cursor-pointer transition-colors"
+              title="إظهار شريط الأوامر الكامل (F1-F12)"
             >
               <ChevronDown className="w-3.5 h-3.5" />
-              <span>إظهار شريط الأوامر</span>
+              <span>إظهار الشريط</span>
             </button>
+
+            {/* Primary action always visible: تأكيد ودفع */}
             <button
               type="button"
               onClick={onSettleSale}
-              className="bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white px-3 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
+              className="bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white h-[34px] px-3 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 border border-emerald-500/50"
+              title="تأكيد ودفع (F1)"
             >
               <CheckCircle2 className="w-3 h-3" />
               <span>دفع (F1)</span>
             </button>
-            <button
-              type="button"
-              onClick={handleQuickSettle}
-              className="bg-[#06b6d4] hover:bg-[#0891b2] active:scale-95 text-white px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
-            >
-              <Zap className="w-3 h-3 fill-white" />
-              <span>سريع (F7)</span>
-            </button>
-            <button
-              type="button"
-              onClick={onNewOrder}
-              className="bg-purple-600 hover:bg-purple-500 active:scale-95 text-white px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
-            >
-              <FilePlus2 className="w-3 h-3" />
-              <span>وصل جديد (F9)</span>
-            </button>
-            {onClearCart && (
-              <button
-                type="button"
-                onClick={onClearCart}
-                className="bg-rose-700 hover:bg-rose-600 active:scale-95 text-white px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
-                title="إلغاء الوصل (F8)"
-              >
-                <XCircle className="w-3 h-3" />
-                <span>إلغاء (F8)</span>
-              </button>
-            )}
           </div>
-          <div className="flex items-center gap-1.5">
-            {onOpenCustomize && (
-              <button
-                type="button"
-                onClick={onOpenCustomize}
-                className="flex items-center gap-1 text-slate-300 hover:text-white px-2.5 py-1 rounded-lg bg-slate-800/70 border border-slate-700/80 text-xs font-bold active:scale-95 transition-colors cursor-pointer"
-                title="تخصيص الواجهة واختيار القوالب"
-              >
-                <Palette className="w-3.5 h-3.5 text-purple-400" />
-                <span>تخصيص</span>
-              </button>
+
+          {/* Center: Live Invoice Summary — unique info not in full bar */}
+          <div className="flex-1 flex items-center gap-3 px-4 overflow-hidden">
+            <div className="flex items-baseline gap-1.5 font-mono shrink-0">
+              <span className="text-slate-500 dark:text-slate-400 text-[10px] font-bold">الإجمالي:</span>
+              <span className="text-lg font-black text-cyan-700 dark:text-cyan-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.3)]">
+                {formatMoney(saleSummary.total)}
+              </span>
+              <span className="text-slate-500 dark:text-slate-400 text-[10px] font-bold">{currency}</span>
+            </div>
+            {saleSummary.discountAmount > 0 && (
+              <div className="flex items-baseline gap-1 font-mono shrink-0">
+                <span className="text-slate-400 dark:text-slate-500 text-[10px]">خصم:</span>
+                <span className="text-rose-600 dark:text-rose-400 text-sm font-black">-{formatMoney(saleSummary.discountAmount)}</span>
+              </div>
             )}
+            {selectedCustomerName && (
+              <div className="flex items-center gap-1 border-r border-slate-300 dark:border-slate-700/60 pr-3 shrink-0">
+                <span className="text-[10px] text-slate-400 dark:text-slate-500">عميل:</span>
+                <span className="text-amber-700 dark:text-amber-300 font-bold text-xs truncate max-w-[120px]">{selectedCustomerName}</span>
+              </div>
+            )}
+            <div className="flex items-center gap-1 text-slate-400 dark:text-slate-500 text-[10px] font-mono">
+              <span>#</span>
+              <span className="text-slate-600 dark:text-slate-400 font-bold">{invoiceNumber}</span>
+            </div>
+          </div>
+
+          {/* Left: Environment controls (unique to collapsed bar) */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* زر تبديل المظهر في الشريط المصغر */}
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="flex items-center gap-1 text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/70 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700/80 text-xs font-bold active:scale-95 transition-colors cursor-pointer"
+              title={theme === 'dark' ? 'التحويل إلى الوضع النهاري' : 'التحويل إلى الوضع الليلي'}
+              aria-label="تبديل المظهر النهاري والليلي"
+            >
+              {theme === 'dark' ? (
+                <Sun className="w-3.5 h-3.5 text-amber-400" />
+              ) : (
+                <Moon className="w-3.5 h-3.5 text-slate-700" />
+              )}
+            </button>
+
             {onToggleFullscreen && (
               <button
                 type="button"
                 onClick={onToggleFullscreen}
-                className="flex items-center gap-1 text-slate-300 hover:text-white px-2.5 py-1 rounded-lg bg-slate-800/70 border border-slate-700/80 text-xs font-bold active:scale-95 transition-colors cursor-pointer"
-                title={isFullscreen ? 'تصغير الشاشة' : 'تكبير الواجهة وملء الشاشة (F11)'}
+                className="flex items-center gap-1 text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/70 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700/80 text-xs font-bold active:scale-95 transition-colors cursor-pointer"
+                title={isFullscreen ? 'تصغير الشاشة' : 'تكبير الواجهة (F11)'}
               >
                 {isFullscreen ? (
-                  <>
-                    <Minimize className="w-3.5 h-3.5 text-amber-400" />
-                    <span>تصغير</span>
-                  </>
+                  <Minimize className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
                 ) : (
-                  <>
-                    <Maximize className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>تكبير</span>
-                  </>
+                  <Maximize className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
                 )}
               </button>
             )}
-            {onNavigateBack && (
-              <button
-                type="button"
-                onClick={onNavigateBack}
-                className="flex items-center gap-1 text-rose-300 hover:text-white px-2.5 py-1 rounded-lg bg-slate-800/70 border border-slate-700/80 text-xs font-bold active:scale-95 transition-colors cursor-pointer"
-                title="الرجوع إلى الصفحة الرئيسية (Esc)"
-              >
-                <Home className="w-3.5 h-3.5 text-rose-400" />
-                <span>الرئيسية</span>
-              </button>
-            )}
+            <div className="text-[10px] font-mono text-slate-500 hidden sm:flex items-center gap-1 bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 px-2 py-1 rounded-lg">
+              <span className="text-slate-400 dark:text-slate-600">وصل</span>
+              <span className="text-slate-700 dark:text-slate-400 font-bold">{invoiceNumber}</span>
+            </div>
           </div>
         </div>
       )}
@@ -435,7 +463,7 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
         {/* Left Tools & D-Pad Sidebar */}
         <Design6LeftToolsSidebar
           onNavigateBack={onNavigateBack}
-          onOpenSearch={onOpenCustomize}
+          onOpenSearch={() => setIsProductSearchOpen(true)}
           onOpenMiscProduct={onOpenFreeProduct}
           onArrowUp={handleArrowUp}
           onArrowDown={handleArrowDown}
@@ -448,7 +476,7 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
         />
 
         {/* Center: Barcode Bar + Sales Data Table */}
-        <main className="flex-1 flex flex-col justify-between overflow-hidden bg-[#060a14]">
+        <main className="flex-1 flex flex-col justify-between overflow-hidden bg-white dark:bg-[#060a14] transition-colors">
           <Design6BarcodeScannerBar
             barcodeInput={barcodeInput}
             setBarcodeInput={setBarcodeInput}
@@ -458,10 +486,22 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
             onOpenPriceEdit={handleFocusPrice}
             quantityInputRef={quantityInputRef}
             barcodeInputRef={barcodeInputRef}
+            products={allProducts && allProducts.length > 0 ? allProducts : products}
+            onSelectProduct={(product, qty) => {
+              for (let i = 0; i < qty; i++) {
+                onAddToCart(product);
+              }
+            }}
+            onOpenAddProduct={onOpenAddProduct}
+            onSettleSale={onSettleSale}
+            cartCount={cart.length}
+            formatMoney={formatMoney}
+            currency={currency}
           />
 
           <Design6SalesDataTable
             cart={cart}
+            products={allProducts && allProducts.length > 0 ? allProducts : products}
             selectedCartRowId={selectedCartRowId}
             setSelectedCartRowId={setSelectedCartRowId}
             onUpdateQty={onUpdateQty}
@@ -470,6 +510,9 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
             currency={currency}
             tvaAmount={saleSummary.tvaAmount}
             onOpenKeypadForQty={onOpenKeypadForQty}
+            editingPriceItemId={editingPriceItemId}
+            setEditingPriceItemId={setEditingPriceItemId}
+            onEditPrice={onEditPrice}
           />
         </main>
 
@@ -541,6 +584,22 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
         isOpen={isLocked}
         onUnlock={() => setIsLocked(false)}
         userName={userName}
+      />
+
+      {/* 7. Product Search & Catalog Modal (F10) */}
+      <Design6ProductSearchModal
+        isOpen={isProductSearchOpen}
+        onClose={() => setIsProductSearchOpen(false)}
+        products={allProducts && allProducts.length > 0 ? allProducts : products}
+        onSelectProduct={(product) => {
+          for (let i = 0; i < pendingQty; i++) {
+            onAddToCart(product);
+          }
+          setPendingQty(1);
+        }}
+        formatMoney={formatMoney}
+        currency={currency}
+        categories={categories}
       />
     </div>
   );

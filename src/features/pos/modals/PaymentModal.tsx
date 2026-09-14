@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
   Banknote,
   CreditCard,
@@ -44,21 +44,126 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   allowCardPayment = false,
   allowTransferPayment = false,
 }) => {
+  const customerSelectRef = useRef<HTMLSelectElement>(null);
+  const paidInputRef = useRef<HTMLInputElement>(null);
+
+  // Self-contained keyboard shortcuts handling for the payment process
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // 1. Confirm payment on Enter
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (isPending) return;
+        if (paymentMethod === 'credit' && !selectedCustomer) {
+          customerSelectRef.current?.focus();
+          return;
+        }
+        onConfirmPayment();
+        return;
+      }
+
+      // 2. Cancel and close on Escape
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+        return;
+      }
+
+      // 3. Payment methods shortcuts: F1..F4 or Alt+1..Alt+4
+      if (e.key === 'F1' || (e.altKey && e.key === '1')) {
+        e.preventDefault();
+        e.stopPropagation();
+        setPaymentMethod('cash');
+        return;
+      }
+      if ((e.key === 'F2' || (e.altKey && e.key === '2')) && allowCardPayment) {
+        e.preventDefault();
+        e.stopPropagation();
+        setPaymentMethod('card');
+        return;
+      }
+      if ((e.key === 'F3' || (e.altKey && e.key === '3')) && allowTransferPayment) {
+        e.preventDefault();
+        e.stopPropagation();
+        setPaymentMethod('transfer');
+        return;
+      }
+      if (e.key === 'F4' || (e.altKey && e.key === '4')) {
+        e.preventDefault();
+        e.stopPropagation();
+        setPaymentMethod('credit');
+        return;
+      }
+
+      // 4. Quick cash presets shortcuts: F5..F8 (or Alt+E for exact)
+      if (paymentMethod === 'cash') {
+        if (e.key === 'F5' || (e.altKey && (e.key === 'e' || e.key === 'E'))) {
+          e.preventDefault();
+          e.stopPropagation();
+          setPaidAmount(total);
+          return;
+        }
+        if (e.key === 'F6') {
+          e.preventDefault();
+          e.stopPropagation();
+          setPaidAmount(total + 500);
+          return;
+        }
+        if (e.key === 'F7') {
+          e.preventDefault();
+          e.stopPropagation();
+          setPaidAmount(total + 1000);
+          return;
+        }
+        if (e.key === 'F8') {
+          e.preventDefault();
+          e.stopPropagation();
+          setPaidAmount(total + 2000);
+          return;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [
+    isOpen,
+    isPending,
+    paymentMethod,
+    selectedCustomer,
+    total,
+    allowCardPayment,
+    allowTransferPayment,
+    onConfirmPayment,
+    onClose,
+    setPaymentMethod,
+    setPaidAmount,
+  ]);
+
   if (!isOpen) return null;
 
   const changeDue = Math.max(0, paidAmount - total);
   const isPaidSufficient = paidAmount >= total;
 
-  const availableMethods: { id: 'cash' | 'card' | 'transfer' | 'credit'; label: string; icon: any }[] = [
-    { id: 'cash', label: 'نقداً', icon: Banknote },
+  const availableMethods: {
+    id: 'cash' | 'card' | 'transfer' | 'credit';
+    label: string;
+    icon: any;
+    shortcut: string;
+  }[] = [
+    { id: 'cash', label: 'نقداً', icon: Banknote, shortcut: 'F1' },
   ];
   if (allowCardPayment) {
-    availableMethods.push({ id: 'card', label: 'بطاقة', icon: CreditCard });
+    availableMethods.push({ id: 'card', label: 'بطاقة', icon: CreditCard, shortcut: 'F2' });
   }
   if (allowTransferPayment) {
-    availableMethods.push({ id: 'transfer', label: 'تحويل', icon: ArrowLeftRight });
+    availableMethods.push({ id: 'transfer', label: 'تحويل', icon: ArrowLeftRight, shortcut: 'F3' });
   }
-  availableMethods.push({ id: 'credit', label: 'آجل / ذمم', icon: UserCheck });
+  availableMethods.push({ id: 'credit', label: 'آجل / ذمم', icon: UserCheck, shortcut: 'F4' });
 
   const gridColsClass =
     availableMethods.length === 2
@@ -84,6 +189,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           <button
             onClick={onClose}
             className="p-2 rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors cursor-pointer"
+            title="إلغاء (Esc)"
           >
             <X className="w-5 h-5" />
           </button>
@@ -102,7 +208,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             </div>
           </div>
 
-          {/* Payment Methods Tabs */}
+          {/* Payment Methods Tabs with Shortcut Badges */}
           <div className={`grid ${gridColsClass} gap-2`}>
             {availableMethods.map((m) => {
               const Icon = m.icon;
@@ -112,12 +218,20 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   key={m.id}
                   type="button"
                   onClick={() => setPaymentMethod(m.id)}
-                  className={`p-3 rounded-2xl border flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
+                  className={`p-3 rounded-2xl border flex flex-col items-center gap-1.5 transition-all cursor-pointer relative ${
                     active
                       ? 'bg-primary text-on-primary border-primary shadow-sm'
                       : 'bg-surface-container hover:bg-surface-container-high text-on-surface-variant border-outline-variant/15'
                   }`}
+                  title={`${m.label} (${m.shortcut})`}
                 >
+                  <span
+                    className={`absolute top-2 left-2 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                      active ? 'bg-black/20 text-white' : 'bg-outline-variant/20 text-on-surface-variant'
+                    }`}
+                  >
+                    {m.shortcut}
+                  </span>
                   <Icon className="w-5 h-5" />
                   <span className="text-xs font-bold">{m.label}</span>
                 </button>
@@ -131,40 +245,53 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               <div>
                 <label className="block text-xs font-bold text-on-surface mb-1.5">المبلغ المدفوع من الزبون:</label>
                 <input
+                  ref={paidInputRef}
                   type="number"
                   value={paidAmount || ''}
                   onChange={(e) => setPaidAmount(Number(e.target.value) || 0)}
+                  onFocus={(e) => e.target.select()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (!isPending) onConfirmPayment();
+                    }
+                  }}
                   placeholder={total.toString()}
                   className="w-full h-12 px-4 bg-surface-container border border-outline-variant/20 rounded-xl text-lg font-mono font-bold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30"
                   autoFocus
                 />
               </div>
 
-              {/* Quick Preset Buttons */}
+              {/* Quick Preset Buttons with Shortcut Badges */}
               <div className="flex items-center gap-2 flex-wrap">
                 {[
-                  { label: 'المبلغ بالضبط', val: total },
-                  { label: '+500 دج', val: total + 500 },
-                  { label: '+1,000 دج', val: total + 1000 },
-                  { label: '+2,000 دج', val: total + 2000 },
+                  { label: 'المبلغ بالضبط', val: total, shortcut: 'F5' },
+                  { label: '+500 دج', val: total + 500, shortcut: 'F6' },
+                  { label: '+1,000 دج', val: total + 1000, shortcut: 'F7' },
+                  { label: '+2,000 دج', val: total + 2000, shortcut: 'F8' },
                 ].map((btn) => (
                   <button
                     key={btn.label}
                     type="button"
                     onClick={() => setPaidAmount(btn.val)}
-                    className="px-3 py-1.5 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-xs font-bold text-on-surface transition-all cursor-pointer"
+                    className="px-3 py-1.5 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-xs font-bold text-on-surface transition-all cursor-pointer flex items-center gap-1.5"
+                    title={`${btn.label} (${btn.shortcut})`}
                   >
-                    {btn.label}
+                    <span>{btn.label}</span>
+                    <span className="text-[10px] font-mono text-on-surface-variant/70 font-semibold">({btn.shortcut})</span>
                   </button>
                 ))}
               </div>
 
               {/* Live Change Calculation Card */}
-              <div className={`p-4 rounded-2xl border flex items-center justify-between ${
-                isPaidSufficient
-                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700'
-                  : 'bg-amber-500/10 border-amber-500/30 text-amber-700'
-              }`}>
+              <div
+                className={`p-4 rounded-2xl border flex items-center justify-between ${
+                  isPaidSufficient
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700'
+                    : 'bg-amber-500/10 border-amber-500/30 text-amber-700'
+                }`}
+              >
                 <span className="text-xs font-bold">
                   {isPaidSufficient ? 'المبلغ المتبقي للزبون (الفكة):' : 'المبلغ المتبقي غير كافٍ:'}
                 </span>
@@ -193,6 +320,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               </div>
               <div className="relative">
                 <select
+                  ref={customerSelectRef}
                   value={selectedCustomer}
                   onChange={(e) => setSelectedCustomer(e.target.value)}
                   className="w-full h-10 pr-3 pl-8 bg-surface-container-low border border-outline-variant/25 rounded-xl text-xs text-on-surface font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none cursor-pointer"
@@ -200,11 +328,14 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   <option value="">— اختر الزبون من القائمة ({customers.length} مسجل) —</option>
                   {customers.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.name} {c.phone ? `(${c.phone})` : ''} {c.balance && c.balance > 0 ? `[دين سابق: ${formatNumber(c.balance)} دج]` : ''}
+                      {c.name} {c.phone ? `(${c.phone})` : ''}{' '}
+                      {c.balance && c.balance > 0 ? `[دين سابق: ${formatNumber(c.balance)} دج]` : ''}
                     </option>
                   ))}
                 </select>
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant/70 text-[10px]">▼</div>
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant/70 text-[10px]">
+                  ▼
+                </div>
               </div>
               {!selectedCustomer && (
                 <p className="text-[11px] text-amber-600 dark:text-amber-400 font-bold">
@@ -235,3 +366,4 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     </div>
   );
 };
+

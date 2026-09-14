@@ -44,29 +44,29 @@ export const Design6LiveDisplayBanner: React.FC<Design6LiveDisplayBannerProps> =
   const formattedInvoiceNo = String(invoiceNumber || '1').padStart(7, '0');
 
   return (
-    <div className="w-full bg-[#050811] px-4 py-2 flex items-center justify-between gap-4 border-b border-slate-800/80">
+    <div className="w-full bg-slate-50 dark:bg-[#050811] px-4 py-2 flex items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800/80 transition-colors">
       {/* Left: Active Receipt & Date/Clock */}
       <div className="flex items-center gap-6 min-w-[220px]">
         <div>
-          <div className="text-[12px] font-bold text-slate-400">{currentDate}</div>
-          <div className="text-[16px] font-black font-mono text-white tracking-widest leading-none mt-0.5">
+          <div className="text-[12px] font-bold text-slate-500 dark:text-slate-400">{currentDate}</div>
+          <div className="text-[16px] font-black font-mono text-slate-900 dark:text-white tracking-widest leading-none mt-0.5">
             {currentTime}
           </div>
         </div>
 
-        <div className="border-r border-slate-800 pr-4">
-          <div className="text-[10px] font-medium text-slate-400">الوصل النشط</div>
+        <div className="border-r border-slate-300 dark:border-slate-800 pr-4">
+          <div className="text-[10px] font-medium text-slate-500 dark:text-slate-400">الوصل النشط</div>
           <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="text-xs text-slate-300">رقم</span>
-            <span className="text-base font-black font-mono text-[#f59e0b] tracking-wider">
+            <span className="text-xs text-slate-600 dark:text-slate-300">رقم</span>
+            <span className="text-base font-black font-mono text-amber-600 dark:text-[#f59e0b] tracking-wider">
               {formattedInvoiceNo}
             </span>
           </div>
         </div>
       </div>
 
-      {/* Center: Giant Luminous Neon Emerald LED Total Screen */}
-      <div className="flex-1 max-w-[620px] bg-[#071311] border-2 border-emerald-900/60 rounded-2xl py-2 px-6 shadow-[inset_0_2px_12px_rgba(0,0,0,0.9)] flex items-center justify-center">
+      {/* Center: Giant Luminous Emerald LED Total Screen */}
+      <div className="flex-1 max-w-[620px] bg-slate-900 dark:bg-[#071311] border-2 border-emerald-500/40 dark:border-emerald-900/60 rounded-2xl py-2 px-6 shadow-md dark:shadow-[inset_0_2px_12px_rgba(0,0,0,0.9)] flex items-center justify-center transition-colors">
         <div className="flex items-baseline gap-2 font-mono select-none">
           <span className="text-[42px] sm:text-[50px] font-black tracking-tight text-[#10b981] drop-shadow-[0_0_25px_rgba(16,185,129,0.45)]">
             {formatMoney(totalAmount)}
@@ -84,15 +84,15 @@ export const Design6LiveDisplayBanner: React.FC<Design6LiveDisplayBannerProps> =
             <button
               type="button"
               onClick={onSelectCustomer}
-              className="h-6 px-2 bg-slate-800/90 hover:bg-slate-700 text-cyan-400 hover:text-cyan-300 rounded font-bold flex items-center gap-1 cursor-pointer transition-colors border border-slate-700/60"
+              className="h-6 px-2 bg-slate-200 hover:bg-slate-300 text-cyan-800 dark:bg-slate-800/90 dark:hover:bg-slate-700 dark:text-cyan-400 rounded font-bold flex items-center gap-1 cursor-pointer transition-colors border border-slate-300 dark:border-slate-700/60"
               title="تحديد أو تغيير الزبون (F2)"
             >
               <RefreshCw className="w-2.5 h-2.5" />
               <span>تغيير</span>
             </button>
-            <span className="text-slate-400">الزبون:</span>
+            <span className="text-slate-500 dark:text-slate-400">الزبون:</span>
           </div>
-          <div className="text-sm font-black text-white mt-0.5 text-right">
+          <div className="text-sm font-black text-slate-900 dark:text-white mt-0.5 text-right">
             {customerName}
           </div>
         </div>
@@ -100,7 +100,7 @@ export const Design6LiveDisplayBanner: React.FC<Design6LiveDisplayBannerProps> =
         <button
           type="button"
           onClick={onSelectCustomer}
-          className="w-10 h-10 rounded-full bg-[#1e293b] hover:bg-[#334155] border border-slate-700 flex items-center justify-center text-cyan-400 shadow-inner shrink-0 cursor-pointer transition-colors"
+          className="w-10 h-10 rounded-full bg-slate-200 hover:bg-slate-300 text-cyan-800 dark:bg-[#1e293b] dark:hover:bg-[#334155] dark:text-cyan-400 border border-slate-300 dark:border-slate-700 flex items-center justify-center shadow-inner shrink-0 cursor-pointer transition-colors"
           title="اختيار الزبون"
         >
           <User className="w-5 h-5" />

@@ -459,6 +459,7 @@ export const POSLayoutDispatcher: React.FC<POSLayoutDispatcherProps> = ({
         onNavigateBack={onNavigateBack}
         onOpenKeypad={onOpenKeypad}
         onOpenKeypadForQty={onOpenKeypadForQty}
+        onOpenAddProduct={onOpenAddProduct}
       />
     );
   }

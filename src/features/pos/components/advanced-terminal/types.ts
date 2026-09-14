@@ -73,4 +73,5 @@ export interface AdvancedTerminalPOSLayoutProps {
   onOpenKeypadForQty?: (item: CartItem) => void;
   viewMode?: 'grid' | 'list';
   showProductImages?: boolean;
+  onOpenAddProduct?: () => void;
 }
