@@ -47,9 +47,10 @@ export const PRINT_TRANSLATIONS: Record<string, Record<PrintLanguage, string>> =
   credit: { ar: 'آجل (دين)', fr: 'À terme (Crédit)', en: 'Credit', 'ar-fr': 'آجل / Crédit' },
   currency: { ar: 'دج', fr: 'DA', en: 'DZD', 'ar-fr': 'دج / DA' },
   wholesaleInvoice: { ar: 'فاتورة بيع بالجملة', fr: 'Facture de Vente en Gros', en: 'Wholesale Invoice', 'ar-fr': 'فاتورة بيع بالجملة / Facture Gros' },
-  colisage: { ar: 'التعبئة / الطرود', fr: 'Colisage', en: 'Packaging', 'ar-fr': 'التعبئة / Colisage' },
-  packCount: { ar: 'عدد العبوات', fr: 'Nbre Colis', en: 'Packs Qty', 'ar-fr': 'العبوات / Colis' },
-  piecesCount: { ar: 'إجمالي القطع', fr: 'Total Pièces', en: 'Total Pieces', 'ar-fr': 'القطع / Pièces' },
+  colisage: { ar: 'التعبئة (Colisage)', fr: 'Colisage', en: 'Packaging', 'ar-fr': 'التعبئة (Colisage)' },
+  packCount: { ar: 'عدد العبوات (Colis)', fr: 'Nbre Colis', en: 'Packs Qty', 'ar-fr': 'عدد العبوات (Colis)' },
+  piecesPerPack: { ar: 'قطع/عبوة (Pièces/Colis)', fr: 'Pièces/Colis', en: 'Pieces/Pack', 'ar-fr': 'قطع/عبوة (Pièces/Colis)' },
+  piecesCount: { ar: 'إجمالي القطع (Total Pièces)', fr: 'Total Pièces', en: 'Total Pieces', 'ar-fr': 'إجمالي القطع (Total Pièces)' },
   formerBalance: { ar: 'الرصيد السابق', fr: 'Ancien Solde', en: 'Previous Balance', 'ar-fr': 'الرصيد السابق / Ancien Solde' },
   newBalance: { ar: 'الرصيد الجديد', fr: 'Nouveau Solde', en: 'New Balance', 'ar-fr': 'الرصيد الجديد / Nouveau Solde' },
   paymentReceived: { ar: 'المسدد', fr: 'Versement Reçu', en: 'Payment Received', 'ar-fr': 'المسدد / Versement' },
@@ -373,10 +374,21 @@ function renderTable(b: TableBlock, ctx: DocumentContext, vars: Record<string, s
     const a = c.align === 'center' ? 'center' : isNum ? (isRtl ? 'left' : 'right') : (isRtl ? 'right' : 'left');
 
     let label = c.label;
-    if (c.key === 'name') label = t('item', lang);
-    else if (c.key === 'qty') label = t('qty', lang);
-    else if (c.key === 'unitPrice') label = t('unitPrice', lang);
-    else if (c.key === 'lineTotal') label = t('total', lang);
+    if (!label) {
+      if (c.key === 'name') label = t('item', lang);
+      else if (c.key === 'qty') label = t('qty', lang);
+      else if (c.key === 'unitPrice') label = t('unitPrice', lang);
+      else if (c.key === 'lineTotal') label = t('total', lang);
+      else if (c.key === 'packUnit') label = t('colisage', lang);
+      else if (c.key === 'packQty') label = t('packCount', lang);
+      else if (c.key === 'piecesPerPack') label = t('piecesPerPack', lang);
+      else label = c.key;
+    } else if (lang !== 'ar' && !label.includes('(') && !label.includes('/')) {
+      if (c.key === 'name' && (label === 'المنتج' || label === 'الصنف')) label = t('item', lang);
+      else if (c.key === 'qty' && label === 'الكمية') label = t('qty', lang);
+      else if (c.key === 'unitPrice' && (label === 'السعر' || label === 'سعر الوحدة')) label = t('unitPrice', lang);
+      else if (c.key === 'lineTotal' && (label === 'الإجمالي' || label === 'المجموع')) label = t('total', lang);
+    }
 
     const thStyle =
       'text-align:' +

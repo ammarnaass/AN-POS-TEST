@@ -91,8 +91,31 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
         (!['1', '2', '4'].includes(priceTier || '') && docType === 'wholesale');
       const resolvedDocType: DocType = isWholesaleSale ? 'wholesale' : 'facture';
 
+      // إثراء عناصر السلة ببيانات العبوات والتعبئة التلقائية لضمان حفظها وظهورها في كافة فواتير الجملة
+      const enrichedCart = cart.map((item) => {
+        const prod = products?.find((p: any) => p.id === item.productId);
+        const pk = packs?.find((p: any) => p.id === item.packId || item.productId === `pack-${p.id}`);
+        const pkgSize = prod?.packageSize ? parseInt(prod.packageSize, 10) : 0;
+        const piecesCount = Number(item.packPiecesCount || pk?.piecesCount || (pkgSize > 0 ? pkgSize : 0) || 1);
+        const unitName = String(item.packUnit || pk?.unitName || prod?.unit || (piecesCount > 1 ? 'طرد' : 'قطعة'));
+        const isPack = Boolean(item.isPack || pk || piecesCount > 1);
+
+        const packQty = item.packQty || (isWholesaleSale ? item.qty : (piecesCount > 1 ? Math.max(1, Math.round(item.qty / piecesCount)) : 1));
+        const packMode = item.packMode || (isWholesaleSale ? 'wholesale_packs' : (isPack ? 'wholesale_packs' : undefined));
+
+        return {
+          ...item,
+          isPack,
+          packPiecesCount: piecesCount,
+          packUnit: unitName,
+          packQty,
+          packMode,
+          pricingType: item.pricingType || (isWholesaleSale ? 'wholesale' : 'retail'),
+        };
+      });
+
       const baseSale = createSale(
-        cart,
+        enrichedCart,
         saleSummary.subtotal,
         discount,
         discountType,
@@ -114,10 +137,11 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
         customerName,
         note: note || '',
         paidAmount: effectivePaidAmount,
+        items: enrichedCart,
       };
 
       // تحضير سجلات عناصر البيع المنفردة لـ sale_items
-      const saleItemEntities: SaleItemEntity[] = cart.map((item) => ({
+      const saleItemEntities: SaleItemEntity[] = enrichedCart.map((item) => ({
         id: createId(),
         saleId: sale.id,
         productId: item.productId,
@@ -137,7 +161,7 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
           date: sale.date,
           docType: sale.docType,
           type: sale.type,
-          items: cart,
+          items: enrichedCart,
           subtotal: sale.subtotal,
           discount: sale.discount,
           discountType: sale.discountType,
@@ -161,7 +185,7 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
 
         // تحديث كاش الفاتورة والمنتجات محلياً فوراً لضمان عدم تأخر الواجهة
         await db.sales.put(sale as any).catch(() => {});
-        for (const item of cart) {
+        for (const item of enrichedCart) {
           if (item.isPack && item.packId) {
             const pack = packs.find((p) => p.id === item.packId);
             if (pack) {
@@ -213,7 +237,7 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
             }
 
             // 2. تحديث المخزون وسجل الحركات
-            for (const item of cart) {
+            for (const item of enrichedCart) {
               if (item.isPack && item.packId) {
                 const pack = packs.find((p) => p.id === item.packId);
                 if (pack) {

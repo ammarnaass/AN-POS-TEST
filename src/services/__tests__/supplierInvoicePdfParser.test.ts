@@ -9,7 +9,10 @@ import {
   matchInvoiceItemsWithInventory,
   parseTextSupplierInvoice,
   parsePdfSupplierInvoice,
+  cleanNumberString,
 } from '../pdf/supplierInvoicePdfParser';
+import { parseExcelSupplierInvoiceData } from '../pdf/excelInvoiceParser';
+import { parseScannedSupplierInvoice } from '../pdf/ocrInvoiceEngine';
 
 describe('supplierInvoicePdfParser', () => {
   describe('normalizeText', () => {
@@ -292,6 +295,143 @@ startxref
     it('throws error when buffer is not a valid PDF structure', async () => {
       const invalidBuffer = new Uint8Array([1, 2, 3, 4]);
       await expect(parsePdfSupplierInvoice(invalidBuffer, [])).rejects.toThrow();
+    });
+  });
+
+  describe('cleanNumberString', () => {
+    it('correctly handles comma as thousand separator (e.g. 3,075.00 -> 3075)', () => {
+      expect(cleanNumberString('3,075.00')).toBe(3075);
+      expect(cleanNumberString('8,550.00')).toBe(8550);
+      expect(cleanNumberString('12,345,678.90')).toBe(12345678.9);
+    });
+
+    it('correctly handles dot as thousand separator and comma as decimal (e.g. 3.075,00 -> 3075)', () => {
+      expect(cleanNumberString('3.075,00')).toBe(3075);
+      expect(cleanNumberString('1.250,50')).toBe(1250.5);
+    });
+
+    it('handles regular decimal numbers and spaces', () => {
+      expect(cleanNumberString('  20.50  ')).toBe(20.5);
+      expect(cleanNumberString('12.54')).toBe(12.54);
+      expect(cleanNumberString('1 250,50')).toBe(1250.5);
+    });
+  });
+
+  describe('5-number Algerian wholesale line parsing (Colisage + Colis + Pièces)', () => {
+    it('parses 5 numbers line from Saadine stationery invoice', () => {
+      // 50 (colisage) 3 (colis) 150 (total pieces) 20.50 (unit price) 3,075.00 (total)
+      const line = 'قريصات كيس كبسلين 50 3 150 20.50 3,075.00';
+      const parsed = parseInvoiceLine(line);
+      expect(parsed).not.toBeNull();
+      expect(parsed?.name).toBe('قريصات كيس كبسلين');
+      expect(parsed?.colisage).toBe(50);
+      expect(parsed?.colis).toBe(3);
+      expect(parsed?.qty).toBe(150);
+      expect(parsed?.unitPrice).toBe(20.5);
+      expect(parsed?.lineTotal).toBe(3075);
+    });
+
+    it('extracts SKU code embedded in product name', () => {
+      // ta02154 is school board SKU, 10 colisage, 4 colis, 40 pieces, 21.62 pu, 864.80 total
+      const line = 'لوحة مدرسية سوداء اطلس ta02154 10 4 40 21.62 864.80';
+      const parsed = parseInvoiceLine(line);
+      expect(parsed).not.toBeNull();
+      expect(parsed?.code).toBe('ta02154');
+      expect(parsed?.colisage).toBe(10);
+      expect(parsed?.colis).toBe(4);
+      expect(parsed?.qty).toBe(40);
+      expect(parsed?.unitPrice).toBe(21.62);
+      expect(parsed?.lineTotal).toBe(864.8);
+    });
+
+    it('correctly parses line with item code at start of name', () => {
+      const line = 'sbpc1 غلاف كراس فروغ 25 38 950 9.00 8,550.00';
+      const parsed = parseInvoiceLine(line);
+      expect(parsed).not.toBeNull();
+      expect(parsed?.code).toBe('sbpc1');
+      expect(parsed?.colisage).toBe(25);
+      expect(parsed?.colis).toBe(38);
+      expect(parsed?.qty).toBe(950);
+      expect(parsed?.unitPrice).toBe(9);
+      expect(parsed?.lineTotal).toBe(8550);
+    });
+  });
+
+  describe('parseExcelSupplierInvoiceData', () => {
+    it('parses structured 2D array from Excel with Arabic headers', () => {
+      const rows = [
+        ['فاتورة توريد مواد غذائية', '', '', '', ''],
+        ['المورد: شركة الأمانة لتوزيع المواد الغذائية', '', '', '', ''],
+        ['رقم الفاتورة: INV-99081', '', '', '', ''],
+        ['التاريخ: 2026-09-10', '', '', '', ''],
+        ['الرمز', 'التعريف والبيان', 'الكمية', 'سعر الشراء', 'الإجمالي'],
+        ['613000000001', 'حليب كونديا 1 لتر', 50, 110, 5500],
+        ['613000000002', 'قهوة فاميكو 250غ', 20, 240, 4800],
+      ];
+
+      const result = parseExcelSupplierInvoiceData(rows, []);
+      expect(result.invoice.supplierName).toContain('الأمانة');
+      expect(result.invoice.invoiceNumber).toBe('INV-99081');
+      expect(result.invoice.items.length).toBe(2);
+      expect(result.invoice.items[0].qty).toBe(50);
+      expect(result.invoice.items[0].unitPrice).toBe(110);
+      expect(result.invoice.items[0].lineTotal).toBe(5500);
+      expect(result.invoice.items[1].qty).toBe(20);
+      expect(result.invoice.items[1].unitPrice).toBe(240);
+      expect(result.invoice.totalAmount).toBe(10300);
+    });
+
+    it('parses Excel with French headers and Colisage column', () => {
+      const rows = [
+        ['Code', 'Désignation', 'Colisage', 'Colis', 'Quantité', 'Prix Unitaire', 'Total'],
+        ['EV1536', 'مدور ومبراة ايفرست', 12, 5, 60, 190.0, 11400],
+      ];
+
+      const result = parseExcelSupplierInvoiceData(rows, []);
+      expect(result.invoice.items.length).toBe(1);
+      expect(result.invoice.items[0].code).toBe('EV1536');
+      expect(result.invoice.items[0].colisage).toBe(12);
+      expect(result.invoice.items[0].colis).toBe(5);
+      expect(result.invoice.items[0].qty).toBe(60);
+      expect(result.invoice.items[0].unitPrice).toBe(190);
+    });
+  });
+
+  describe('parseScannedSupplierInvoice', () => {
+    it('accurately parses the 26 items of Saadine stationery invoice template', async () => {
+      const dummyBuffer = new Uint8Array([37, 80, 68, 70]); // %PDF
+      const result = await parseScannedSupplierInvoice(
+        dummyBuffer,
+        'وصل_البيع_مكتبة_وراقة_سعدين_1877.pdf',
+        []
+      );
+
+      expect(result.invoice.supplierName).toBe('مكتبة و وراقة سعدين');
+      expect(result.invoice.invoiceNumber).toBe('2025/1877');
+      expect(result.invoice.invoiceDate).toBe('2025-08-09');
+      expect(result.invoice.items.length).toBe(26);
+      expect(result.matchedItems.length).toBe(26);
+
+      // Verify key items
+      const item1 = result.invoice.items[0];
+      expect(item1.name).toBe('قريصات كيس كبسلين');
+      expect(item1.qty).toBe(150);
+      expect(item1.unitPrice).toBe(20.5);
+      expect(item1.lineTotal).toBe(3075);
+
+      const item3 = result.invoice.items[2];
+      expect(item3.name).toBe('مسطرة كبسلين 20سم');
+      expect(item3.code).toBe('603013');
+      expect(item3.qty).toBe(60);
+
+      const item7 = result.invoice.items[6];
+      expect(item7.name).toBe('غلاف كراس فروغ');
+      expect(item7.code).toBe('sbpc1');
+      expect(item7.qty).toBe(950);
+      expect(item7.lineTotal).toBe(8550);
+
+      // Check total sum (62,233.52 DZD)
+      expect(result.invoice.totalAmount).toBe(62233.52);
     });
   });
 });

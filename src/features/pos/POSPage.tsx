@@ -538,7 +538,7 @@ export default function POSPage() {
       createdBy: currentUser?.name || '',
     };
     db.suspended_orders.add(newOrder).then(() => {
-      refetchSuspended();
+      refetchSuspended?.();
       setSelectedCustomer('');
       setDiscount(0);
       clearCart();
@@ -582,7 +582,7 @@ export default function POSPage() {
     setDiscount(order.discount || 0);
     setDiscountType(order.discountType || 'percent');
     db.suspended_orders.delete(order.id).then(() => {
-      refetchSuspended();
+      refetchSuspended?.();
     });
     modals.setShowSuspended(false);
     addNotification({ title: 'تم استرجاع الفاتورة', message: 'تم تحميل الأصناف للسلة بنجاح', type: 'success' });
@@ -590,7 +590,7 @@ export default function POSPage() {
 
   const handleDeleteSuspendedOrder = (orderId: string) => {
     db.suspended_orders.delete(orderId).then(() => {
-      refetchSuspended();
+      refetchSuspended?.();
       addNotification({ title: 'تم الحذف', message: 'تم حذف الفاتورة المعلقة بنجاح', type: 'info' });
     });
   };
@@ -842,7 +842,7 @@ export default function POSPage() {
         style={canvasStyle}
       >
         {/* TOP BAR & SUBHEADER ACTIONS (Rendered in non-fullscreen layouts) */}
-        {posLayout !== 'modern' && posLayout !== 'sidebar' && posLayout !== 'terminal' && (
+        {posLayout !== 'modern' && posLayout !== 'sidebar' && posLayout !== 'terminal' && posLayout !== 'advanced' && (
           <POSTopBar
             currentUser={currentUser}
             trial={trial}

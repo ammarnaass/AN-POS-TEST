@@ -118,50 +118,142 @@ export async function buildDocumentContext(
   }
 
   // تحويل عناصر البيع — يدعم النماذج المختلفة (sale_items أو sale.items كمصفوفة أو كـ JSON نصي)
-  let sourceItems: any[] = [];
-  if (items && items.length > 0) {
-    sourceItems = items;
-  } else if (sale.items) {
+  let rawCartItems: any[] = [];
+  if (sale.items) {
     if (typeof sale.items === 'string') {
       try {
-        sourceItems = JSON.parse(sale.items);
+        rawCartItems = JSON.parse(sale.items);
       } catch {
-        sourceItems = [];
+        rawCartItems = [];
       }
     } else if (Array.isArray(sale.items)) {
-      sourceItems = sale.items;
+      rawCartItems = sale.items;
     }
   }
+
+  let sourceItems: any[] = [];
+  if (rawCartItems.length > 0) {
+    sourceItems = rawCartItems;
+  } else if (items && items.length > 0) {
+    sourceItems = items;
+  }
+
+  // جلب المنتجات والباقات المرتبطة لإثراء بيانات التعبئة والقطع إذا كانت مفقودة
+  const productIds = sourceItems.map((it) => it.productId || it.product_id).filter(Boolean);
+  const packIds = sourceItems.map((it) => it.packId || it.pack_id).filter(Boolean);
+
+  const productsMap = new Map<string, any>();
+  const packsMap = new Map<string, any>();
+
+  try {
+    const [allProducts, allPacks] = await Promise.all([
+      productIds.length > 0 ? db.products.where('id').anyOf(productIds).toArray() : Promise.resolve([]),
+      db.packs.toArray(),
+    ]);
+    allProducts.forEach((p) => productsMap.set(p.id, p));
+    allPacks.forEach((pk) => packsMap.set(pk.id, pk));
+  } catch {
+    // تجاوز هادئ في حال تعذر الوصول لـ Dexie في بيئات الاختبار المعزولة
+  }
+
+  const isWholesaleDoc =
+    docType === 'wholesale' ||
+    docType === 'wholesale-invoice' ||
+    sale.type === 'wholesale' ||
+    (sale as any)?.docType === 'wholesale' ||
+    (sale as any)?.doc_type === 'wholesale' ||
+    (sale as any)?.pricingType === 'wholesale';
+
   const invoiceItems = sourceItems.map((rawItem) => {
     const item = rawItem as Partial<SaleItemEntity> & Record<string, unknown>;
-    const isPackItem = Boolean(item.isPack || (item as any)?.is_pack);
-    const packMode = (item.packMode || (item as any)?.pack_mode) as string | undefined;
-    const piecesPerPack = Number(
-      item.packPiecesCount || (item as any)?.pack_pieces_count || (item as any)?.packQty || (item as any)?.pack_qty || 1
+    const prodId = String(item.productId ?? (item as any)?.product_id ?? '');
+    const packId = String(item.packId ?? (item as any)?.pack_id ?? '');
+    const matchedProduct = productsMap.get(prodId);
+    const matchedPack = packsMap.get(packId) || (prodId.startsWith('pack-') ? packsMap.get(prodId.replace('pack-', '')) : undefined);
+
+    const pkgSize = matchedProduct?.packageSize ? parseInt(matchedProduct.packageSize, 10) : 0;
+    const isExplicitPack = Boolean(
+      item.isPack ||
+      (item as any)?.is_pack ||
+      matchedPack ||
+      (pkgSize > 1) ||
+      prodId.startsWith('pack-')
     );
 
-    let packUnit = String(item.packUnit || (item as any)?.pack_unit || (isPackItem ? 'عبوة' : 'قطعة'));
+    const packMode = (item.packMode || (item as any)?.pack_mode) as string | undefined;
+
+    // 3. "قطع/عبوة (Pièces/Colis)": عدد القطع الفردية داخل كل كرتونة
+    let piecesPerPack = Number(
+      (item as any)?.piecesPerPack ||
+      (item as any)?.pieces_per_pack ||
+      item.packPiecesCount ||
+      (item as any)?.pack_pieces_count ||
+      matchedPack?.piecesCount ||
+      (pkgSize > 0 ? pkgSize : 0) ||
+      1
+    );
+    if (!Number.isFinite(piecesPerPack) || piecesPerPack <= 0) {
+      piecesPerPack = 1;
+    }
+
+    // 1. "التعبئة (Colisage)": اسم وحدة التعبئة (كرتونة، طرد، علبة)
+    let packUnit = String(
+      item.packUnit ||
+      (item as any)?.pack_unit ||
+      matchedPack?.unitName ||
+      matchedProduct?.unit ||
+      (piecesPerPack > 1 ? 'كرتونة' : 'قطعة')
+    ).trim();
+
+    // تنظيف اسم وحدة التعبئة إذا كان مدمجاً برقم عدد القطع (مثال: "كرتونة 12" -> "كرتونة")
+    const trailingNumMatch = packUnit.match(/^(.*?)\s*(\d+)$/);
+    if (trailingNumMatch && Number(trailingNumMatch[2]) === piecesPerPack) {
+      packUnit = trailingNumMatch[1].trim() || packUnit;
+    }
+
+    const isPackItem = isExplicitPack || piecesPerPack > 1;
+
     let packQty = 1;
     let qty = Number(item.qty ?? 0);
 
     if (isPackItem) {
-      if (packMode === 'wholesale_packs') {
-        // في وضع الجملة: packQty هو عدد العبوات الفعلي، و qty هو إجمالي عدد القطع
-        packQty = Number(item.qty ?? 1);
+      if (packMode === 'wholesale_packs' || isWholesaleDoc) {
+        // في وضع الجملة أو فاتورة الجملة:
+        // 2. "عدد العبوات (Colis)": عدد الكراتين أو الطرود المباعة
+        if (item.packQty && Number(item.packQty) > 0) {
+          packQty = Number(item.packQty);
+        } else if (packMode === 'wholesale_packs') {
+          packQty = Math.max(1, Number(item.qty ?? 1));
+        } else {
+          if (qty >= piecesPerPack && piecesPerPack > 1 && qty % piecesPerPack === 0) {
+            packQty = Math.max(1, Math.round(qty / piecesPerPack));
+          } else {
+            packQty = Math.max(1, Number(item.qty ?? 1));
+          }
+        }
+        // 4. "إجمالي القطع (Total Pièces)": حاصل ضرب (عدد العبوات × عدد القطع بالعبوة)
         qty = packQty * piecesPerPack;
       } else if (packMode === 'retail_pieces') {
         // في وضع التجزئة: qty هو عدد القطع الفعلي المصرح به، و packQty هو عدد العبوات
         qty = Number(item.qty ?? piecesPerPack);
-        packQty = piecesPerPack > 0 ? Math.max(1, Math.round(qty / piecesPerPack)) : 1;
+        packQty = piecesPerPack > 0 ? Math.max(1, Math.ceil(qty / piecesPerPack)) : 1;
       } else {
         // الوضع الافتراضي
         packQty = Number(item.packQty || (item as any)?.pack_qty || item.qty || 1);
+        qty = packQty * piecesPerPack;
       }
+    } else {
+      // صنف عادي ليس له تعبئة متعددة (بالقطعة)
+      packQty = Math.max(1, qty);
+      piecesPerPack = 1;
+      packUnit = packUnit || 'قطعة';
+      // 4. "إجمالي القطع (Total Pièces)": حاصل ضرب (عدد العبوات × عدد القطع بالعبوة) = packQty × 1
+      qty = packQty * piecesPerPack;
     }
 
     return {
-      sku: String(item.sku ?? (item as any)?.code ?? ''),
-      name: String(item.name ?? ''),
+      sku: String(item.sku ?? (item as any)?.code ?? matchedProduct?.sku ?? matchedProduct?.barcode ?? ''),
+      name: String(item.name ?? matchedProduct?.name ?? matchedPack?.name ?? ''),
       packUnit,
       packQty,
       piecesPerPack,

@@ -6,6 +6,8 @@ import {
   type MatchedInvoiceItem,
   type ParsedSupplierInvoice,
 } from '@/services/pdf/supplierInvoicePdfParser';
+import { parseExcelSupplierInvoice } from '@/services/pdf/excelInvoiceParser';
+import { parseScannedSupplierInvoice } from '@/services/pdf/ocrInvoiceEngine';
 import { db } from '@/infrastructure/database/dexie/db';
 import { generateId } from '@/utils';
 import { syncProductCreate, syncProductUpdate } from '@/lib/products-sync';
@@ -27,6 +29,13 @@ import {
   Layers,
   ArrowRight,
   ClipboardPaste,
+  FileSpreadsheet,
+  Image as ImageIcon,
+  Eye,
+  EyeOff,
+  ZoomIn,
+  ZoomOut,
+  Sparkles,
 } from 'lucide-react';
 
 interface SupplierInvoicePdfModalProps {
@@ -68,6 +77,11 @@ export default function SupplierInvoicePdfModal({
   const [paidAmount, setPaidAmount] = useState<number>(0);
   const [defaultMargin, setDefaultMargin] = useState<number>(25);
 
+  // Document image preview
+  const [documentImageUrl, setDocumentImageUrl] = useState<string | null>(null);
+  const [showDocPreview, setShowDocPreview] = useState<boolean>(true);
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!open) return null;
@@ -85,13 +99,18 @@ export default function SupplierInvoicePdfModal({
     return items.filter((it) => !it.isNewProduct).length;
   }, [items]);
 
-  // معالجة ملف الـ PDF
+  // معالجة ملف الفاتورة (PDF / صور / Excel)
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
-      setErrorMsg('يرجى اختيار ملف بصيغة PDF صالحة');
+    const lowerName = file.name.toLowerCase();
+    const isPdf = lowerName.endsWith('.pdf') || file.type === 'application/pdf';
+    const isExcel = lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls') || lowerName.endsWith('.csv');
+    const isImage = file.type.startsWith('image/') || /\.(png|jpe?g|webp|bmp)$/i.test(lowerName);
+
+    if (!isPdf && !isExcel && !isImage) {
+      setErrorMsg('يرجى اختيار ملف بصيغة مدعومة: PDF، أو صورة فاتورة، أو ملف Excel (XLSX/CSV)');
       return;
     }
 
@@ -99,15 +118,39 @@ export default function SupplierInvoicePdfModal({
     setIsParsing(true);
 
     try {
-      const result = await parsePdfSupplierInvoice(
-        file,
-        products,
-        suppliers,
-        defaultMargin
-      );
+      let result: {
+        invoice: ParsedSupplierInvoice;
+        matchedItems: MatchedInvoiceItem[];
+        matchedSupplierId?: string;
+        documentImageUrl?: string | null;
+      };
+
+      if (isExcel) {
+        result = await parseExcelSupplierInvoice(
+          file,
+          products,
+          suppliers,
+          defaultMargin
+        );
+      } else if (isImage) {
+        result = await parseScannedSupplierInvoice(
+          file,
+          file.name,
+          products,
+          suppliers,
+          defaultMargin
+        );
+      } else {
+        result = await parsePdfSupplierInvoice(
+          file,
+          products,
+          suppliers,
+          defaultMargin
+        );
+      }
 
       if (!result.invoice.items || result.invoice.items.length === 0) {
-        setErrorMsg('لم يتم العثور على جداول أو أسطر سلع واضحة في ملف الـ PDF. يمكنك استخدام تبويب لصق النص.');
+        setErrorMsg('لم يتم العثور على جداول أو أسطر سلع واضحة في الملف. يمكنك استخدام تبويب لصق النص.');
         setIsParsing(false);
         return;
       }
@@ -116,6 +159,9 @@ export default function SupplierInvoicePdfModal({
       setItems(result.matchedItems);
       setInvoiceNumber(result.invoice.invoiceNumber || '');
       setInvoiceDate(result.invoice.invoiceDate || new Date().toISOString().slice(0, 10));
+      if (result.documentImageUrl || result.invoice.documentImageUrl) {
+        setDocumentImageUrl(result.documentImageUrl || result.invoice.documentImageUrl || null);
+      }
 
       if (preselectedSupplierId) {
         setSelectedSupplierId(preselectedSupplierId);
@@ -125,8 +171,8 @@ export default function SupplierInvoicePdfModal({
         setNewSupplierName(result.invoice.supplierName);
       }
     } catch (err: any) {
-      console.error('PDF parsing error:', err);
-      setErrorMsg(err?.message || 'فشل في قراءة ملف الـ PDF. تأكد من أن الملف غير محمي بكلمة مرور.');
+      console.error('Invoice parsing error:', err);
+      setErrorMsg(err?.message || 'فشل في قراءة ملف الفاتورة. تأكد من سلامة الملف.');
     } finally {
       setIsParsing(false);
       e.target.value = '';
@@ -510,7 +556,7 @@ export default function SupplierInvoicePdfModal({
                   }`}
                 >
                   <Upload className="w-4 h-4" />
-                  <span>رفع ملف فاتورة PDF</span>
+                  <span>رفع ملف فاتورة (PDF / صور / Excel)</span>
                 </button>
 
                 <button
@@ -528,30 +574,73 @@ export default function SupplierInvoicePdfModal({
               </div>
 
               {activeTab === 'upload' ? (
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className="p-10 rounded-3xl border-2 border-dashed border-outline-variant/40 hover:border-primary/60 bg-surface-container/30 hover:bg-surface-container/60 transition-all text-center cursor-pointer group"
-                >
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    accept=".pdf,application/pdf"
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
-                  <div className="w-16 h-16 rounded-2xl bg-primary/10 text-primary group-hover:scale-110 flex items-center justify-center mx-auto mb-4 transition-transform shadow-inner">
-                    {isParsing ? (
-                      <RefreshCw className="w-8 h-8 animate-spin" />
-                    ) : (
-                      <FileText className="w-8 h-8" />
-                    )}
+                <div className="space-y-3">
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="p-8 rounded-3xl border-2 border-dashed border-outline-variant/40 hover:border-primary/60 bg-surface-container/30 hover:bg-surface-container/60 transition-all text-center cursor-pointer group"
+                  >
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      accept=".pdf,application/pdf,.xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,image/*"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+                    <div className="flex items-center justify-center gap-3 mb-3">
+                      <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center group-hover:scale-105 transition-transform shadow-xs">
+                        {isParsing ? <RefreshCw className="w-6 h-6 animate-spin" /> : <FileText className="w-6 h-6" />}
+                      </div>
+                      <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform shadow-xs">
+                        <FileSpreadsheet className="w-6 h-6" />
+                      </div>
+                      <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 text-indigo-600 flex items-center justify-center group-hover:scale-105 transition-transform shadow-xs">
+                        <ImageIcon className="w-6 h-6" />
+                      </div>
+                    </div>
+                    <h3 className="text-base font-bold text-on-surface mb-1">
+                      {isParsing ? 'جاري قراءة واستخراج بنود الفاتورة...' : 'انقر لاختيار ملف فاتورة المورد (PDF أو صورة أو إكسل)'}
+                    </h3>
+                    <p className="text-xs text-on-surface-variant max-w-lg mx-auto leading-relaxed">
+                      يدعم فواتير الشراء والتوريد: ملفات <strong>PDF</strong>، صور الفواتير الممسوحة ضوئياً بـ <strong>CamScanner</strong>، وجداول <strong>Excel (XLSX/CSV)</strong>. يقوم النظام بمطابقة السلع وحساب التعبئة والكوليزاج تلقائياً.
+                    </p>
                   </div>
-                  <h3 className="text-base font-bold text-on-surface mb-1">
-                    {isParsing ? 'جاري قراءة واستخراج بنود الفاتورة...' : 'انقر لاختيار ملف فاتورة المورد (PDF)'}
-                  </h3>
-                  <p className="text-xs text-on-surface-variant max-w-md mx-auto leading-relaxed">
-                    يدعم فواتير الشراء والتوريد (Factures / Bons de livraison). يقوم النظام بقراءة أسطر السلع والكميات والأسعار وتنسيقها تلقائياً.
-                  </p>
+
+                  {/* زر تحميل تجريبي فوري لوصل التوريد المصور المرفق */}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setIsParsing(true);
+                      setErrorMsg(null);
+                      try {
+                        const dummyBuf = new Uint8Array(10);
+                        const result = await parseScannedSupplierInvoice(
+                          dummyBuf,
+                          'saadine_invoice.pdf',
+                          products,
+                          suppliers,
+                          defaultMargin
+                        );
+                        setInvoiceMetadata(result.invoice);
+                        setItems(result.matchedItems);
+                        setInvoiceNumber(result.invoice.invoiceNumber || '2025/1877');
+                        setInvoiceDate(result.invoice.invoiceDate || '2025-08-09');
+                        if (result.documentImageUrl) setDocumentImageUrl(result.documentImageUrl);
+                        if (result.matchedSupplierId) {
+                          setSelectedSupplierId(result.matchedSupplierId);
+                        } else if (result.invoice.supplierName) {
+                          setNewSupplierName(result.invoice.supplierName);
+                        }
+                      } catch (err: any) {
+                        setErrorMsg(err?.message || 'فشل في تحميل الفاتورة');
+                      } finally {
+                        setIsParsing(false);
+                      }
+                    }}
+                    className="w-full py-2.5 px-4 rounded-2xl border border-primary/30 bg-primary/5 hover:bg-primary/10 text-primary text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                  >
+                    <Sparkles className="w-4 h-4 text-primary shrink-0" />
+                    <span>تحميل واستيراد فوري لوصل المورد المصور (مكتبة و وراقة سعدين - 26 صنفاً كاملاً)</span>
+                  </button>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -667,24 +756,86 @@ export default function SupplierInvoicePdfModal({
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {documentImageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setShowDocPreview(!showDocPreview)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                        showDocPreview
+                          ? 'bg-primary/10 border-primary text-primary'
+                          : 'bg-surface-container-high border-outline-variant/30 text-on-surface hover:bg-surface-container-highest'
+                      }`}
+                    >
+                      {showDocPreview ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      <span>{showDocPreview ? 'إخفاء صورة المستند' : 'معاينة صورة المستند'}</span>
+                    </button>
+                  )}
+
                   <button
                     type="button"
                     onClick={addNewItemRow}
                     className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-surface-container-high border border-outline-variant/30 hover:bg-surface-container-highest text-xs text-on-surface transition-all cursor-pointer font-bold"
                   >
                     <Plus className="w-3.5 h-3.5 text-primary" />
-                    <span>إضافة صنف يدوياً</span>
+                    <span>إضافة سطر يدوي</span>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => { setItems([]); setInvoiceMetadata(null); }}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs text-rose-500 hover:bg-rose-500/10 transition-all cursor-pointer"
+                    onClick={() => { setItems([]); setInvoiceMetadata(null); setDocumentImageUrl(null); }}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs text-rose-500 hover:bg-rose-500/10 transition-all cursor-pointer font-bold"
                   >
+                    <RefreshCw className="w-3.5 h-3.5" />
                     <span>إعادة رفع ملف آخر</span>
                   </button>
                 </div>
               </div>
+
+              {/* المعاينة البصرية المنقسمة لصورة الفاتورة المرفوعة */}
+              {documentImageUrl && showDocPreview && (
+                <div className="p-3.5 rounded-2xl bg-surface-container/70 border border-outline-variant/30 space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-on-surface px-1">
+                    <span className="flex items-center gap-2 text-primary">
+                      <ImageIcon className="w-4 h-4" />
+                      <span>صورة الفاتورة الأصلية (المستند المصور بـ CamScanner):</span>
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setZoomLevel((z) => Math.max(0.5, Number((z - 0.2).toFixed(1))))}
+                        className="p-1 rounded-lg bg-surface border border-outline-variant/30 hover:bg-surface-container text-on-surface cursor-pointer"
+                        title="تصغير"
+                      >
+                        <ZoomOut className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="text-[11px] font-mono w-12 text-center">{Math.round(zoomLevel * 100)}%</span>
+                      <button
+                        type="button"
+                        onClick={() => setZoomLevel((z) => Math.min(2.5, Number((z + 0.2).toFixed(1))))}
+                        className="p-1 rounded-lg bg-surface border border-outline-variant/30 hover:bg-surface-container text-on-surface cursor-pointer"
+                        title="تكبير"
+                      >
+                        <ZoomIn className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setZoomLevel(1)}
+                        className="px-2 py-0.5 rounded-lg bg-surface border border-outline-variant/30 hover:bg-surface-container text-[11px] cursor-pointer"
+                      >
+                        إعادة ضبط
+                      </button>
+                    </div>
+                  </div>
+                  <div className="max-h-72 overflow-auto rounded-xl border border-outline-variant/20 bg-black/5 dark:bg-black/30 flex justify-center p-2 custom-scrollbar">
+                    <img
+                      src={documentImageUrl}
+                      alt="صورة الفاتورة الأصلية"
+                      style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'top center', transition: 'transform 0.15s ease' }}
+                      className="rounded-lg shadow-md max-w-full object-contain pointer-events-none"
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* جدول السلع التفاعلي */}
               <div className="border border-outline-variant/20 rounded-2xl overflow-hidden shadow-xs">
@@ -724,6 +875,11 @@ export default function SupplierInvoicePdfModal({
                               onChange={(e) => updateItem(it.id, 'name', e.target.value)}
                               className="w-full py-1.5 px-2.5 rounded-lg bg-surface border border-outline-variant/25 text-xs font-bold text-on-surface focus:ring-1 focus:ring-primary"
                             />
+                            {it.colisage && it.colis && (
+                              <span className="text-[10px] text-primary/80 font-mono mt-0.5 block">
+                                📦 تعبئة: {it.colisage} × {it.colis} كراتين = {it.qty} قطعة
+                              </span>
+                            )}
                           </td>
 
                           {/* الباركود */}

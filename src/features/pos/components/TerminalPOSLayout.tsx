@@ -220,7 +220,7 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  // Keyboard Shortcuts (F1, F2, F3, F4, F6, F8, F9, F10, F12, Ctrl+D, Ctrl+E, Esc, Alt+1..4)
+  // Keyboard Shortcuts (F1, F2, F3, F4, F6, F7, F8, F9, F10, F11, F12, Ctrl+D, Delete, Ctrl+E, Esc, Alt+1..4)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ignore if inside an open input that is not barcode
@@ -231,6 +231,25 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
       if (e.key === 'F1') {
         e.preventDefault();
         if (cart.length > 0) onSettleSale();
+      } else if (e.key === 'F2') {
+        e.preventDefault();
+        onSelectCustomer();
+      } else if (e.key === 'F3') {
+        e.preventDefault();
+        barcodeInputRef.current?.focus();
+        barcodeInputRef.current?.select();
+      } else if (e.key === 'F4') {
+        e.preventDefault();
+        onOpenFreeProduct();
+      } else if (e.key === 'F6') {
+        e.preventDefault();
+        onOpenDiscount();
+      } else if (e.key === 'F7') {
+        e.preventDefault();
+        setIsPriceCheckerMode((prev) => !prev);
+        setPriceCheckerResult(null);
+        setPriceCheckerNotFound(null);
+        setTimeout(() => barcodeInputRef.current?.focus(), 50);
       } else if (e.key === 'F8') {
         e.preventDefault();
         if (cart.length > 0) onClearCart();
@@ -238,23 +257,16 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
         e.preventDefault();
         if (onNewOrder) onNewOrder();
         else if (cart.length > 0) onClearCart();
-      } else if (e.key === 'F3') {
+      } else if (e.key === 'F10') {
         e.preventDefault();
-        barcodeInputRef.current?.focus();
-        barcodeInputRef.current?.select();
-      } else if (e.key === 'F6') {
+        onOpenCustomize();
+      } else if (e.key === 'F11') {
         e.preventDefault();
-        onSelectCustomer();
-      } else if (e.key === 'F2') {
-        e.preventDefault();
-        onSelectCustomer();
+        if (onOpenKeypad) onOpenKeypad();
       } else if (e.key === 'F12') {
         e.preventDefault();
         if (cart.length > 0) onSuspendSale();
         else onOpenSuspended();
-      } else if (e.key === 'F10') {
-        e.preventDefault();
-        onOpenCustomize();
       } else if (e.key === 'Escape') {
         if (isPriceCheckerMode) {
           setIsPriceCheckerMode(false);
@@ -263,7 +275,7 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
         } else {
           onNavigateBack();
         }
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+      } else if (e.key === 'Delete' || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd')) {
         e.preventDefault();
         if (selectedCartRowId) {
           onRemoveFromCart(selectedCartRowId);
@@ -304,6 +316,8 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
     onClearCart,
     onNewOrder,
     onSelectCustomer,
+    onOpenFreeProduct,
+    onOpenDiscount,
     onSuspendSale,
     onOpenSuspended,
     onOpenCustomize,
@@ -464,10 +478,6 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
           toggleTheme={toggleTheme}
           isFullscreen={isFullscreen}
           onToggleFullscreen={onToggleFullscreen}
-          wholesaleMode={wholesaleMode}
-          toggleWholesaleMode={toggleWholesaleMode}
-          priceTier={priceTier}
-          onSelectPriceTier={handleSelectPriceTier}
         />
 
         {/* 2. MAIN CONTENT AND CORE WORKSPACE */}

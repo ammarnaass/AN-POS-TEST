@@ -548,13 +548,13 @@ export const CustomizeLayoutModal: React.FC<CustomizeLayoutModalProps> = ({
                 </div>
               </button>
 
-              {/* Option 5: تصميم 5 - كاشير التجزئة والمكتبات المتقدم */}
+              {/* Option 5: تصميم 5 - كاشير التجزئة والمكتبات */}
               <button
                 onClick={() => {
                   setPosLayout('terminal');
                   localStorage.setItem('pos_layout_mode', 'terminal');
                 }}
-                className={`p-3.5 rounded-2xl border text-right transition-all flex flex-col justify-between gap-3 cursor-pointer sm:col-span-2 ${
+                className={`p-3.5 rounded-2xl border text-right transition-all flex flex-col justify-between gap-3 cursor-pointer ${
                   posLayout === 'terminal'
                     ? 'border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/30 shadow-xs ring-2 ring-emerald-500/30'
                     : 'border-outline-variant/20 dark:border-slate-800 hover:border-emerald-400/40 bg-surface-container dark:bg-slate-800/60'
@@ -564,10 +564,10 @@ export const CustomizeLayoutModal: React.FC<CustomizeLayoutModalProps> = ({
                   <div className="flex items-center gap-2">
                     <Terminal className={`w-5 h-5 ${posLayout === 'terminal' ? 'text-emerald-600 dark:text-emerald-400' : 'text-on-surface-variant'}`} />
                     <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-bold shadow-xs">
-                      تصميم 5 جديد ★
+                      تصميم 5
                     </span>
                     <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-100/50 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded border border-emerald-300 dark:border-emerald-800">
-                      Terminal Station
+                      Terminal V1
                     </span>
                   </div>
                   <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
@@ -577,9 +577,45 @@ export const CustomizeLayoutModal: React.FC<CustomizeLayoutModalProps> = ({
                   </span>
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-on-surface dark:text-white">تصميم 5 (كاشير التجزئة والمكتبات المتقدم)</p>
+                  <p className="text-xs font-bold text-on-surface dark:text-white">تصميم 5 (كاشير التجزئة والمكتبات)</p>
                   <p className="text-[10px] text-on-surface-variant dark:text-slate-400 mt-0.5">
-                    شاشة رقمية نيون، أوامر F1-F12 سريعة، جدول أصناف مركزي، وقوائم تصنيفات عمودية مدمجة
+                    شاشة رقمية نيون، أوامر سريعة، جدول أصناف مركزي، وقوائم تصنيفات
+                  </p>
+                </div>
+              </button>
+
+              {/* Option 6: تصميم 6 - نقطة البيع المتقدمة (Advanced Terminal) */}
+              <button
+                onClick={() => {
+                  setPosLayout('advanced');
+                  localStorage.setItem('pos_layout_mode', 'advanced');
+                }}
+                className={`p-3.5 rounded-2xl border text-right transition-all flex flex-col justify-between gap-3 cursor-pointer ${
+                  posLayout === 'advanced'
+                    ? 'border-cyan-500 bg-cyan-50/20 dark:bg-cyan-950/40 shadow-xs ring-2 ring-cyan-500/40'
+                    : 'border-outline-variant/20 dark:border-slate-800 hover:border-cyan-400/40 bg-surface-container dark:bg-slate-800/60'
+                }`}
+              >
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-2">
+                    <Tv className={`w-5 h-5 ${posLayout === 'advanced' ? 'text-cyan-600 dark:text-cyan-400' : 'text-on-surface-variant'}`} />
+                    <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-bold shadow-xs">
+                      تصميم 6 المتقدم ★
+                    </span>
+                    <span className="text-[10px] font-mono text-cyan-600 dark:text-cyan-400 bg-cyan-100/50 dark:bg-cyan-950/50 px-1.5 py-0.5 rounded border border-cyan-300 dark:border-cyan-800">
+                      S19C150 Station
+                    </span>
+                  </div>
+                  <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                    posLayout === 'advanced' ? 'border-cyan-500' : 'border-outline-variant/40'
+                  }`}>
+                    {posLayout === 'advanced' && <span className="w-2 h-2 rounded-full bg-cyan-500" />}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-on-surface dark:text-white">تصميم 6 (نقطة البيع المتقدمة)</p>
+                  <p className="text-[10px] text-on-surface-variant dark:text-slate-400 mt-0.5">
+                    شاشة عملاقة نيون، 10 أزرار F1-F12، توجيه لمسي D-Pad، شبكة مفضلة 16 زراً، وحسابات فكة فورية
                   </p>
                 </div>
               </button>

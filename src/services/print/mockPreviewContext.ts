@@ -87,8 +87,9 @@ export function buildMockDocumentContext(
           {
             sku: 'REF-OIL-01',
             name: isRtl ? 'زيت المائدة العافية 5 لتر (كرتونة 4 قارورات)' : 'Huile de Table El Afia 5L (Carton 4)',
-            packUnit: isRtl ? 'كرتونة 4' : 'Carton 4',
+            packUnit: isRtl ? 'كرتونة' : 'Carton',
             packQty: 10,
+            piecesPerPack: 4,
             qty: 40,
             unitPrice: 620,
             discount: 500,
@@ -98,8 +99,9 @@ export function buildMockDocumentContext(
           {
             sku: 'REF-SUG-02',
             name: isRtl ? 'سكر أبيض سيفيتال 1 كغ (حزمة 10 كغ)' : 'Sucre Blanc Cevital 1kg (Fardeau 10)',
-            packUnit: isRtl ? 'حزمة 10' : 'Fardeau 10',
+            packUnit: isRtl ? 'حزمة' : 'Fardeau',
             packQty: 15,
+            piecesPerPack: 10,
             qty: 150,
             unitPrice: 88,
             discount: 200,
@@ -109,8 +111,9 @@ export function buildMockDocumentContext(
           {
             sku: 'REF-PAS-03',
             name: isRtl ? 'عجائن سيم كسكسي 1 كغ (صندوق 12 كغ)' : 'Couscous Sim Moyen 1kg (Caisse 12)',
-            packUnit: isRtl ? 'صندوق 12' : 'Caisse 12',
+            packUnit: isRtl ? 'صندوق' : 'Caisse',
             packQty: 8,
+            piecesPerPack: 12,
             qty: 96,
             unitPrice: 115,
             discount: 0,
@@ -120,8 +123,9 @@ export function buildMockDocumentContext(
           {
             sku: 'REF-TOM-04',
             name: isRtl ? 'طماطم مصبرة عمور 800 غ (كرتونة 12 علبة)' : 'Tomate Concentrée Amor 800g (Carton 12)',
-            packUnit: isRtl ? 'كرتونة 12' : 'Carton 12',
+            packUnit: isRtl ? 'كرتونة' : 'Carton',
             packQty: 5,
+            piecesPerPack: 12,
             qty: 60,
             unitPrice: 240,
             discount: 300,

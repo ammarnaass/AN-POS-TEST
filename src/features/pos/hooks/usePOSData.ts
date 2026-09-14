@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMemo, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/infrastructure/database/dexie/db';
 import type { Product, Customer, Supplier, Promotion, Pack, Category, Purchase, PurchaseItem, Settings, Sale, CashSession, SuspendedOrder } from '@/types';
 
@@ -84,10 +84,17 @@ export function usePOSData() {
     return allSessions.find((s) => s.status === 'open') || null;
   }, [allSessions]);
 
-  const { data: suspendedOrders = [] } = useQuery<SuspendedOrder[]>({
+  const queryClient = useQueryClient();
+
+  const { data: suspendedOrders = [], refetch } = useQuery<SuspendedOrder[]>({
     queryKey: ['suspendedOrders'],
     queryFn: () => db.suspended_orders.toArray(),
   });
+
+  const refetchSuspended = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['suspendedOrders'] });
+    return refetch();
+  }, [queryClient, refetch]);
 
   return {
     products,
@@ -105,5 +112,6 @@ export function usePOSData() {
     allSessions,
     currentSession,
     suspendedOrders,
+    refetchSuspended,
   };
 }

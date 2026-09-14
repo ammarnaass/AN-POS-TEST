@@ -254,10 +254,14 @@ export interface TemplateAssignment {
 export interface PrintHistoryRecord {
   id: string;
   invoiceId: string;
+  invoiceNumber?: string;
   invoiceType: 'sale' | 'purchase' | 'statement';
   docTypeKey: DocTypeKey;
+  docType?: DocTypeKey;
   templateId: string;
+  templateName?: string;
   printedBy: string;
+  userName?: string;
   printedAt: string;
   copies: number;
   printerName: string; // 'browser' حالياً، V2 network-printer

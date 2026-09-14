@@ -145,7 +145,7 @@ export async function parseAndAddScannedCode(
         packQty: qtyToAdd,
         packPiecesCount: pQty,
         packUnit: inMemoryPack.unitName || 'طرد',
-        packMode: isTerminal ? 'wholesale_packs' : undefined,
+        packMode: 'wholesale_packs',
         pricingType: isWholesale ? 'wholesale' : 'pack',
       });
     }
@@ -167,6 +167,8 @@ export async function parseAndAddScannedCode(
     );
     if (textMatch) {
       const price = resolveItemPrice(textMatch);
+      const tmPkgSize = textMatch.packageSize ? parseInt(textMatch.packageSize, 10) : 0;
+      const isTmPack = tmPkgSize > 1;
       ctx.addItem({
         productId: textMatch.id,
         name: textMatch.name,
@@ -178,6 +180,11 @@ export async function parseAndAddScannedCode(
         unit: textMatch.unit,
         batchNumber: textMatch.batchNumber,
         isCustom: false,
+        isPack: isTmPack,
+        packQty: isTmPack ? qtyToAdd : undefined,
+        packPiecesCount: isTmPack ? tmPkgSize : undefined,
+        packUnit: isTmPack ? (textMatch.unit || 'طرد') : undefined,
+        packMode: isTmPack ? (ctx.priceTier === '3' || ctx.forceWholesale ? 'wholesale_packs' : 'retail_pieces') : undefined,
         pricingType: ctx.priceTier === '3' || ctx.forceWholesale ? 'wholesale' : 'retail',
       });
       return { added: true, kind: 'product', name: textMatch.name, qty: qtyToAdd, price };
@@ -190,6 +197,8 @@ export async function parseAndAddScannedCode(
     const blocked = refusalReason(p, ctx.allowNegativeStock);
     if (blocked) return { added: false, message: blocked.message };
     const price = resolveItemPrice(p as Product);
+    const pkgSize = p.packageSize ? parseInt(p.packageSize, 10) : 0;
+    const isPackProd = pkgSize > 1;
     ctx.addItem({
       productId: p.id,
       name: p.name,
@@ -201,6 +210,11 @@ export async function parseAndAddScannedCode(
       unit: p.unit,
       batchNumber: p.batchNumber,
       isCustom: false,
+      isPack: isPackProd,
+      packQty: isPackProd ? qtyToAdd : undefined,
+      packPiecesCount: isPackProd ? pkgSize : undefined,
+      packUnit: isPackProd ? (p.unit || 'طرد') : undefined,
+      packMode: isPackProd ? (ctx.priceTier === '3' || ctx.forceWholesale ? 'wholesale_packs' : 'retail_pieces') : undefined,
       pricingType: ctx.priceTier === '3' || ctx.forceWholesale ? 'wholesale' : 'retail',
     });
     return { added: true, kind: 'product', name: p.name, qty: qtyToAdd, price };
@@ -227,7 +241,8 @@ export async function parseAndAddScannedCode(
       packQty: qtyToAdd,
       packPiecesCount: pQty,
       packUnit: pk.unitName || 'طرد',
-      pricingType: 'pack',
+      packMode: 'wholesale_packs',
+      pricingType: isWholesale ? 'wholesale' : 'pack',
     });
     return { added: true, kind: 'pack', name: pk.name, qty: qtyToAdd, price: pk.packPrice };
   }

@@ -25,6 +25,8 @@ export interface ParsedInvoiceItem {
   lineTotal: number;
   tva?: number;
   rawText?: string;
+  colisage?: number;
+  colis?: number;
 }
 
 export interface MatchedInvoiceItem extends ParsedInvoiceItem {
@@ -50,6 +52,7 @@ export interface ParsedSupplierInvoice {
   subtotal?: number;
   taxAmount?: number;
   rawText?: string;
+  documentImageUrl?: string | null;
 }
 
 /**
@@ -177,58 +180,145 @@ export async function extractTextLinesFromPdf(
 }
 
 /**
+ * تنظيف وتحويل السلسلة الرقمية مع معالجة فواصل الآلاف والفواصل العشرية (عربي ولاتيني)
+ */
+export function cleanNumberString(str: string): number {
+  if (!str) return NaN;
+  let cleaned = str.trim().replace(/\s+/g, '');
+
+  // إذا كانت تحتوي على فاصلة ونقطة معاً (مثل: 3,075.00 أو 3.075,00)
+  if (cleaned.includes(',') && cleaned.includes('.')) {
+    if (cleaned.indexOf(',') < cleaned.indexOf('.')) {
+      // فاصلة الآلاف أولاً ثم نقطة عشرية (3,075.00 -> 3075.00)
+      cleaned = cleaned.replace(/,/g, '');
+    } else {
+      // نقطة الآلاف أولاً ثم فاصلة عشرية (3.075,00 -> 3075.00)
+      cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+    }
+  } else if (cleaned.includes(',')) {
+    // فاصلة فقط: إذا كان بعدها رقمان تكون فاصلة عشرية، إذا كان بعدها 3 أرقام تكون فاصلة آلاف
+    const parts = cleaned.split(',');
+    if (parts.length === 2 && parts[1].length === 3 && parseInt(parts[1], 10) >= 0) {
+      cleaned = cleaned.replace(/,/g, '');
+    } else {
+      cleaned = cleaned.replace(',', '.');
+    }
+  }
+
+  return parseFloat(cleaned);
+}
+
+/**
  * تحليل وتفكيك سطر جدول الفاتورة لاستخراج الاسم والكمية وسعر الوحدة والإجمالي
+ * يدعم الأسطر الكلاسيكية (2-3 أرقام) وأسطر الجملة والكوليزاج (5 أرقام: تعبئة، كراتين، قطع، سعر، مجموع)
  */
 export function parseInvoiceLine(line: string): ParsedInvoiceItem | null {
   const trimmed = line.trim();
-  if (!trimmed || trimmed.length < 5) return null;
+  if (!trimmed || trimmed.length < 4) return null;
 
   // تجاهل أسطر الترويسات المعروفة
   const ignorePatterns = [
     /^(?:designation|d[ée]signation|article|ref|r[ée]f|code|qte|qt[ée]|quantit[ée]|p\.?u|prix|montant|total|tva|remise|تسمية|البيان|المادة|الصنف|الكمية|السعر|الوحدة|المجموع|الإجمالي|الضريبة)\b/i,
     /^(?:total\s*ttc|total\s*ht|net\s*[àa]\s*payer|tva\s*\d|solde|arr[êe]t[ée]|page\s*\d|rc\s*:|nif\s*:|nis\s*:|rib\s*:|banque)/i,
-    /^(?:المجموع\s*العام|المبلغ\s*الصافي|الرصيد|رقم\s*التسجيل|الهاتف|العنوان)/i,
+    /^(?:المجموع\s*العام|المبلغ\s*الصافي|الرصيد|رقم\s*التسجيل|الهاتف|العنوان|وصل\s*البيع|وصل\s*التسليم)/i,
   ];
 
   for (const pattern of ignorePatterns) {
     if (pattern.test(trimmed)) return null;
   }
 
-  // استخراج الأرقام من نهاية السطر (الكمية، سعر الوحدة، الإجمالي)
-  // مثال: "عصير رامي 1لتر 24 120.00 2880.00" أو "EAU MINERALE 1.5L 12 35 420"
-  // نبحث عن نمط: اسم المنتج متبوعاً بـ 2 إلى 4 أرقام
-  const tokenMatches = trimmed.match(
-    /(.+?)\s+([\d.,]+)\s+([\d.,]+)(?:\s+([\d.,]+))?(?:\s+([\d.,]+))?$/
+  // تجريد الأرقام في نهاية السطر: نبحث عن من 2 إلى 5 أرقام متتالية
+  const match5 = trimmed.match(
+    /(.+?)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)$/
   );
+  const match4 = !match5 ? trimmed.match(
+    /(.+?)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)$/
+  ) : null;
+  const match3 = !match5 && !match4 ? trimmed.match(
+    /(.+?)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)$/
+  ) : null;
+  const match2 = !match5 && !match4 && !match3 ? trimmed.match(
+    /(.+?)\s+([\d.,]+)\s+([\d.,]+)$/
+  ) : null;
 
-  if (!tokenMatches) return null;
+  let rawNamePart = '';
+  let n1 = 0, n2 = 0, n3: number | null = null, n4: number | null = null, n5: number | null = null;
 
-  const rawNamePart = tokenMatches[1].trim();
-  const rawNum1 = tokenMatches[2].replace(/\s/g, '').replace(',', '.');
-  const rawNum2 = tokenMatches[3].replace(/\s/g, '').replace(',', '.');
-  const rawNum3 = tokenMatches[4]?.replace(/\s/g, '').replace(',', '.');
-  const rawNum4 = tokenMatches[5]?.replace(/\s/g, '').replace(',', '.');
-
-  const n1 = parseFloat(rawNum1);
-  const n2 = parseFloat(rawNum2);
-  const n3 = rawNum3 ? parseFloat(rawNum3) : null;
-  const n4 = rawNum4 ? parseFloat(rawNum4) : null;
+  if (match5) {
+    rawNamePart = match5[1];
+    n1 = cleanNumberString(match5[2]);
+    n2 = cleanNumberString(match5[3]);
+    n3 = cleanNumberString(match5[4]);
+    n4 = cleanNumberString(match5[5]);
+    n5 = cleanNumberString(match5[6]);
+  } else if (match4) {
+    rawNamePart = match4[1];
+    n1 = cleanNumberString(match4[2]);
+    n2 = cleanNumberString(match4[3]);
+    n3 = cleanNumberString(match4[4]);
+    n4 = cleanNumberString(match4[5]);
+  } else if (match3) {
+    rawNamePart = match3[1];
+    n1 = cleanNumberString(match3[2]);
+    n2 = cleanNumberString(match3[3]);
+    n3 = cleanNumberString(match3[4]);
+  } else if (match2) {
+    rawNamePart = match2[1];
+    n1 = cleanNumberString(match2[2]);
+    n2 = cleanNumberString(match2[3]);
+  } else {
+    return null;
+  }
 
   if (isNaN(n1) || isNaN(n2)) return null;
 
   let qty = 1;
   let unitPrice = 0;
   let lineTotal = 0;
+  let colisage: number | undefined = undefined;
+  let colis: number | undefined = undefined;
 
-  // تحديد ترتيب الأرقام (كمية، سعر، إجمالي) أو (كود، كمية، سعر، إجمالي)
-  if (n4 !== null && n3 !== null) {
-    // 4 أرقام: غالباً (كود/مرجع، كمية، سعر وحدة، إجمالي) أو (كمية، سعر، خصم، إجمالي)
-    qty = n2;
-    unitPrice = n3;
-    lineTotal = n4;
+  if (n5 !== null && n4 !== null && n3 !== null) {
+    // 5 أرقام: النمط القياسي لفواتير الجملة والتعبئة الجزائرية:
+    // [Colisage (تعبئة)] [Colis (كراتين)] [Total Pieces (قطع)] [P.U (سعر الوحدة)] [Total (المجموع)]
+    // التحقق الرياضي: n1 * n2 == n3 && n3 * n4 == n5
+    const isColisagePattern =
+      Math.abs(n1 * n2 - n3) <= Math.max(n3 * 0.05, 1) &&
+      Math.abs(n3 * n4 - n5) <= Math.max(n5 * 0.05, 1);
+
+    if (isColisagePattern) {
+      colisage = n1;
+      colis = n2;
+      qty = n3; // إجمالي القطع الفعلية
+      unitPrice = n4;
+      lineTotal = n5;
+    } else {
+      // نمط بديل: [رقم الصنف] [الكمية] [سعر الوحدة] [خصم] [المجموع]
+      qty = n2;
+      unitPrice = n3;
+      lineTotal = n5;
+    }
+  } else if (n4 !== null && n3 !== null) {
+    // 4 أرقام:
+    // أ. فحص إذا كان نمط كوليزاج بدون مجموع: n1 * n2 == n3 (تعبئة، كراتين، إجمالي قطع، سعر وحدة)
+    if (Math.abs(n1 * n2 - n3) <= Math.max(n3 * 0.05, 0.5)) {
+      colisage = n1;
+      colis = n2;
+      qty = n3;
+      unitPrice = n4;
+      lineTotal = Number((qty * unitPrice).toFixed(2));
+    } else if (Math.abs(n2 * n3 - n4) <= Math.max(n4 * 0.05, 1)) {
+      // كود/رقم ثم (كمية، سعر، إجمالي)
+      qty = n2;
+      unitPrice = n3;
+      lineTotal = n4;
+    } else {
+      qty = n1;
+      unitPrice = n2;
+      lineTotal = n4;
+    }
   } else if (n3 !== null) {
-    // 3 أرقام: النمط الأكثر شيوعاً (الكمية، سعر الوحدة، الإجمالي)
-    // نحدد أيها الكمية بناءً على العملية الرياضية: هل n1 * n2 ≈ n3 ؟
+    // 3 أرقام: (كمية، سعر الوحدة، الإجمالي)
     const calc1 = Math.abs(n1 * n2 - n3);
     const calc2 = Math.abs(n2 * n3 - n1);
 
@@ -241,7 +331,6 @@ export function parseInvoiceLine(line: string): ParsedInvoiceItem | null {
       unitPrice = n3;
       lineTotal = n1;
     } else {
-      // افتراض أولي: كمية ثم سعر ثم إجمالي
       qty = n1;
       unitPrice = n2;
       lineTotal = n3;
@@ -256,18 +345,21 @@ export function parseInvoiceLine(line: string): ParsedInvoiceItem | null {
   // إذا كانت الكمية سالبة أو صفر أو السعر غير منطقي
   if (qty <= 0 || unitPrice <= 0) return null;
 
-  // فحص إذا كان اسم السلعة يحتوي على كود أو باركود في بدايته
+  // فحص واستخراج الكود / المرجع (من بداية أو نهاية اسم السلعة)
   let code: string | undefined = undefined;
-  let cleanedName = rawNamePart;
+  let cleanedName = rawNamePart.trim();
 
-  const codeMatch = rawNamePart.match(/^([A-Za-z0-9\-_]{3,15})\s+(.+)$/);
-  if (codeMatch && /^\d+$/.test(codeMatch[1]) && codeMatch[1].length >= 8) {
-    // يبدو كباركود EAN
-    code = codeMatch[1];
-    cleanedName = codeMatch[2];
-  } else if (codeMatch && codeMatch[1].length <= 12) {
-    code = codeMatch[1];
-    cleanedName = codeMatch[2];
+  // فحص الكود في البداية: "603013 مسطرة كبسلين"
+  const prefixCodeMatch = cleanedName.match(/^([A-Za-z0-9\-_]{3,16})\s+(.+)$/);
+  // فحص الكود في النهاية: "مسطرة كبسلين 20سم 603013" أو "غلاف كراس فروغ sbpc1"
+  const suffixCodeMatch = cleanedName.match(/^(.+?)\s+([A-Za-z0-9\-_]{3,16})$/);
+
+  if (prefixCodeMatch && (/^\d{6,14}$/.test(prefixCodeMatch[1]) || /^[A-Za-z]{1,4}\d+/.test(prefixCodeMatch[1]))) {
+    code = prefixCodeMatch[1];
+    cleanedName = prefixCodeMatch[2];
+  } else if (suffixCodeMatch && (/^\d{5,14}$/.test(suffixCodeMatch[2]) || /^[A-Za-z0-9\-_]{3,12}$/.test(suffixCodeMatch[2])) && !/^(سم|ملم|متر|كغ|غ|لتر|قطع|قطعة)$/.test(suffixCodeMatch[2])) {
+    code = suffixCodeMatch[2];
+    cleanedName = suffixCodeMatch[1];
   }
 
   // تنظيف الاسم من الأرقام المنفصلة أو الرموز في النهاية
@@ -284,6 +376,8 @@ export function parseInvoiceLine(line: string): ParsedInvoiceItem | null {
     qty,
     unitPrice: Number(unitPrice.toFixed(2)),
     lineTotal: Number(lineTotal.toFixed(2)),
+    colisage,
+    colis,
     rawText: line,
   };
 }
@@ -506,6 +600,7 @@ export function matchInvoiceItemsWithInventory(
 
 /**
  * الدالة الرئيسية: قراءة ملف PDF وتفكيكه ومطابقته مع المخزون في خطوة واحدة
+ * تدعم الفواتير الرقمية النصية وفواتير الماسح الضوئي و CamScanner المصورة
  */
 export async function parsePdfSupplierInvoice(
   fileOrBuffer: File | ArrayBuffer | Uint8Array,
@@ -516,8 +611,48 @@ export async function parsePdfSupplierInvoice(
   invoice: ParsedSupplierInvoice;
   matchedItems: MatchedInvoiceItem[];
   matchedSupplierId?: string;
+  documentImageUrl?: string | null;
 }> {
-  const lines = await extractTextLinesFromPdf(fileOrBuffer);
+  let lines: string[] = [];
+  try {
+    lines = await extractTextLinesFromPdf(fileOrBuffer);
+  } catch (err) {
+    // التحقق مما إذا كان الملف بصيغة PDF أو صورة صالحة
+    let headerBytes: Uint8Array;
+    if (fileOrBuffer instanceof File) {
+      const slice = await fileOrBuffer.slice(0, 8).arrayBuffer();
+      headerBytes = new Uint8Array(slice);
+    } else {
+      const arr = fileOrBuffer instanceof Uint8Array ? fileOrBuffer : new Uint8Array(fileOrBuffer);
+      headerBytes = arr.slice(0, 8);
+    }
+
+    const headerStr = String.fromCharCode(...headerBytes);
+    const isPdfHeader = headerStr.startsWith('%PDF');
+    const isJpeg = headerBytes[0] === 0xff && headerBytes[1] === 0xd8;
+    const isPng = headerBytes[0] === 0x89 && headerBytes[1] === 0x50; // 'P'
+    const isGif = headerStr.startsWith('GIF');
+
+    if (!isPdfHeader && !isJpeg && !isPng && !isGif) {
+      throw new Error('الملف الممرر ليس مستند PDF صالح أو صورة مدعومة.');
+    }
+    // في حال كان ملف PDF ممسوحاً ضوئياً بدون نصوص، نواصل المعالجة كمستند مصور
+    lines = [];
+  }
+
+  // إذا لم نجد أسطر نصية (ملف PDF مصور أو صورة ممسوحة ضوئياً بـ CamScanner)
+  if (!lines || lines.length === 0) {
+    const { parseScannedSupplierInvoice } = await import('./ocrInvoiceEngine');
+    const fileName = fileOrBuffer instanceof File ? fileOrBuffer.name : '';
+    return parseScannedSupplierInvoice(
+      fileOrBuffer,
+      fileName,
+      existingProducts,
+      suppliers,
+      defaultMarginPercent
+    );
+  }
+
   const invoice = parseSupplierInvoiceFromLines(lines);
 
   const { matchedItems, matchedSupplierId } = matchInvoiceItemsWithInventory(
@@ -532,6 +667,7 @@ export async function parsePdfSupplierInvoice(
     invoice,
     matchedItems,
     matchedSupplierId,
+    documentImageUrl: invoice.documentImageUrl,
   };
 }
 

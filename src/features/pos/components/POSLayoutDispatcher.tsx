@@ -6,6 +6,7 @@ import { SidebarPOSLayout } from './SidebarPOSLayout';
 import { ClassicPOSLayout } from './ClassicPOSLayout';
 import { ModernPOSLayout } from './ModernPOSLayout';
 import { TerminalPOSLayout } from './TerminalPOSLayout';
+import { AdvancedTerminalPOSLayout } from './advanced-terminal';
 import { DefaultGridPOSLayout } from './DefaultGridPOSLayout';
 
 export interface POSLayoutDispatcherProps {
@@ -349,6 +350,64 @@ export const POSLayoutDispatcher: React.FC<POSLayoutDispatcherProps> = ({
   if (posLayout === 'terminal') {
     return (
       <TerminalPOSLayout
+        cart={cart}
+        onAddToCart={onAddToCart}
+        onUpdateQty={handleItemQtyChange}
+        onRemoveFromCart={onRemoveFromCart}
+        onClearCart={onClearCart}
+        onEditPrice={onEditPrice}
+        priceTier={priceTier}
+        onSelectPriceTier={onSelectPriceTier}
+        saleSummary={saleSummary}
+        products={products as any}
+        allProducts={allProducts as any}
+        categories={categories}
+        selectedCategory={selectedCategory}
+        onSelectCategory={onSelectCategory}
+        barcodeInput={barcodeInput}
+        setBarcodeInput={setBarcodeInput}
+        onBarcodeSubmit={onBarcodeSubmit}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        onSettleSale={onSettleSale}
+        onSuspendSale={onSuspendSale}
+        onOpenSuspended={onOpenSuspended}
+        suspendedCount={suspendedCount}
+        onSelectCustomer={onSelectCustomer}
+        selectedCustomerName={selectedCustomerName}
+        autoPrintReceipt={autoPrintReceipt}
+        onToggleAutoPrint={onToggleAutoPrint}
+        onOpenDiscount={onOpenDiscount}
+        discount={discount}
+        discountType={discountType}
+        onOpenFreeProduct={onOpenFreeProduct}
+        onOpenReturns={onOpenReturns}
+        returnMode={returnMode}
+        onOpenCustomize={onOpenCustomize}
+        wholesaleMode={wholesaleMode}
+        toggleWholesaleMode={toggleWholesaleMode}
+        onSaveAsProforma={onSaveAsProforma}
+        onNewOrder={onNewOrder}
+        onOpenSalesHistory={onOpenSalesHistory}
+        invoiceNumber={1}
+        formatMoney={formatMoney}
+        currency={currency}
+        storeName={storeName}
+        userName={userName}
+        isSessionOpen={isSessionOpen}
+        isSalePending={isSalePending}
+        onToggleFullscreen={onToggleFullscreen}
+        isFullscreen={isFullscreen}
+        onNavigateBack={onNavigateBack}
+        onOpenKeypad={onOpenKeypad}
+        onOpenKeypadForQty={onOpenKeypadForQty}
+      />
+    );
+  }
+
+  if (posLayout === 'advanced') {
+    return (
+      <AdvancedTerminalPOSLayout
         cart={cart}
         onAddToCart={onAddToCart}
         onUpdateQty={handleItemQtyChange}
