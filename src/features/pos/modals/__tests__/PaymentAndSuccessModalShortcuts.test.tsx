@@ -158,5 +158,32 @@ describe('PaymentModal and SuccessModal Keyboard Shortcuts (إتمام الدف�
         expect.any(Object)
       );
     });
+
+    it('triggers wholesale-invoice on F1/P and thermal-receipt on F2 for wholesale sale', () => {
+      const onClose = vi.fn();
+      const wholesaleSale: any = {
+        id: 'sale-wholesale-99',
+        number: 102,
+        total: 50000,
+        paymentMethod: 'cash',
+        docType: 'wholesale',
+      };
+      render(<SuccessModal isOpen={true} onClose={onClose} completedSale={wholesaleSale} />);
+
+      fireEvent.keyDown(window, { key: 'F1' });
+      expect(printService.printDocument).toHaveBeenCalledWith(
+        'sale-wholesale-99',
+        'wholesale-invoice',
+        expect.any(Object)
+      );
+
+      fireEvent.keyDown(window, { key: 'F2' });
+      expect(printService.printDocument).toHaveBeenCalledWith(
+        'sale-wholesale-99',
+        'thermal-receipt',
+        expect.any(Object)
+      );
+    });
   });
 });
+

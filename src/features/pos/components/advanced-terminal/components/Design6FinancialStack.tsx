@@ -15,6 +15,7 @@ export interface Design6FinancialStackProps {
   userName?: string;
   boxName?: string;
   supportPhone?: string;
+  priceTier?: '1' | '2' | '3' | '4';
 }
 
 export const Design6FinancialStack: React.FC<Design6FinancialStackProps> = ({
@@ -31,6 +32,7 @@ export const Design6FinancialStack: React.FC<Design6FinancialStackProps> = ({
   userName = 'المسؤول',
   boxName = 'صندوق 01',
   supportPhone = '0770.539.177',
+  priceTier = '1',
 }) => {
   // Extract user initials
   const initials = userName.slice(0, 2);
@@ -107,19 +109,39 @@ export const Design6FinancialStack: React.FC<Design6FinancialStackProps> = ({
           <span className="text-xs font-black text-emerald-800 dark:text-[#34d399]">الفكة (المسترجع)</span>
         </div>
 
+        {/* Invoice Mode & Target Template Indicator */}
+        <div className={`rounded-xl px-2.5 py-1.5 flex items-center justify-between text-xs font-bold border ${
+          priceTier === '3'
+            ? 'bg-purple-50 dark:bg-purple-950/40 border-purple-300 dark:border-purple-800/60 text-purple-900 dark:text-purple-300'
+            : 'bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800/60 text-blue-900 dark:text-blue-300'
+        }`}>
+          <span className="text-[11px]">قالب الطباعة (F1):</span>
+          <span className="font-mono text-[11px]">
+            {priceTier === '3' ? 'س3: فاتورة جملة (A4/A5)' : `س${priceTier || '1'}: وصل حراري (80mm)`}
+          </span>
+        </div>
+
         {/* Primary Pay/Settle Action (F1) */}
         {onSettleSale && (
           <button
             type="button"
             onClick={onSettleSale}
-            className="w-full h-11 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white font-black text-xs rounded-xl flex items-center justify-between px-3 shadow-md shadow-emerald-950/40 border border-emerald-400/50 cursor-pointer transition-all"
-            title="تأكيد ودفع الحساب وإصدار الفاتورة (F1)"
+            className={`w-full h-11 bg-gradient-to-r ${
+              priceTier === '3'
+                ? 'from-purple-700 via-indigo-600 to-purple-600 hover:from-purple-600 hover:to-indigo-500 border-purple-400/50 shadow-purple-950/40'
+                : 'from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-500 border-emerald-400/50 shadow-emerald-950/40'
+            } active:scale-95 text-white font-black text-xs rounded-xl flex items-center justify-between px-3 shadow-md border cursor-pointer transition-all`}
+            title={priceTier === '3' ? 'تأكيد ودفع الحساب وطباعة فاتورة جملة (F1)' : 'تأكيد ودفع الحساب وإصدار الفاتورة (F1)'}
           >
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-200 stroke-[2.5]" />
-              <span className="text-sm font-black tracking-wide">تأكيد ودفع الحساب</span>
+              <CheckCircle2 className={`w-4 h-4 ${priceTier === '3' ? 'text-purple-200' : 'text-emerald-200'} stroke-[2.5]`} />
+              <span className="text-sm font-black tracking-wide">
+                {priceTier === '3' ? 'تأكيد وطباعة فاتورة جملة' : 'تأكيد ودفع الحساب'}
+              </span>
             </div>
-            <span className="text-[10px] font-mono font-bold bg-black/40 px-2 py-0.5 rounded-md text-emerald-200 border border-emerald-500/30">
+            <span className={`text-[10px] font-mono font-bold bg-black/40 px-2 py-0.5 rounded-md ${
+              priceTier === '3' ? 'text-purple-200 border-purple-400/40' : 'text-emerald-200 border-emerald-500/30'
+            } border`}>
               F1
             </span>
           </button>

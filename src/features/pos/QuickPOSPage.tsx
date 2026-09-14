@@ -411,8 +411,10 @@ export default function QuickPOSPage() {
         showHeldSalesModal={showHeldSalesModal}
         onCloseHeldSalesModal={() => setShowHeldSalesModal(false)}
         suspendedOrders={suspendedOrders}
-        onResumeOrder={(orderId) => {
-          const order = suspendedOrders.find((o: any) => o.id === orderId);
+        onResumeOrder={(orderOrId) => {
+          const order = typeof orderOrId === 'object' && orderOrId !== null
+            ? orderOrId
+            : suspendedOrders.find((o: any) => o.id === orderOrId);
           if (order) handleRestoreHeldSale(order, () => setShowHeldSalesModal(false));
         }}
         onDeleteOrder={handleDeleteHeldSale}

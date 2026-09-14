@@ -19,7 +19,7 @@ export interface QuickPOSModalsProps {
   showHeldSalesModal: boolean;
   onCloseHeldSalesModal: () => void;
   suspendedOrders: any[];
-  onResumeOrder: (orderId: string) => void;
+  onResumeOrder: (orderOrId: any) => void;
   onDeleteOrder: (orderId: string) => void;
 
   // Customer Modal

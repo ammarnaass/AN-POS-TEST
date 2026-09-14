@@ -95,6 +95,67 @@ describe('assistantKnowledgeEngine', () => {
       expect(answer.route).toBe('/cash-register');
     });
 
+    it('accurately answers Design 6 advanced terminal questions', () => {
+      const q = 'كيف أستخدم تصميم 6 (المحطة المتقدمة)؟';
+      const answer = findBestAssistantAnswer(q);
+
+      expect(answer.badge).toContain('تصميم 6');
+      expect(answer.text).toContain('نيون LED');
+      expect(answer.steps?.some(s => s.includes('F4'))).toBe(true);
+      expect(answer.steps?.some(s => s.includes('F10'))).toBe(true);
+      expect(answer.steps?.some(s => s.includes('النهاري والليلي'))).toBe(true);
+      expect(answer.route).toBe('/pos/advanced');
+    });
+
+    it('accurately answers payment checkout shortcuts questions', () => {
+      const q = 'ما هي اختصارات نافذة إتمام الدفع (Payment Modal Shortcuts)؟';
+      const answer = findBestAssistantAnswer(q);
+
+      expect(answer.badge).toContain('اختصارات إتمام الدفع');
+      expect(answer.steps?.some(s => s.includes('F1'))).toBe(true);
+      expect(answer.steps?.some(s => s.includes('F5'))).toBe(true);
+      expect(answer.steps?.some(s => s.includes('Enter'))).toBe(true);
+      expect(answer.route).toBe('/pos');
+    });
+
+    it('accurately answers mobile camera wireless scanner questions', () => {
+      const q = 'كيف أستخدم كاميرا الهاتف كماسح باركود لاسلكي للكاشير؟';
+      const answer = findBestAssistantAnswer(q);
+
+      expect(answer.badge).toContain('الماسح اللاسلكي');
+      expect(answer.text).toContain('Fastify');
+      expect(answer.steps?.some(s => s.includes('QR'))).toBe(true);
+      expect(answer.steps?.some(s => s.includes('كاميرا'))).toBe(true);
+    });
+
+    it('accurately answers supplier PDF invoice parser questions', () => {
+      const q = 'كيف أستورد فاتورة مشتريات من ملف PDF تلقائياً؟';
+      const answer = findBestAssistantAnswer(q);
+
+      expect(answer.badge).toContain('محلل فواتير الموردين');
+      expect(answer.steps?.some(s => s.includes('PDF'))).toBe(true);
+      expect(answer.steps?.some(s => s.includes('المخزن'))).toBe(true);
+      expect(answer.route).toBe('/suppliers');
+    });
+
+    it('accurately answers Excel (XLSX) smart export questions', () => {
+      const q = 'كيف أستخرج تقارير المبيعات والأرباح إلى ملف إكسل (XLSX)؟';
+      const answer = findBestAssistantAnswer(q);
+
+      expect(answer.badge).toContain('تصدير إكسل');
+      expect(answer.steps?.some(s => s.includes('Excel') || s.includes('XLSX'))).toBe(true);
+      expect(answer.route).toBe('/reports');
+    });
+
+    it('accurately answers 6 POS designs comparison question', () => {
+      const q = 'كيف أختار بين تصاميم شاشة الكاشير الـ 6 وما الفروقات بينها؟';
+      const answer = findBestAssistantAnswer(q);
+
+      expect(answer.badge).toContain('تصاميم الكاشير الـ 6');
+      expect(answer.steps?.some(s => s.includes('التصميم 6'))).toBe(true);
+      expect(answer.route).toBe('/settings');
+    });
+
     it('provides smart fallback with suggested questions for completely unknown or short text', () => {
       const q = 'مرحبا كيف الحال؟';
       const answer = findBestAssistantAnswer(q);
@@ -106,8 +167,8 @@ describe('assistantKnowledgeEngine', () => {
   });
 
   describe('Knowledge Base Integrity', () => {
-    it('contains at least 15 comprehensive topics', () => {
-      expect(KNOWLEDGE_BASE.length).toBeGreaterThanOrEqual(15);
+    it('contains at least 20 comprehensive topics', () => {
+      expect(KNOWLEDGE_BASE.length).toBeGreaterThanOrEqual(20);
     });
 
     it('ensures every topic has valid metadata and action steps', () => {

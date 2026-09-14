@@ -8,6 +8,7 @@ export interface Design6LiveDisplayBannerProps {
   invoiceNumber?: string | number;
   customerName?: string;
   onSelectCustomer: () => void;
+  priceTier?: '1' | '2' | '3' | '4';
 }
 
 export const Design6LiveDisplayBanner: React.FC<Design6LiveDisplayBannerProps> = ({
@@ -17,6 +18,7 @@ export const Design6LiveDisplayBanner: React.FC<Design6LiveDisplayBannerProps> =
   invoiceNumber = 1,
   customerName = 'زبون عام (نقداً)',
   onSelectCustomer,
+  priceTier = '1',
 }) => {
   const [currentDate, setCurrentDate] = useState('');
   const [currentTime, setCurrentTime] = useState('');
@@ -60,6 +62,15 @@ export const Design6LiveDisplayBanner: React.FC<Design6LiveDisplayBannerProps> =
             <span className="text-xs text-slate-600 dark:text-slate-300">رقم</span>
             <span className="text-base font-black font-mono text-amber-600 dark:text-[#f59e0b] tracking-wider">
               {formattedInvoiceNo}
+            </span>
+            <span
+              className={`text-[10px] font-bold px-2 py-0.5 rounded-md mr-1.5 ${
+                priceTier === '3'
+                  ? 'bg-purple-100 text-purple-900 dark:bg-purple-950/80 dark:text-purple-300 border border-purple-400/60 shadow-xs'
+                  : 'bg-teal-100 text-teal-900 dark:bg-teal-950/80 dark:text-teal-300 border border-teal-400/40'
+              }`}
+            >
+              {priceTier === '3' ? 'س3 جملة (فاتورة A4/A5)' : `س${priceTier || '1'} (وصل عادي)`}
             </span>
           </div>
         </div>

@@ -182,9 +182,28 @@ function createTableProxy(table: string) {
       return res?.data ? toCamel(res.data) : undefined;
     },
 
-    delete: async (id: string) => {
+    delete: async (idOrObj: unknown) => {
+      let resolvedId: string | number | null = null;
+      if (idOrObj !== null && typeof idOrObj === 'object') {
+        const obj = idOrObj as Record<string, unknown>;
+        resolvedId = (obj.id ?? obj.key ?? obj.code ?? obj.docType ?? obj.doc_type) as string | number | null;
+      } else if (idOrObj !== undefined && idOrObj !== null) {
+        resolvedId = idOrObj as string | number;
+      }
+
+      if (
+        resolvedId === null ||
+        resolvedId === undefined ||
+        resolvedId === '' ||
+        resolvedId === 'undefined' ||
+        resolvedId === 'null'
+      ) {
+        console.warn(`[db.delete] Ignored delete on table "${table}" with invalid id:`, idOrObj);
+        return;
+      }
+
       const api = await waitForAPI();
-      await api.remove(table, id);
+      await api.remove(table, String(resolvedId));
     },
 
     count: async () => {
@@ -197,59 +216,118 @@ function createTableProxy(table: string) {
       return res.data.length;
     },
 
-    where: (field: string) => ({
-      equals: (value: unknown) => ({
-        first: async () => {
+    where: (fieldOrCriteria: string | Record<string, unknown>) => {
+      if (typeof fieldOrCriteria === 'object' && fieldOrCriteria !== null) {
+        const criteria = fieldOrCriteria;
+        const entries = Object.entries(criteria);
+        const snakeFilter: Record<string, unknown> = {};
+        for (const [k, v] of entries) {
+          snakeFilter[getSnakeKey(k)] = v;
+        }
+
+        const executeDelete = async () => {
           const api = await waitForAPI();
-          const snakeField = getSnakeKey(field);
-          const res = await api.list(table, { filter: { [snakeField]: value }, limit: 1 });
-          if (res?.data && res.data.length > 0) {
-            return toCamel(res.data[0]);
-          }
-          return undefined;
-        },
-        toArray: async () => {
-          const api = await waitForAPI();
-          const snakeField = getSnakeKey(field);
-          const res = await api.list(table, { filter: { [snakeField]: value } });
-          return res.data.map(toCamel);
-        },
-        count: async () => {
-          const api = await waitForAPI();
-          const snakeField = getSnakeKey(field);
-          const res = await api.list(table, { filter: { [snakeField]: value } });
-          return res?.data ? res.data.length : 0;
-        },
-        delete: async () => {
-          const api = await waitForAPI();
-          const snakeField = getSnakeKey(field);
-          const res = await api.list(table, { filter: { [snakeField]: value } });
+          const res = await api.list(table, { filter: snakeFilter });
           const items = res?.data || [];
-          await Promise.all(
-            items.map((r: Record<string, unknown>) =>
-              api.remove(table, (r.id ?? r.doc_type ?? r.key) as string),
-            ),
-          );
-          return items.length;
-        },
-      }),
-      notEqual: (value: unknown) => ({
-        toArray: async () => {
+          const validIds = items
+            .map((r: Record<string, unknown>) => (r.id ?? r.doc_type ?? r.key ?? r.code) as string | number | null)
+            .filter((id): id is string | number => id !== null && id !== undefined && id !== '' && id !== 'undefined' && id !== 'null')
+            .map(String);
+          await Promise.all(validIds.map((id) => api.remove(table, id)));
+          return validIds.length;
+        };
+
+        const fetchArray = async () => {
           const api = await waitForAPI();
-          const snakeField = getSnakeKey(field);
-          const res = await api.list(table, { filter: { [snakeField]: { $ne: value } } });
-          return res.data.map(toCamel);
-        },
-      }),
-      anyOf: (values: unknown[]) => ({
-        toArray: async () => {
-          const api = await waitForAPI();
-          const snakeField = getSnakeKey(field);
-          const res = await api.list(table, { filter: { [snakeField]: values } });
-          return res.data.map(toCamel);
-        },
-      }),
-    }),
+          const res = await api.list(table, { filter: snakeFilter });
+          return (res?.data || []).map(toCamel);
+        };
+
+        return {
+          toArray: fetchArray,
+          first: async () => {
+            const api = await waitForAPI();
+            const res = await api.list(table, { filter: snakeFilter, limit: 1 });
+            return res?.data?.[0] ? toCamel(res.data[0]) : undefined;
+          },
+          count: async () => {
+            const api = await waitForAPI();
+            const res = await api.list(table, { filter: snakeFilter });
+            return res?.data ? res.data.length : 0;
+          },
+          delete: executeDelete,
+          equals: (_value: unknown) => ({
+            toArray: fetchArray,
+            first: async () => {
+              const api = await waitForAPI();
+              const res = await api.list(table, { filter: snakeFilter, limit: 1 });
+              return res?.data?.[0] ? toCamel(res.data[0]) : undefined;
+            },
+            count: async () => {
+              const api = await waitForAPI();
+              const res = await api.list(table, { filter: snakeFilter });
+              return res?.data ? res.data.length : 0;
+            },
+            delete: executeDelete,
+          }),
+        };
+      }
+
+      const field = fieldOrCriteria;
+      return {
+        equals: (value: unknown) => ({
+          first: async () => {
+            const api = await waitForAPI();
+            const snakeField = getSnakeKey(field);
+            const res = await api.list(table, { filter: { [snakeField]: value }, limit: 1 });
+            if (res?.data && res.data.length > 0) {
+              return toCamel(res.data[0]);
+            }
+            return undefined;
+          },
+          toArray: async () => {
+            const api = await waitForAPI();
+            const snakeField = getSnakeKey(field);
+            const res = await api.list(table, { filter: { [snakeField]: value } });
+            return res.data.map(toCamel);
+          },
+          count: async () => {
+            const api = await waitForAPI();
+            const snakeField = getSnakeKey(field);
+            const res = await api.list(table, { filter: { [snakeField]: value } });
+            return res?.data ? res.data.length : 0;
+          },
+          delete: async () => {
+            const api = await waitForAPI();
+            const snakeField = getSnakeKey(field);
+            const res = await api.list(table, { filter: { [snakeField]: value } });
+            const items = res?.data || [];
+            const validIds = items
+              .map((r: Record<string, unknown>) => (r.id ?? r.doc_type ?? r.key ?? r.code) as string | number | null)
+              .filter((id): id is string | number => id !== null && id !== undefined && id !== '' && id !== 'undefined' && id !== 'null')
+              .map(String);
+            await Promise.all(validIds.map((id) => api.remove(table, id)));
+            return validIds.length;
+          },
+        }),
+        notEqual: (value: unknown) => ({
+          toArray: async () => {
+            const api = await waitForAPI();
+            const snakeField = getSnakeKey(field);
+            const res = await api.list(table, { filter: { [snakeField]: { $ne: value } } });
+            return res.data.map(toCamel);
+          },
+        }),
+        anyOf: (values: unknown[]) => ({
+          toArray: async () => {
+            const api = await waitForAPI();
+            const snakeField = getSnakeKey(field);
+            const res = await api.list(table, { filter: { [snakeField]: values } });
+            return res.data.map(toCamel);
+          },
+        }),
+      };
+    },
 
     orderBy: (field: string) => {
       const snakeField = getSnakeKey(field);
@@ -287,14 +365,27 @@ function createTableProxy(table: string) {
       return (res?.data || []).map(toCamel);
     },
 
-    bulkDelete: async (ids: string[]) => {
-      if (!ids || ids.length === 0) return;
+    bulkDelete: async (ids: unknown[]) => {
+      if (!ids || !Array.isArray(ids) || ids.length === 0) return;
+      const validIds = ids
+        .map((id) => {
+          if (id !== null && typeof id === 'object') {
+            const obj = id as Record<string, unknown>;
+            return (obj.id ?? obj.key ?? obj.code ?? obj.docType ?? obj.doc_type) as string | number | null;
+          }
+          return id as string | number | null;
+        })
+        .filter((id): id is string | number => id !== null && id !== undefined && id !== '' && id !== 'undefined' && id !== 'null')
+        .map(String);
+
+      if (validIds.length === 0) return;
+
       const api = await waitForAPI();
       if (typeof api.bulkDelete === 'function') {
-        await api.bulkDelete(table, ids);
+        await api.bulkDelete(table, validIds);
         return;
       }
-      await Promise.all(ids.map((id) => api.remove(table, id)));
+      await Promise.all(validIds.map((id) => api.remove(table, id)));
     },
 
     clear: async () => {
@@ -303,7 +394,11 @@ function createTableProxy(table: string) {
         await api.clear(table);
       } else {
         const res = await api.list(table);
-        await Promise.all(res.data.map((r: Record<string, unknown>) => api.remove(table, r.id)));
+        const validIds = (res?.data || [])
+          .map((r: Record<string, unknown>) => (r.id ?? r.key ?? r.doc_type ?? r.code) as string | number | null)
+          .filter((id): id is string | number => id !== null && id !== undefined && id !== '' && id !== 'undefined' && id !== 'null')
+          .map(String);
+        await Promise.all(validIds.map((id) => api.remove(table, id)));
       }
     },
   };

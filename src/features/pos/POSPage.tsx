@@ -169,28 +169,39 @@ export default function POSPage() {
       const productList = products || [];
       if (cart.length > 0) {
         cart.forEach((item) => {
-          if (item.isPack) {
-            if (posLayout === 'terminal') {
-              const pieces = Number(item.packPiecesCount || item.packQty || 1);
-              if (tier === '3' && item.packMode === 'retail_pieces') {
+          const prod = productList.find(
+            (p) => p.id === item.productId || (item.barcode && p.barcode === item.barcode)
+          );
+          const pkgSize = prod?.packageSize ? parseInt(prod.packageSize, 10) : 0;
+          const isPackagingItem = Boolean(item.isPack || pkgSize > 1 || (item.packPiecesCount && item.packPiecesCount > 1));
+
+          if (isPackagingItem) {
+            if (posLayout === 'terminal' || posLayout === 'advanced') {
+              const pieces = Number(item.packPiecesCount || pkgSize || item.packQty || 1);
+              if (tier === '3' && (item.packMode === 'retail_pieces' || !item.packMode)) {
                 const packCount = Math.max(1, Math.round(item.qty / pieces));
-                const packPrice = (item.unitPrice || 0) * pieces;
+                const tierPrice = prod ? getProductTierPrice(prod, '3') : 0;
+                const packPrice = tierPrice > 0 ? (item.isPack ? tierPrice : tierPrice * pieces) : (item.unitPrice || 0) * pieces;
+                item.isPack = true;
+                item.packPiecesCount = pieces;
                 item.packMode = 'wholesale_packs';
                 item.pricingType = 'wholesale';
+                item.packQty = packCount;
                 updateQty(item.productId, packCount, packPrice);
               } else if (tier !== '3' && item.packMode === 'wholesale_packs') {
                 const pieceQty = item.qty * pieces;
-                const piecePrice = pieces > 0 ? (item.unitPrice || 0) / pieces : item.unitPrice;
+                const tierPrice = prod ? getProductTierPrice(prod, tier) : 0;
+                const piecePrice = tierPrice > 0 ? tierPrice : (pieces > 0 ? (item.unitPrice || 0) / pieces : item.unitPrice);
+                item.isPack = true;
+                item.packPiecesCount = pieces;
                 item.packMode = 'retail_pieces';
                 item.pricingType = 'retail';
+                item.packQty = Math.max(1, Math.round(pieceQty / pieces));
                 updateQty(item.productId, pieceQty, piecePrice);
               }
             }
             return;
           }
-          const prod = productList.find(
-            (p) => p.id === item.productId || (item.barcode && p.barcode === item.barcode)
-          );
           if (prod) {
             const newPrice = getProductTierPrice(prod, tier);
             if (newPrice > 0) {
@@ -393,7 +404,7 @@ export default function POSPage() {
           }
         }
 
-        const isTerminal = posLayout === 'terminal';
+        const isTerminal = posLayout === 'terminal' || posLayout === 'advanced';
         const isWholesaleTier = priceTier === '3' || (!['1', '2', '4'].includes(priceTier) && isWholesaleActive);
 
         if (isTerminal && !isWholesaleTier) {
@@ -464,18 +475,29 @@ export default function POSPage() {
             customPrice !== undefined
               ? customPrice
               : product.unitPrice ?? resolveUnitPrice(product, 1, promotions, isWholesaleActive, priceTier);
+          const pkgSize = product.packageSize ? parseInt(product.packageSize, 10) : 0;
+          const isPackProd = pkgSize > 1;
+          const isTerminalLayout = posLayout === 'terminal' || posLayout === 'advanced';
+          const isWholesaleTier = priceTier === '3' || (!['1', '2', '4'].includes(priceTier) && isWholesaleActive);
+          const effectiveInitialQty = (isPackProd && isTerminalLayout && !isWholesaleTier) ? pkgSize : 1;
+          const effectiveInitialPrice = (isPackProd && isTerminalLayout && !isWholesaleTier && pkgSize > 0) ? (price / pkgSize) : price;
           addItem({
             productId: product.id,
             name: product.name,
-            qty: 1,
-            unitPrice: price,
-            lineTotal: price,
+            qty: effectiveInitialQty,
+            unitPrice: effectiveInitialPrice,
+            lineTotal: effectiveInitialPrice * effectiveInitialQty,
             barcode: product.barcode || '',
             unit: product.unit,
             batchNumber: product.batchNumber,
             isCustom: customPrice !== undefined,
+            isPack: isPackProd,
+            packQty: 1,
+            packPiecesCount: isPackProd ? pkgSize : undefined,
+            packUnit: isPackProd ? (product.unit || 'طرد') : undefined,
+            packMode: isPackProd ? (isWholesaleTier ? 'wholesale_packs' : 'retail_pieces') : undefined,
             pricingType:
-              priceTier === '3' || (!['1', '2', '4'].includes(priceTier) && isWholesaleActive)
+              isWholesaleTier
                 ? 'wholesale'
                 : 'retail',
           });
@@ -554,7 +576,16 @@ export default function POSPage() {
     });
   };
 
-  const handleResumeOrder = (order: any) => {
+  const handleResumeOrder = (orderOrId: any) => {
+    const order = typeof orderOrId === 'string'
+      ? suspendedOrders.find((o: any) => o.id === orderOrId)
+      : orderOrId;
+
+    if (!order) {
+      console.warn('[POSPage] Order not found for resume:', orderOrId);
+      return;
+    }
+
     clearCart();
     const rawItems = order.items;
     const items = Array.isArray(rawItems)
@@ -587,15 +618,22 @@ export default function POSPage() {
     setSelectedCustomer(order.customerId || '');
     setDiscount(order.discount || 0);
     setDiscountType(order.discountType || 'percent');
-    db.suspended_orders.delete(order.id).then(() => {
-      refetchSuspended?.();
-    });
+    const targetId = order.id || (typeof orderOrId === 'string' ? orderOrId : undefined);
+    if (targetId) {
+      db.suspended_orders.delete(targetId).then(() => {
+        refetchSuspended?.();
+      });
+    }
     modals.setShowSuspended(false);
     addNotification({ title: 'تم استرجاع الفاتورة', message: 'تم تحميل الأصناف للسلة بنجاح', type: 'success' });
   };
 
-  const handleDeleteSuspendedOrder = (orderId: string) => {
-    db.suspended_orders.delete(orderId).then(() => {
+  const handleDeleteSuspendedOrder = (orderOrId: any) => {
+    const targetId = typeof orderOrId === 'object' && orderOrId !== null
+      ? (orderOrId.id as string)
+      : String(orderOrId);
+    if (!targetId || targetId === 'undefined' || targetId === 'null') return;
+    db.suspended_orders.delete(targetId).then(() => {
       refetchSuspended?.();
       addNotification({ title: 'تم الحذف', message: 'تم حذف الفاتورة المعلقة بنجاح', type: 'info' });
     });

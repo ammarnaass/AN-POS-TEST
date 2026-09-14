@@ -28,11 +28,12 @@ export const SuccessModal: React.FC<SuccessModalProps> = ({
         return;
       }
 
-      // 2. 'P' or 'p' or F1: Print thermal receipt
+      // 2. 'P' or 'p' or F1: Primary print (wholesale-invoice for wholesale, thermal-receipt otherwise)
       if (e.key === 'p' || e.key === 'P' || e.key === 'F1') {
         e.preventDefault();
         e.stopPropagation();
-        printDocument(completedSale.id, 'thermal-receipt', {
+        const primaryDoc = completedSale.docType === 'wholesale' ? 'wholesale-invoice' : 'thermal-receipt';
+        printDocument(completedSale.id, primaryDoc, {
           userId: '',
           userName: '',
           copies: 1,
@@ -40,12 +41,12 @@ export const SuccessModal: React.FC<SuccessModalProps> = ({
         return;
       }
 
-      // 3. F2: Print invoice (wholesale or A4 sale invoice)
+      // 3. F2: Secondary print (thermal-receipt for wholesale, sale-invoice otherwise)
       if (e.key === 'F2') {
         e.preventDefault();
         e.stopPropagation();
-        const docType = completedSale.docType === 'wholesale' ? 'wholesale-invoice' : 'sale-invoice';
-        printDocument(completedSale.id, docType, {
+        const secondaryDoc = completedSale.docType === 'wholesale' ? 'thermal-receipt' : 'sale-invoice';
+        printDocument(completedSale.id, secondaryDoc, {
           userId: '',
           userName: '',
           copies: 1,
@@ -107,11 +108,11 @@ export const SuccessModal: React.FC<SuccessModalProps> = ({
                       copies: 1,
                     });
                   }}
-                  className="py-3 rounded-xl bg-primary/10 hover:bg-primary/20 border border-primary/25 text-xs font-bold text-primary flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs"
-                  title="طباعة فاتورة الجملة (F2)"
+                  className="py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-xs font-bold text-white flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                  title="طباعة فاتورة الجملة (P / F1)"
                 >
                   <Printer className="w-4 h-4" />
-                  <span>فاتورة جملة (F2)</span>
+                  <span>فاتورة جملة (P/F1)</span>
                 </button>
 
                 <button
@@ -123,10 +124,10 @@ export const SuccessModal: React.FC<SuccessModalProps> = ({
                     });
                   }}
                   className="py-3 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-xs font-bold text-on-surface flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                  title="وصل حراري (P / F1)"
+                  title="وصل حراري (F2)"
                 >
                   <Printer className="w-4 h-4" />
-                  <span>وصل حراري (P/F1)</span>
+                  <span>وصل حراري (F2)</span>
                 </button>
               </>
             ) : (

@@ -110,7 +110,7 @@ export async function parseAndAddScannedCode(
       ? inMemoryPack.items
       : (() => { try { return JSON.parse(inMemoryPack.items as any) ?? []; } catch { return []; } })();
     const pQty = inMemoryPack.piecesCount || rawItems.reduce((s: number, it: any) => s + (Number(it.qty ?? it.quantity ?? 0)), 0) || 1;
-    const isTerminal = ctx.posLayout === 'terminal';
+    const isTerminal = ctx.posLayout === 'terminal' || ctx.posLayout === 'advanced';
     const isWholesale = ctx.forceWholesale || ctx.priceTier === '3';
     if (isTerminal && !isWholesale) {
       const piecePrice = pQty > 0 ? (inMemoryPack.packPrice / pQty) : inMemoryPack.packPrice;
@@ -169,12 +169,16 @@ export async function parseAndAddScannedCode(
       const price = resolveItemPrice(textMatch);
       const tmPkgSize = textMatch.packageSize ? parseInt(textMatch.packageSize, 10) : 0;
       const isTmPack = tmPkgSize > 1;
+      const isTerminal = ctx.posLayout === 'terminal' || ctx.posLayout === 'advanced';
+      const isWholesale = ctx.forceWholesale || ctx.priceTier === '3';
+      const effectiveQty = (isTmPack && isTerminal && !isWholesale) ? (tmPkgSize * qtyToAdd) : qtyToAdd;
+      const effectivePrice = (isTmPack && isTerminal && !isWholesale && tmPkgSize > 0) ? (price / tmPkgSize) : price;
       ctx.addItem({
         productId: textMatch.id,
         name: textMatch.name,
-        qty: qtyToAdd,
-        unitPrice: price,
-        price: price,
+        qty: effectiveQty,
+        unitPrice: effectivePrice,
+        price: effectivePrice,
         lineTotal: price * qtyToAdd,
         barcode: textMatch.barcode,
         unit: textMatch.unit,
@@ -184,8 +188,8 @@ export async function parseAndAddScannedCode(
         packQty: isTmPack ? qtyToAdd : undefined,
         packPiecesCount: isTmPack ? tmPkgSize : undefined,
         packUnit: isTmPack ? (textMatch.unit || 'طرد') : undefined,
-        packMode: isTmPack ? (ctx.priceTier === '3' || ctx.forceWholesale ? 'wholesale_packs' : 'retail_pieces') : undefined,
-        pricingType: ctx.priceTier === '3' || ctx.forceWholesale ? 'wholesale' : 'retail',
+        packMode: isTmPack ? (isWholesale ? 'wholesale_packs' : 'retail_pieces') : undefined,
+        pricingType: isWholesale ? 'wholesale' : 'retail',
       });
       return { added: true, kind: 'product', name: textMatch.name, qty: qtyToAdd, price };
     }
@@ -199,12 +203,16 @@ export async function parseAndAddScannedCode(
     const price = resolveItemPrice(p as Product);
     const pkgSize = p.packageSize ? parseInt(p.packageSize, 10) : 0;
     const isPackProd = pkgSize > 1;
+    const isTerminal = ctx.posLayout === 'terminal' || ctx.posLayout === 'advanced';
+    const isWholesale = ctx.forceWholesale || ctx.priceTier === '3';
+    const effectiveQty = (isPackProd && isTerminal && !isWholesale) ? (pkgSize * qtyToAdd) : qtyToAdd;
+    const effectivePrice = (isPackProd && isTerminal && !isWholesale && pkgSize > 0) ? (price / pkgSize) : price;
     ctx.addItem({
       productId: p.id,
       name: p.name,
-      qty: qtyToAdd,
-      unitPrice: price,
-      price: price,
+      qty: effectiveQty,
+      unitPrice: effectivePrice,
+      price: effectivePrice,
       lineTotal: price * qtyToAdd,
       barcode: p.barcode,
       unit: p.unit,
@@ -214,8 +222,8 @@ export async function parseAndAddScannedCode(
       packQty: isPackProd ? qtyToAdd : undefined,
       packPiecesCount: isPackProd ? pkgSize : undefined,
       packUnit: isPackProd ? (p.unit || 'طرد') : undefined,
-      packMode: isPackProd ? (ctx.priceTier === '3' || ctx.forceWholesale ? 'wholesale_packs' : 'retail_pieces') : undefined,
-      pricingType: ctx.priceTier === '3' || ctx.forceWholesale ? 'wholesale' : 'retail',
+      packMode: isPackProd ? (isWholesale ? 'wholesale_packs' : 'retail_pieces') : undefined,
+      pricingType: isWholesale ? 'wholesale' : 'retail',
     });
     return { added: true, kind: 'product', name: p.name, qty: qtyToAdd, price };
   }
@@ -228,22 +236,45 @@ export async function parseAndAddScannedCode(
       ? pk.items
       : (() => { try { return JSON.parse(pk.items as any) ?? []; } catch { return []; } })();
     const pQty = pk.piecesCount || rawItems.reduce((s: number, it: any) => s + (Number(it.qty ?? it.quantity ?? 0)), 0) || 1;
-    ctx.addItem({
-      productId: `pack-${pk.id}`,
-      name: pk.name,
-      qty: qtyToAdd,
-      unitPrice: pk.packPrice,
-      price: pk.packPrice,
-      lineTotal: pk.packPrice * qtyToAdd,
-      barcode: pk.barcode,
-      isPack: true,
-      packId: pk.id,
-      packQty: qtyToAdd,
-      packPiecesCount: pQty,
-      packUnit: pk.unitName || 'طرد',
-      packMode: 'wholesale_packs',
-      pricingType: isWholesale ? 'wholesale' : 'pack',
-    });
+    const isTerminal = ctx.posLayout === 'terminal' || ctx.posLayout === 'advanced';
+    const isWholesale = ctx.forceWholesale || ctx.priceTier === '3';
+    if (isTerminal && !isWholesale) {
+      const piecePrice = pQty > 0 ? (pk.packPrice / pQty) : pk.packPrice;
+      const totalPieces = pQty * qtyToAdd;
+      ctx.addItem({
+        productId: `pack-${pk.id}`,
+        name: pk.name,
+        qty: totalPieces,
+        unitPrice: piecePrice,
+        price: piecePrice,
+        lineTotal: pk.packPrice * qtyToAdd,
+        barcode: pk.barcode,
+        isPack: true,
+        packId: pk.id,
+        packQty: qtyToAdd,
+        packPiecesCount: pQty,
+        packUnit: pk.unitName || 'عبوة',
+        packMode: 'retail_pieces',
+        pricingType: 'retail',
+      });
+    } else {
+      ctx.addItem({
+        productId: `pack-${pk.id}`,
+        name: pk.name,
+        qty: qtyToAdd,
+        unitPrice: pk.packPrice,
+        price: pk.packPrice,
+        lineTotal: pk.packPrice * qtyToAdd,
+        barcode: pk.barcode,
+        isPack: true,
+        packId: pk.id,
+        packQty: qtyToAdd,
+        packPiecesCount: pQty,
+        packUnit: pk.unitName || 'طرد',
+        packMode: 'wholesale_packs',
+        pricingType: isWholesale ? 'wholesale' : 'pack',
+      });
+    }
     return { added: true, kind: 'pack', name: pk.name, qty: qtyToAdd, price: pk.packPrice };
   }
 

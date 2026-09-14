@@ -32,7 +32,7 @@ interface SuspendedOrdersModalProps {
   isOpen: boolean;
   onClose: () => void;
   orders: SuspendedOrder[];
-  onResumeOrder: (id: string) => void;
+  onResumeOrder: (order: SuspendedOrder | string) => void;
   onDeleteOrder?: (id: string) => void;
 }
 
@@ -157,7 +157,7 @@ export const SuspendedOrdersModal: React.FC<SuspendedOrdersModalProps> = ({
                     )}
                     <button
                       onClick={() => {
-                        onResumeOrder(order.id);
+                        onResumeOrder(order);
                         onClose();
                       }}
                       className="px-3.5 py-2 rounded-xl bg-primary text-on-primary text-xs font-bold shadow-2xs hover:bg-primary/90 flex items-center gap-1.5 transition-all cursor-pointer"

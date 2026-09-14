@@ -11,7 +11,8 @@ export type Row = Record<string, string | number | null>;
  */
 export function queryAll(sql: string, params: unknown[] = []): Row[] {
   const stmt = getCachedStatement(sql);
-  return stmt.all(...params) as Row[];
+  const safeParams = params.map(serializeValue);
+  return stmt.all(...safeParams) as Row[];
 }
 
 /**
@@ -19,7 +20,8 @@ export function queryAll(sql: string, params: unknown[] = []): Row[] {
  */
 export function queryOne(sql: string, params: unknown[] = []): Row | null {
   const stmt = getCachedStatement(sql);
-  const row = stmt.get(...params) as Row | null;
+  const safeParams = params.map(serializeValue);
+  const row = stmt.get(...safeParams) as Row | null;
   return row ?? null;
 }
 
@@ -28,7 +30,8 @@ export function queryOne(sql: string, params: unknown[] = []): Row | null {
  */
 export function execute(sql: string, params: unknown[] = []): void {
   const stmt = getCachedStatement(sql);
-  stmt.run(...params);
+  const safeParams = params.map(serializeValue);
+  stmt.run(...safeParams);
 }
 
 /**

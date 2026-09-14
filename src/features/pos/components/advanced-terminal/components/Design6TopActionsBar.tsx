@@ -33,6 +33,7 @@ export interface Design6TopActionsBarProps {
   onLockTerminal: () => void;
   priceTier: '1' | '2' | '3' | '4';
   onCyclePriceTier: () => void;
+  onSelectPriceTier?: (tier: '1' | '2' | '3' | '4') => void;
   onOpenFlexyModal?: () => void;
   stationName?: string;
   isOnline?: boolean;
@@ -60,6 +61,7 @@ export const Design6TopActionsBar: React.FC<Design6TopActionsBarProps> = ({
   onLockTerminal,
   priceTier,
   onCyclePriceTier,
+  onSelectPriceTier,
   onOpenFlexyModal,
   stationName = 'S19C150-POS',
   isOnline = true,
@@ -204,11 +206,15 @@ export const Design6TopActionsBar: React.FC<Design6TopActionsBarProps> = ({
           </span>
         </button>
 
-        {/* 8. تعريفات الأسعار */}
+        {/* 8. تعريفات الأسعار الرئيسية */}
         <button
           type="button"
           onClick={onCyclePriceTier}
-          className="bg-[#0f766e] hover:bg-[#115e59] active:scale-95 text-white h-[48px] min-w-[82px] px-2 rounded-lg font-bold flex flex-col items-center justify-center transition-all shadow-sm cursor-pointer border border-teal-400/30"
+          className={`${
+            priceTier === '3'
+              ? 'bg-gradient-to-b from-purple-600 to-indigo-700 border-purple-400/60 ring-1 ring-purple-300/50'
+              : 'bg-[#0f766e] hover:bg-[#115e59] border-teal-400/30'
+          } active:scale-95 text-white h-[48px] min-w-[82px] px-2 rounded-lg font-bold flex flex-col items-center justify-center transition-all shadow-sm cursor-pointer border`}
           title="تبديل فئات الأسعار (تجزئة / نصف جملة / جملة / خاص)"
         >
           <div className="flex items-center gap-1 text-[11px] font-black tracking-wider leading-tight">
@@ -219,6 +225,46 @@ export const Design6TopActionsBar: React.FC<Design6TopActionsBarProps> = ({
             {tierInfo.sub}
           </span>
         </button>
+
+        {/* أزرار الوصول المباشر لفئات الأسعار س1-س4 (Alt+1..4) */}
+        <div className="flex items-center bg-slate-100 dark:bg-slate-900/90 p-1 rounded-xl border border-slate-300 dark:border-slate-800 gap-1 h-[48px] shrink-0">
+          {(
+            [
+              { id: '1', name: 'س1', sub: 'وصل عادي', shortcut: 'Alt+1' },
+              { id: '2', name: 'س2', sub: 'وصل عادي', shortcut: 'Alt+2' },
+              { id: '3', name: 'س3', sub: 'فاتورة جملة', shortcut: 'Alt+3' },
+              { id: '4', name: 'س4', sub: 'وصل عادي', shortcut: 'Alt+4' },
+            ] as const
+          ).map((t) => {
+            const isActive = priceTier === t.id;
+            const isWholesale = t.id === '3';
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => (onSelectPriceTier ? onSelectPriceTier(t.id) : onCyclePriceTier())}
+                className={`h-[38px] px-1.5 rounded-lg font-bold flex flex-col items-center justify-center transition-all cursor-pointer select-none text-center ${
+                  isActive
+                    ? isWholesale
+                      ? 'bg-gradient-to-b from-purple-600 to-indigo-700 text-white shadow-xs border border-purple-400/60'
+                      : 'bg-[#0f766e] text-white shadow-xs border border-teal-400/40'
+                    : 'bg-white/80 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
+                }`}
+                title={`${t.name} (${t.shortcut}) - ${t.sub}`}
+              >
+                <div className="flex items-center gap-0.5 text-[10px] font-black leading-tight">
+                  {isWholesale && <Tag className="w-2.5 h-2.5 text-amber-300" />}
+                  <span>{t.name}</span>
+                </div>
+                <div className="flex items-center gap-0.5 text-[8px] font-mono leading-tight mt-0.5 opacity-90">
+                  <span className="bg-black/30 px-1 rounded text-[7px]">
+                    {t.shortcut}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
 
         {/* 10. قفل الصندوق / المحطة */}
         <button

@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { ScanLine, Plus, Tag } from 'lucide-react';
 import type { Product } from '@/types';
+import { getProductTierPrice } from '@/services';
 
 export interface Design6BarcodeScannerBarProps {
   barcodeInput: string;
@@ -18,6 +19,7 @@ export interface Design6BarcodeScannerBarProps {
   cartCount?: number;
   formatMoney?: (val?: number) => string;
   currency?: string;
+  priceTier?: '1' | '2' | '3' | '4';
 }
 
 export const Design6BarcodeScannerBar: React.FC<Design6BarcodeScannerBarProps> = ({
@@ -36,6 +38,7 @@ export const Design6BarcodeScannerBar: React.FC<Design6BarcodeScannerBarProps> =
   cartCount = 0,
   formatMoney,
   currency = 'دج',
+  priceTier = '1',
 }) => {
   const localBarcodeInputRef = useRef<HTMLInputElement>(null);
   const activeBarcodeRef = barcodeInputRef || localBarcodeInputRef;
@@ -216,7 +219,7 @@ export const Design6BarcodeScannerBar: React.FC<Design6BarcodeScannerBarProps> =
             <div className="divide-y divide-slate-200 dark:divide-slate-800/60">
               {matchingSuggestions.map((item, idx) => {
                 const isSelected = idx === highlightedIndex;
-                const price = item.retailPrice ?? (item as any).price ?? 0;
+                const price = getProductTierPrice(item, priceTier);
                 return (
                   <div
                     key={item.id}

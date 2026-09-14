@@ -179,6 +179,7 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
     onConfirm: handleConfirm,
     isAnyModalOpen,
     onCloseModals: handleCloseModals,
+    onSelectPriceTier,
   });
 
   // Favorites & Category Mode Integration (from useFavoritesStore and usePOSSessionStore)
@@ -513,6 +514,8 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
             editingPriceItemId={editingPriceItemId}
             setEditingPriceItemId={setEditingPriceItemId}
             onEditPrice={onEditPrice}
+            priceTier={priceTier}
+            onSelectPriceTier={onSelectPriceTier}
           />
         </main>
 
@@ -531,6 +534,7 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
           userName={userName}
           boxName="صندوق 01"
           supportPhone="0770.539.177"
+          priceTier={priceTier}
         />
       </div>
 

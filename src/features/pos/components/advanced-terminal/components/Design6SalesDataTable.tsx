@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Trash2, Plus, Minus, Check, X, Edit3 } from 'lucide-react';
 import type { CartItem, Product } from '@/types';
+import { getProductTierPrice } from '@/services';
 
 export interface Design6SalesDataTableProps {
   cart: CartItem[];
@@ -17,6 +18,8 @@ export interface Design6SalesDataTableProps {
   editingPriceItemId?: string | null;
   setEditingPriceItemId?: (id: string | null) => void;
   onEditPrice?: (productId: string, newPrice: number) => void;
+  priceTier?: '1' | '2' | '3' | '4';
+  onSelectPriceTier?: (tier: '1' | '2' | '3' | '4') => void;
 }
 
 export const Design6SalesDataTable: React.FC<Design6SalesDataTableProps> = ({
@@ -144,21 +147,90 @@ export const Design6SalesDataTable: React.FC<Design6SalesDataTableProps> = ({
 
                   {/* 3. Product Designation & Badges */}
                   <td className="py-2.5 px-4 text-right">
-                    <div className="flex items-center justify-start gap-2">
+                    <div className="flex items-center justify-start gap-1.5 flex-wrap">
                       {hasDiscount && (
                         <span className="bg-blue-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow-xs shrink-0">
                           عرض خاص
                         </span>
                       )}
-                      {(item as any).isPack && (
-                        <span className="bg-amber-100 text-amber-900 dark:bg-amber-500/20 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30 text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0">
-                          ×{(item as any).packQty || 1}
+                      {(item.packMode === 'wholesale_packs' || (item.pricingType === 'wholesale' && item.isPack)) ? (
+                        <span className="bg-purple-100 text-purple-900 dark:bg-purple-900/60 dark:text-purple-200 border border-purple-300 dark:border-purple-600/50 text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 shadow-xs">
+                          عبوة جملة ({item.packUnit || 'طرد'})
                         </span>
-                      )}
+                      ) : (item.isPack || (item.packPiecesCount && item.packPiecesCount > 1)) ? (
+                        <span className="bg-emerald-100 text-emerald-900 dark:bg-emerald-900/60 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-600/50 text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 shadow-xs">
+                          عبوة تجزئة ({item.packPiecesCount || item.qty} قطع)
+                        </span>
+                      ) : null}
                       <span className="font-bold text-xs sm:text-[13px] text-slate-900 dark:text-slate-100 truncate">
                         {item.name}
                       </span>
                     </div>
+                    {isSelected && !item.isPack && (
+                      <div className="flex items-center gap-1 mt-1.5 flex-wrap" onClick={(e) => e.stopPropagation()}>
+                        <span className="text-[10px] text-slate-400 font-normal">تبديل السعر:</span>
+                        {(() => {
+                          const matched = products.find((p) => p.id === item.productId || (item.barcode && p.barcode === item.barcode));
+                          if (!matched) return null;
+                          const p1 = getProductTierPrice(matched, '1');
+                          const p2 = getProductTierPrice(matched, '2');
+                          const p3 = getProductTierPrice(matched, '3');
+                          const p4 = getProductTierPrice(matched, '4');
+                          return (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => onEditPrice && onEditPrice(item.productId, p1)}
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
+                                  item.unitPrice === p1
+                                    ? 'bg-blue-600 text-white shadow-xs'
+                                    : 'bg-slate-100 dark:bg-slate-800 hover:bg-blue-100 text-slate-700 dark:text-slate-300'
+                                }`}
+                                title="سعر 1 (تجزئة)"
+                              >
+                                س1: {formatMoney(p1)}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onEditPrice && onEditPrice(item.productId, p2)}
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
+                                  item.unitPrice === p2
+                                    ? 'bg-blue-600 text-white shadow-xs'
+                                    : 'bg-slate-100 dark:bg-slate-800 hover:bg-blue-100 text-slate-700 dark:text-slate-300'
+                                }`}
+                                title="سعر 2 (نصف جملة)"
+                              >
+                                س2: {formatMoney(p2)}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onEditPrice && onEditPrice(item.productId, p3)}
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
+                                  item.unitPrice === p3
+                                    ? 'bg-purple-600 text-white shadow-xs'
+                                    : 'bg-slate-100 dark:bg-slate-800 hover:bg-purple-100 text-slate-700 dark:text-slate-300'
+                                }`}
+                                title="سعر 3 (جملة)"
+                              >
+                                س3: {formatMoney(p3)}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onEditPrice && onEditPrice(item.productId, p4)}
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
+                                  item.unitPrice === p4
+                                    ? 'bg-blue-600 text-white shadow-xs'
+                                    : 'bg-slate-100 dark:bg-slate-800 hover:bg-blue-100 text-slate-700 dark:text-slate-300'
+                                }`}
+                                title="سعر 4 (خاص)"
+                              >
+                                س4: {formatMoney(p4)}
+                              </button>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
                   </td>
 
                   {/* 4. Unit Price (مع دعم التعديل المباشر F4) */}
@@ -276,6 +348,11 @@ export const Design6SalesDataTable: React.FC<Design6SalesDataTableProps> = ({
                         <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
                       </button>
                     </div>
+                    {item.packMode === 'wholesale_packs' && item.packPiecesCount && item.packPiecesCount > 1 && (
+                      <div className="text-[10px] text-purple-700 dark:text-purple-300 font-mono mt-0.5">
+                        (× {item.packPiecesCount} قطعة = {item.qty * item.packPiecesCount} قطعة)
+                      </div>
+                    )}
                   </td>
 
                   {/* 6. Line Total */}

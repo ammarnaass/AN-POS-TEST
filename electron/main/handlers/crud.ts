@@ -484,24 +484,44 @@ export async function updateRow(
 
 export async function removeRow(
   rawTableName: string,
-  id: string
+  id: unknown
 ): Promise<{ success: boolean }> {
   const tableName = resolveTableName(rawTableName);
+
+  let resolvedId: string | number | null = null;
+  if (id !== null && typeof id === 'object') {
+    const obj = id as Record<string, unknown>;
+    resolvedId = (obj.id ?? obj.key ?? obj.code ?? obj.docType ?? obj.doc_type) as string | number | null;
+  } else if (id !== undefined && id !== null) {
+    resolvedId = id as string | number;
+  }
+
+  if (
+    resolvedId === null ||
+    resolvedId === undefined ||
+    resolvedId === '' ||
+    resolvedId === 'undefined' ||
+    resolvedId === 'null'
+  ) {
+    console.warn(`[removeRow] Ignored delete on table "${tableName}" with invalid id:`, id);
+    return { success: false };
+  }
+
   if (tableName === 'users') {
-    const target = queryOne('SELECT role FROM users WHERE id = ?', [id]);
+    const target = queryOne('SELECT role FROM users WHERE id = ?', [resolvedId]);
     if (target?.role === 'developer') {
       throw new Error('لا يمكن حذف حساب مطور النظام');
     }
   }
   const config = tableConfigs.get(tableName);
   const idField = config?.idField ?? 'id';
-  execute(`DELETE FROM ${tableName} WHERE ${idField} = ?`, [id]);
-  notifyTableChange(tableName, 'delete', id);
+  execute(`DELETE FROM ${tableName} WHERE ${idField} = ?`, [resolvedId]);
+  notifyTableChange(tableName, 'delete', String(resolvedId));
   if (tableName !== 'sync_tombstones' && tableName !== 'sync_queue' && tableName !== 'device_sessions') {
     try {
       execute(
         `INSERT INTO sync_tombstones (id, table_name, record_id, deleted_at) VALUES (?, ?, ?, datetime('now'))`,
-        [randomUUID(), tableName, id]
+        [randomUUID(), tableName, String(resolvedId)]
       );
     } catch {
       /* ignore non-blocking tombstone error */
