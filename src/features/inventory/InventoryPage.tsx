@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import type { Product } from '@/types';
 import { generateId } from '@/utils';
 import * as XLSX from 'xlsx';
@@ -71,6 +71,12 @@ export default function InventoryPage() {
     onAdd: addMutation.mutate,
     onUpdate: updateMutation.mutate,
   });
+
+  // حساب عدد المنتجات النشطة وغير النشطة عبر useMemo يعتمد حصراً على products
+  const { activeProductsCount, inactiveProductsCount } = useMemo(() => ({
+    activeProductsCount: products.filter((p) => p.status === 'active').length,
+    inactiveProductsCount: products.filter((p) => p.status === 'inactive').length,
+  }), [products]);
 
   // Local UI modals state
   const [inventoryTab, setInventoryTab] = useState<'products' | 'barcode-report'>('products');
@@ -174,8 +180,8 @@ export default function InventoryPage() {
           {/* Interactive Statistics Cards */}
           <InventoryStatsCards
             stats={stats}
-            activeProductsCount={products.filter((p) => p.status === 'active').length}
-            inactiveProductsCount={products.filter((p) => p.status === 'inactive').length}
+            activeProductsCount={activeProductsCount}
+            inactiveProductsCount={inactiveProductsCount}
             filterStockStatus={filterStockStatus}
             filterCategory={filterCategory}
             onSelectStockStatus={setFilterStockStatus}

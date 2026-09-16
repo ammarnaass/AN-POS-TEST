@@ -131,6 +131,7 @@ export async function logActivity(data: {
 // ===== upload (Excel import) =====
 
 export async function uploadProducts(rows: Record<string, unknown>[]): Promise<{ imported: number; total: number }> {
+  console.time('[PERF] misc:uploadProducts (bulk)');
   let count = 0;
   transaction(() => {
     for (const row of rows) {
@@ -152,10 +153,12 @@ export async function uploadProducts(rows: Record<string, unknown>[]): Promise<{
     }
   });
   notifyTableChange('products', 'bulk-create');
+  console.timeEnd('[PERF] misc:uploadProducts (bulk)');
   return { imported: count, total: rows.length };
 }
 
 export async function uploadCustomers(rows: Record<string, unknown>[]): Promise<{ imported: number; total: number }> {
+  console.time('[PERF] misc:uploadCustomers (bulk)');
   let count = 0;
   transaction(() => {
     for (const row of rows) {
@@ -175,5 +178,6 @@ export async function uploadCustomers(rows: Record<string, unknown>[]): Promise<
     }
   });
   notifyTableChange('customers', 'bulk-create');
+  console.timeEnd('[PERF] misc:uploadCustomers (bulk)');
   return { imported: count, total: rows.length };
 }

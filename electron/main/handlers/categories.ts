@@ -13,6 +13,7 @@ import {
 
 export async function listCategories(): Promise<{ data: Row[] }> {
   // نحسب عدد المنتجات عبر category_id أو اسم category للوفاقية مع البيانات القديمة
+  console.time('[PERF] categories:listCategories (GROUP BY)');
   const rows = queryAll(`
     SELECT c.*, COUNT(p.id) AS product_count
     FROM categories c
@@ -20,6 +21,7 @@ export async function listCategories(): Promise<{ data: Row[] }> {
     GROUP BY c.id
     ORDER BY c.name ASC
   `);
+  console.timeEnd('[PERF] categories:listCategories (GROUP BY)');
   return { data: rows };
 }
 

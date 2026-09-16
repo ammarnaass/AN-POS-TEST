@@ -4,7 +4,7 @@ import { useCartStore } from '@/store/cartStore';
 
 export type POSPaymentMethod = 'cash' | 'card' | 'transfer' | 'credit';
 
-export type POSLayout = 'sidebar' | 'bottom' | 'classic' | 'modern' | 'terminal' | 'advanced';
+export type POSLayout = 'sidebar' | 'bottom' | 'classic' | 'modern' | 'terminal' | 'advanced' | 'design7';
 
 export type ScreenResolution =
   | 'auto'

@@ -256,7 +256,9 @@ export async function listProducts(opts: ListProductsOptions = {}): Promise<{ da
     }
   }
 
+  console.time('[PERF] products:listProducts');
   const rows = queryAll(sql, params);
+  console.timeEnd('[PERF] products:listProducts');
   return { data: rows.map(transformProductFromDB) };
 }
 

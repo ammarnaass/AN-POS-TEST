@@ -167,10 +167,8 @@ function getHtmlContent() {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>مولد تراخيص AN POS — License Generator</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <!-- Local Fonts: Cairo & Tajawal -->
+  <link rel="stylesheet" href="../public/fonts/fonts.css">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {

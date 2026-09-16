@@ -619,6 +619,42 @@ export const CustomizeLayoutModal: React.FC<CustomizeLayoutModalProps> = ({
                   </p>
                 </div>
               </button>
+
+              {/* Option 7: تصميم 7 - نقطة البيع المتقدمة (Skeuomorphic Touch POS) */}
+              <button
+                onClick={() => {
+                  setPosLayout('design7');
+                  localStorage.setItem('pos_layout_mode', 'design7');
+                }}
+                className={`p-3.5 rounded-2xl border text-right transition-all flex flex-col justify-between gap-3 cursor-pointer ${
+                  posLayout === 'design7'
+                    ? 'border-amber-500 bg-amber-50/20 dark:bg-amber-950/40 shadow-xs ring-2 ring-amber-500/40'
+                    : 'border-outline-variant/20 dark:border-slate-800 hover:border-amber-400/40 bg-surface-container dark:bg-slate-800/60'
+                }`}
+              >
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-2">
+                    <Terminal className={`w-5 h-5 ${posLayout === 'design7' ? 'text-amber-600 dark:text-amber-400' : 'text-on-surface-variant'}`} />
+                    <span className="px-2 py-0.5 rounded-full bg-amber-600 text-white text-[10px] font-bold shadow-xs">
+                      تصميم 7 المتقدم ★
+                    </span>
+                    <span className="text-[10px] font-mono text-amber-600 dark:text-amber-400 bg-amber-100/50 dark:bg-amber-950/50 px-1.5 py-0.5 rounded border border-amber-300 dark:border-amber-800">
+                      Classic Touch POS
+                    </span>
+                  </div>
+                  <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                    posLayout === 'design7' ? 'border-amber-500' : 'border-outline-variant/40'
+                  }`}>
+                    {posLayout === 'design7' && <span className="w-2 h-2 rounded-full bg-amber-500" />}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-on-surface dark:text-white">تصميم 7 (نقطة البيع الكلاسيكية المتقدمة)</p>
+                  <p className="text-[10px] text-on-surface-variant dark:text-slate-400 mt-0.5">
+                    واجهة لمسية احترافية، شاشة LED حمراء، شريط أدوات علوي، مصفوفة تحكم 3×5، وشبكة أصناف سريعة 4×4
+                  </p>
+                </div>
+              </button>
             </div>
           </div>
 

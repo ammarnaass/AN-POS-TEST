@@ -718,7 +718,7 @@ export default function POSPage() {
 
   // Keyboard Shortcuts Hook
   usePOSKeyboardShortcuts({
-    enabled: posLayout !== 'advanced',
+    enabled: posLayout !== 'advanced' && posLayout !== 'design7',
     cart,
     selectedItemId,
     isSessionOpen,
@@ -889,7 +889,7 @@ export default function POSPage() {
         style={canvasStyle}
       >
         {/* TOP BAR & SUBHEADER ACTIONS (Rendered in non-fullscreen layouts) */}
-        {posLayout !== 'modern' && posLayout !== 'sidebar' && posLayout !== 'terminal' && posLayout !== 'advanced' && (
+        {posLayout !== 'modern' && posLayout !== 'sidebar' && posLayout !== 'terminal' && posLayout !== 'advanced' && posLayout !== 'design7' && (
           <POSTopBar
             currentUser={currentUser}
             trial={trial}

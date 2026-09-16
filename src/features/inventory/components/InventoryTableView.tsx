@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Package,
@@ -10,6 +10,7 @@ import {
   ToggleRight,
   Trash2,
 } from 'lucide-react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import type { Product } from '@/types';
 
 interface InventoryTableViewProps {
@@ -34,9 +35,107 @@ export const InventoryTableView: React.FC<InventoryTableViewProps> = ({
   isExpiringSoon,
 }) => {
   const navigate = useNavigate();
+  const parentRef = useRef<HTMLDivElement>(null);
+  const [scrollElement, setScrollElement] = useState<HTMLElement | null>(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
+
+  // العثور على الحاوية المسؤولة عن التمرير الرأسي (مثل عنصر main في لوحة التحكم)
+  useEffect(() => {
+    if (!parentRef.current) return;
+    let parent = parentRef.current.parentElement;
+    while (parent) {
+      const style = window.getComputedStyle(parent);
+      if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+        setScrollElement(parent);
+        return;
+      }
+      parent = parent.parentElement;
+    }
+    setScrollElement((document.scrollingElement as HTMLElement) || document.documentElement);
+  }, []);
+
+  // حساب الهامش الرأسي scrollMargin بالنسبة لحاوية التمرير
+  useEffect(() => {
+    if (!parentRef.current || !scrollElement) return;
+
+    const updateMargin = () => {
+      if (!parentRef.current || !scrollElement) return;
+      if (
+        scrollElement === document.documentElement ||
+        scrollElement === document.body ||
+        scrollElement === document.scrollingElement
+      ) {
+        const rect = parentRef.current.getBoundingClientRect();
+        setScrollMargin(rect.top + window.scrollY);
+      } else {
+        const nodeRect = parentRef.current.getBoundingClientRect();
+        const parentRect = scrollElement.getBoundingClientRect();
+        setScrollMargin(nodeRect.top - parentRect.top + scrollElement.scrollTop);
+      }
+    };
+
+    updateMargin();
+    const handleUpdate = () => updateMargin();
+    window.addEventListener('resize', handleUpdate);
+    scrollElement.addEventListener('scroll', handleUpdate, { passive: true });
+    return () => {
+      window.removeEventListener('resize', handleUpdate);
+      scrollElement.removeEventListener('scroll', handleUpdate);
+    };
+  }, [scrollElement]);
+
+  // تهيئة المحاكي الافتراضي من TanStack Virtual لصفوف الجدول
+  const rowVirtualizer = useVirtualizer({
+    count: products.length,
+    getScrollElement: () => scrollElement || parentRef.current,
+    estimateSize: () => 75,
+    scrollMargin,
+    overscan: 5,
+    observeElementRect: (instance, cb) => {
+      const el = instance.scrollElement as HTMLElement | null;
+      cb({
+        width: el?.clientWidth || 1280,
+        height: el?.clientHeight || (typeof window !== 'undefined' ? window.innerHeight : 800),
+      });
+    },
+  });
+
+  const virtualRows = rowVirtualizer.getVirtualItems();
+  const totalSize = rowVirtualizer.getTotalSize();
+
+  // حساب مسافات التباعد الرأسية لصفوف الجدول الافتراضية
+  const paddingTop =
+    virtualRows.length > 0
+      ? Math.max(0, (virtualRows[0]?.start ?? 0) - (rowVirtualizer.options.scrollMargin ?? 0))
+      : 0;
+
+  const paddingBottom =
+    virtualRows.length > 0
+      ? Math.max(
+          0,
+          totalSize - ((virtualRows[virtualRows.length - 1]?.end ?? 0) - (rowVirtualizer.options.scrollMargin ?? 0))
+        )
+      : 0;
+
+  // في حال عدم اكتمال القياس الأولي أو في بيئة الاختبار، يتم استخدام القائمة الكاملة كاحتياط
+  const itemsToRender =
+    virtualRows.length > 0
+      ? virtualRows
+      : products.map((_, index) => ({
+          index,
+          key: index,
+          start: index * 75,
+          end: (index + 1) * 75,
+          size: 75,
+          lane: 0,
+        }));
 
   return (
-    <div className="bg-surface-container rounded-2xl border border-outline-variant/20 shadow-sm overflow-hidden" dir="rtl">
+    <div
+      ref={parentRef}
+      className="bg-surface-container rounded-2xl border border-outline-variant/20 shadow-sm overflow-hidden"
+      dir="rtl"
+    >
       <div className="overflow-x-auto">
         <table className="w-full text-right border-collapse">
           <thead>
@@ -51,7 +150,15 @@ export const InventoryTableView: React.FC<InventoryTableViewProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-outline-variant/10 text-body-sm">
-            {products.map((product) => {
+            {paddingTop > 0 && (
+              <tr>
+                <td colSpan={7} style={{ height: `${paddingTop}px`, padding: 0, border: 0 }} />
+              </tr>
+            )}
+            {itemsToRender.map((virtualRow) => {
+              const product = products[virtualRow.index];
+              if (!product) return null;
+
               const stockStatus = getStockStatus(product);
               const expiringSoon = isExpiringSoon(product);
               const marginVal =
@@ -62,6 +169,8 @@ export const InventoryTableView: React.FC<InventoryTableViewProps> = ({
               return (
                 <tr
                   key={product.id}
+                  data-index={virtualRow.index}
+                  ref={rowVirtualizer.measureElement}
                   className={`hover:bg-surface-container-high/40 transition-colors group ${
                     expiringSoon ? 'bg-amber-500/5' : ''
                   }`}
@@ -271,6 +380,11 @@ export const InventoryTableView: React.FC<InventoryTableViewProps> = ({
                 </tr>
               );
             })}
+            {paddingBottom > 0 && (
+              <tr>
+                <td colSpan={7} style={{ height: `${paddingBottom}px`, padding: 0, border: 0 }} />
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

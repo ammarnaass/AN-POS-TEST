@@ -56,7 +56,9 @@ export async function listSales(opts?: SalesListOptions): Promise<{ data: Record
   if (opts?.limit) { sql += ' LIMIT ?'; params.push(opts.limit); }
   if (opts?.offset) { sql += ' OFFSET ?'; params.push(opts.offset); }
 
+  console.time('[PERF] sales:listSales');
   const rows = queryAll(sql, params);
+  console.timeEnd('[PERF] sales:listSales');
   return { data: rows.map(transformSale) };
 }
 
@@ -125,6 +127,7 @@ export async function createSale(data: Record<string, unknown>): Promise<{ data:
     }
   }
 
+  console.time('[PERF] sales:createSale (transaction)');
   transaction(() => {
     // 1. إدراج الفاتورة في جدول sales
     execute(
@@ -299,6 +302,7 @@ export async function createSale(data: Record<string, unknown>): Promise<{ data:
       }
     }
   });
+  console.timeEnd('[PERF] sales:createSale (transaction)');
 
   notifyTableChange('sales', 'create', id);
   notifyTableChange('products', 'bulk-update');

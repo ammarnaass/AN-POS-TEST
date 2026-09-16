@@ -1,0 +1,102 @@
+/* Design 7 - Skeuomorphic Classic Touch Desktop POS Styles */
+
+.d7-container {
+  user-select: none;
+  -webkit-user-select: none;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Metallic and glossy desktop button finishes */
+.d7-glossy-top-btn {
+  background: linear-gradient(to bottom, #ffffff 0%, #e4eaf0 48%, #c8d3df 52%, #dfe7ef 100%);
+  box-shadow: inset 0 1px 0 #ffffff, 0 1px 2px rgba(0,0,0,0.25), inset 0 -1px 0 #a2b0be;
+  border: 1px solid #7e8e9e;
+  transition: all 0.08s ease;
+}
+.d7-glossy-top-btn:hover {
+  background: linear-gradient(to bottom, #ffffff 0%, #edf2f7 48%, #d5e0ec 52%, #e6eef5 100%);
+}
+.d7-glossy-top-btn:active {
+  background: linear-gradient(to bottom, #c0cdd9 0%, #d8e2ec 100%);
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.4);
+}
+
+.d7-pill-gloss-cyan {
+  background: linear-gradient(to bottom, #e1f5fe 0%, #b3e5fc 48%, #81d4fa 52%, #b2ebf2 100%);
+  border: 1px solid #4fc3f7;
+  box-shadow: inset 0 1px 0 #ffffff, 0 1px 2px rgba(0,0,0,0.15);
+}
+
+.d7-pill-gloss-red {
+  background: linear-gradient(to bottom, #ff7979 0%, #eb4d4b 50%, #c0392b 52%, #e74c3c 100%);
+  border: 1px solid #962d22;
+  box-shadow: inset 0 1px 0 #ffa8a8, 0 1px 3px rgba(0,0,0,0.3);
+  color: #ffffff;
+}
+
+.d7-glossy-fav-btn {
+  background: linear-gradient(to bottom, #ffffff 0%, #f0f4f8 48%, #dde5ed 52%, #edf2f7 100%);
+  border: 1px solid #b0bec5;
+  box-shadow: inset 0 1px 0 #ffffff, 0 1px 2px rgba(0,0,0,0.1);
+  transition: all 0.08s ease;
+}
+.d7-glossy-fav-btn:hover {
+  background: linear-gradient(to bottom, #ffffff 0%, #e3edf7 50%, #cfdfea 100%);
+}
+.d7-glossy-fav-btn:active {
+  background: linear-gradient(to bottom, #cfdfea 0%, #b8cad6 100%);
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
+}
+
+.d7-glossy-product-tile {
+  background: linear-gradient(to bottom, #fcfcfc 0%, #f4f4f2 48%, #e8e8e3 52%, #f2f2ee 100%);
+  border: 1px solid #b8b8ad;
+  box-shadow: inset 0 1px 0 #ffffff, 0 1px 2px rgba(0,0,0,0.12);
+  position: relative;
+  transition: all 0.08s ease;
+}
+.d7-glossy-product-tile::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  right: 4px;
+  height: 38%;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.05) 100%);
+  border-radius: 4px;
+  pointer-events: none;
+}
+.d7-glossy-product-tile:hover {
+  background: linear-gradient(to bottom, #ffffff 0%, #f7f7f5 48%, #ecece6 52%, #f8f8f5 100%);
+  border-color: #949485;
+  box-shadow: inset 0 1px 0 #ffffff, 0 2px 4px rgba(0,0,0,0.18);
+}
+.d7-glossy-product-tile:active {
+  background: linear-gradient(to bottom, #deded7 0%, #e8e8e3 100%);
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.28);
+}
+
+.d7-glossy-action-tile {
+  background: linear-gradient(to bottom, #ffffff 0%, #f1f4f8 48%, #dce4ed 52%, #eef3f8 100%);
+  border: 1px solid #99aab8;
+  box-shadow: inset 0 1px 0 #ffffff, 0 1px 2px rgba(0,0,0,0.2);
+  transition: all 0.08s ease;
+}
+.d7-glossy-action-tile:hover {
+  background: linear-gradient(to bottom, #ffffff 0%, #e6eff8 48%, #cfe0ef 52%, #e6f0fa 100%);
+  border-color: #7b94a8;
+}
+.d7-glossy-action-tile:active {
+  background: linear-gradient(to bottom, #c5d7e8 0%, #d8e4f0 100%);
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.35);
+}
+
+.d7-led-display-bg {
+  background: radial-gradient(circle at 50% 30%, #1e4b85 0%, #081a38 75%, #030b18 100%);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.8), 0 1px 0 rgba(255,255,255,0.4);
+}
+
+.d7-classic-cell-border {
+  border-left: 1px solid #aebac7;
+  border-right: 1px solid #ffffff;
+}

@@ -1,0 +1,73 @@
+/* AN POS - Local Fonts Definitions (Cairo & Tajawal) */
+
+@font-face {
+  font-family: 'Cairo';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./Cairo-Regular.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Cairo';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('./Cairo-SemiBold.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Cairo';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./Cairo-Bold.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Cairo';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('./Cairo-ExtraBold.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Cairo';
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url('./Cairo-Black.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./Tajawal-Regular.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('./Tajawal-Medium.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./Tajawal-Bold.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('./Tajawal-ExtraBold.ttf') format('truetype');
+}

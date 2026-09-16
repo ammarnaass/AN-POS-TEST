@@ -276,6 +276,28 @@ function createFormattedWorksheet(
 }
 
 /**
+ * دالة مساعدة لتحميل ملف عبر إنشاء رابط Blob مؤقت
+ * تعمل بشكل موثوق في كل من المتصفح العادي و Electron renderer
+ */
+function triggerBlobDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.style.display = 'none';
+  document.body.appendChild(link);
+
+  // تأخير بسيط لضمان اكتمال التحميل في Electron
+  setTimeout(() => {
+    link.click();
+    setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }, 200);
+  }, 0);
+}
+
+/**
  * الدالة الرئيسية لتصدير قائمة المنتجات إلى Excel (.xlsx) أو CSV (.csv)
  */
 export async function exportProductsToFile(
@@ -312,19 +334,25 @@ export async function exportProductsToFile(
     const sheetTitle =
       template === 'inventory_audit' ? 'مراجعة الأسعار والجرد' : 'بيانات المنتجات الشاملة';
     XLSX.utils.book_append_sheet(wb, ws, sheetTitle);
-    XLSX.writeFile(wb, defaultFilename);
+
+    // استخدام XLSX.write لإنشاء ArrayBuffer ثم تحميله عبر Blob
+    // بدلاً من XLSX.writeFile الذي قد يفشل بصمت في Electron renderer
+    const xlsxBuffer = XLSX.write(wb, {
+      bookType: 'xlsx',
+      type: 'array', // ArrayBuffer — متوافق مع Blob
+    });
+
+    const blob = new Blob([xlsxBuffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+
+    triggerBlobDownload(blob, defaultFilename);
   } else {
     // CSV Export مع رمز UTF-8 BOM (\uFEFF) لضمان توافق الحروف العربية 100% مع Excel
     const csvContent = '\uFEFF' + XLSX.utils.sheet_to_csv(ws);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = defaultFilename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+
+    triggerBlobDownload(blob, defaultFilename);
   }
 
   return {

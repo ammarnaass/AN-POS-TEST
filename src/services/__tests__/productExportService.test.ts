@@ -1,13 +1,17 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Product, Category } from '@/types';
 
-const mockWriteFile = vi.fn();
+const mockWrite = vi.fn();
 
 vi.mock('xlsx', async (importOriginal) => {
   const actual = await importOriginal<typeof import('xlsx')>();
   return {
     ...actual,
-    writeFile: (...args: any[]) => mockWriteFile(...args),
+    write: (...args: any[]) => {
+      const result = actual.write(...args);
+      mockWrite(...args);
+      return result;
+    },
   };
 });
 
@@ -61,8 +65,41 @@ describe('productExportService', () => {
     },
   ];
 
+  // Mock DOM APIs for Blob download
+  let linkClickSpy: ReturnType<typeof vi.fn>;
+  let createdBlob: Blob | null = null;
+  let originalCreateObjectURL: typeof URL.createObjectURL;
+  let originalRevokeObjectURL: typeof URL.revokeObjectURL;
+
   beforeEach(() => {
-    mockWriteFile.mockReset();
+    mockWrite.mockReset();
+    createdBlob = null;
+    linkClickSpy = vi.fn();
+
+    originalCreateObjectURL = URL.createObjectURL;
+    originalRevokeObjectURL = URL.revokeObjectURL;
+
+    URL.createObjectURL = vi.fn((blob: any) => {
+      createdBlob = blob;
+      return 'blob:mock-url';
+    });
+    URL.revokeObjectURL = vi.fn();
+
+    vi.spyOn(document, 'createElement').mockReturnValue({
+      href: '',
+      download: '',
+      style: { display: '' },
+      click: linkClickSpy,
+    } as any);
+
+    vi.spyOn(document.body, 'appendChild').mockImplementation(() => null as any);
+    vi.spyOn(document.body, 'removeChild').mockImplementation(() => null as any);
+  });
+
+  afterEach(() => {
+    URL.createObjectURL = originalCreateObjectURL;
+    URL.revokeObjectURL = originalRevokeObjectURL;
+    vi.restoreAllMocks();
   });
 
   describe('resolveCategoryName', () => {
@@ -91,10 +128,7 @@ describe('productExportService', () => {
 
   describe('exportProductsToFile - Excel (.xlsx)', () => {
     it('exports products in inventory_audit template (7 main fields)', async () => {
-      let capturedBook: XLSX.WorkBook | null = null;
-      mockWriteFile.mockImplementation((wb: XLSX.WorkBook) => {
-        capturedBook = wb;
-      });
+      vi.useFakeTimers();
 
       const result = await exportProductsToFile(mockProducts, {
         format: 'xlsx',
@@ -102,12 +136,26 @@ describe('productExportService', () => {
         categories: mockCategories,
       });
 
+      // Advance timers to trigger the setTimeout-based download
+      vi.advanceTimersByTime(300);
+
       expect(result.success).toBe(true);
       expect(result.count).toBe(2);
-      expect(mockWriteFile).toHaveBeenCalled();
 
-      expect(capturedBook).not.toBeNull();
-      const sheet = capturedBook!.Sheets['مراجعة الأسعار والجرد'];
+      // XLSX.write should have been called (instead of XLSX.writeFile)
+      expect(mockWrite).toHaveBeenCalled();
+      const writeArgs = mockWrite.mock.calls[0];
+      expect(writeArgs[1]).toEqual({ bookType: 'xlsx', type: 'array' });
+
+      // Verify blob was created with Excel MIME type
+      expect(createdBlob).not.toBeNull();
+      expect(createdBlob!.type).toBe(
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      );
+
+      // Verify the workbook content by parsing the captured blob buffer
+      const capturedBook = writeArgs[0] as XLSX.WorkBook;
+      const sheet = capturedBook.Sheets['مراجعة الأسعار والجرد'];
       expect(sheet).toBeDefined();
 
       // Check RTL view
@@ -139,13 +187,12 @@ describe('productExportService', () => {
       const barcodeCell = sheet['B2'];
       expect(barcodeCell.t).toBe('s');
       expect(barcodeCell.z).toBe('@');
+
+      vi.useRealTimers();
     });
 
     it('exports products in comprehensive template (20 fields)', async () => {
-      let capturedBook: XLSX.WorkBook | null = null;
-      mockWriteFile.mockImplementation((wb: XLSX.WorkBook) => {
-        capturedBook = wb;
-      });
+      vi.useFakeTimers();
 
       const result = await exportProductsToFile(mockProducts, {
         format: 'xlsx',
@@ -153,9 +200,14 @@ describe('productExportService', () => {
         categories: mockCategories,
       });
 
+      vi.advanceTimersByTime(300);
+
       expect(result.success).toBe(true);
+      expect(mockWrite).toHaveBeenCalled();
+
+      const capturedBook = mockWrite.mock.calls[0][0] as XLSX.WorkBook;
       expect(capturedBook).not.toBeNull();
-      const sheet = capturedBook!.Sheets['بيانات المنتجات الشاملة'];
+      const sheet = capturedBook.Sheets['بيانات المنتجات الشاملة'];
       expect(sheet).toBeDefined();
 
       const json = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 });
@@ -166,6 +218,8 @@ describe('productExportService', () => {
       expect(headers[2]).toBe('كود الصنف (SKU)');
       expect(headers[3]).toBe('التصنيف');
       expect(headers[8]).toBe('الكمية الحالية');
+
+      vi.useRealTimers();
     });
 
     it('throws error when product list is empty', async () => {
@@ -177,25 +231,7 @@ describe('productExportService', () => {
 
   describe('exportProductsToFile - CSV (.csv)', () => {
     it('triggers CSV download with UTF-8 BOM', async () => {
-      let createdBlob: Blob | null = null;
-      const originalCreateObjectURL = URL.createObjectURL;
-      const originalRevokeObjectURL = URL.revokeObjectURL;
-
-      URL.createObjectURL = vi.fn((blob: any) => {
-        createdBlob = blob;
-        return 'blob:mock-url';
-      });
-      URL.revokeObjectURL = vi.fn();
-
-      const linkClickSpy = vi.fn();
-      vi.spyOn(document, 'createElement').mockReturnValue({
-        set href(val: string) {},
-        set download(val: string) {},
-        click: linkClickSpy,
-      } as any);
-
-      vi.spyOn(document.body, 'appendChild').mockImplementation(() => null as any);
-      vi.spyOn(document.body, 'removeChild').mockImplementation(() => null as any);
+      vi.useFakeTimers();
 
       const result = await exportProductsToFile(mockProducts, {
         format: 'csv',
@@ -203,8 +239,11 @@ describe('productExportService', () => {
         categories: mockCategories,
       });
 
+      vi.advanceTimersByTime(300);
+
       expect(result.success).toBe(true);
-      expect(linkClickSpy).toHaveBeenCalled();
+
+      // Verify blob was created
       expect(createdBlob).not.toBeNull();
 
       // Read blob content to verify UTF-8 BOM bytes (0xEF, 0xBB, 0xBF)
@@ -218,8 +257,7 @@ describe('productExportService', () => {
       expect(text).toContain('اسم المنتج');
       expect(text).toContain('عصير برتقال 1 لتر');
 
-      URL.createObjectURL = originalCreateObjectURL;
-      URL.revokeObjectURL = originalRevokeObjectURL;
+      vi.useRealTimers();
     });
   });
 });

@@ -395,9 +395,9 @@ export async function listRows(
   sql += ` ORDER BY ${listOrder}`;
 
   if (opts?.limit) { sql += ' LIMIT ?'; params.push(opts.limit); }
-  if (opts?.offset) { sql += ' OFFSET ?'; params.push(opts.offset); }
-
+  console.time(`[PERF] crud:listRows:${tableName}`);
   const rows = queryAll(sql, params);
+  console.timeEnd(`[PERF] crud:listRows:${tableName}`);
   return { data: config ? rows.map((r) => transformRow(r, config)) : rows };
 }
 
@@ -561,7 +561,9 @@ export async function countRows(
     sql += ` WHERE ${whereClauses.join(' AND ')}`;
   }
 
+  console.time(`[PERF] crud:countRows:${tableName}`);
   const row = queryOne(sql, params);
+  console.timeEnd(`[PERF] crud:countRows:${tableName}`);
   return { count: Number(row?.count ?? 0) };
 }
 
@@ -581,6 +583,7 @@ export async function bulkCreateRows(
 ): Promise<{ count: number }> {
   if (!items || items.length === 0) return { count: 0 };
   const tableName = resolveTableName(rawTableName);
+  console.time(`[PERF] crud:bulkCreateRows:${tableName} (${items.length} items)`);
   const config = tableConfigs.get(tableName);
   const idField = config?.idField ?? 'id';
   const now = new Date().toISOString();
@@ -606,6 +609,7 @@ export async function bulkCreateRows(
   });
 
   notifyTableChange(tableName, 'bulk-create');
+  console.timeEnd(`[PERF] crud:bulkCreateRows:${tableName} (${items.length} items)`);
   return { count: insertedCount };
 }
 
@@ -618,6 +622,7 @@ export async function bulkUpdateRows(
 ): Promise<{ count: number }> {
   if (!items || items.length === 0) return { count: 0 };
   const tableName = resolveTableName(rawTableName);
+  console.time(`[PERF] crud:bulkUpdateRows:${tableName} (${items.length} items)`);
   const config = tableConfigs.get(tableName);
   const idField = config?.idField ?? 'id';
   const now = new Date().toISOString();
@@ -651,6 +656,7 @@ export async function bulkUpdateRows(
   });
 
   notifyTableChange(tableName, 'bulk-update');
+  console.timeEnd(`[PERF] crud:bulkUpdateRows:${tableName} (${items.length} items)`);
   return { count: updatedCount };
 }
 

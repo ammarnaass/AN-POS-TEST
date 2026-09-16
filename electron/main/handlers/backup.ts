@@ -72,6 +72,7 @@ const BACKUP_TABLES = [
  * تصدير نسخة احتياطية شاملة من كافة جداول SQLite
  */
 export async function exportFullBackup(): Promise<ComprehensiveBackup> {
+  console.time('[PERF] backup:exportFullBackup');
   const data: Record<string, any[]> = {};
   let imagesCount = 0;
 
@@ -120,6 +121,7 @@ export async function exportFullBackup(): Promise<ComprehensiveBackup> {
     },
   };
 
+  console.timeEnd('[PERF] backup:exportFullBackup');
   return { metadata, data };
 }
 
@@ -137,6 +139,7 @@ export async function importFullBackup(
   const rawData: Record<string, any[]> = backup.data || backup;
   const importedCounts: Record<string, number> = {};
 
+  console.time('[PERF] backup:importFullBackup');
   transaction(() => {
     // إذا كان الاستبدال نظيفاً (clean)، يتم تنظيف الجداول باستثناء الإعدادات والمستخدمين مؤقتاً
     if (mode === 'clean') {
@@ -190,6 +193,7 @@ export async function importFullBackup(
       importedCounts[table] = count;
     }
   });
+  console.timeEnd('[PERF] backup:importFullBackup');
 
   return { success: true, importedCounts };
 }
