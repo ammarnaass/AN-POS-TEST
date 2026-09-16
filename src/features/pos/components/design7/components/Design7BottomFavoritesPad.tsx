@@ -11,6 +11,7 @@ export interface FavoritePackItem {
   packUnit?: string;
   barcode?: string;
   itemId?: string;
+  isPack?: boolean;
 }
 
 export interface Design7BottomFavoritesPadProps {
@@ -90,7 +91,7 @@ export const Design7BottomFavoritesPad: React.FC<Design7BottomFavoritesPadProps>
       } else {
         tabs.push({
           id: `fav-${i + 1}`,
-          name: `عبوة ${i + 1}`,
+          name: `فئة ${i + 1}`,
           isPlaceholder: true,
         });
       }
@@ -112,7 +113,7 @@ export const Design7BottomFavoritesPad: React.FC<Design7BottomFavoritesPadProps>
       } else {
         tabs.push({
           id: `fav-${i + 1}`,
-          name: `عبوة ${i + 1}`,
+          name: `فئة ${i + 1}`,
           isPlaceholder: true,
         });
       }
@@ -128,40 +129,55 @@ export const Design7BottomFavoritesPad: React.FC<Design7BottomFavoritesPadProps>
   const handleCategoryClick = (catId: string) => {
     if (onSelectFavoriteCategory) {
       onSelectFavoriteCategory(catId);
-    } else if (onSelectCategory) {
+    }
+    if (onSelectCategory) {
       onSelectCategory(catId);
     }
   };
 
-  // Resolve packs to display (up to 16 slots)
+  // Resolve packs or products to display (up to 16 slots)
   const activePacksList = useMemo(() => {
-    if (hasFavoriteCategories || favoritePacks.length > 0) {
+    // 1. If we have favorite packs directly passed, display them
+    if (favoritePacks && favoritePacks.length > 0) {
       return favoritePacks.slice(0, 16);
     }
 
-    // Fallback to legacy products only if favorite categories/packs are completely absent
-    if (products.length > 0) {
-      let filtered = products;
-      if (selectedCategory && selectedCategory !== 'ALL' && selectedCategory !== 'all') {
-        filtered = products.filter(
+    // 2. Fallback to products if favorite packs are absent
+    const productSource = products && products.length > 0 ? products : [];
+    if (productSource.length > 0) {
+      let filtered = productSource;
+      const activeFilter = (selectedFavoriteCatId && selectedFavoriteCatId !== 'ALL' && selectedFavoriteCatId !== 'all')
+        ? selectedFavoriteCatId
+        : (selectedCategory && selectedCategory !== 'ALL' && selectedCategory !== 'all')
+        ? selectedCategory
+        : null;
+
+      if (activeFilter) {
+        const matching = productSource.filter(
           (p) =>
-            p.categoryId === selectedCategory ||
-            p.category === selectedCategory ||
-            (p as any).category_id === selectedCategory
+            p.categoryId === activeFilter ||
+            p.category === activeFilter ||
+            (p as any).category_id === activeFilter
         );
+        if (matching.length > 0) {
+          filtered = matching;
+        }
       }
+
       return filtered.slice(0, 16).map((p) => ({
         id: p.id,
+        itemId: p.id,
         name: p.name,
-        price: Number(p.price || (p as any).retailPrice || 0),
+        price: Number(p.retailPrice ?? (p as any).price ?? 0),
         packQty: (p as any).packPiecesCount || (p as any).piecesCount || 1,
-        packUnit: (p as any).unit || (p as any).unitName || 'عبوة',
+        packUnit: (p as any).unit || (p as any).unitName || ((p as any).isPack ? 'عبوة' : 'قطعة'),
         barcode: p.barcode,
+        isPack: Boolean((p as any).isPack),
       }));
     }
 
     return [];
-  }, [hasFavoriteCategories, favoritePacks, products, selectedCategory]);
+  }, [favoritePacks, products, selectedFavoriteCatId, selectedCategory]);
 
   const handleOpenManagement = () => {
     if (onOpenFavoritesManagement) {

@@ -305,6 +305,99 @@ export async function setPrinterStatus(
   });
 }
 
+/**
+ * جلب ومزامنة طابعات نظام التشغيل المثبتة في الجهاز مع قاعدة البيانات المحلية
+ */
+export async function syncSystemPrinters(): Promise<{
+  addedCount: number;
+  updatedCount: number;
+  totalSystemCount: number;
+  devices: import('./detectDevices').DiscoveredPrinter[];
+  message: string;
+}> {
+  const { detectSystemPrinters } = await import('./detectDevices');
+  const result = await detectSystemPrinters();
+
+  if (result.devices.length === 0) {
+    const warn = result.warnings[0] || result.errors[0] || 'لم يتم العثور على طابعات مثبتة في نظام التشغيل';
+    return {
+      addedCount: 0,
+      updatedCount: 0,
+      totalSystemCount: 0,
+      devices: [],
+      message: warn,
+    };
+  }
+
+  const existingPrinters = await db.printers.toArray();
+  const now = new Date().toISOString();
+  let addedCount = 0;
+  let updatedCount = 0;
+  let hasSetNewDefault = false;
+
+  // فحص ما إذا كانت الطابعة الافتراضية الحالية هي طابعة المتصفح فقط
+  const currentDefault = existingPrinters.find((p) => p.isDefault);
+  const isOnlyBrowserDefault = !currentDefault || currentDefault.id === DEFAULT_PRINTER_ID;
+
+  for (const dev of result.devices) {
+    // البحث بمطابقة الاسم أو العنوان الدقيق في النظام
+    const existing = existingPrinters.find(
+      (p) =>
+        (p.address && p.address.toLowerCase() === dev.address.toLowerCase()) ||
+        p.name.toLowerCase() === dev.name.toLowerCase()
+    );
+
+    if (existing) {
+      // تحديث الحالة وتأكيد الاتصال
+      await db.printers.update(existing.id, {
+        status: 'connected',
+        lastSeenAt: now,
+        address: dev.address,
+        updatedAt: now,
+      });
+      updatedCount++;
+    } else {
+      // إضافة طابعة نظام جديدة
+      const shouldBeDefault = Boolean(dev.isDefault && isOnlyBrowserDefault && !hasSetNewDefault);
+      const newPrinter: Printer = {
+        id: crypto.randomUUID(),
+        name: dev.name,
+        type: dev.type,
+        connection: 'system',
+        address: dev.address,
+        paperSize: dev.paperSize || (dev.type === 'thermal' ? '80mm' : 'A4'),
+        driver: dev.type === 'thermal' ? 'esc_pos' : 'cups',
+        status: 'connected',
+        isDefault: shouldBeDefault,
+        isActive: true,
+        vendor: dev.vendor,
+        model: dev.model,
+        lastSeenAt: now,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      if (shouldBeDefault) {
+        hasSetNewDefault = true;
+        // إزالة الافتراضي من طابعة المتصفح
+        await db.printers.update(DEFAULT_PRINTER_ID, { isDefault: false, updatedAt: now });
+        cachedDefaultId = newPrinter.id;
+      }
+
+      await db.printers.put(newPrinter);
+      addedCount++;
+    }
+  }
+
+  return {
+    addedCount,
+    updatedCount,
+    totalSystemCount: result.devices.length,
+    devices: result.devices,
+    message: `تم جلب ${result.devices.length} طابعة من النظام (أُضيفت: ${addedCount}، حُدثت: ${updatedCount})`,
+  };
+}
+
 export const PRINTER_SERVICE = {
   ensureDefaultPrinter,
   listPrinters,
@@ -319,4 +412,5 @@ export const PRINTER_SERVICE = {
   listPrinterMappings,
   listAllMappings,
   setPrinterStatus,
+  syncSystemPrinters,
 };

@@ -127,9 +127,9 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
   // Fallback favorite packs when store items haven't been created yet
   const fallbackFavoriteItems = useMemo(() => {
     if (systemPacks.length > 0) {
-      return systemPacks.map((p: any) => ({
+      return systemPacks.map((p: any, idx: number) => ({
         id: `sys-pack-${p.id}`,
-        categoryId: 'fav-cat-wholesale',
+        categoryId: p.categoryId || (idx % 3 === 0 ? 'fav-cat-wholesale' : idx % 3 === 1 ? 'fav-cat-drinks' : 'fav-cat-quick'),
         type: 'pack' as const,
         itemId: String(p.id).replace('pack-', ''),
         name: p.name,
@@ -137,7 +137,8 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
         price: Number(p.retailPrice ?? p.price ?? p.packPrice ?? 0),
         packQty: Number(p.packPiecesCount ?? p.piecesCount ?? 1),
         packUnit: p.unitName || p.unit || 'عبوة',
-        order: 0,
+        order: idx,
+        isPack: true,
       }));
     }
 
@@ -154,6 +155,7 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
       packQty: (p as any).packPiecesCount || (p as any).piecesCount || 1,
       packUnit: (p as any).unit || (p as any).unitName || 'عبوة',
       order: idx,
+      isPack: true,
     }));
   }, [systemPacks, allProducts, products]);
 
@@ -178,22 +180,43 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
   // Handle selecting / adding a favorite pack to the basket
   const handleSelectFavoritePack = useCallback(
     (pack: any) => {
-      onAddToCart(
-        {
-          id: `pack-${pack.itemId || pack.id}`,
-          name: pack.name,
-          barcode: pack.barcode,
-          retailPrice: pack.price,
-          price: pack.price,
-          isPack: true,
-          packId: pack.itemId || pack.id,
-          packPiecesCount: pack.packQty || 1,
-          packUnit: pack.packUnit || 'عبوة',
-        } as any,
-        pack.price
-      );
+      const isPackItem = pack.isPack !== false;
+      if (isPackItem) {
+        onAddToCart(
+          {
+            id: `pack-${pack.itemId || pack.id}`,
+            name: pack.name,
+            barcode: pack.barcode,
+            retailPrice: pack.price,
+            price: pack.price,
+            isPack: true,
+            packId: pack.itemId || pack.id,
+            packPiecesCount: pack.packQty || 1,
+            packUnit: pack.packUnit || 'عبوة',
+          } as any,
+          pack.price
+        );
+      } else {
+        const pool = (allProducts && allProducts.length > 0 ? allProducts : products) || [];
+        const originalProduct = pool.find((p) => String(p.id) === String(pack.itemId || pack.id));
+        if (originalProduct) {
+          onAddToCart(originalProduct, pack.price);
+        } else {
+          onAddToCart(
+            {
+              id: pack.itemId || pack.id,
+              name: pack.name,
+              barcode: pack.barcode,
+              retailPrice: pack.price,
+              price: pack.price,
+              isPack: false,
+            } as any,
+            pack.price
+          );
+        }
+      }
     },
-    [onAddToCart]
+    [onAddToCart, allProducts, products]
   );
 
   // Keep selection synchronized with cart changes
@@ -472,6 +495,10 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
           onOpenFavoritesManagement={onOpenFavoritesManagement}
           onAddToCart={onAddToCart}
           formatMoney={formatMoney}
+          categories={categories}
+          selectedCategory={selectedCategory}
+          onSelectCategory={onSelectCategory}
+          products={(allProducts && allProducts.length > 0 ? allProducts : products) || []}
         />
       </div>
 

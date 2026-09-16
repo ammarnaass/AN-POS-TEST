@@ -4,6 +4,7 @@ import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import {
   detectUsbPrinters,
   detectBluetoothPrinters,
+  detectSystemPrinters,
   detectAllPrinters,
   getBrowserSupport,
 } from '@/services/print/detectDevices';
@@ -145,3 +146,54 @@ describe('detectDevices — بينات Bluetooth mock', () => {
     expect(res.warnings.some((w) => w.includes('إلغاء'))).toBe(true);
   });
 });
+
+describe('detectDevices — طابعات نظام التشغيل Electron', () => {
+  it('يعيد تحذيراً عند عدم توفر Electron API في بيئة الويب الصرف', async () => {
+    delete (window as any).electronAPI;
+    const res = await detectSystemPrinters();
+    expect(res.devices).toHaveLength(0);
+    expect(res.warnings.length).toBeGreaterThan(0);
+  });
+
+  it('يكتشف طابعات نظام التشغيل بنجاح ويصنف الطابعة الحرارية بناء على الاسم', async () => {
+    (window as any).electronAPI = {
+      print: {
+        getPrinters: async () => [
+          {
+            name: 'POS-80-Series',
+            displayName: 'طابعة الكاشير الحرارية',
+            description: 'Thermal POS',
+            isDefault: true,
+            status: 0,
+          },
+          {
+            name: 'Canon LBP2900',
+            displayName: 'طابعة A4 مكتبية',
+            description: 'Laser',
+            isDefault: false,
+            status: 0,
+          },
+        ],
+      },
+    };
+
+    const res = await detectSystemPrinters();
+    expect(res.devices).toHaveLength(2);
+
+    const pos = res.devices.find((d) => d.name === 'طابعة الكاشير الحرارية');
+    expect(pos).toBeTruthy();
+    expect(pos?.type).toBe('thermal');
+    expect(pos?.connection).toBe('system');
+    expect(pos?.paperSize).toBe('80mm');
+    expect(pos?.isDefault).toBe(true);
+
+    const canon = res.devices.find((d) => d.name === 'طابعة A4 مكتبية');
+    expect(canon).toBeTruthy();
+    expect(canon?.type).toBe('system');
+    expect(canon?.paperSize).toBe('A4');
+    expect(canon?.isDefault).toBe(false);
+
+    delete (window as any).electronAPI;
+  });
+});
+

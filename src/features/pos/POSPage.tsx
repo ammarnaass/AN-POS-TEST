@@ -381,8 +381,11 @@ export default function POSPage() {
             ? customPrice
             : Number(packObj.packPrice ?? product.price ?? product.retailPrice ?? 0);
 
+        const parentProd = firstComp?.productId
+          ? products.find((p) => p.id === firstComp.productId)
+          : undefined;
+
         if (!posSettings.allowNegativeStock && !posSettings.accountingOnly && firstComp?.productId) {
-          const parentProd = products.find((p) => p.id === firstComp.productId);
           const availablePieces = parentProd ? Number(parentProd.quantity ?? 0) : 0;
           const availablePacks = pQty > 0 ? Math.floor(availablePieces / pQty) : 0;
 

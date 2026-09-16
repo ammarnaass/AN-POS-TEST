@@ -5,10 +5,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Edit2, Trash2, Star, RefreshCw, Printer as PrinterIcon,
   Usb, Bluetooth, Wifi, AlertTriangle, CheckCircle2, X,
+  Monitor, Laptop,
 } from 'lucide-react';
 import {
   listPrinters, createPrinter, updatePrinter, deletePrinter, setDefaultPrinter,
-  listPrinterMappings, setPrinterTemplateMapping,
+  listPrinterMappings, setPrinterTemplateMapping, syncSystemPrinters,
 } from '@/services/print/printerService';
 import { testPrinter } from '@/services/print/testPrinter';
 import { refreshStatus, refreshAllStatuses, startStatusPolling, stopStatusPolling } from '@/services/print/printerStatus';
@@ -172,6 +173,41 @@ export default function PrintersPage({ embedded = false }: PrintersPageProps = {
     },
   });
 
+  const [syncLoading, setSyncLoading] = useState(false);
+  const syncSystemMut = useMutation({
+    mutationFn: async () => {
+      setSyncLoading(true);
+      try {
+        return await syncSystemPrinters();
+      } finally {
+        setSyncLoading(false);
+      }
+    },
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['printers'] });
+      if (res.totalSystemCount > 0) {
+        addNotification({
+          title: 'طابعات الجهاز',
+          message: res.message,
+          type: 'success',
+        });
+      } else {
+        addNotification({
+          title: 'طابعات الجهاز',
+          message: res.message,
+          type: 'info',
+        });
+      }
+    },
+    onError: (err) => {
+      addNotification({
+        title: 'فشل جلب الطابعات',
+        message: err instanceof Error ? err.message : String(err),
+        type: 'error',
+      });
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -232,9 +268,18 @@ export default function PrintersPage({ embedded = false }: PrintersPageProps = {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <button
+            onClick={() => syncSystemMut.mutate()}
+            disabled={syncLoading || syncSystemMut.isPending}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 transition-all font-bold text-sm shadow-xs cursor-pointer"
+            title="جلب جميع الطابعات المثبتة والمعرفة في نظام التشغيل (Windows / Linux / Mac)"
+          >
+            <Laptop className={`w-4 h-4 ${syncLoading || syncSystemMut.isPending ? 'animate-spin' : ''}`} />
+            <span>جلب طابعات الجهاز</span>
+          </button>
+          <button
             onClick={() => refreshAllMut.mutate()}
             disabled={refreshAllMut.isPending}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-outline-variant hover:bg-surface-container transition-all"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-outline-variant hover:bg-surface-container transition-all text-sm font-medium cursor-pointer"
           >
             <RefreshCw className={`w-4 h-4 ${refreshAllMut.isPending ? 'animate-spin' : ''}`} />
             تحديث الحالات
@@ -243,7 +288,7 @@ export default function PrintersPage({ embedded = false }: PrintersPageProps = {
             onClick={() => detectMut.mutate()}
             disabled={!canManage || discoverLoading || (!support.usb && !support.bluetooth)}
             title={!support.usb && !support.bluetooth ? 'WebUSB/Bluetooth غير مدعوم في هذا المتصفح' : ''}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-outline-variant hover:bg-surface-container transition-all disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-outline-variant hover:bg-surface-container transition-all disabled:opacity-50 text-sm font-medium cursor-pointer"
           >
             {discoverLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Usb className="w-4 h-4" />}
             اكتشاف الأجهزة
@@ -251,7 +296,7 @@ export default function PrintersPage({ embedded = false }: PrintersPageProps = {
           {canManage && (
             <button
               onClick={() => setMode('create')}
-              className="flex items-center gap-2 px-4 py-2.5 bg-primary text-on-primary rounded-xl hover:bg-primary/90 transition-all"
+              className="flex items-center gap-2 px-4 py-2.5 bg-primary text-on-primary rounded-xl hover:bg-primary/90 transition-all text-sm font-medium cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               طابعة جديدة
@@ -260,8 +305,12 @@ export default function PrintersPage({ embedded = false }: PrintersPageProps = {
         </div>
       </div>
 
-      {/* Browser support banners */}
-      <div className="flex items-center gap-2 text-xs text-on-surface-variant flex-wrap">
+      {/* Browser & OS support banners */}
+      <div className="flex items-center gap-3 text-xs text-on-surface-variant flex-wrap">
+        <span className="flex items-center gap-1 font-medium">
+          <Monitor className={`w-3.5 h-3.5 ${support.system ? 'text-emerald-600' : 'text-slate-400'}`} />
+          طابعات النظام (Desktop): {support.system ? 'مدعوم ✅' : 'المتصفح'}
+        </span>
         <span className="flex items-center gap-1">
           <Wifi className="w-3.5 h-3.5" /> شبكة: {support.browser ? 'متصفح' : '—'}
         </span>
@@ -274,6 +323,23 @@ export default function PrintersPage({ embedded = false }: PrintersPageProps = {
           Bluetooth: {support.bluetooth ? 'مدعوم' : 'غير مدعوم'}
         </span>
       </div>
+
+      {/* تنبيه ذكي إذا كانت هناك طابعة المتصفح فقط */}
+      {printers.length === 1 && printers[0].id === 'browser-printer' && (
+        <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 rounded-xl p-3 flex items-center justify-between gap-3 text-xs text-amber-900 dark:text-amber-200 shadow-xs">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>يوجد حالياً طابعة المتصفح التجريبية فقط. اضغط على <strong>"جلب طابعات الجهاز"</strong> للتعرف التلقائي على طابعات الإيصالات الحرارية والفواتير المتصلة بحاسوبك.</span>
+          </div>
+          <button
+            onClick={() => syncSystemMut.mutate()}
+            disabled={syncLoading || syncSystemMut.isPending}
+            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg transition-all shrink-0 cursor-pointer shadow-xs"
+          >
+            {syncLoading || syncSystemMut.isPending ? 'جاري الجلب...' : 'جلب الطابعات الآن'}
+          </button>
+        </div>
+      )}
 
       {/* Printers list */}
       <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 overflow-hidden">
@@ -292,7 +358,7 @@ export default function PrintersPage({ embedded = false }: PrintersPageProps = {
             {printers.length === 0 && (
               <tr>
                 <td colSpan={6} className="text-center py-12 text-on-surface-variant">
-                  لا توجد طابعات بعد. اضغط "طابعة جديدة".
+                  لا توجد طابعات بعد. اضغط "طابعة جديدة" أو "جلب طابعات الجهاز".
                 </td>
               </tr>
             )}
@@ -310,11 +376,13 @@ export default function PrintersPage({ embedded = false }: PrintersPageProps = {
                 </td>
                 <td className="px-4 py-3 text-sm">
                   <span className="flex items-center gap-1.5">
-                    {p.connection === 'usb' && <Usb className="w-3.5 h-3.5" />}
-                    {p.connection === 'bluetooth' && <Bluetooth className="w-3.5 h-3.5" />}
-                    {p.connection === 'network' && <Wifi className="w-3.5 h-3.5" />}
-                    {PRINTER_CONNECTION_LABELS_AR[p.connection]}
-                    {p.address && <span className="text-xs text-on-surface-variant">({p.address}{p.port ? `:${p.port}` : ''})</span>}
+                    {p.connection === 'system' && <Monitor className="w-3.5 h-3.5 text-blue-600" />}
+                    {p.connection === 'usb' && <Usb className="w-3.5 h-3.5 text-emerald-600" />}
+                    {p.connection === 'bluetooth' && <Bluetooth className="w-3.5 h-3.5 text-indigo-600" />}
+                    {p.connection === 'network' && <Wifi className="w-3.5 h-3.5 text-amber-600" />}
+                    {p.connection === 'browser' && <PrinterIcon className="w-3.5 h-3.5 text-slate-500" />}
+                    {PRINTER_CONNECTION_LABELS_AR[p.connection] || p.connection}
+                    {p.address && <span className="text-xs text-on-surface-variant font-mono">({p.address}{p.port ? `:${p.port}` : ''})</span>}
                   </span>
                 </td>
                 <td className="px-4 py-3">
@@ -497,6 +565,17 @@ function PrinterForm({
               />
             </Field>
           </>
+        )}
+        {connection === 'system' && (
+          <Field label="اسم الطابعة في النظام (Device Name)">
+            <input
+              type="text"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              className="w-full px-3 py-2 border border-outline-variant rounded-lg bg-surface-container-lowest focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-50"
+              placeholder="مثال: XP-80C أو EPSON TM-T20III"
+            />
+          </Field>
         )}
         <Field label="حجم الورق">
           <select

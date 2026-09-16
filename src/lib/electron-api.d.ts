@@ -146,6 +146,22 @@ export interface ElectronAPI {
       filePath?: string;
     }>;
   };
+  print?: {
+    silent: (
+      html: string,
+      options?: { silent?: boolean; deviceName?: string; copies?: number; color?: boolean }
+    ) => Promise<{ success: boolean; error?: string }>;
+    getPrinters: () => Promise<SystemPrinterInfo[]>;
+  };
+}
+
+export interface SystemPrinterInfo {
+  name: string;
+  displayName?: string;
+  description?: string;
+  status?: number;
+  isDefault?: boolean;
+  options?: Record<string, string>;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -182,41 +182,6 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
         if (!res || res.data === null) {
           throw new Error('فشل تسجيل الفاتورة في قاعدة البيانات المركزية');
         }
-
-        // تحديث كاش الفاتورة والمنتجات محلياً فوراً لضمان عدم تأخر الواجهة
-        await db.sales.put(sale as any).catch(() => {});
-        for (const item of enrichedCart) {
-          if (item.isPack && item.packId) {
-            const pack = packs.find((p) => p.id === item.packId);
-            if (pack) {
-              const rawItems = Array.isArray(pack.items)
-                ? pack.items
-                : (() => { try { return JSON.parse(pack.items as any) ?? []; } catch { return []; } })();
-              for (const comp of rawItems) {
-                const compProductId = comp.productId ?? comp.product_id;
-                const compQty = Number(comp.qty ?? comp.quantity ?? 1);
-                const product = products.find((p) => p.id === compProductId);
-                if (product) {
-                  const totalPiecesSold = item.packMode === 'retail_pieces' ? item.qty : (compQty * item.qty);
-                  const qtyChange = saleType === 'return' ? Math.abs(totalPiecesSold) : -totalPiecesSold;
-                  const newQuantity = settings?.allowNegativeStock
-                    ? product.quantity + qtyChange
-                    : Math.max(0, product.quantity + qtyChange);
-                  db.products.update(product.id, { quantity: newQuantity }).catch(() => {});
-                }
-              }
-            }
-          } else if (!item.isPack && item.productId) {
-            const product = products.find((p) => p.id === item.productId);
-            if (product) {
-              const qtyChange = saleType === 'return' ? Math.abs(item.qty) : -item.qty;
-              const newQuantity = settings?.allowNegativeStock
-                ? product.quantity + qtyChange
-                : Math.max(0, product.quantity + qtyChange);
-              db.products.update(product.id, { quantity: newQuantity }).catch(() => {});
-            }
-          }
-        }
       } else {
         // تنفيذ المعاملة الشاملة في قاعدة البيانات (Fallback)
         await db.transaction(

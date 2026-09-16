@@ -20,19 +20,57 @@ export interface PrinterConnection {
 // ===== Browser (الافتراضي — يحافظ على السلوك القديم تماماً) =====
 class BrowserPrintConnection implements PrinterConnection {
   readonly kind = 'browser' as const;
+  constructor(private readonly deviceName?: string) {}
+
   isSupported(): boolean {
     return typeof window !== 'undefined' && typeof window.print === 'function';
   }
   async print(html: string, copies: number): Promise<PrintResult> {
     const start = Date.now();
     try {
-      await doPrint(html, copies);
+      await doPrint(html, copies, this.deviceName);
       return { success: true, latencyMs: Date.now() - start };
     } catch (err) {
       return { success: false, latencyMs: Date.now() - start, error: String(err) };
     }
   }
   async ping(): Promise<boolean> {
+    return this.isSupported();
+  }
+}
+
+// ===== System (طابعة نظام التشغيل عبر محرك Electron لسطح المكتب) =====
+class SystemPrintConnection implements PrinterConnection {
+  readonly kind = 'system' as const;
+  constructor(private readonly deviceName: string) {}
+
+  isSupported(): boolean {
+    return typeof window !== 'undefined' && (
+      typeof (window as any).electronAPI?.print?.silent === 'function' ||
+      typeof window.print === 'function'
+    );
+  }
+
+  async print(html: string, copies: number): Promise<PrintResult> {
+    const start = Date.now();
+    try {
+      await doPrint(html, copies, this.deviceName);
+      return { success: true, latencyMs: Date.now() - start };
+    } catch (err) {
+      return { success: false, latencyMs: Date.now() - start, error: String(err) };
+    }
+  }
+
+  async ping(): Promise<boolean> {
+    const electronPrint = (window as any).electronAPI?.print;
+    if (typeof electronPrint?.getPrinters === 'function') {
+      try {
+        const list = await electronPrint.getPrinters();
+        return Array.isArray(list) && list.some((p: any) => p.name === this.deviceName || p.displayName === this.deviceName);
+      } catch {
+        return false;
+      }
+    }
     return this.isSupported();
   }
 }
@@ -171,11 +209,17 @@ const browserConn = new BrowserPrintConnection();
  */
 export function getConnection(printer: Printer): PrinterConnection {
   switch (printer.connection) {
+    case 'system':
+      return new SystemPrintConnection(printer.address || printer.name);
     case 'browser':
-      return browserConn;
+      return printer.address ? new BrowserPrintConnection(printer.address) : browserConn;
     case 'network':
       return new NetworkPrintConnection(printer.address ?? '', printer.port ?? 9100);
     case 'usb':
+      // إذا كانت الطابعة مسجلة باسم جهاز من نظام التشغيل (وليس زوج منفذ vendor:product)
+      if (printer.address && !printer.address.includes(':')) {
+        return new SystemPrintConnection(printer.address);
+      }
       return new WebUsbPrintConnection();
     case 'bluetooth':
       return new WebBluetoothPrintConnection();

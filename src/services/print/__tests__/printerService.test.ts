@@ -15,6 +15,7 @@ import {
   getPrinterTemplateMapping,
   listPrinterMappings,
   setPrinterStatus,
+  syncSystemPrinters,
 } from '@/services/print/printerService';
 import { seedDefaultTemplates } from '@/services/print/defaultTemplates';
 import type { DocTypeKey } from '@/types/invoicePrint';
@@ -189,3 +190,63 @@ describe('printerService — setPrinterStatus', () => {
     expect(after?.lastSeenAt).toBe('2026-07-16T10:00:00Z');
   });
 });
+
+describe('printerService — syncSystemPrinters', () => {
+  it('يعيد رسالة توضيحية عندما لا تتوفر طابعات نظام', async () => {
+    delete (window as any).electronAPI;
+    const res = await syncSystemPrinters();
+    expect(res.addedCount).toBe(0);
+    expect(res.totalSystemCount).toBe(0);
+    expect(res.message).toBeTruthy();
+  });
+
+  it('يستورد طابعات نظام التشغيل بنجاح عند توفرها ويجعلها افتراضية عند الحاجة', async () => {
+    (window as any).electronAPI = {
+      print: {
+        getPrinters: async () => [
+          {
+            name: 'XP-80C',
+            displayName: 'XP-80C Thermal Receipt',
+            description: 'POS Printer',
+            isDefault: true,
+            status: 0,
+          },
+          {
+            name: 'HP LaserJet P1102',
+            displayName: 'HP LaserJet P1102',
+            description: 'Laser Printer',
+            isDefault: false,
+            status: 0,
+          },
+        ],
+      },
+    };
+
+    const res = await syncSystemPrinters();
+    expect(res.addedCount).toBe(2);
+    expect(res.totalSystemCount).toBe(2);
+
+    const all = await listPrinters(true);
+    const xp = all.find((p) => p.name === 'XP-80C Thermal Receipt');
+    expect(xp).toBeTruthy();
+    expect(xp?.type).toBe('thermal');
+    expect(xp?.connection).toBe('system');
+    expect(xp?.paperSize).toBe('80mm');
+    expect(xp?.driver).toBe('esc_pos');
+    expect(xp?.isDefault).toBe(true);
+
+    const hp = all.find((p) => p.name === 'HP LaserJet P1102');
+    expect(hp).toBeTruthy();
+    expect(hp?.type).toBe('system');
+    expect(hp?.paperSize).toBe('A4');
+    expect(hp?.isDefault).toBe(false);
+
+    // التحقق من أن إعادة الاستدعاء لا تكرر الإضافة بل تحدّث
+    const res2 = await syncSystemPrinters();
+    expect(res2.addedCount).toBe(0);
+    expect(res2.updatedCount).toBe(2);
+
+    delete (window as any).electronAPI;
+  });
+});
+

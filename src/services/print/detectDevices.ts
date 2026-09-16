@@ -18,6 +18,10 @@ export interface DiscoveredPrinter {
   vendor?: string;
   /** موديل الجهاز (إذا توفر) */
   model?: string;
+  /** هل هي الطابعة الافتراضية في نظام التشغيل */
+  isDefault?: boolean;
+  /** حجم الورق التقديري */
+  paperSize?: '58mm' | '76mm' | '80mm' | 'A4' | 'A5';
 }
 
 export interface DetectionResult {
@@ -130,6 +134,64 @@ export async function detectBluetoothPrinters(): Promise<DetectionResult> {
 }
 
 /**
+ * كشف طابعات نظام التشغيل المثبتة عبر محرك Electron لسطح المكتب
+ */
+export async function detectSystemPrinters(): Promise<DetectionResult> {
+  const electronPrint = (window as any).electronAPI?.print;
+  if (!electronPrint || typeof electronPrint.getPrinters !== 'function') {
+    return {
+      devices: [],
+      warnings: ['بيئة التشغيل الحالية لا تدعم قراءة طابعات النظام مباشرة (يعمل في تطبيق سطح المكتب)'],
+      errors: [],
+    };
+  }
+
+  try {
+    const sysPrinters = await electronPrint.getPrinters();
+    if (!Array.isArray(sysPrinters) || sysPrinters.length === 0) {
+      return {
+        devices: [],
+        warnings: ['لم يتم العثور على أي طابعات مثبتة في نظام التشغيل'],
+        errors: [],
+      };
+    }
+
+    const devices: DiscoveredPrinter[] = sysPrinters.map((p: any) => {
+      const lowerName = (p.name || '').toLowerCase();
+      const isThermal =
+        lowerName.includes('pos') ||
+        lowerName.includes('receipt') ||
+        lowerName.includes('thermal') ||
+        lowerName.includes('xp-') ||
+        lowerName.includes('xprinter') ||
+        lowerName.includes('epson') ||
+        lowerName.includes('bixolon') ||
+        lowerName.includes('58') ||
+        lowerName.includes('80');
+
+      return {
+        name: p.displayName || p.name,
+        type: isThermal ? 'thermal' : 'system',
+        connection: 'system',
+        address: p.name,
+        vendor: p.description || undefined,
+        model: p.name,
+        isDefault: Boolean(p.isDefault),
+        paperSize: isThermal ? (lowerName.includes('58') ? '58mm' : '80mm') : 'A4',
+      };
+    });
+
+    return { devices, warnings: [], errors: [] };
+  } catch (err) {
+    return {
+      devices: [],
+      warnings: [],
+      errors: [`فشل استخراج طابعات نظام التشغيل: ${err instanceof Error ? err.message : String(err)}`],
+    };
+  }
+}
+
+/**
  * FR-013: كشف شامل — يستدعي كل الطرق المتاحة ويجمع النتائج
  */
 export async function detectAllPrinters(): Promise<DetectionResult> {
@@ -137,17 +199,25 @@ export async function detectAllPrinters(): Promise<DetectionResult> {
   const warnings: string[] = [];
   const errors: string[] = [];
 
+  // 1. كشف طابعات نظام التشغيل المثبتة أولاً (Electron OS Printers)
+  const sysRes = await detectSystemPrinters();
+  all.push(...sysRes.devices);
+  warnings.push(...sysRes.warnings);
+  errors.push(...sysRes.errors);
+
+  // 2. كشف WebUSB متفاعل ثانياً إن وُجد
   const usbRes = await detectUsbPrinters();
   all.push(...usbRes.devices);
   warnings.push(...usbRes.warnings);
   errors.push(...usbRes.errors);
 
+  // 3. كشف Bluetooth متفاعل ثالثاً إن وُجد
   const bleRes = await detectBluetoothPrinters();
   all.push(...bleRes.devices);
   warnings.push(...bleRes.warnings);
   errors.push(...bleRes.errors);
 
-  // دائماً نخبر المستخدم أن طابعة المتصفح متاحة على الأقل
+  // دائماً نخبر المستخدم أن طابعة المتصفح متاحة على الأقل إذا لم يُعثر على شيء
   if (all.length === 0) {
     warnings.push('لا طابعات خارجية مكتشفة — ستُستخدم طابعة المتصفح الافتراضية');
   }
@@ -156,18 +226,20 @@ export async function detectAllPrinters(): Promise<DetectionResult> {
 }
 
 /**
- * تحقق دعم المتصفح للطرق المختلفة — يُستعمل لعرض badge في الواجهة
+ * تحقق دعم المتصفح والنظام للطرق المختلفة — يُستعمل لعرض شارات الدعم في الواجهة
  */
 export function getBrowserSupport(): {
   usb: boolean;
   bluetooth: boolean;
   serial: boolean;
   browser: boolean;
+  system: boolean;
 } {
   return {
     usb: getUsbNavigator() !== null,
     bluetooth: getBluetoothNavigator() !== null,
     serial: typeof navigator !== 'undefined' && 'serial' in navigator,
     browser: typeof window !== 'undefined' && typeof window.print === 'function',
+    system: typeof window !== 'undefined' && typeof (window as any).electronAPI?.print?.getPrinters === 'function',
   };
 }

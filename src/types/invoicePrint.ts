@@ -308,7 +308,7 @@ export const PAPER_LABELS_AR: Record<PaperSize, string> = {
 // ===== POS-PRINT-001 / FR-013 → FR-017: إدارة الطابعات =====
 
 export type PrinterType = 'thermal' | 'inkjet' | 'laser' | 'system';
-export type PrinterConnectionKind = 'usb' | 'network' | 'bluetooth' | 'serial' | 'browser';
+export type PrinterConnectionKind = 'usb' | 'network' | 'bluetooth' | 'serial' | 'browser' | 'system';
 export type PrinterDriver = 'esc_pos' | 'cups' | 'browser' | 'zpl' | 'cpcl';
 export type PrinterStatus = 'connected' | 'disconnected' | 'busy' | 'error' | 'unknown';
 
@@ -349,6 +349,7 @@ export const PRINTER_CONNECTION_LABELS_AR: Record<PrinterConnectionKind, string>
   bluetooth: 'Bluetooth',
   serial: 'Serial',
   browser: 'متصفح',
+  system: 'طابعة النظام (OS)',
 };
 
 export const PRINTER_TYPE_LABELS_AR: Record<PrinterType, string> = {

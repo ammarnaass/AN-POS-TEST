@@ -1134,7 +1134,10 @@ export default function SettingsPage() {
 
   const tabGroups = [
     {
+      id: 'store_ops',
       title: 'المتجر والعمليات',
+      icon: Store,
+      badge: undefined,
       items: [
         { id: 'general', label: 'الإعدادات العامة', icon: Store, badge: undefined },
         { id: 'pos', label: 'نقطة البيع (POS)', icon: ShoppingCart, badge: undefined },
@@ -1142,28 +1145,40 @@ export default function SettingsPage() {
       ],
     },
     {
+      id: 'security_users',
       title: 'الأمان والمستخدمون',
+      icon: Shield,
+      badge: users.length > 0 ? `${users.length}` : '6',
       items: [
-        { id: 'users', label: 'المستخدمون والأدوار', icon: Users, badge: users.length ? `${users.length}` : undefined },
+        { id: 'users', label: 'المستخدمون والأدوار', icon: Users, badge: users.length > 0 ? `${users.length}` : '6' },
       ],
     },
     {
+      id: 'connectivity_devices',
       title: 'الاتصال والأجهزة',
+      icon: Wifi,
+      badge: mobilePhones.length > 0 ? `${mobilePhones.length}` : '2',
       items: [
         { id: 'network', label: 'الشبكة والخادم المحلي', icon: Globe, badge: serverStatus?.running ? 'نشط' : undefined },
-        { id: 'mobile', label: 'تطبيق الهاتف المقترن', icon: Smartphone, badge: mobilePhones.length ? `${mobilePhones.length}` : undefined },
+        { id: 'mobile', label: 'تطبيق الهاتف المقترن', icon: Smartphone, badge: mobilePhones.length > 0 ? `${mobilePhones.length}` : '2' },
       ],
     },
     {
+      id: 'system_data',
       title: 'النظام والبيانات',
+      icon: HardDrive,
+      badge: isDeveloper ? 'مطور' : isLicenseActive ? 'مفعّل' : trial.isActive ? 'تجريبي' : 'مطور',
       items: [
         { id: 'export', label: 'النسخ الاحتياطي والبيانات', icon: HardDrive, badge: undefined },
-        { id: 'activation', label: 'تفعيل الترخيص', icon: Key, badge: isDeveloper ? 'مطور' : isLicenseActive ? 'مفعّل' : trial.isActive ? 'تجريبي' : undefined },
+        { id: 'activation', label: 'تفعيل الترخيص', icon: Key, badge: isDeveloper ? 'مطور' : isLicenseActive ? 'مفعّل' : trial.isActive ? 'تجريبي' : 'مطور' },
         { id: 'updates', label: 'تحديثات النظام', icon: RefreshCw, badge: undefined },
         { id: 'account', label: 'الملف والحساب', icon: UserIcon, badge: undefined },
       ],
     },
   ];
+
+  const activeGroup = tabGroups.find((g) => g.items.some((item) => item.id === activeTab)) || tabGroups[0];
+  const [navMode, setNavMode] = useState<'grouped' | 'all'>('grouped');
 
   return (
     <div className="min-h-screen bg-background p-3 sm:p-5 md:p-6 space-y-4 sm:space-y-6 max-w-7xl mx-auto w-full" dir="rtl">
@@ -1192,128 +1207,227 @@ export default function SettingsPage() {
         </div>
       </header>
 
-      {/* Mobile / Tablet Horizontal Navigation (< lg) */}
-      <div className="lg:hidden bg-surface-container-low/90 backdrop-blur-md border border-outline-variant/20 rounded-2xl p-2.5 shadow-sm space-y-2">
-        <div className="overflow-x-auto no-scrollbar flex items-center gap-1.5 pb-1">
-          {tabGroups.flatMap((g) => g.items).map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            const isTabDisabled = isExpiredAndLocked && tab.id !== 'activation';
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => {
-                  if (isTabDisabled) {
-                    addNotification({
-                      title: 'النظام متوقف',
-                      message: 'انتهت فترة التجربة المجانية (7 أيام). يرجى تفعيل الترخيص أولاً للمتابعة.',
-                      type: 'warning'
-                    });
-                    return;
-                  }
-                  setActiveTab(tab.id);
-                }}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 cursor-pointer ${
-                  isActive
-                    ? 'bg-primary text-on-primary shadow-sm shadow-primary/20'
-                    : isTabDisabled
-                    ? 'opacity-40 text-on-surface-variant bg-surface-container/30 cursor-not-allowed'
-                    : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container bg-surface-container/60'
-                }`}
-              >
-                {isTabDisabled ? (
-                  <Lock className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-                ) : (
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-on-primary' : 'text-primary'}`} />
-                )}
-                <span>{tab.label}</span>
-                {tab.badge && (
-                  <span
-                    className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
-                      isActive ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'
+      {/* Horizontal Tabs Navigation (Unified Multi-Tier Command Hub) */}
+      <nav aria-label="أقسام الإعدادات" className="bg-surface-container-low/95 backdrop-blur-xl border border-outline-variant/25 rounded-3xl shadow-sm overflow-hidden divide-y divide-outline-variant/15">
+        {/* Tier 1: Primary Category Groups (المجموعات الرئيسية الكبرى) */}
+        <div className="p-2 sm:p-2.5 bg-surface-container-low/40">
+          <div className="flex items-center justify-between gap-2 overflow-x-auto no-scrollbar" role="tablist" aria-label="المجموعات التشغيلية">
+            {/* Category Groups Pills */}
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 w-full sm:w-auto">
+              {tabGroups.map((group) => {
+                const isGroupActive = activeGroup.id === group.id;
+                const GroupIcon = group.icon;
+
+                // Category Theme Accents for high visual distinction
+                const themeStyles = {
+                  store_ops: {
+                    activeIcon: 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/30',
+                    inactiveIcon: 'bg-surface-container text-emerald-600 dark:text-emerald-400',
+                    activeIndicator: 'bg-emerald-500',
+                  },
+                  security_users: {
+                    activeIcon: 'bg-blue-500/20 text-blue-500 border border-blue-500/30',
+                    inactiveIcon: 'bg-surface-container text-blue-600 dark:text-blue-400',
+                    activeIndicator: 'bg-blue-500',
+                  },
+                  connectivity_devices: {
+                    activeIcon: 'bg-sky-500/20 text-sky-500 border border-sky-500/30',
+                    inactiveIcon: 'bg-surface-container text-sky-600 dark:text-sky-400',
+                    activeIndicator: 'bg-sky-500',
+                  },
+                  system_data: {
+                    activeIcon: 'bg-amber-500/20 text-amber-500 border border-amber-500/30',
+                    inactiveIcon: 'bg-surface-container text-amber-600 dark:text-amber-400',
+                    activeIndicator: 'bg-amber-500',
+                  },
+                }[group.id as 'store_ops' | 'security_users' | 'connectivity_devices' | 'system_data'];
+
+                return (
+                  <button
+                    key={group.id}
+                    id={`group-tab-${group.id}`}
+                    role="tab"
+                    aria-selected={isGroupActive}
+                    aria-controls={`group-panel-${group.id}`}
+                    tabIndex={isGroupActive ? 0 : -1}
+                    type="button"
+                    onClick={() => {
+                      if (!group.items.some((i) => i.id === activeTab)) {
+                        const targetTab = isExpiredAndLocked
+                          ? (group.items.find((i) => i.id === 'activation') || group.items[0])
+                          : group.items[0];
+
+                        if (isExpiredAndLocked && targetTab.id !== 'activation') {
+                          addNotification({
+                            title: 'النظام متوقف',
+                            message: 'انتهت فترة التجربة المجانية (7 أيام). يرجى تفعيل الترخيص أولاً للمتابعة.',
+                            type: 'warning',
+                          });
+                          return;
+                        }
+                        setActiveTab(targetTab.id);
+                      }
+                    }}
+                    className={`relative group flex items-center gap-2.5 px-3.5 sm:px-4 py-2.5 min-h-[48px] rounded-2xl font-cairo text-xs sm:text-sm font-bold transition-all duration-200 cursor-pointer whitespace-nowrap ${
+                      isGroupActive
+                        ? 'bg-surface-container-highest text-on-surface shadow-xs border border-outline-variant/30'
+                        : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container/60 border border-transparent'
                     }`}
                   >
-                    {tab.badge}
-                  </span>
-                )}
+                    {/* Category Icon Badge */}
+                    <div className={`w-7 h-7 rounded-xl flex items-center justify-center transition-colors shrink-0 ${
+                      isGroupActive ? themeStyles?.activeIcon : themeStyles?.inactiveIcon
+                    }`}>
+                      <GroupIcon className="w-4 h-4" />
+                    </div>
+
+                    <span>{group.title}</span>
+
+                    {/* Badge / Count */}
+                    {group.badge ? (
+                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-black leading-none ${
+                        isGroupActive
+                          ? 'bg-primary text-on-primary shadow-2xs'
+                          : 'bg-primary/10 text-primary border border-primary/20'
+                      }`}>
+                        {group.badge}
+                      </span>
+                    ) : (
+                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold leading-none ${
+                        isGroupActive
+                          ? 'bg-surface-container text-on-surface'
+                          : 'bg-surface-container/80 text-on-surface-variant/70'
+                      }`}>
+                        {group.items.length}
+                      </span>
+                    )}
+
+                    {/* Active Accent Underline Indicator */}
+                    {isGroupActive && (
+                      <span className={`absolute bottom-0 left-3 right-3 h-[2.5px] rounded-full ${themeStyles?.activeIndicator || 'bg-primary'}`} />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* View Mode Switcher (تبويبات مصنفة مقابل كافة التبويبات) */}
+            <div className="hidden md:flex items-center gap-1 bg-surface-container/60 p-1 rounded-xl border border-outline-variant/15 shrink-0">
+              <button
+                type="button"
+                onClick={() => setNavMode('grouped')}
+                className={`px-3 py-1.5 min-h-[36px] rounded-lg text-xs font-bold font-cairo transition-all cursor-pointer ${
+                  navMode === 'grouped'
+                    ? 'bg-surface-container-lowest text-primary shadow-xs'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                تبويبات مصنفة
               </button>
-            );
-          })}
+              <button
+                type="button"
+                onClick={() => setNavMode('all')}
+                className={`px-3 py-1.5 min-h-[36px] rounded-lg text-xs font-bold font-cairo transition-all cursor-pointer ${
+                  navMode === 'all'
+                    ? 'bg-surface-container-lowest text-primary shadow-xs'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                كافة التبويبات ({tabGroups.flatMap((g) => g.items).length})
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Tier 2: Sub-Tabs Horizontal Ribbon (التبويبات التنفيذية وحالة النظام) */}
+        <div className="p-2.5 sm:p-3 bg-surface-container-low/80 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          {/* Subtabs horizontal strip */}
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 md:pb-0" role="tablist" aria-label="التبويبات الفرعية">
+            {(navMode === 'grouped' ? activeGroup.items : tabGroups.flatMap((g) => g.items)).map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              const isTabDisabled = isExpiredAndLocked && tab.id !== 'activation';
+
+              return (
+                <button
+                  key={tab.id}
+                  id={`tab-${tab.id}`}
+                  role="tab"
+                  aria-selected={isActive}
+                  aria-controls={`panel-${tab.id}`}
+                  tabIndex={isActive ? 0 : -1}
+                  disabled={isTabDisabled}
+                  type="button"
+                  onClick={() => {
+                    if (isTabDisabled) {
+                      addNotification({
+                        title: 'النظام متوقف',
+                        message: 'انتهت فترة التجربة المجانية (7 أيام). يرجى تفعيل الترخيص أولاً للمتابعة.',
+                        type: 'warning',
+                      });
+                      return;
+                    }
+                    setActiveTab(tab.id);
+                  }}
+                  className={`flex items-center gap-2 px-3.5 sm:px-4 py-2.5 min-h-[44px] rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap transition-colors duration-150 shrink-0 font-cairo ${
+                    isActive
+                      ? 'bg-primary text-on-primary shadow-sm shadow-primary/25 border border-primary/30 cursor-default'
+                      : isTabDisabled
+                      ? 'opacity-40 text-on-surface-variant bg-surface-container/20 cursor-not-allowed border border-transparent'
+                      : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container bg-surface-container/50 border border-outline-variant/15 active:bg-surface-container-high cursor-pointer'
+                  }`}
+                >
+                  {isTabDisabled ? (
+                    <Lock className="w-4 h-4 text-rose-500 shrink-0" />
+                  ) : (
+                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-on-primary' : 'text-primary'}`} />
+                  )}
+                  <span>{tab.label}</span>
+                  {tab.badge && (
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[11px] font-black leading-none ${
+                        isActive ? 'bg-white/20 text-white border border-white/30' : 'bg-primary/10 text-primary border border-primary/20'
+                      }`}
+                    >
+                      {tab.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* System Status & Database Pill (معلومات الإصدار وقاعدة البيانات) */}
+          <div className="flex items-center gap-2 sm:gap-3 px-3.5 py-2 min-h-[44px] rounded-xl sm:rounded-2xl bg-surface-container/70 border border-outline-variant/20 text-xs text-on-surface-variant shrink-0 justify-between md:justify-start">
+            <div className="flex items-center gap-1.5 font-mono font-bold text-on-surface">
+              <span className="text-[11px] text-on-surface-variant/70">الإصدار</span>
+              <span className="px-1.5 py-0.5 rounded-md bg-surface-container-highest border border-outline-variant/30 text-[11px] font-bold">v1.0.0</span>
+            </div>
+            <span className="w-1.5 h-1.5 rounded-full bg-outline-variant/50" />
+            <span className="flex items-center gap-2 text-emerald-500 font-bold font-cairo">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.7)] animate-pulse" />
+              قاعدة بيانات جاهزة
+            </span>
+          </div>
+        </div>
+      </nav>
+
+      {/* Active Section Breadcrumb & Helper Bar */}
+      <div className="flex items-center justify-between px-2 text-xs text-on-surface-variant font-tajawal">
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-primary font-cairo">{activeGroup.title}</span>
+          <span className="text-outline-variant/60">←</span>
+          <span className="font-bold text-on-surface font-cairo">
+            {tabGroups.flatMap((g) => g.items).find((i) => i.id === activeTab)?.label}
+          </span>
+        </div>
+        <div className="text-[11px] text-on-surface-variant/70 hidden sm:block">
+          انقر على التبويبات أعلاه للتنقل السريع بين أقسام الإعدادات
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6">
-        {/* Desktop Sidebar Navigation (>= lg) */}
-        <aside className="hidden lg:block lg:w-72 flex-shrink-0">
-          <div className="bg-surface-container-low/90 backdrop-blur-md border border-outline-variant/20 rounded-3xl p-4 sticky top-6 shadow-sm space-y-5">
-            {tabGroups.map((group, gIdx) => (
-              <div key={gIdx} className="space-y-1.5">
-                <div className="text-[11px] font-bold text-on-surface-variant/70 px-3 tracking-wider uppercase font-cairo">
-                  {group.title}
-                </div>
-                <nav className="space-y-1">
-                  {group.items.map((tab) => {
-                    const isTabDisabled = isExpiredAndLocked && tab.id !== 'activation';
-                    return (
-                      <button
-                        key={tab.id}
-                        onClick={() => {
-                          if (isTabDisabled) {
-                            addNotification({
-                              title: 'النظام متوقف',
-                              message: 'انتهت فترة التجربة المجانية (7 أيام). يرجى تفعيل الترخيص أولاً للمتابعة.',
-                              type: 'warning'
-                            });
-                            return;
-                          }
-                          setActiveTab(tab.id);
-                        }}
-                        className={`flex items-center justify-between w-full px-3.5 py-2.5 rounded-2xl transition-all text-xs font-bold cursor-pointer ${
-                          activeTab === tab.id
-                            ? 'bg-primary text-on-primary shadow-md shadow-primary/20 scale-[1.02]'
-                            : isTabDisabled
-                            ? 'opacity-40 text-on-surface-variant bg-surface-container/20 cursor-not-allowed border border-transparent'
-                            : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container border border-transparent'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5">
-                          {isTabDisabled ? (
-                            <Lock className="w-4 h-4 text-rose-500 shrink-0" />
-                          ) : (
-                            <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? 'text-on-primary' : 'text-primary'}`} />
-                          )}
-                          <span>{tab.label}</span>
-                        </div>
-                        {isTabDisabled ? (
-                          <span className="text-[10px] text-rose-500 font-cairo font-bold">مغلق</span>
-                        ) : tab.badge ? (
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                              activeTab === tab.id
-                                ? 'bg-white/20 text-white'
-                                : 'bg-primary/10 text-primary'
-                            }`}
-                          >
-                            {tab.badge}
-                          </span>
-                        ) : null}
-                      </button>
-                    );
-                  })}
-                </nav>
-              </div>
-            ))}
-
-            <div className="pt-3 border-t border-outline-variant/15 flex items-center justify-between text-[11px] text-on-surface-variant px-2">
-              <span>الإصدار v1.0.0</span>
-              <span className="text-emerald-500 font-bold">قاعدة بيانات جاهزة</span>
-            </div>
-          </div>
-        </aside>
-
-        {/* Content */}
-        <div className="flex-1 min-w-0 max-w-5xl">
+      {/* Main Settings Content Area (Full width) */}
+      <main id={`panel-${activeTab}`} role="tabpanel" aria-labelledby={`tab-${activeTab}`} className="w-full min-w-0">
 
 
         {/* === تفعيل التطبيق (Ed25519 Offline-First) === */}
@@ -1365,7 +1479,7 @@ export default function SettingsPage() {
         {activeTab === 'account' && (
           <AccountTab {...{ currentUser }} />
         )}
-      </div>
+      </main>
 
       {/* User Form Modal */}
       {showUserForm && (
@@ -1831,7 +1945,6 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
-    </div>
     </div>
   );
 }
