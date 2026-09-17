@@ -10,6 +10,7 @@ import { calculateSaleTotal, resolveUnitPrice, getProductTierPrice } from '@/ser
 import { useBarcodeScanner } from '@/features/barcode/useBarcodeScanner';
 import { parseAndAddScannedCode, playAdded, playErrorBeep, unlockAudio } from '@/services/barcode';
 import { useSaleCompletion } from './hooks/useSaleCompletion';
+import { usePOSCartActions } from './hooks/usePOSCartActions';
 import { usePOSKeyboardShortcuts } from './hooks/usePOSKeyboardShortcuts';
 import { useMobileScanner } from './hooks/useMobileScanner';
 import { usePOSData } from './hooks/usePOSData';
@@ -176,7 +177,7 @@ export default function POSPage() {
           const isPackagingItem = Boolean(item.isPack || pkgSize > 1 || (item.packPiecesCount && item.packPiecesCount > 1));
 
           if (isPackagingItem) {
-            if (posLayout === 'terminal' || posLayout === 'advanced') {
+            if (posLayout === 'terminal' || posLayout === 'advanced' || posLayout === 'design7') {
               const pieces = Number(item.packPiecesCount || pkgSize || item.packQty || 1);
               if (tier === '3' && (item.packMode === 'retail_pieces' || !item.packMode)) {
                 const packCount = Math.max(1, Math.round(item.qty / pieces));
@@ -297,46 +298,27 @@ export default function POSPage() {
     }
   );
 
-  // BARCODE-MGMT-001: استقبال ماسحات USB/Bluetooth تلقائياً
-  // BARCODE-MGMT-001: استقبال ماسحات USB/Bluetooth والمسح عن بُعد من الهاتف
-  const handleExternalScan = useCallback(
-    async (code: string, scanQty = 1, extraData?: { fromMobile?: boolean; product?: any }) => {
-      unlockAudio();
-      setSearchQuery('');
-      const productsArr = products as any[];
-      const effectiveQty = Math.max(1, Number(scanQty) || 1);
-      const result = await parseAndAddScannedCode(code, {
-        products: productsArr,
-        packs: packs as any,
-        promotions: promotions as any,
-        addItem,
-        forceWholesale: priceTier === '3' || (!['1', '2', '4'].includes(priceTier) && isWholesaleActive),
-        priceTier,
-        allowNegativeStock: posSettings.allowNegativeStock || posSettings.accountingOnly,
-        posLayout,
-        qty: effectiveQty,
-      });
-      if (result.added) {
-        playAdded(0.08);
-        if (extraData?.fromMobile) {
-          addNotification({
-            title: '📱 مسح عبر الهاتف',
-            message: `تمت إضافة "${result.name || code}" (${effectiveQty}×) مباشرة إلى السلة`,
-            type: 'success',
-          });
-        }
-        if (quickMode) setTimeout(() => scanInputRef.current?.focus(), 100);
-      } else {
-        playErrorBeep();
-        addNotification({
-          title: extraData?.fromMobile ? '📱 مسح عبر الهاتف: غير موجود' : 'باركود غير معروف',
-          message: `${result.message ?? 'لم يُعثر'}: ${code}`,
-          type: 'error',
-        });
-      }
-    },
-    [products, packs, promotions, addItem, addNotification, quickMode, isWholesaleActive, priceTier, posSettings, posLayout, setSearchQuery]
-  );
+  // استدعاء خطاف أفعال السلة الموحد (usePOSCartActions)
+  const {
+    handleAddProduct,
+    handleUpdateQty,
+    handleRemoveItem,
+    handleClearCart,
+    handleExternalScan,
+    handleApplyWeight,
+  } = usePOSCartActions({
+    products: products as any[],
+    packs: packs as any,
+    promotions: promotions as any,
+    isWholesaleActive,
+    priceTier,
+    posSettings,
+    posLayout,
+    addNotification,
+    quickMode,
+    scanInputRef,
+    setSearchQuery,
+  });
 
   useBarcodeScanner({
     onScan: handleExternalScan,
@@ -350,191 +332,6 @@ export default function POSPage() {
     onScan: handleExternalScan,
     enabled: true,
   });
-
-  const handleAddProduct = useCallback(
-    (product: any, customPrice?: number) => {
-      const isPack = String(product.id).startsWith('pack-') || Boolean(product.isPack);
-      if (isPack) {
-        const packId = String(product.id).replace('pack-', '');
-        const pack = packs.find((p) => String(p.id) === String(packId));
-        const packObj = pack || {
-          id: packId,
-          name: product.name,
-          packPrice: customPrice ?? product.price ?? product.retailPrice ?? 0,
-          piecesCount: product.packPiecesCount || 1,
-          unitName: product.packUnit || 'عبوة',
-          items: [],
-        };
-        const items = Array.isArray(packObj.items)
-          ? packObj.items
-          : (() => {
-              try {
-                return JSON.parse((packObj as any).items as any) ?? [];
-              } catch {
-                return [];
-              }
-            })();
-        const firstComp = items[0];
-        const pQty = Number(packObj.piecesCount || firstComp?.qty || firstComp?.quantity || 1);
-        const effectivePackPrice =
-          customPrice !== undefined && customPrice > 0
-            ? customPrice
-            : Number(packObj.packPrice ?? product.price ?? product.retailPrice ?? 0);
-
-        const parentProd = firstComp?.productId
-          ? products.find((p) => p.id === firstComp.productId)
-          : undefined;
-
-        if (!posSettings.allowNegativeStock && !posSettings.accountingOnly && firstComp?.productId) {
-          const availablePieces = parentProd ? Number(parentProd.quantity ?? 0) : 0;
-          const availablePacks = pQty > 0 ? Math.floor(availablePieces / pQty) : 0;
-
-          const existingCartPieces = cart.reduce((sum, it) => {
-            if (it.productId === firstComp.productId) return sum + it.qty;
-            if (it.isPack && (it.packId === packId || it.productId === `pack-${packId}`)) {
-              return sum + it.qty * (it.packQty || pQty);
-            }
-            return sum;
-          }, 0);
-
-          if (existingCartPieces + pQty > availablePieces) {
-            addNotification({
-              title: 'تنبيه المخزون',
-              type: 'warning',
-              message: `المخزون غير كافٍ! المتاح من "${parentProd?.name || packObj.name}": ${availablePieces} قطعة (${availablePacks} عبوة).`,
-            });
-            return;
-          }
-        }
-
-        const isTerminal = posLayout === 'terminal' || posLayout === 'advanced';
-        const isWholesaleTier = priceTier === '3' || (!['1', '2', '4'].includes(priceTier) && isWholesaleActive);
-
-        if (isTerminal && !isWholesaleTier) {
-          const existing = cart.find(
-            (item) => item.productId === `pack-${packId}` || (item.isPack && item.packId === packId)
-          );
-          const piecePrice = pQty > 0 ? effectivePackPrice / pQty : effectivePackPrice;
-          if (existing) {
-            updateQty(existing.productId, existing.qty + pQty, existing.unitPrice);
-          } else {
-            addItem({
-              productId: `pack-${packId}`,
-              name: packObj.name,
-              qty: pQty,
-              unitPrice: piecePrice,
-              lineTotal: effectivePackPrice,
-              barcode: packObj.barcode || product.barcode || parentProd?.barcode || '',
-              isPack: true,
-              packId: packId,
-              packQty: 1,
-              packPiecesCount: pQty,
-              packUnit: packObj.unitName || 'عبوة',
-              packMode: 'retail_pieces',
-              pricingType: 'retail',
-            });
-          }
-        } else {
-          const existing = cart.find(
-            (item) => item.productId === `pack-${packId}` || (item.isPack && item.packId === packId)
-          );
-          if (existing) {
-            updateQty(existing.productId, existing.qty + 1, existing.unitPrice);
-          } else {
-            addItem({
-              productId: `pack-${packId}`,
-              name: packObj.name,
-              qty: 1,
-              unitPrice: effectivePackPrice,
-              lineTotal: effectivePackPrice,
-              barcode: packObj.barcode || product.barcode || parentProd?.barcode || '',
-              isPack: true,
-              packId: packId,
-              packQty: 1,
-              packPiecesCount: pQty,
-              packUnit: packObj.unitName || 'طرد',
-              packMode: isTerminal ? 'wholesale_packs' : undefined,
-              pricingType: isWholesaleTier ? 'wholesale' : 'pack',
-            });
-          }
-        }
-      } else {
-        const existing = cart.find(
-          (item) =>
-            item.productId === product.id &&
-            (customPrice === undefined ? !item.isCustom : item.unitPrice === customPrice)
-        );
-        if (existing) {
-          const newQty = existing.qty + 1;
-          const resolvedPrice =
-            customPrice !== undefined
-              ? customPrice
-              : existing.isCustom
-              ? existing.unitPrice
-              : resolveUnitPrice(product, newQty, promotions, isWholesaleActive, priceTier);
-          updateQty(existing.productId, newQty, resolvedPrice);
-        } else {
-          const price =
-            customPrice !== undefined
-              ? customPrice
-              : product.unitPrice ?? resolveUnitPrice(product, 1, promotions, isWholesaleActive, priceTier);
-          const pkgSize = product.packageSize ? parseInt(product.packageSize, 10) : 0;
-          const isPackProd = pkgSize > 1;
-          const isTerminalLayout = posLayout === 'terminal' || posLayout === 'advanced';
-          const isWholesaleTier = priceTier === '3' || (!['1', '2', '4'].includes(priceTier) && isWholesaleActive);
-          const effectiveInitialQty = (isPackProd && isTerminalLayout && !isWholesaleTier) ? pkgSize : 1;
-          const effectiveInitialPrice = (isPackProd && isTerminalLayout && !isWholesaleTier && pkgSize > 0) ? (price / pkgSize) : price;
-          addItem({
-            productId: product.id,
-            name: product.name,
-            qty: effectiveInitialQty,
-            unitPrice: effectiveInitialPrice,
-            lineTotal: effectiveInitialPrice * effectiveInitialQty,
-            barcode: product.barcode || '',
-            unit: product.unit,
-            batchNumber: product.batchNumber,
-            isCustom: customPrice !== undefined,
-            isPack: isPackProd,
-            packQty: 1,
-            packPiecesCount: isPackProd ? pkgSize : undefined,
-            packUnit: isPackProd ? (product.unit || 'طرد') : undefined,
-            packMode: isPackProd ? (isWholesaleTier ? 'wholesale_packs' : 'retail_pieces') : undefined,
-            pricingType:
-              isWholesaleTier
-                ? 'wholesale'
-                : 'retail',
-          });
-        }
-      }
-      playAdded(0.05);
-      setSearchQuery('');
-      if (quickMode) {
-        setTimeout(() => scanInputRef.current?.focus(), 100);
-      }
-    },
-    [addItem, updateQty, promotions, cart, packs, products, quickMode, isWholesaleActive, priceTier, posSettings, posLayout, addNotification, setSearchQuery]
-  );
-
-  const handleUpdateQty = useCallback(
-    (item: CartItem, newQty: number) => {
-      if (newQty < 1) {
-        removeItem(item.productId);
-        return;
-      }
-      if (item.isPack) {
-        updateQty(item.productId, newQty, item.unitPrice);
-        return;
-      }
-      const product = products.find((p) => p.id === item.productId);
-      if (product && !item.isCustom && priceTier === '1') {
-        const finalPrice = resolveUnitPrice(product, newQty, promotions, isWholesaleActive, '1');
-        updateQty(item.productId, newQty, finalPrice);
-      } else {
-        updateQty(item.productId, newQty, item.unitPrice);
-      }
-    },
-    [removeItem, updateQty, products, promotions, isWholesaleActive, priceTier]
-  );
 
   const handleSuspend = () => {
     if (cart.length === 0) return;
@@ -949,9 +746,9 @@ export default function POSPage() {
           cart={cart}
           onAddToCart={handleAddProduct}
           onUpdateQty={handleUpdateQty}
-          onRemoveFromCart={removeItem}
+          onRemoveFromCart={handleRemoveItem}
           onClearCart={() => {
-            clearCart();
+            handleClearCart();
             setSelectedCustomer('');
             setDiscount(0);
           }}
@@ -1047,6 +844,7 @@ export default function POSPage() {
           onToggleFullscreen={toggleFullscreen}
           isFullscreen={isFullscreen}
           onNavigateBack={() => navigate('/')}
+          onOpenFavoritesManagement={() => navigate('/favorites')}
           onOpenKeypad={() => {
             modals.setKeypadTarget('paid');
             modals.setKeypadInput(String(saleSummary.total || ''));

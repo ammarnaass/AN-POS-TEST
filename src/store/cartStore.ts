@@ -30,26 +30,40 @@ export const useCartStore = create<CartState>((set, get) => ({
   items: [],
 
   addItem: (item: CartItem) => {
-    const existing = get().items.find(i => i.productId === item.productId && !i.isCustom);
+    const targetId = String(item.productId);
+    const existing = get().items.find(i => {
+      const sameId = String(i.productId) === targetId;
+      if (!sameId) return false;
+      // إذا كان كلاهما بنفس السعر (أو لم يكن هناك سعر مخصص مختلف)، يتم الدمج
+      if (item.isCustom || i.isCustom) {
+        return Math.abs(i.unitPrice - item.unitPrice) < 0.001;
+      }
+      return true;
+    });
+
     if (existing) {
       const newQty = existing.qty + item.qty;
-      const newLineTotal = newQty * existing.unitPrice;
+      const effectiveUnitPrice = existing.unitPrice;
+      const newLineTotal = newQty * effectiveUnitPrice;
       set(state => ({
         items: state.items.map(i =>
-          i.productId === item.productId
+          String(i.productId) === targetId
             ? { ...i, qty: newQty, lineTotal: newLineTotal }
             : i
         ),
       }));
     } else {
-      set(state => ({ items: [...state.items, item] }));
+      set(state => ({
+        items: [...state.items, { ...item, productId: targetId }],
+      }));
     }
   },
 
   updateQty: (productId: string, qty: number, unitPrice?: number) => {
+    const targetId = String(productId);
     set(state => ({
       items: state.items.map(i =>
-        i.productId === productId ? {
+        String(i.productId) === targetId ? {
           ...i,
           qty,
           lineTotal: (unitPrice ?? i.unitPrice) * qty,
@@ -61,9 +75,10 @@ export const useCartStore = create<CartState>((set, get) => ({
   },
 
   updatePrice: (productId: string, unitPrice: number) => {
+    const targetId = String(productId);
     set(state => ({
       items: state.items.map(i =>
-        i.productId === productId ? {
+        String(i.productId) === targetId ? {
           ...i,
           unitPrice,
           lineTotal: unitPrice * i.qty,
@@ -74,7 +89,8 @@ export const useCartStore = create<CartState>((set, get) => ({
   },
 
   removeItem: (productId: string) => {
-    set(state => ({ items: state.items.filter(i => i.productId !== productId) }));
+    const targetId = String(productId);
+    set(state => ({ items: state.items.filter(i => String(i.productId) !== targetId) }));
   },
 
   clear: () => set({ items: [] }),

@@ -23,6 +23,7 @@ interface UseDesign7ShortcutsProps {
   setSelectedCartRowId: (id: string | null) => void;
   onUpdateQty: (productId: string, qty: number) => void;
   onRemoveFromCart: (productId: string) => void;
+  onSelectPriceTier?: (tier: '1' | '2' | '3' | '4') => void;
   enabled?: boolean;
 }
 
@@ -47,12 +48,21 @@ export function useDesign7Shortcuts({
   setSelectedCartRowId,
   onUpdateQty,
   onRemoveFromCart,
+  onSelectPriceTier,
   enabled = true,
 }: UseDesign7ShortcutsProps) {
   useEffect(() => {
     if (!enabled) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // فئات الأسعار السريعة (س1-س4 عبر Alt+1..4 أو Ctrl+1..4)
+      if ((e.altKey || e.ctrlKey) && ['1', '2', '3', '4'].includes(e.key)) {
+        e.preventDefault();
+        e.stopPropagation();
+        onSelectPriceTier?.(e.key as '1' | '2' | '3' | '4');
+        return;
+      }
+
       // Don't intercept if typing inside an input or textarea
       const target = e.target as HTMLElement;
       const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
@@ -205,5 +215,6 @@ export function useDesign7Shortcuts({
     setSelectedCartRowId,
     onUpdateQty,
     onRemoveFromCart,
+    onSelectPriceTier,
   ]);
 }

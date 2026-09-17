@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
-import { ScanLine, Plus, Tag } from 'lucide-react';
+import { ScanLine, Plus, Tag, Scale } from 'lucide-react';
 import type { Product } from '@/types';
 import { getProductTierPrice } from '@/services';
 
@@ -20,6 +20,7 @@ export interface Design6BarcodeScannerBarProps {
   formatMoney?: (val?: number) => string;
   currency?: string;
   priceTier?: '1' | '2' | '3' | '4';
+  onReadScale?: () => void;
 }
 
 export const Design6BarcodeScannerBar: React.FC<Design6BarcodeScannerBarProps> = ({
@@ -39,6 +40,7 @@ export const Design6BarcodeScannerBar: React.FC<Design6BarcodeScannerBarProps> =
   formatMoney,
   currency = 'دج',
   priceTier = '1',
+  onReadScale,
 }) => {
   const localBarcodeInputRef = useRef<HTMLInputElement>(null);
   const activeBarcodeRef = barcodeInputRef || localBarcodeInputRef;
@@ -272,6 +274,19 @@ export const Design6BarcodeScannerBar: React.FC<Design6BarcodeScannerBarProps> =
           <div className="text-[8px] font-mono text-slate-500 dark:text-slate-400 leading-tight">[F3]</div>
         </div>
       </div>
+
+      {/* 5. Scale Button ([F8 وزن]) */}
+      {onReadScale && (
+        <button
+          type="button"
+          onClick={onReadScale}
+          title="قراءة الوزن من الميزان الذكي RS232 (F8)"
+          className="flex items-center gap-1.5 px-3 h-11 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white rounded-lg font-bold text-xs shadow-xs transition-all cursor-pointer shrink-0"
+        >
+          <Scale className="w-4 h-4" />
+          <span>وزن</span>
+        </button>
+      )}
     </form>
   );
 };

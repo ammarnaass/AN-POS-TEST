@@ -1,7 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/infrastructure/database/dexie/db';
 import { generateId } from '@/utils';
-import { syncProductUpdate } from '@/lib/products-sync';
 import type { Supplier, SaleItem } from '@/types';
 import type { SupplierPaymentVoucherData } from '../types';
 
@@ -115,8 +114,6 @@ export function useSupplierMutations(options: UseSupplierMutationsOptions = {}) 
             updatedAt: now,
           };
           await db.products.update(item.productId, changes);
-          // Write-Through → SQLite (for mobile sync)
-          await syncProductUpdate(item.productId, changes);
         }
 
         await db.stock_movements.add({
@@ -127,6 +124,27 @@ export function useSupplierMutations(options: UseSupplierMutationsOptions = {}) 
           createdBy: 'system',
           createdAt: now,
         });
+
+        try {
+          await db.stock_movements_v2.add({
+            id: generateId(),
+            movementNumber: `PUR-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`,
+            date: now.slice(0, 10),
+            type: 'purchase',
+            warehouseId: product?.warehouseId || 'main',
+            itemId: item.productId,
+            quantity: item.qty,
+            unitPrice: item.unitPrice,
+            totalAmount: item.lineTotal,
+            reference: invoiceNumber,
+            description: `شراء من مورد - فاتورة ${invoiceNumber}`,
+            isReviewed: true,
+            createdBy: 'system',
+            createdAt: now,
+          });
+        } catch {
+          // non-blocking
+        }
       }
 
       const supplier = await db.suppliers.get(supplierId);

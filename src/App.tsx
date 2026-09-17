@@ -6,6 +6,8 @@ import AuthLayout from '@/app/layouts/AuthLayout';
 import DashboardLayout from '@/app/layouts/DashboardLayout';
 import PosLayout from '@/app/layouts/PosLayout';
 import FirstRunGuard from '@/app/guards/FirstRunGuard';
+import { InteractiveToastContainer } from '@/components/notifications/InteractiveToastContainer';
+import { NotificationCenterModal } from '@/components/notifications/NotificationCenterModal';
 
 const LoginPage = lazy(() => import('@/pages/auth/LoginPage'));
 const POSPage = lazy(() => import('@/features/pos/POSPage'));
@@ -77,6 +79,8 @@ export default function App() {
 
   return (
     <RouteErrorBoundary>
+      <InteractiveToastContainer />
+      <NotificationCenterModal />
       <Suspense fallback={<Loading />}>
         <Routes>
           {/* صفحة تسجيل الدخول + التسجيل (النقطة البداية) */}

@@ -184,7 +184,13 @@ export const Design7BottomFavoritesPad: React.FC<Design7BottomFavoritesPadProps>
       onOpenFavoritesManagement();
     } else {
       try {
-        window.location.href = '/favorites';
+        if (typeof window !== 'undefined' && window.location) {
+          if (window.location.hash || window.location.protocol === 'file:') {
+            window.location.hash = '#/favorites';
+          } else {
+            window.location.href = '/favorites';
+          }
+        }
       } catch {
         // Fallback
       }

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, lazy, Suspense } from 'react';
 import type { Supplier, SaleItem, Purchase } from '@/types';
 import type { SupplierFormData, SupplierPaymentVoucherData, SupplierStatementEntry, EnrichedPurchase } from './types';
 
@@ -32,7 +32,7 @@ import { SupplierPaymentModal } from './modals/SupplierPaymentModal';
 import { SupplierInvoiceModal } from './modals/SupplierInvoiceModal';
 import { SupplierInvoiceViewModal } from './modals/SupplierInvoiceViewModal';
 import { SupplierDeleteModal } from './modals/SupplierDeleteModal';
-import SupplierInvoicePdfModal from './SupplierInvoicePdfModal';
+const SupplierInvoicePdfModal = lazy(() => import('./SupplierInvoicePdfModal'));
 
 export default function SuppliersPage() {
   // 1. Data Queries
@@ -435,17 +435,19 @@ export default function SuppliersPage() {
       />
 
       {showPdfInvoiceModal && (
-        <SupplierInvoicePdfModal
-          open={showPdfInvoiceModal}
-          onClose={() => {
-            setShowPdfInvoiceModal(false);
-            setSelectedSupplierForPdf(undefined);
-          }}
-          products={products as any}
-          suppliers={suppliers}
-          categories={categories as any}
-          preselectedSupplierId={selectedSupplierForPdf}
-        />
+        <Suspense fallback={null}>
+          <SupplierInvoicePdfModal
+            open={showPdfInvoiceModal}
+            onClose={() => {
+              setShowPdfInvoiceModal(false);
+              setSelectedSupplierForPdf(undefined);
+            }}
+            products={products as any}
+            suppliers={suppliers}
+            categories={categories as any}
+            preselectedSupplierId={selectedSupplierForPdf}
+          />
+        </Suspense>
       )}
     </div>
   );

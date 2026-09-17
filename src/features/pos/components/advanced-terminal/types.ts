@@ -74,4 +74,5 @@ export interface AdvancedTerminalPOSLayoutProps {
   viewMode?: 'grid' | 'list';
   showProductImages?: boolean;
   onOpenAddProduct?: () => void;
+  onOpenFavoritesManagement?: () => void;
 }

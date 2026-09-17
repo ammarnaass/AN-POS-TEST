@@ -2,35 +2,38 @@
 import React from 'react';
 import { X, Plus, Trash2, FileText, Store, Receipt, Tag, ImageIcon, ShieldCheck, Building2, Phone, Mail, MapPin, Copy, Check, Sparkles, ArrowLeftRight, Landmark, BadgePercent, Coins, CheckCircle } from 'lucide-react';
 import type { Currency } from '@/types';
+import { useSystemSettings } from '../hooks/useSystemSettings';
 
 interface GeneralTabProps {
   [key: string]: any;
 }
 
-export default function GeneralTab({
-  calcAmount,
-  calcCurrency,
-  copiedFiscalKey,
-  generalPreviewMode,
-  handleAddCurrency,
-  handleAddExpenseCategory,
-  handleCopyFiscal,
-  handleRemoveExpenseCategory,
-  handleSaveSettings,
-  handleShopLogoUpload,
-  newCurrencyCode,
-  newCurrencyRate,
-  newCurrencySymbol,
-  newExpenseCategory,
-  setCalcAmount,
-  setCalcCurrency,
-  setGeneralPreviewMode,
-  setNewCurrencyCode,
-  setNewCurrencyRate,
-  setNewCurrencySymbol,
-  setNewExpenseCategory,
-  settings
-}: GeneralTabProps) {
+export default function GeneralTab(props: GeneralTabProps) {
+  const hookData = useSystemSettings();
+
+  const settings = props.settings || hookData.settings;
+  const handleSaveSettings = props.handleSaveSettings || hookData.handleSaveSettings;
+  const calcAmount = props.calcAmount !== undefined ? props.calcAmount : hookData.calcAmount;
+  const calcCurrency = props.calcCurrency !== undefined ? props.calcCurrency : hookData.calcCurrency;
+  const copiedFiscalKey = props.copiedFiscalKey !== undefined ? props.copiedFiscalKey : hookData.copiedFiscalKey;
+  const generalPreviewMode = props.generalPreviewMode !== undefined ? props.generalPreviewMode : hookData.generalPreviewMode;
+  const handleAddCurrency = props.handleAddCurrency || hookData.handleAddCurrency;
+  const handleAddExpenseCategory = props.handleAddExpenseCategory || hookData.handleAddExpenseCategory;
+  const handleCopyFiscal = props.handleCopyFiscal || hookData.handleCopyFiscal;
+  const handleRemoveExpenseCategory = props.handleRemoveExpenseCategory || hookData.handleRemoveExpenseCategory;
+  const handleShopLogoUpload = props.handleShopLogoUpload || hookData.handleShopLogoUpload;
+  const newCurrencyCode = props.newCurrencyCode !== undefined ? props.newCurrencyCode : hookData.newCurrencyCode;
+  const newCurrencyRate = props.newCurrencyRate !== undefined ? props.newCurrencyRate : hookData.newCurrencyRate;
+  const newCurrencySymbol = props.newCurrencySymbol !== undefined ? props.newCurrencySymbol : hookData.newCurrencySymbol;
+  const newExpenseCategory = props.newExpenseCategory !== undefined ? props.newExpenseCategory : hookData.newExpenseCategory;
+  const setCalcAmount = props.setCalcAmount || hookData.setCalcAmount;
+  const setCalcCurrency = props.setCalcCurrency || hookData.setCalcCurrency;
+  const setGeneralPreviewMode = props.setGeneralPreviewMode || hookData.setGeneralPreviewMode;
+  const setNewCurrencyCode = props.setNewCurrencyCode || hookData.setNewCurrencyCode;
+  const setNewCurrencyRate = props.setNewCurrencyRate || hookData.setNewCurrencyRate;
+  const setNewCurrencySymbol = props.setNewCurrencySymbol || hookData.setNewCurrencySymbol;
+  const setNewExpenseCategory = props.setNewExpenseCategory || hookData.setNewExpenseCategory;
+
   return (
     <div className="space-y-8">
             {/* === 1. بطاقة الهوية التجارية ومعاينة رأس الوصل التفاعلية (Signature Hero Component) === */}

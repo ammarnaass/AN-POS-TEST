@@ -53,14 +53,18 @@ export const calculateTVA = (subtotal: number, tvaRate: number): number => {
 };
 
 export const calculateDiscount = (subtotal: number, discount: number, discountType: 'percent' | 'amount'): number => {
+  const safeSubtotal = Math.max(0, Number(subtotal) || 0);
+  const safeDiscount = Math.max(0, Number(discount) || 0);
+
   if (discountType === 'percent') {
-    return subtotal * (discount / 100);
+    const clampedPercent = Math.min(100, safeDiscount);
+    return (safeSubtotal * clampedPercent) / 100;
   }
-  return discount;
+  return Math.min(safeDiscount, safeSubtotal);
 };
 
-export const normalizeInvoicePrefix = (prefix: string): string => {
-  const normalized = prefix.trim().replace(/[-\s]+$/g, '');
+export const normalizeInvoicePrefix = (prefix?: string): string => {
+  const normalized = (prefix || 'INV').trim().replace(/[-\s]+$/g, '');
   return normalized || 'INV';
 };
 

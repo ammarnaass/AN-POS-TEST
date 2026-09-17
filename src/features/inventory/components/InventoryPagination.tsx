@@ -1,12 +1,11 @@
 import React from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface InventoryPaginationProps {
   currentPage: number;
   totalPages: number;
-  setCurrentPage: (p: number) => void;
+  setCurrentPage: (page: number) => void;
   itemsPerPage: number;
-  setItemsPerPage: (n: number) => void;
+  setItemsPerPage: (items: number) => void;
   paginatedCount: number;
   totalFilteredCount: number;
 }
@@ -20,76 +19,93 @@ export const InventoryPagination: React.FC<InventoryPaginationProps> = ({
   paginatedCount,
   totalFilteredCount,
 }) => {
-  const from = paginatedCount > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
-  const to = Math.min(currentPage * itemsPerPage, totalFilteredCount);
+  if (totalFilteredCount === 0) return null;
+
+  const start = Math.min((currentPage - 1) * itemsPerPage + 1, totalFilteredCount);
+  const end = Math.min(start + paginatedCount - 1, totalFilteredCount);
 
   return (
     <div
-      className="p-4 bg-surface-container rounded-2xl border border-outline-variant/20 flex flex-col sm:flex-row justify-between items-center gap-4"
+      className="px-4 py-3.5 bg-slate-50/70 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs shadow-xs"
+      data-purpose="pagination"
       dir="rtl"
     >
-      <div className="flex items-center gap-3">
-        <p className="text-xs text-on-surface-variant">
-          عرض {paginatedCount > 0 ? `${from}-${to}` : '0'} من أصل {totalFilteredCount} منتج
-        </p>
-        <div className="flex items-center gap-1.5 text-xs text-on-surface-variant border-r border-outline-variant/20 pr-3 mr-1">
-          <span>عرض في الصفحة:</span>
-          {[10, 25, 50].map((size) => (
-            <button
-              key={size}
-              onClick={() => setItemsPerPage(size)}
-              className={`px-2 py-0.5 rounded-md font-semibold transition-all cursor-pointer ${
-                itemsPerPage === size
-                  ? 'bg-primary text-on-primary'
-                  : 'bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant'
-              }`}
-            >
-              {size}
-            </button>
-          ))}
-        </div>
+      {/* Records Count Info */}
+      <div className="text-slate-500 dark:text-slate-400 font-medium">
+        عرض <span className="font-bold text-slate-800 dark:text-slate-200 font-mono">{start}-{end}</span> من أصل{' '}
+        <span className="font-bold text-slate-800 dark:text-slate-200 font-mono">{totalFilteredCount}</span> منتج
       </div>
 
-      {totalPages > 1 && (
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-            disabled={currentPage === 1}
-            className="w-9 h-9 flex items-center justify-center rounded-xl bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest disabled:opacity-30 transition-all cursor-pointer"
-            title="الصفحة السابقة"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-          {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-            let p: number;
-            if (totalPages <= 7) p = i + 1;
-            else if (currentPage <= 4) p = i + 1;
-            else if (currentPage >= totalPages - 3) p = totalPages - 6 + i;
-            else p = currentPage - 3 + i;
-            return (
+      <div className="flex items-center gap-4">
+        {/* Rows Per Page Selector */}
+        <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+          <span>عرض في الصفحة:</span>
+          <div className="inline-flex items-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-0.5 font-bold font-mono">
+            {[10, 25, 50].map((size) => (
               <button
-                key={p}
-                onClick={() => setCurrentPage(p)}
-                className={`w-9 h-9 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  currentPage === p
-                    ? 'bg-primary text-on-primary shadow-sm'
-                    : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest'
+                key={size}
+                onClick={() => {
+                  setItemsPerPage(size);
+                  setCurrentPage(1);
+                }}
+                className={`px-2 py-0.5 rounded transition cursor-pointer ${
+                  itemsPerPage === size
+                    ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 font-bold'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                 }`}
               >
-                {p}
+                {size}
               </button>
-            );
-          })}
-          <button
-            onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-            disabled={currentPage === totalPages}
-            className="w-9 h-9 flex items-center justify-center rounded-xl bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest disabled:opacity-30 transition-all cursor-pointer"
-            title="الصفحة التالية"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
+            ))}
+          </div>
         </div>
-      )}
+
+        {/* Page Buttons */}
+        {totalPages > 1 && (
+          <div className="inline-flex items-center gap-1">
+            <button
+              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
+              className={`px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-xs transition ${
+                currentPage === 1
+                  ? 'text-slate-300 dark:text-slate-600 cursor-not-allowed bg-white dark:bg-slate-800'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 cursor-pointer'
+              }`}
+              type="button"
+            >
+              السابق
+            </button>
+
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+              <button
+                key={page}
+                onClick={() => setCurrentPage(page)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold font-mono transition cursor-pointer ${
+                  currentPage === page
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700'
+                }`}
+                type="button"
+              >
+                {page}
+              </button>
+            ))}
+
+            <button
+              onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+              disabled={currentPage === totalPages}
+              className={`px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-xs transition ${
+                currentPage === totalPages
+                  ? 'text-slate-300 dark:text-slate-600 cursor-not-allowed bg-white dark:bg-slate-800'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 cursor-pointer'
+              }`}
+              type="button"
+            >
+              التالي
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

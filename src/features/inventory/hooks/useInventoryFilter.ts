@@ -1,5 +1,6 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import type { Product } from '@/types';
+import { useNotificationStore } from '@/store/notificationStore';
 
 export type SortOption = 'newest' | 'price_desc' | 'price_asc' | 'qty_asc' | 'qty_desc' | 'name_asc';
 export type ViewMode = 'table' | 'grid';
@@ -97,6 +98,23 @@ export function useInventoryFilter(products: Product[]) {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, filterCategory, filterStockStatus, sortBy, itemsPerPage]);
+
+  // إطلاق تنبيه تلقائي لمركز الإشعارات عند وجود أصناف نافدة أو حرجة
+  const alertedLowStockRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (products.length === 0) return;
+    const criticalCount = stats.lowStock + stats.outOfStock;
+    if (criticalCount > 0 && alertedLowStockRef.current !== criticalCount) {
+      alertedLowStockRef.current = criticalCount;
+      useNotificationStore.getState().addNotification({
+        title: 'تنبيه حالة المخزون',
+        message: `تنبيه: يوجد ${stats.outOfStock} صنفاً نافداً و ${stats.lowStock} صنفاً دون حد الطلب الأدنى.`,
+        type: 'warning',
+        category: 'inventory',
+        duration: 7000,
+      });
+    }
+  }, [stats.lowStock, stats.outOfStock, products.length]);
 
   const resetFilters = () => {
     setSearchQuery('');

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { Design7POSLayoutProps } from './types';
 import './design7.css';
 
@@ -15,6 +15,7 @@ import { Design7VirtualKeyboardModal } from './modals/Design7VirtualKeyboardModa
 import { useDesign7Shortcuts } from './hooks/useDesign7Shortcuts';
 import { useFavoritesStore } from '@/features/favorites/store/useFavoritesStore';
 import { getCartRowKey } from './utils/cartRow';
+import { readWeightFromSerial } from '@/services/hardware/scaleService';
 
 export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
   cart,
@@ -193,6 +194,7 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
             packId: pack.itemId || pack.id,
             packPiecesCount: pack.packQty || 1,
             packUnit: pack.packUnit || 'عبوة',
+            packMode: priceTier === '3' ? 'wholesale_packs' : 'retail_pieces',
           } as any,
           pack.price
         );
@@ -216,7 +218,7 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
         }
       }
     },
-    [onAddToCart, allProducts, products]
+    [onAddToCart, allProducts, products, priceTier]
   );
 
   // Keep selection synchronized with cart changes
@@ -333,6 +335,22 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
 
   const barcodeInputRef = React.useRef<HTMLInputElement>(null);
 
+  // قراءة الوزن الحي من الميزان الذكي المتصل (RS232 / USB Serial)
+  const handleReadScale = useCallback(async () => {
+    try {
+      const reading = await readWeightFromSerial();
+      if (reading && reading.weight > 0) {
+        const targetId = activeItem?.productId || (activeItem as any)?.id;
+        if (targetId) {
+          onUpdateQty(targetId, reading.weight);
+        }
+      }
+    } catch {
+      // في حال فشل الاتصال بالميزان: إعادة التركيز إلى حقل الباركود
+      barcodeInputRef.current?.focus();
+    }
+  }, [activeItem, onUpdateQty]);
+
   // Auto-focus barcode input on layout mount
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -341,7 +359,7 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
     return () => clearTimeout(timer);
   }, []);
 
-  // Connect keyboard shortcuts (F1-F12, Arrows, Del, Enter, Esc)
+  // Connect keyboard shortcuts (F1-F12, Arrows, Del, Enter, Esc, Alt+1..4)
   useDesign7Shortcuts({
     onSettleSale,
     onOpenSalesHistory,
@@ -363,6 +381,7 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
     setSelectedCartRowId,
     onUpdateQty,
     onRemoveFromCart,
+    onSelectPriceTier,
   });
 
   return (
@@ -394,6 +413,8 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
           invoiceNumber={invoiceNumber}
           onToggleFullscreen={onToggleFullscreen}
           isFullscreen={isFullscreen}
+          priceTier={priceTier}
+          onSelectPriceTier={onSelectPriceTier}
         />
 
         {/* Main Workspace Middle Section */}
@@ -415,6 +436,8 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
             setBarcodeInput={setBarcodeInput}
             onBarcodeSubmit={onBarcodeSubmit}
             formatMoney={formatMoney}
+            priceTier={priceTier}
+            onReadScale={handleReadScale}
           />
 
           {/* Workspace Body: Financial Column (Right in RTL) + Basket Table (Center) + 3x5 Keypad (Left in RTL) */}
@@ -439,6 +462,7 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
               }}
               onSettleSale={onSettleSale}
               userName={userName}
+              priceTier={priceTier}
             />
 
             {/* Shopping Basket Table (Center) */}
@@ -449,6 +473,10 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
               onUpdateQty={onUpdateQty}
               onRemoveFromCart={onRemoveFromCart}
               formatMoney={formatMoney}
+              priceTier={priceTier}
+              products={products}
+              allProducts={allProducts}
+              onEditPrice={onEditPrice}
               onOpenItemEdit={(item, mode = 'qty') => {
                 const idx = cart.indexOf(item);
                 const rowKey = getCartRowKey(item, idx >= 0 ? idx : 0);

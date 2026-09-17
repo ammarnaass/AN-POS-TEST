@@ -431,6 +431,27 @@ export default function SupplierInvoicePdfModal({
           createdBy: 'system',
           createdAt: now,
         });
+
+        try {
+          await db.stock_movements_v2.add({
+            id: generateId(),
+            movementNumber: `PUR-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`,
+            date: (invoiceDate || now).slice(0, 10),
+            type: 'purchase',
+            warehouseId: 'main',
+            itemId: productId,
+            quantity: Number(item.qty) || 0,
+            unitPrice: Number(item.unitPrice) || 0,
+            totalAmount: Number(item.lineTotal) || 0,
+            reference: finalInvoiceNumber,
+            description: `توريد بضاعة عبر الفاتورة ${finalInvoiceNumber}`,
+            isReviewed: true,
+            createdBy: 'system',
+            createdAt: now,
+          });
+        } catch {
+          // non-blocking
+        }
       }
 
       // 3. تسجيل فاتورة الشراء والتوريد الرسمية

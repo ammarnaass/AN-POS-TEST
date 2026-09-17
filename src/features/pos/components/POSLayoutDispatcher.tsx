@@ -65,6 +65,7 @@ export interface POSLayoutDispatcherProps {
   onToggleFullscreen: () => void;
   isFullscreen: boolean;
   onNavigateBack: () => void;
+  onOpenFavoritesManagement?: () => void;
   onOpenKeypad?: () => void;
   onOpenKeypadForQty?: (item: CartItem) => void;
   viewMode: 'grid' | 'list';
@@ -148,6 +149,7 @@ export const POSLayoutDispatcher: React.FC<POSLayoutDispatcherProps> = ({
   onToggleFullscreen,
   isFullscreen,
   onNavigateBack,
+  onOpenFavoritesManagement,
   onOpenKeypad,
   onOpenKeypadForQty,
   viewMode,
@@ -461,6 +463,7 @@ export const POSLayoutDispatcher: React.FC<POSLayoutDispatcherProps> = ({
         onOpenKeypad={onOpenKeypad}
         onOpenKeypadForQty={onOpenKeypadForQty}
         onOpenAddProduct={onOpenAddProduct}
+        onOpenFavoritesManagement={onOpenFavoritesManagement}
       />
     );
   }
@@ -521,6 +524,7 @@ export const POSLayoutDispatcher: React.FC<POSLayoutDispatcherProps> = ({
         onOpenKeypad={onOpenKeypad}
         onOpenKeypadForQty={onOpenKeypadForQty}
         onOpenAddProduct={onOpenAddProduct}
+        onOpenFavoritesManagement={onOpenFavoritesManagement}
       />
     );
   }

@@ -399,6 +399,17 @@ input:focus, select:focus, textarea:focus {
   animation: pulse-glow 2s ease-in-out infinite;
 }
 
+@keyframes slideInBottomLeft {
+  from {
+    transform: translate(-30px, 30px) scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+}
+
 /* Custom Scrollbar */
 .custom-scrollbar::-webkit-scrollbar {
   width: 4px;

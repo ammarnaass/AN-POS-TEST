@@ -303,7 +303,7 @@ export const POSTopBar: React.FC<POSTopBarProps> = ({
           </button>
 
           {/* Notifications */}
-          <NotificationDropdown>
+          <NotificationDropdown hideBadge>
             <button
               className="group relative w-8.5 h-8.5 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-xl bg-surface-container/70 hover:bg-amber-500/10 border border-outline-variant/20 hover:border-amber-500/40 flex items-center justify-center text-on-surface-variant hover:text-amber-500 hover:scale-105 active:scale-95 transition-all duration-200 shadow-2xs"
               title="الإشعارات والتنبيهات"

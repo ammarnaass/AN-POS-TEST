@@ -3,6 +3,7 @@
 // المنطق الفعلي في ../handlers/* (يُشارك مع خادم HTTP)
 
 import { registerCrudIpc } from './crud';
+import type { CrudConfig } from '../handlers/crud';
 import { registerAuthIpc } from './auth';
 import { registerProductsIpc } from './products';
 import { registerPacksIpc } from './packs';
@@ -42,7 +43,7 @@ export function registerIpcHandlers(): void {
   // ملاحظة: كل جدول يسجل معالج db:list/get/create/update/remove منفصل
   // لكن لأن المعالج يفحص table name، نسجل لكل جدول
 
-  const crudTables: Array<{ table: string; searchFields?: string[]; listOrder?: string; jsonFields?: string[]; booleanFields?: string[] }> = [
+  const crudTables: CrudConfig[] = [
     { table: 'products', searchFields: ['name', 'barcode', 'sku', 'category'], booleanFields: ['stockable', 'highlighted', 'allow_negative_stock', 'pricing_by_zone', 'loyalty_card', 'ask_price', 'ask_quantity'] },
     { table: 'customers', searchFields: ['name', 'phone'] },
     { table: 'suppliers', searchFields: ['name', 'phone'] },

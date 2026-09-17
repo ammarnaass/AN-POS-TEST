@@ -1,26 +1,41 @@
 import React, { useState } from 'react';
-import { RotateCcw, Search, X } from 'lucide-react';
+import { RotateCcw, Search, X, Loader2 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { db } from '@/infrastructure/database/dexie/db';
 import { formatNumber } from '../utils/format';
 import type { Sale } from '@/types';
 
 interface ReturnSaleModalProps {
   isOpen: boolean;
   onClose: () => void;
-  sales: Sale[];
+  sales?: Sale[];
   onSelectReturnSale: (sale: Sale) => void;
 }
 
 export const ReturnSaleModal: React.FC<ReturnSaleModalProps> = ({
   isOpen,
   onClose,
-  sales,
+  sales: initialSales,
   onSelectReturnSale,
 }) => {
   const [search, setSearch] = useState('');
 
+  // استعلام كسول (Lazy Query): لا يتم جلب الفواتير إلا عند فتح نافذة الإرجاع فقط
+  const { data: fetchedSales = [], isLoading } = useQuery<Sale[]>({
+    queryKey: ['sales', 'recent-returns'],
+    queryFn: async () => {
+      const all = await db.sales.toArray();
+      return all.slice(-50).reverse();
+    },
+    enabled: isOpen && (!initialSales || initialSales.length === 0),
+    staleTime: 1000 * 30,
+  });
+
   if (!isOpen) return null;
 
-  const filteredSales = sales.filter((s) => {
+  const activeSales = (initialSales && initialSales.length > 0) ? initialSales : fetchedSales;
+
+  const filteredSales = activeSales.filter((s) => {
     if (!search.trim()) return true;
     const q = search.trim().toLowerCase();
     return (
@@ -61,7 +76,12 @@ export const ReturnSaleModal: React.FC<ReturnSaleModalProps> = ({
 
         {/* Sales List */}
         <div className="space-y-2 max-h-80 overflow-y-auto custom-scrollbar">
-          {filteredSales.length === 0 ? (
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-8 text-on-surface-variant text-xs gap-2">
+              <Loader2 className="w-5 h-5 animate-spin text-primary" />
+              <span>جارٍ تحميل الفواتير السابقة...</span>
+            </div>
+          ) : filteredSales.length === 0 ? (
             <div className="text-center py-8 text-on-surface-variant text-xs">
               لم يتم العثور على فواتير مطابقة
             </div>

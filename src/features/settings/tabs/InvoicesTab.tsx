@@ -1,18 +1,24 @@
 // Tab Component: InvoicesTab (Refactored from SettingsPage.tsx)
-import React from 'react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FileText, Printer, Receipt, LayoutTemplate, ListChecks } from 'lucide-react';
+import { useSystemSettings } from '../hooks/useSystemSettings';
 
 interface InvoicesTabProps {
   [key: string]: any;
 }
 
-export default function InvoicesTab({
-  handleSaveSettings,
-  invoiceSubTab,
-  navigate,
-  setInvoiceSubTab,
-  settings
-}: InvoicesTabProps) {
+export default function InvoicesTab(props: InvoicesTabProps) {
+  const routerNavigate = useNavigate();
+  const hookData = useSystemSettings();
+  const [internalSubTab, setInternalSubTab] = useState<'template' | 'printing' | 'advanced'>('template');
+
+  const settings = props.settings || hookData.settings;
+  const handleSaveSettings = props.handleSaveSettings || hookData.handleSaveSettings;
+  const navigate = props.navigate || routerNavigate;
+  const invoiceSubTab = props.invoiceSubTab || internalSubTab;
+  const setInvoiceSubTab = props.setInvoiceSubTab || setInternalSubTab;
+
   return (
     <div className="bg-surface-container-low rounded-3xl border border-outline-variant/20 p-6 shadow-sm space-y-6">
             {/* رأس القسم */}

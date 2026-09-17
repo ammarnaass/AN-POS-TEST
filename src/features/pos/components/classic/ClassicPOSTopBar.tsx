@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Bell,
   Receipt,
   Trash2,
   PauseCircle,
@@ -15,6 +16,8 @@ import {
   Sun,
   Moon,
 } from 'lucide-react';
+import NotificationDropdown from '@/components/notifications/NotificationDropdown';
+import { useNotificationStore } from '@/store/notificationStore';
 import { useThemeStore } from '@/store/themeStore';
 
 interface ClassicPOSTopBarProps {
@@ -73,6 +76,7 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
   onSelectPriceTier,
 }) => {
   const { theme, toggleTheme } = useThemeStore();
+  const unreadCount = useNotificationStore((s) => s.getUnreadCount());
 
   return (
     <div className="bg-surface-container-low border-b border-outline-variant/20 p-2 sm:p-2.5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 shrink-0 shadow-sm">
@@ -304,6 +308,25 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
           )}
           <span className="hidden sm:inline">{theme === 'dark' ? 'نهاري' : 'ليلي'}</span>
         </button>
+
+        {/* زر الإشعارات والتنبيهات التشغيلية */}
+        <NotificationDropdown hideBadge>
+          <button
+            type="button"
+            className="h-10 px-2.5 rounded-xl bg-surface-container hover:bg-amber-500/15 text-on-surface hover:text-amber-500 border border-outline-variant/20 hover:border-amber-500/30 text-xs font-bold flex items-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0 relative"
+            title="الإشعارات والتنبيهات التشغيلية"
+          >
+            <div className="relative flex items-center justify-center">
+              <Bell className="w-3.5 h-3.5 text-amber-500" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 flex items-center justify-center bg-rose-600 text-white text-[9px] font-black rounded-full px-1 shadow-xs animate-pulse">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </div>
+            <span className="hidden sm:inline">إشعارات</span>
+          </button>
+        </NotificationDropdown>
       </div>
 
       {/* 2. LEFT (in RTL): UNIFIED SETTLEMENT & DIGITAL DISPLAY BLOCK */}

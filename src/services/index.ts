@@ -14,10 +14,18 @@ export const calculateSaleTotal = (
     : (typeof items === 'string' ? (() => { try { const p = JSON.parse(items); return Array.isArray(p) ? p : []; } catch { return []; } })() : []);
   const subtotal = safeItems.reduce((sum, item) => sum + (Number(item?.lineTotal) || (Number(item?.qty || 0) * Number(item?.unitPrice || 0)) || 0), 0);
   const discountAmount = calculateDiscount(subtotal, discount, discountType);
-  const afterDiscount = subtotal - discountAmount;
+  const afterDiscount = Math.max(0, subtotal - discountAmount);
   const tvaAmount = calculateTVA(afterDiscount, tvaRate);
   const total = afterDiscount + tvaAmount;
-  return { subtotal, discountAmount, tvaAmount, total };
+
+  const roundMoney = (val: number) => Math.round((val + Number.EPSILON) * 100) / 100;
+
+  return {
+    subtotal: roundMoney(subtotal),
+    discountAmount: roundMoney(discountAmount),
+    tvaAmount: roundMoney(tvaAmount),
+    total: roundMoney(total),
+  };
 };
 
 export const applyWholesalePrice = (product: Product, qty: number): number => {

@@ -1,4 +1,7 @@
 import React from 'react';
+import { Bell } from 'lucide-react';
+import NotificationDropdown from '@/components/notifications/NotificationDropdown';
+import { useNotificationStore } from '@/store/notificationStore';
 import { useDesign7Clock } from '../hooks/useDesign7Clock';
 
 interface Design7TopRibbonProps {
@@ -18,6 +21,8 @@ interface Design7TopRibbonProps {
   invoiceNumber?: string | number;
   onToggleFullscreen?: () => void;
   isFullscreen?: boolean;
+  priceTier?: '1' | '2' | '3' | '4';
+  onSelectPriceTier?: (tier: '1' | '2' | '3' | '4') => void;
 }
 
 export const Design7TopRibbon: React.FC<Design7TopRibbonProps> = ({
@@ -37,8 +42,11 @@ export const Design7TopRibbon: React.FC<Design7TopRibbonProps> = ({
   invoiceNumber = 1,
   onToggleFullscreen,
   isFullscreen = false,
+  priceTier = '1',
+  onSelectPriceTier,
 }) => {
   const { timeStr, dateStr } = useDesign7Clock();
+  const unreadCount = useNotificationStore((s) => s.getUnreadCount());
 
   return (
     <header className="bg-gradient-to-b from-[#e3e8ee] to-[#cad3de] px-1.5 sm:px-2 py-1 border-b border-[#9ba8b7] flex items-center justify-between gap-1 shadow-sm shrink-0 select-none overflow-hidden">
@@ -183,6 +191,50 @@ export const Design7TopRibbon: React.FC<Design7TopRibbonProps> = ({
           <span className="text-[10px] sm:text-[11px] font-bold text-rose-700 leading-tight">إلغاء السلة</span>
         </button>
 
+        {/* فئات الأسعار الأربعة: س1 تجزئة، س2 نصف جملة، س3 جملة، س4 خاص */}
+        <div
+          className="flex items-center bg-white/80 border border-[#9eb0c2] rounded p-0.5 gap-0.5 h-10 sm:h-11 md:h-12 shrink-0 shadow-2xs"
+          data-purpose="price-tier-selector"
+        >
+          {(
+            [
+              { id: '1', name: 'س1', label: 'تجزئة', shortcut: 'Alt+1', sub: 'فاتورة بيع عادية' },
+              { id: '2', name: 'س2', label: 'نصف جملة', shortcut: 'Alt+2', sub: 'فاتورة بيع عادية' },
+              { id: '3', name: 'س3', label: 'جملة', shortcut: 'Alt+3', sub: 'فاتورة جملة مخصصة', isWholesale: true },
+              { id: '4', name: 'س4', label: 'خاص', shortcut: 'Alt+4', sub: 'فاتورة بيع عادية' },
+            ] as const
+          ).map((t) => {
+            const isActive = (priceTier || '1') === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => onSelectPriceTier?.(t.id)}
+                className={`h-full px-1.5 sm:px-2 rounded flex flex-col items-center justify-center transition-all cursor-pointer select-none text-center ${
+                  isActive
+                    ? t.isWholesale
+                      ? 'bg-gradient-to-b from-purple-700 to-indigo-800 text-white shadow font-extrabold border border-purple-400/60'
+                      : 'bg-gradient-to-b from-teal-600 to-emerald-700 text-white shadow font-bold border border-emerald-400/50'
+                    : 'hover:bg-slate-100 text-slate-700 font-semibold'
+                }`}
+                title={`${t.name} (${t.label}) - ${t.sub} (${t.shortcut})`}
+              >
+                <div className="flex items-center gap-0.5 text-[10px] sm:text-[11px] leading-tight font-black">
+                  <span>{t.name}</span>
+                  <span className="text-[9px] sm:text-[10px] opacity-90">({t.label})</span>
+                </div>
+                <span
+                  className={`text-[8px] font-mono leading-tight px-1 rounded mt-0.5 ${
+                    isActive ? 'bg-black/30 text-white' : 'text-slate-500 bg-slate-200/80'
+                  }`}
+                >
+                  {t.shortcut}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
         {/* ملء الشاشة / تكبير كامل (F11) */}
         {onToggleFullscreen && (
           <button
@@ -218,22 +270,46 @@ export const Design7TopRibbon: React.FC<Design7TopRibbonProps> = ({
         </button>
       </div>
 
-      {/* Document Information Block (Left in RTL) */}
-      <div
-        className="hidden sm:flex items-stretch border border-[#b2bfcc] bg-gradient-to-b from-[#ffffff] to-[#e6ecf2] rounded divide-x divide-x-reverse divide-[#c0ccd9] text-[10px] sm:text-[11px] shadow-inner shrink-0"
-        data-purpose="document-metadata"
-      >
-        <div className="px-1.5 sm:px-2 py-0.5 text-center min-w-[44px] sm:min-w-[50px]">
-          <div className="font-bold text-slate-700">رقم السند</div>
-          <div className="text-blue-700 font-extrabold text-xs sm:text-sm leading-tight">{invoiceNumber}</div>
-        </div>
-        <div className="px-1.5 sm:px-2 py-0.5 text-center min-w-[60px] sm:min-w-[70px]">
-          <div className="font-bold text-slate-700">تاريخ السند</div>
-          <div className="text-rose-600 font-bold leading-tight">{dateStr}</div>
-        </div>
-        <div className="px-1.5 sm:px-2 py-0.5 text-center min-w-[55px] sm:min-w-[65px]">
-          <div className="font-bold text-slate-700">ساعة السند</div>
-          <div className="text-amber-700 font-bold leading-tight font-mono">{timeStr}</div>
+      {/* Document Information & Notifications Block (Left in RTL) */}
+      <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+        {/* زر الإشعارات والتنبيهات المنسدلة */}
+        <NotificationDropdown hideBadge>
+          <button
+            type="button"
+            title="الإشعارات والتنبيهات التشغيلية"
+            className="d7-glossy-top-btn relative flex flex-col items-center justify-center w-12 sm:w-14 md:w-16 h-10 sm:h-11 md:h-12 rounded px-1 cursor-pointer active:scale-95 transition-all bg-amber-50/20 hover:border-amber-400 shrink-0"
+          >
+            <div className="relative flex items-center justify-center">
+              <Bell className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600 drop-shadow-xs" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1.5 -right-2 min-w-[17px] h-[17px] flex items-center justify-center bg-rose-600 text-white text-[9px] font-black rounded-full px-1 shadow-xs animate-pulse">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </div>
+            <span className="text-[9px] sm:text-[10px] font-bold text-slate-700 leading-tight">
+              الإشعارات
+            </span>
+          </button>
+        </NotificationDropdown>
+
+        {/* Document Information Block (Left in RTL) */}
+        <div
+          className="hidden sm:flex items-stretch border border-[#b2bfcc] bg-gradient-to-b from-[#ffffff] to-[#e6ecf2] rounded divide-x divide-x-reverse divide-[#c0ccd9] text-[10px] sm:text-[11px] shadow-inner shrink-0"
+          data-purpose="document-metadata"
+        >
+          <div className="px-1.5 sm:px-2 py-0.5 text-center min-w-[44px] sm:min-w-[50px]">
+            <div className="font-bold text-slate-700">رقم السند</div>
+            <div className="text-blue-700 font-extrabold text-xs sm:text-sm leading-tight">{invoiceNumber}</div>
+          </div>
+          <div className="px-1.5 sm:px-2 py-0.5 text-center min-w-[60px] sm:min-w-[70px]">
+            <div className="font-bold text-slate-700">تاريخ السند</div>
+            <div className="text-rose-600 font-bold leading-tight">{dateStr}</div>
+          </div>
+          <div className="px-1.5 sm:px-2 py-0.5 text-center min-w-[55px] sm:min-w-[65px]">
+            <div className="font-bold text-slate-700">ساعة السند</div>
+            <div className="text-amber-700 font-bold leading-tight font-mono">{timeStr}</div>
+          </div>
         </div>
       </div>
     </header>

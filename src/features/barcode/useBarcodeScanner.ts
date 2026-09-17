@@ -39,7 +39,7 @@ export function useBarcodeScanner(opts: UseScannerOptions) {
   // قراءة إعدادات الماسح الحالية من network_settings
   const { data: netSettings } = useQuery({
     queryKey: ['network_settings'],
-    queryFn: () => db.network_settings.get('default'),
+    queryFn: async () => (await db.network_settings.get('default')) ?? null,
     staleTime: 60000,
   });
 
@@ -135,9 +135,9 @@ export function useBarcodeScanner(opts: UseScannerOptions) {
         if (!inForm || (isFastBurst && isMinLength)) {
           e.preventDefault();
           e.stopPropagation();
-          const last = buf[buf.length - 1];
-          if (last && last.key !== e.key) {
-            flush('terminator');
+          flush('terminator');
+          if (inForm && document.activeElement instanceof HTMLInputElement) {
+            document.activeElement.value = '';
           }
           return;
         } else {

@@ -4,14 +4,25 @@ export function calculateSaleTotal(
   discountType: 'percent' | 'amount',
   tvaRate: number
 ) {
-  const subtotal = cart.reduce((sum, item) => sum + item.lineTotal, 0);
+  const rawSubtotal = cart.reduce((sum, item) => sum + item.lineTotal, 0);
+  const safeSubtotal = Math.max(0, rawSubtotal);
+  const safeDiscount = Math.max(0, discount);
+
   const discountAmount = discountType === 'percent'
-    ? subtotal * (discount / 100)
-    : Math.min(discount, subtotal);
-  const afterDiscount = subtotal - discountAmount;
+    ? (safeSubtotal * Math.min(100, safeDiscount)) / 100
+    : Math.min(safeDiscount, safeSubtotal);
+  const afterDiscount = Math.max(0, safeSubtotal - discountAmount);
   const tvaAmount = afterDiscount * (tvaRate / 100);
   const total = afterDiscount + tvaAmount;
-  return { subtotal, discountAmount, tvaAmount, total };
+
+  const roundMoney = (val: number) => Math.round((val + Number.EPSILON) * 100) / 100;
+
+  return {
+    subtotal: roundMoney(safeSubtotal),
+    discountAmount: roundMoney(discountAmount),
+    tvaAmount: roundMoney(tvaAmount),
+    total: roundMoney(total),
+  };
 }
 
 export function applyWholesalePrice(

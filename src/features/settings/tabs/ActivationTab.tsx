@@ -2,41 +2,32 @@ import React, { useState } from 'react';
 import { Upload, Smartphone, RefreshCw, Zap, ShieldCheck, KeyRound, AlertCircle, CheckCircle2, Copy, Check, Headphones, AlertTriangle } from 'lucide-react';
 import { formatTrialDate } from '@/services/trialService';
 import SupportChannelsModal from '@/components/license/SupportChannelsModal';
+import { useLicenseActivation } from '../hooks/useLicenseActivation';
 
 interface ActivationTabProps {
-  activationInput: string;
-  addNotification: (n: any) => void;
-  copiedFingerprint: boolean;
-  handleActivate: () => void;
-  handleCopyFingerprint: () => void;
-  handleDeactivate: () => void;
-  handleFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  isActivating: boolean;
-  isDeveloper?: boolean;
-  licenseStatus: any;
-  setActivationInput: (s: string) => void;
-  trial: any;
-  isExpiredAndLocked?: boolean;
   [key: string]: any;
 }
 
-export default function ActivationTab({
-  activationInput,
-  addNotification,
-  copiedFingerprint,
-  handleActivate,
-  handleCopyFingerprint,
-  handleDeactivate,
-  handleFileUpload,
-  isActivating,
-  isDeveloper,
-  licenseStatus,
-  setActivationInput,
-  trial,
-  isExpiredAndLocked
-}: ActivationTabProps) {
+export default function ActivationTab(props: ActivationTabProps) {
+  const hookData = useLicenseActivation();
+
+  const activationInput = props.activationInput !== undefined ? props.activationInput : hookData.activationInput;
+  const setActivationInput = props.setActivationInput || hookData.setActivationInput;
+  const addNotification = props.addNotification || hookData.addNotification;
+  const copiedFingerprint = props.copiedFingerprint !== undefined ? props.copiedFingerprint : hookData.copiedFingerprint;
+  const handleActivate = props.handleActivate || hookData.handleActivate;
+  const handleCopyFingerprint = props.handleCopyFingerprint || hookData.handleCopyFingerprint;
+  const handleDeactivate = props.handleDeactivate || hookData.handleDeactivate;
+  const handleFileUpload = props.handleFileUpload || hookData.handleFileUpload;
+  const isActivating = props.isActivating !== undefined ? props.isActivating : hookData.isActivating;
+  const isDeveloper = props.isDeveloper !== undefined ? props.isDeveloper : hookData.isDeveloper;
+  const licenseStatus = props.licenseStatus || hookData.licenseStatus;
+  const trial = props.trial || hookData.trial;
+  const isExpiredAndLocked = props.isExpiredAndLocked !== undefined ? props.isExpiredAndLocked : hookData.isExpiredAndLocked;
+
   const [showSupportModal, setShowSupportModal] = useState(false);
   const isLocked = isExpiredAndLocked || (!isDeveloper && licenseStatus?.status !== 'active' && trial?.isExpired);
+
 
   return (
     <div className="space-y-6">

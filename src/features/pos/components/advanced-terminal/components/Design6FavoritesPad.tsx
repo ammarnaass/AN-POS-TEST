@@ -82,7 +82,13 @@ export const Design6FavoritesPad: React.FC<Design6FavoritesPadProps> = ({
       onOpenFavoritesManagement();
     } else {
       try {
-        window.location.href = '/favorites';
+        if (typeof window !== 'undefined' && window.location) {
+          if (window.location.hash || window.location.protocol === 'file:') {
+            window.location.hash = '#/favorites';
+          } else {
+            window.location.href = '/favorites';
+          }
+        }
       } catch {
         // fallback
       }

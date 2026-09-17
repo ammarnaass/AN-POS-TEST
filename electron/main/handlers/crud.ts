@@ -1,5 +1,6 @@
-// منطق CRUD العام — دوال قابلة لإعادة الاستخدام (IPC + HTTP REST).
-// مصنع عام لكل الجداول: list/get/create/update/remove.
+// منطق CRUD العام — محرك التخزين الأساسي للجداول البسيطة (IPC + HTTP REST).
+// مصنع عام للجداول: list/get/create/update/remove/bulk.
+// يفوض معالجة الإعدادات والعملاء والموردين لمعالجات المجالات المتخصصة.
 
 import { randomUUID } from 'node:crypto';
 import {
@@ -15,6 +16,8 @@ import {
   type Row,
 } from './db-utils';
 import { ensureCategoryExists } from './products';
+import { normalizeSettingsPayload, getStoreSettings, updateStoreSettings } from './settings';
+import { normalizePartyPayload } from './customers';
 
 export interface CrudConfig {
   table: string;
@@ -95,195 +98,56 @@ export interface ListOptions {
 }
 
 /**
- * تعيين الأسماء الشائعة للحقول إلى أسماء أعمدة جدول SQLite الحقيقية
+ * تسوية الحقول بحسب الجدول مع تفويض الجداول المتخصصة
  */
 function normalizePayloadForTable(
   tableName: string,
   raw: Record<string, unknown>
 ): Record<string, unknown> {
+  // تفويض جدول الإعدادات لمعالج settings.ts المتخصص
+  if (tableName === 'settings') {
+    return normalizeSettingsPayload(raw);
+  }
+
+  // تفويض العملاء والموردين لمعالج customers.ts المتخصص
+  if (tableName === 'customers' || tableName === 'suppliers') {
+    return normalizePartyPayload(raw);
+  }
+
   const validCols = getTableColumns(tableName);
   const normalized: Record<string, unknown> = {};
 
-  // Unpack wrappers if present
   let data = raw;
   if (raw && typeof raw === 'object') {
     if ('data' in raw && raw.data && typeof raw.data === 'object') data = raw.data as Record<string, unknown>;
     else if ('product' in raw && raw.product && typeof raw.product === 'object') data = raw.product as Record<string, unknown>;
     else if ('category' in raw && raw.category && typeof raw.category === 'object') data = raw.category as Record<string, unknown>;
-    else if ('customer' in raw && raw.customer && typeof raw.customer === 'object') data = raw.customer as Record<string, unknown>;
-    else if ('supplier' in raw && raw.supplier && typeof raw.supplier === 'object') data = raw.supplier as Record<string, unknown>;
   }
 
-  // Field Aliases for Products
-  if (tableName === 'settings') {
-    const rawShopName = data.shop_name ?? data.shopName ?? data.store_name ?? data.name;
-    if (rawShopName !== undefined && rawShopName !== null) {
-      normalized.shop_name = String(rawShopName).trim();
-    }
-
-    const rawAddress = data.address ?? data.store_address ?? data.shop_address ?? data.shopAddress;
-    if (rawAddress !== undefined && rawAddress !== null) {
-      const addr = String(rawAddress).trim();
-      normalized.address = addr;
-      normalized.shop_address = addr;
-    }
-
-    const rawPhone = data.phone ?? data.store_phone ?? data.shop_phone ?? data.shopPhone;
-    if (rawPhone !== undefined && rawPhone !== null) {
-      normalized.phone = String(rawPhone).trim();
-    }
-
-    const rawPhone2 = data.phone2 ?? data.shop_phone2 ?? data.shopPhone2;
-    if (rawPhone2 !== undefined && rawPhone2 !== null) {
-      const p2 = String(rawPhone2).trim();
-      normalized.phone2 = p2;
-      normalized.shop_phone2 = p2;
-    }
-
-    const rawEmail = data.email ?? data.store_email ?? data.shop_email ?? data.shopEmail;
-    if (rawEmail !== undefined && rawEmail !== null) {
-      const em = String(rawEmail).trim();
-      normalized.email = em;
-      normalized.shop_email = em;
-    }
-
-    const rawCity = data.city;
-    if (rawCity !== undefined && rawCity !== null) {
-      normalized.city = String(rawCity).trim();
-    }
-
-    const rawLogo = data.logo ?? data.shop_logo ?? data.shopLogo ?? data.logo_url ?? data.imageUrl;
-    if (rawLogo !== undefined && rawLogo !== null) {
-      const lg = String(rawLogo).trim();
-      normalized.logo = lg;
-      normalized.shop_logo = lg;
-    }
-
-    const rawRc = data.commercial_register ?? data.commercialRegister ?? data.company_rc ?? data.companyRC ?? data.rc;
-    if (rawRc !== undefined && rawRc !== null) {
-      const rc = String(rawRc).trim();
-      normalized.commercial_register = rc;
-      normalized.company_rc = rc;
-    }
-
-    const rawNif = data.tax_number ?? data.taxNumber ?? data.company_nif ?? data.companyNif ?? data.companyNIF ?? data.nif ?? data.tax_id;
-    if (rawNif !== undefined && rawNif !== null) {
-      const nif = String(rawNif).trim();
-      normalized.tax_number = nif;
-      normalized.company_nif = nif;
-    }
-
-    const rawArt = data.tax_article ?? data.taxArticle ?? data.company_art ?? data.companyArt ?? data.art;
-    if (rawArt !== undefined && rawArt !== null) {
-      const art = String(rawArt).trim();
-      normalized.tax_article = art;
-      normalized.company_art = art;
-    }
-
-    const rawAi = data.company_ai ?? data.companyAI ?? data.nis ?? data.ai;
-    if (rawAi !== undefined && rawAi !== null) {
-      normalized.company_ai = String(rawAi).trim();
-    }
-
-    const rawCurrency = data.base_currency ?? data.baseCurrency ?? data.currency ?? data.currency_code;
-    if (rawCurrency !== undefined && rawCurrency !== null) {
-      normalized.base_currency = String(rawCurrency).trim();
-    }
-
-    const rawFooter = data.receipt_footer ?? data.receiptFooter;
-    if (rawFooter !== undefined && rawFooter !== null) {
-      normalized.receipt_footer = String(rawFooter).trim();
-    }
-
-    const rawPrefix = data.invoice_prefix ?? data.invoicePrefix;
-    if (rawPrefix !== undefined && rawPrefix !== null) {
-      normalized.invoice_prefix = String(rawPrefix).trim();
-    }
-
-    const rawStartNum = data.invoice_start_number ?? data.invoiceStartNumber;
-    if (rawStartNum !== undefined && rawStartNum !== null) {
-      normalized.invoice_start_number = Number(rawStartNum) || 1;
-    }
-
-    const rawTva = data.tva_rate ?? data.tvaRate;
-    if (rawTva !== undefined && rawTva !== null) {
-      normalized.tva_rate = Number(rawTva) || 0;
-    }
-
-    const rawPrintWidth = data.print_width_mm ?? data.printWidthMm;
-    if (rawPrintWidth !== undefined && rawPrintWidth !== null) {
-      normalized.print_width_mm = Number(rawPrintWidth) || 80;
-    }
-
-    const rawPrintLang = data.print_language ?? data.printLanguage;
-    if (rawPrintLang !== undefined && rawPrintLang !== null) {
-      normalized.print_language = String(rawPrintLang).trim();
-    }
-
-    const rawLang = data.language;
-    if (rawLang !== undefined && rawLang !== null) {
-      normalized.language = String(rawLang).trim();
-    }
-  }
-
+  // تسوية المنتجات المتبقية في CRUD
   if (tableName === 'products') {
     if (data.name !== undefined || data.productName !== undefined || data.product_name !== undefined) {
       normalized.name = data.name ?? data.productName ?? data.product_name;
     }
-    if (data.retailPrice !== undefined || data.retail_price !== undefined || data.price !== undefined || data.selling_price !== undefined || data.sale_price !== undefined) {
-      normalized.retail_price = Number(data.retailPrice ?? data.retail_price ?? data.price ?? data.selling_price ?? data.sale_price ?? 0);
+    if (data.retailPrice !== undefined || data.retail_price !== undefined || data.price !== undefined) {
+      normalized.retail_price = Number(data.retailPrice ?? data.retail_price ?? data.price ?? 0);
     }
-    if (data.costPrice !== undefined || data.cost_price !== undefined || data.purchasePrice !== undefined || data.purchase_price !== undefined) {
-      normalized.cost_price = Number(data.costPrice ?? data.cost_price ?? data.purchasePrice ?? data.purchase_price ?? 0);
-    }
-    if (data.wholesalePrice !== undefined || data.wholesale_price !== undefined) {
-      normalized.wholesale_price = Number(data.wholesalePrice ?? data.wholesale_price ?? 0);
-    }
-    if (data.wholesaleMinQty !== undefined || data.wholesale_min_qty !== undefined) {
-      normalized.wholesale_min_qty = Number(data.wholesaleMinQty ?? data.wholesale_min_qty ?? 0);
+    if (data.costPrice !== undefined || data.cost_price !== undefined || data.purchasePrice !== undefined) {
+      normalized.cost_price = Number(data.costPrice ?? data.cost_price ?? data.purchasePrice ?? 0);
     }
     if (data.quantity !== undefined || data.qty !== undefined || data.stock !== undefined) {
       normalized.quantity = Number(data.quantity ?? data.qty ?? data.stock ?? 0);
     }
-    if (data.lowStockThreshold !== undefined || data.low_stock_threshold !== undefined || data.min_quantity !== undefined || data.minQuantity !== undefined) {
-      normalized.low_stock_threshold = Number(data.lowStockThreshold ?? data.low_stock_threshold ?? data.min_quantity ?? data.minQuantity ?? 5);
-    }
-    if (data.reorderPoint !== undefined || data.reorder_point !== undefined) {
-      normalized.reorder_point = Number(data.reorderPoint ?? data.reorder_point ?? 0);
-    }
-    if (data.maxStock !== undefined || data.max_stock !== undefined) {
-      normalized.max_stock = Number(data.maxStock ?? data.max_stock ?? 0);
-    }
     if (data.barcode !== undefined) normalized.barcode = String(data.barcode);
     if (data.sku !== undefined) normalized.sku = String(data.sku);
-    if (data.category !== undefined || data.category_name !== undefined || data.categoryName !== undefined) {
-      const catName = String(data.category ?? data.category_name ?? data.categoryName ?? '').trim();
+    if (data.category !== undefined || data.category_name !== undefined) {
+      const catName = String(data.category ?? data.category_name ?? '').trim();
       normalized.category = catName;
       if (catName && catName !== 'عام' && catName.toLowerCase() !== 'general') {
         const prefId = (data.categoryId ?? data.category_id) ? String(data.categoryId ?? data.category_id) : undefined;
         const catId = ensureCategoryExists(catName, prefId);
-        if (catId) {
-          normalized.category_id = catId;
-        }
+        if (catId) normalized.category_id = catId;
       }
-    }
-    if ((data.categoryId !== undefined || data.category_id !== undefined) && !normalized.category_id) {
-      normalized.category_id = (data.categoryId ?? data.category_id) ? String(data.categoryId ?? data.category_id) : null;
-    }
-    if (data.unit !== undefined) normalized.unit = String(data.unit);
-    if (data.status !== undefined) normalized.status = String(data.status);
-    if (data.image !== undefined || data.imageUrl !== undefined || data.image_url !== undefined) {
-      normalized.image = String(data.image ?? data.imageUrl ?? data.image_url ?? '');
-    }
-    if (data.variant !== undefined) normalized.variant = String(data.variant);
-    if (data.expiryDate !== undefined || data.expiry_date !== undefined) {
-      normalized.expiry_date = String(data.expiryDate ?? data.expiry_date ?? '');
-    }
-    if (data.batchNumber !== undefined || data.batch_number !== undefined) {
-      normalized.batch_number = String(data.batchNumber ?? data.batch_number ?? '');
-    }
-    if (data.warehouseId !== undefined || data.warehouse_id !== undefined) {
-      normalized.warehouse_id = String(data.warehouseId ?? data.warehouse_id ?? '');
     }
   }
 
@@ -302,22 +166,15 @@ function normalizePayloadForTable(
     if (data.type !== undefined && data.type !== null) normalized.type = String(data.type);
     if (data.method !== undefined && data.method !== null) normalized.method = String(data.method);
     if (data.note !== undefined && data.note !== null) normalized.note = String(data.note || '');
-    if (data.createdBy !== undefined || data.created_by !== undefined) {
-      normalized.created_by = String(data.createdBy ?? data.created_by ?? '');
-    }
   }
 
-  // Iterate over all keys and retain only columns that exist in SQLite schema
+  // تمرير الحقول المطابقة لأعمدة SQLite
   for (const [key, val] of Object.entries(data)) {
     const snake = toSnakeKey(key);
     if (validCols.size === 0 || validCols.has(snake)) {
-      if (normalized[snake] === undefined) {
-        normalized[snake] = val;
-      }
+      if (normalized[snake] === undefined) normalized[snake] = val;
     } else if (validCols.has(key)) {
-      if (normalized[key] === undefined) {
-        normalized[key] = val;
-      }
+      if (normalized[key] === undefined) normalized[key] = val;
     }
   }
 
@@ -348,17 +205,24 @@ export async function listRows(
       const col = validCols.has(snake) ? snake : validCols.has(key) ? key : null;
       if (!col) continue;
 
-      if (Array.isArray(val)) {
-        if (val.length > 0) {
-          const inPlaceholders = val.map(() => '?').join(', ');
-          whereClauses.push(`${col} IN (${inPlaceholders})`);
-          params.push(...val);
-        } else {
-          whereClauses.push('1 = 0');
+      if (val === null || val === undefined) {
+        whereClauses.push(`${col} IS NULL`);
+      } else if (typeof val === 'object' && val !== null) {
+        const opObj = val as Record<string, unknown>;
+        if ('gte' in opObj) { whereClauses.push(`${col} >= ?`); params.push(opObj.gte); }
+        if ('lte' in opObj) { whereClauses.push(`${col} <= ?`); params.push(opObj.lte); }
+        if ('gt' in opObj) { whereClauses.push(`${col} > ?`); params.push(opObj.gt); }
+        if ('lt' in opObj) { whereClauses.push(`${col} < ?`); params.push(opObj.lt); }
+        if ('neq' in opObj) { whereClauses.push(`${col} != ?`); params.push(opObj.neq); }
+        if ('like' in opObj) { whereClauses.push(`${col} LIKE ?`); params.push(`%${opObj.like}%`); }
+        if ('in' in opObj && Array.isArray(opObj.in)) {
+          if (opObj.in.length > 0) {
+            whereClauses.push(`${col} IN (${opObj.in.map(() => '?').join(',')})`);
+            params.push(...opObj.in);
+          } else {
+            whereClauses.push('1 = 0');
+          }
         }
-      } else if (val && typeof val === 'object' && '$ne' in val) {
-        whereClauses.push(`${col} != ?`);
-        params.push((val as { $ne: unknown }).$ne);
       } else {
         whereClauses.push(`${col} = ?`);
         params.push(val);
@@ -366,49 +230,72 @@ export async function listRows(
     }
   }
   if (opts?.from) {
-    whereClauses.push('date >= ?');
-    params.push(opts.from);
+    const dateCol = validCols.has('date') ? 'date' : validCols.has('created_at') ? 'created_at' : null;
+    if (dateCol) {
+      whereClauses.push(`${dateCol} >= ?`);
+      params.push(opts.from);
+    }
   }
   if (opts?.to) {
-    whereClauses.push('date <= ?');
-    params.push(`${opts.to}T23:59:59.999Z`);
-  }
-
-  // إخفاء حساب المطور بالكامل من الاستعلامات العادية
-  if (tableName === 'users' && !opts?.filter?.include_developer) {
-    whereClauses.push("role != 'developer'");
+    const dateCol = validCols.has('date') ? 'date' : validCols.has('created_at') ? 'created_at' : null;
+    if (dateCol) {
+      whereClauses.push(`${dateCol} <= ?`);
+      params.push(opts.to);
+    }
   }
 
   if (whereClauses.length > 0) {
     sql += ` WHERE ${whereClauses.join(' AND ')}`;
   }
 
-  let listOrder = config?.listOrder ?? `${idField} DESC`;
-  if (opts?.orderBy) {
-    const snakeOrder = toSnakeKey(opts.orderBy);
-    if (validCols.has(snakeOrder) || validCols.has(opts.orderBy)) {
-      const orderCol = validCols.has(snakeOrder) ? snakeOrder : opts.orderBy;
-      const dir = (opts.orderDir || 'ASC').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
-      listOrder = `${orderCol} ${dir}`;
+  if (opts?.orderBy && validCols.has(toSnakeKey(opts.orderBy))) {
+    const dir = (opts.orderDir || 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+    sql += ` ORDER BY ${toSnakeKey(opts.orderBy)} ${dir}`;
+  } else if (config?.listOrder) {
+    sql += ` ORDER BY ${config.listOrder}`;
+  } else if (validCols.has('created_at')) {
+    sql += ` ORDER BY created_at DESC`;
+  } else {
+    sql += ` ORDER BY ${idField} ASC`;
+  }
+
+  if (opts?.limit) {
+    sql += ` LIMIT ${Number(opts.limit)}`;
+    if (opts?.offset) {
+      sql += ` OFFSET ${Number(opts.offset)}`;
     }
   }
-  sql += ` ORDER BY ${listOrder}`;
 
-  if (opts?.limit) { sql += ' LIMIT ?'; params.push(opts.limit); }
-  console.time(`[PERF] crud:listRows:${tableName}`);
   const rows = queryAll(sql, params);
-  console.timeEnd(`[PERF] crud:listRows:${tableName}`);
-  return { data: config ? rows.map((r) => transformRow(r, config)) : rows };
+  const transformed = config ? rows.map((r) => transformRow(r, config)) : rows;
+  return { data: transformed };
 }
 
 export async function getRow(
   rawTableName: string,
-  id: string
+  id: unknown
 ): Promise<{ data: Record<string, unknown> | null }> {
   const tableName = resolveTableName(rawTableName);
+  if (tableName === 'settings' && (id === 'default' || !id)) {
+    return { data: getStoreSettings() };
+  }
+
   const config = tableConfigs.get(tableName);
   const idField = config?.idField ?? 'id';
-  const row = queryOne(`SELECT * FROM ${tableName} WHERE ${idField} = ?`, [id]);
+
+  let resolvedId: string | number | null = null;
+  if (id !== null && typeof id === 'object') {
+    const obj = id as Record<string, unknown>;
+    resolvedId = (obj.id ?? obj.key ?? obj.code ?? obj.docType ?? obj.doc_type) as string | number | null;
+  } else if (id !== undefined && id !== null) {
+    resolvedId = id as string | number;
+  }
+
+  if (resolvedId === null || resolvedId === undefined || resolvedId === '' || resolvedId === 'undefined' || resolvedId === 'null') {
+    return { data: null };
+  }
+
+  const row = queryOne(`SELECT * FROM ${tableName} WHERE ${idField} = ?`, [resolvedId]);
   if (!row) return { data: null };
   return { data: config ? transformRow(row, config) : row };
 }
@@ -421,32 +308,51 @@ export async function createRow(
   const config = tableConfigs.get(tableName);
   const idField = config?.idField ?? 'id';
   const data = normalizePayloadForTable(tableName, rawData);
-  const id = (data[idField] as string) || (rawData[idField] as string) || randomUUID();
-  const now = new Date().toISOString();
 
-  if (tableHasColumn(tableName, 'created_at') && !data['created_at']) data['created_at'] = now;
-  if (tableHasColumn(tableName, 'updated_at') && !data['updated_at']) data['updated_at'] = now;
+  let newId: string | number | null = null;
+  if (data[idField] !== undefined && data[idField] !== null && String(data[idField]).trim() !== '') {
+    newId = data[idField] as string | number;
+  } else {
+    newId = randomUUID();
+    data[idField] = newId;
+  }
 
-  const entries = Object.entries(data).filter(([k]) => k !== idField);
-  const cols = [idField, ...entries.map(([k]) => toSnakeKey(k))];
-  const vals = [id, ...entries.map(([, v]) => serializeValue(v))];
+  const cols = Object.keys(data);
   const placeholders = cols.map(() => '?').join(', ');
+  const vals = cols.map((k) => serializeValue(data[k]));
 
-  execute(`INSERT INTO ${tableName} (${cols.join(', ')}) VALUES (${placeholders})`, vals);
-  notifyTableChange(tableName, 'create', id);
-  const created = queryOne(`SELECT * FROM ${tableName} WHERE ${idField} = ?`, [id]);
+  execute(
+    `INSERT INTO ${tableName} (${cols.map((c) => `"${toSnakeKey(c)}"`).join(', ')}) VALUES (${placeholders})`,
+    vals
+  );
+
+  notifyTableChange(tableName, 'create', String(newId));
+  const created = queryOne(`SELECT * FROM ${tableName} WHERE ${idField} = ?`, [newId]);
   return { data: created ? (config ? transformRow(created, config) : created) : null };
 }
 
 export async function updateRow(
   rawTableName: string,
-  id: string | undefined | null,
+  id: unknown,
   rawData: Record<string, unknown>
 ): Promise<{ data: Record<string, unknown> | null }> {
   const tableName = resolveTableName(rawTableName);
+
+  if (tableName === 'settings') {
+    return updateStoreSettings(rawData);
+  }
+
   const config = tableConfigs.get(tableName);
   const idField = config?.idField ?? 'id';
-  const resolvedId = id ?? (rawData[idField] as string | undefined);
+
+  let resolvedId: string | number | null = null;
+  if (id !== null && typeof id === 'object') {
+    const obj = id as Record<string, unknown>;
+    resolvedId = (obj.id ?? obj.key ?? obj.code ?? obj.docType ?? obj.doc_type) as string | number | null;
+  } else if (id !== undefined && id !== null) {
+    resolvedId = id as string | number;
+  }
+
   if (resolvedId === undefined || resolvedId === null || resolvedId === '') {
     throw new Error(`update على "${tableName}": قيمة المفتاح الأساسي (${idField}) مفقودة`);
   }
@@ -469,7 +375,7 @@ export async function updateRow(
     return { data: currentRow ? (config ? transformRow(currentRow, config) : currentRow) : null };
   }
 
-  const setClause = entries.map(([k]) => `${toSnakeKey(k)} = ?`).join(', ');
+  const setClause = entries.map(([k]) => `"${toSnakeKey(k)}" = ?`).join(', ');
   const vals = entries.map(([, v]) => serializeValue(v));
 
   if (hasUpdatedAt) {
@@ -477,7 +383,7 @@ export async function updateRow(
   } else {
     execute(`UPDATE ${tableName} SET ${setClause} WHERE ${idField} = ?`, [...vals, resolvedId]);
   }
-  notifyTableChange(tableName, 'update', resolvedId);
+  notifyTableChange(tableName, 'update', String(resolvedId));
   const updated = queryOne(`SELECT * FROM ${tableName} WHERE ${idField} = ?`, [resolvedId]);
   return { data: updated ? (config ? transformRow(updated, config) : updated) : null };
 }
@@ -496,14 +402,7 @@ export async function removeRow(
     resolvedId = id as string | number;
   }
 
-  if (
-    resolvedId === null ||
-    resolvedId === undefined ||
-    resolvedId === '' ||
-    resolvedId === 'undefined' ||
-    resolvedId === 'null'
-  ) {
-    console.warn(`[removeRow] Ignored delete on table "${tableName}" with invalid id:`, id);
+  if (resolvedId === null || resolvedId === undefined || resolvedId === '' || resolvedId === 'undefined' || resolvedId === 'null') {
     return { success: false };
   }
 
@@ -561,9 +460,7 @@ export async function countRows(
     sql += ` WHERE ${whereClauses.join(' AND ')}`;
   }
 
-  console.time(`[PERF] crud:countRows:${tableName}`);
   const row = queryOne(sql, params);
-  console.timeEnd(`[PERF] crud:countRows:${tableName}`);
   return { count: Number(row?.count ?? 0) };
 }
 
@@ -574,107 +471,89 @@ export async function clearTable(rawTableName: string): Promise<{ success: boole
   return { success: true };
 }
 
-/**
- * إدراج مصفوفة صفوف دفعة واحدة داخل Transaction ذرية
- */
 export async function bulkCreateRows(
   rawTableName: string,
   items: Record<string, unknown>[]
-): Promise<{ count: number }> {
-  if (!items || items.length === 0) return { count: 0 };
+): Promise<{ success: boolean; insertedCount: number }> {
   const tableName = resolveTableName(rawTableName);
-  console.time(`[PERF] crud:bulkCreateRows:${tableName} (${items.length} items)`);
+  if (!items || items.length === 0) return { success: true, insertedCount: 0 };
+
   const config = tableConfigs.get(tableName);
   const idField = config?.idField ?? 'id';
-  const now = new Date().toISOString();
-  const hasCreatedAt = tableHasColumn(tableName, 'created_at');
-  const hasUpdatedAt = tableHasColumn(tableName, 'updated_at');
+  let inserted = 0;
 
-  let insertedCount = 0;
   transaction(() => {
-    for (const rawData of items) {
-      const data = normalizePayloadForTable(tableName, rawData);
-      const id = (data[idField] as string) || (rawData[idField] as string) || (rawData.id as string) || randomUUID();
-      if (hasCreatedAt && !data['created_at']) data['created_at'] = now;
-      if (hasUpdatedAt && !data['updated_at']) data['updated_at'] = now;
-
-      const entries = Object.entries(data).filter(([k]) => k !== idField && k !== 'id');
-      const cols = [idField, ...entries.map(([k]) => toSnakeKey(k))];
-      const vals = [id, ...entries.map(([, v]) => serializeValue(v))];
+    for (const raw of items) {
+      const data = normalizePayloadForTable(tableName, raw);
+      if (!data[idField]) {
+        data[idField] = randomUUID();
+      }
+      const cols = Object.keys(data);
       const placeholders = cols.map(() => '?').join(', ');
-
-      execute(`INSERT OR REPLACE INTO ${tableName} (${cols.join(', ')}) VALUES (${placeholders})`, vals);
-      insertedCount++;
+      const vals = cols.map((k) => serializeValue(data[k]));
+      execute(
+        `INSERT OR REPLACE INTO ${tableName} (${cols.map((c) => `"${toSnakeKey(c)}"`).join(', ')}) VALUES (${placeholders})`,
+        vals
+      );
+      inserted++;
     }
   });
 
-  notifyTableChange(tableName, 'bulk-create');
-  console.timeEnd(`[PERF] crud:bulkCreateRows:${tableName} (${items.length} items)`);
-  return { count: insertedCount };
+  notifyTableChange(tableName, 'bulkCreate');
+  return { success: true, insertedCount: inserted };
 }
 
-/**
- * تحديث مصفوفة صفوف دفعة واحدة داخل Transaction ذرية
- */
 export async function bulkUpdateRows(
   rawTableName: string,
   items: Record<string, unknown>[]
-): Promise<{ count: number }> {
-  if (!items || items.length === 0) return { count: 0 };
+): Promise<{ success: boolean; updatedCount: number }> {
   const tableName = resolveTableName(rawTableName);
-  console.time(`[PERF] crud:bulkUpdateRows:${tableName} (${items.length} items)`);
+  if (!items || items.length === 0) return { success: true, updatedCount: 0 };
+
   const config = tableConfigs.get(tableName);
   const idField = config?.idField ?? 'id';
-  const now = new Date().toISOString();
   const hasUpdatedAt = tableHasColumn(tableName, 'updated_at');
+  let updated = 0;
 
-  let updatedCount = 0;
   transaction(() => {
-    for (const rawData of items) {
-      const resolvedId = (rawData[idField] as string | undefined) ?? (rawData.id as string | undefined);
-      if (!resolvedId) continue;
-      const data = normalizePayloadForTable(tableName, rawData);
+    for (const raw of items) {
+      const data = normalizePayloadForTable(tableName, raw);
+      const rowId = data[idField];
+      if (!rowId) continue;
 
       const entries = Object.entries(data).filter(([k]) => {
-        if (k === idField || k === 'id') return false;
+        if (k === idField) return false;
         if (hasUpdatedAt && (k === 'updated_at' || k === 'updatedAt')) return false;
         return true;
       });
-
       if (entries.length === 0) continue;
 
-      const setClause = entries.map(([k]) => `${toSnakeKey(k)} = ?`).join(', ');
+      const setClause = entries.map(([k]) => `"${toSnakeKey(k)}" = ?`).join(', ');
       const vals = entries.map(([, v]) => serializeValue(v));
 
       if (hasUpdatedAt) {
-        execute(`UPDATE ${tableName} SET ${setClause}, updated_at = ? WHERE ${idField} = ?`, [...vals, now, resolvedId]);
+        execute(`UPDATE ${tableName} SET ${setClause}, updated_at = ? WHERE ${idField} = ?`, [...vals, new Date().toISOString(), rowId]);
       } else {
-        execute(`UPDATE ${tableName} SET ${setClause} WHERE ${idField} = ?`, [...vals, resolvedId]);
+        execute(`UPDATE ${tableName} SET ${setClause} WHERE ${idField} = ?`, [...vals, rowId]);
       }
-      updatedCount++;
+      updated++;
     }
   });
 
-  notifyTableChange(tableName, 'bulk-update');
-  console.timeEnd(`[PERF] crud:bulkUpdateRows:${tableName} (${items.length} items)`);
-  return { count: updatedCount };
+  notifyTableChange(tableName, 'bulkUpdate');
+  return { success: true, updatedCount: updated };
 }
 
-/**
- * جلب مصفوفة سجلات محددة بالمعرفات عبر استعلام IN واحد
- */
 export async function bulkGetRows(
   rawTableName: string,
   ids: string[]
 ): Promise<{ data: Record<string, unknown>[] }> {
-  if (!ids || ids.length === 0) return { data: [] };
   const tableName = resolveTableName(rawTableName);
+  if (!ids || ids.length === 0) return { data: [] };
+
   const config = tableConfigs.get(tableName);
   const idField = config?.idField ?? 'id';
-
   const placeholders = ids.map(() => '?').join(', ');
   const rows = queryAll(`SELECT * FROM ${tableName} WHERE ${idField} IN (${placeholders})`, ids);
   return { data: config ? rows.map((r) => transformRow(r, config)) : rows };
 }
-
-

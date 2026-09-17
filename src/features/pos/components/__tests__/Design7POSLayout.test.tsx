@@ -746,6 +746,168 @@ describe('Design7POSLayout (تصميم 7 - كاشير اللمس الكلاسي�
     expect(rows[1].classList.contains('bg-[#d7e9f7]')).toBe(false);
     expect(rows[2].classList.contains('bg-[#d7e9f7]')).toBe(false);
   });
+
+  it('renders price tier selector (س1, س2, س3, س4) and allows switching tier via click and keyboard shortcuts', () => {
+    const onSelectPriceTier = vi.fn();
+    render(
+      <Design7POSLayout
+        {...defaultProps}
+        priceTier="1"
+        onSelectPriceTier={onSelectPriceTier}
+      />
+    );
+
+    // Verify segmented tier buttons are rendered
+    const tier1Btn = screen.getByTitle(/س1 \(تجزئة\)/);
+    const tier2Btn = screen.getByTitle(/س2 \(نصف جملة\)/);
+    const tier3Btn = screen.getByTitle(/س3 \(جملة\)/);
+    const tier4Btn = screen.getByTitle(/س4 \(خاص\)/);
+
+    expect(tier1Btn).toBeInTheDocument();
+    expect(tier2Btn).toBeInTheDocument();
+    expect(tier3Btn).toBeInTheDocument();
+    expect(tier4Btn).toBeInTheDocument();
+
+    // Click س3 (wholesale)
+    fireEvent.click(tier3Btn);
+    expect(onSelectPriceTier).toHaveBeenCalledWith('3');
+
+    // Test Alt+3 shortcut
+    fireEvent.keyDown(window, { key: '3', altKey: true });
+    expect(onSelectPriceTier).toHaveBeenCalledWith('3');
+
+    // Test Alt+2 shortcut
+    fireEvent.keyDown(window, { key: '2', altKey: true });
+    expect(onSelectPriceTier).toHaveBeenCalledWith('2');
+
+    // Test Alt+1 shortcut
+    fireEvent.keyDown(window, { key: '1', altKey: true });
+    expect(onSelectPriceTier).toHaveBeenCalledWith('1');
+
+    // Test Alt+4 shortcut
+    fireEvent.keyDown(window, { key: '4', altKey: true });
+    expect(onSelectPriceTier).toHaveBeenCalledWith('4');
+  });
+
+  it('adapts smart print indicator and active scan strip between retail (س1/س2/س4) and wholesale (س3)', () => {
+    // 1. Render in retail tier (س1)
+    const { rerender } = render(
+      <Design7POSLayout {...defaultProps} priceTier="1" />
+    );
+
+    const retailIndicator = screen.getByTestId('design7-smart-print-indicator');
+    expect(retailIndicator).toHaveTextContent('وصل حراري (80mm)');
+    expect(screen.getByText('س1: بيع عادي')).toBeInTheDocument();
+
+    // 2. Rerender in wholesale tier (س3)
+    rerender(
+      <Design7POSLayout {...defaultProps} priceTier="3" />
+    );
+
+    const wholesaleIndicator = screen.getByTestId('design7-smart-print-indicator');
+    expect(wholesaleIndicator).toHaveTextContent('فاتورة جملة (A4/A5)');
+    expect(screen.getByText('س3: فاتورة جملة')).toBeInTheDocument();
+  });
+
+  it('renders package breakdown correctly for wholesale (س3) vs retail (س1, س2, س4)', () => {
+    const packCart: any[] = [
+      {
+        productId: 'pack-milk',
+        name: 'كرتونة حليب 6 قطع',
+        isPack: true,
+        packMode: 'wholesale_packs',
+        packUnit: 'كرتونة',
+        packPiecesCount: 6,
+        qty: 2,
+        unitPrice: 600,
+        lineTotal: 1200,
+      },
+      {
+        productId: 'pack-juice',
+        name: 'طرد عصير برتقال',
+        isPack: true,
+        packMode: 'retail_pieces',
+        packPiecesCount: 6,
+        qty: 6,
+        unitPrice: 50,
+        lineTotal: 300,
+      },
+    ];
+
+    render(
+      <Design7POSLayout {...defaultProps} cart={packCart} priceTier="3" />
+    );
+
+    // Wholesale pack row: check badges and piece breakdown
+    expect(screen.getByText('عبوة جملة (كرتونة)')).toBeInTheDocument();
+    expect(screen.getByText('(×6 قطع = 12 قطعة)')).toBeInTheDocument();
+
+    // Retail pack row: check badges and piece breakdown
+    expect(screen.getByText('عبوة تجزئة (6 قطع)')).toBeInTheDocument();
+    expect(screen.getByText('6 قطعة (تجزئة)')).toBeInTheDocument();
+  });
+
+  it('supports per-item quick price tier switching (س1-س4) when a basket row is selected', () => {
+    const onEditPrice = vi.fn();
+    const mockProducts: any[] = [
+      {
+        id: 'p-bread',
+        name: 'خبز باجيت',
+        barcode: '12345',
+        price: 20,
+        wholesalePrice: 15,
+        semiWholesalePrice: 18,
+        specialPrice: 16,
+      },
+    ];
+    const cart: any[] = [
+      {
+        productId: 'p-bread',
+        name: 'خبز باجيت',
+        barcode: '12345',
+        qty: 1,
+        unitPrice: 20,
+        lineTotal: 20,
+        isPack: false,
+      },
+    ];
+
+    render(
+      <Design7POSLayout
+        {...defaultProps}
+        cart={cart}
+        products={mockProducts}
+        allProducts={mockProducts}
+        onEditPrice={onEditPrice}
+      />
+    );
+
+    // Row is selected by default
+    expect(screen.getByText('تبديل السعر:')).toBeInTheDocument();
+
+    // Find and click س3 (wholesale price = 15)
+    const s3Btn = screen.getByTitle(/سعر جملة س3/);
+    expect(s3Btn).toBeInTheDocument();
+    fireEvent.click(s3Btn);
+
+    expect(onEditPrice).toHaveBeenCalledWith('p-bread', 15);
+  });
+
+  it('triggers onOpenFavoritesManagement when clicking "إدارة العبوات" in the favorites pad', () => {
+    const onOpenFavoritesManagement = vi.fn();
+    render(
+      <Design7POSLayout
+        {...defaultProps}
+        onOpenFavoritesManagement={onOpenFavoritesManagement}
+      />
+    );
+
+    const manageBtn = screen.getByRole('button', { name: /إدارة العبوات/ });
+    expect(manageBtn).toBeInTheDocument();
+    fireEvent.click(manageBtn);
+
+    expect(onOpenFavoritesManagement).toHaveBeenCalledTimes(1);
+  });
 });
 
 

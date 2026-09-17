@@ -70,9 +70,10 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
         throw new Error('انتهت فترة التجربة المجانية (7 أيام). يرجى تفعيل النظام للمتابعة.');
       }
 
-      const saleSummary = calculateSaleTotal(cart, discount, discountType, settings.tvaRate);
-      const saleType = isReturn ? 'return' : 'sale';
-      const nextNumber = await SaleRepository.getNextNumber(settings.invoicePrefix);
+      const saleSummary = calculateSaleTotal(cart, discount, discountType, settings?.tvaRate || 0);
+      const isReturnSale = Boolean(isReturn || (params as any).saleType === 'return');
+      const saleType = isReturnSale ? 'return' : 'sale';
+      const nextNumber = await SaleRepository.getNextNumber(settings?.invoicePrefix || 'INV');
 
       // تحديد المبلغ المدفوع فعلياً
       const effectivePaidAmount =
@@ -81,27 +82,34 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
           : (params.paidAmount ?? params.amountPaid ?? 0);
 
       // جلب بيانات العميل المختار إن وجد
-      const matchedCustomer = selectedCustomer
+      const matchedCustomer = (selectedCustomer && Array.isArray(customers))
         ? customers.find((c) => c.id === selectedCustomer)
         : undefined;
-      const customerName = matchedCustomer?.name || '';
+      const customerName = matchedCustomer?.name || (params as any).customerName || '';
       // تحديد نوع الفاتورة بدقة: س3 جملة دائماً wholesale، وس1 و س2 و س4 دائماً بيع عادي facture
       const isWholesaleSale =
         priceTier === '3' ||
         (!['1', '2', '4'].includes(priceTier || '') && docType === 'wholesale');
       const resolvedDocType: DocType = isWholesaleSale ? 'wholesale' : 'facture';
 
+      const activeProducts = (products && products.length > 0)
+        ? products
+        : (queryClient.getQueryData<any[]>(['products']) || []);
+      const activePacks = (packs && packs.length > 0)
+        ? packs
+        : (queryClient.getQueryData<any[]>(['packs']) || []);
+
       // إثراء عناصر السلة ببيانات العبوات والتعبئة التلقائية لضمان حفظها وظهورها في كافة فواتير الجملة
       const enrichedCart = cart.map((item) => {
-        const prod = products?.find((p: any) => p.id === item.productId);
-        const pk = packs?.find((p: any) => p.id === item.packId || item.productId === `pack-${p.id}`);
+        const prod = activeProducts.find((p: any) => p.id === item.productId);
+        const pk = activePacks.find((p: any) => p.id === item.packId || item.productId === `pack-${p.id}`);
         const pkgSize = prod?.packageSize ? parseInt(prod.packageSize, 10) : 0;
         const piecesCount = Number(item.packPiecesCount || pk?.piecesCount || (pkgSize > 0 ? pkgSize : 0) || 1);
         const unitName = String(item.packUnit || pk?.unitName || prod?.unit || (piecesCount > 1 ? 'طرد' : 'قطعة'));
         const isPack = Boolean(item.isPack || pk || piecesCount > 1);
 
         const packQty = item.packQty || (isWholesaleSale ? item.qty : (piecesCount > 1 ? Math.max(1, Math.round(item.qty / piecesCount)) : 1));
-        const packMode = item.packMode || (isWholesaleSale ? 'wholesale_packs' : (isPack ? 'wholesale_packs' : undefined));
+        const packMode = item.packMode || (isWholesaleSale ? 'wholesale_packs' : (isPack ? 'retail_pieces' : undefined));
 
         return {
           ...item,
@@ -151,22 +159,80 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
         lineTotal: item.lineTotal,
       }));
 
+      // 1. حساب فروقات المخزون لكل منتج لتطبيق التحديث التفاؤلي الفوري (0ms Latency)
+      const deltas = new Map<string, number>();
+
+      for (const item of enrichedCart) {
+        if (item.isPack && item.packId) {
+          const cleanPackId = item.packId.replace(/^pack-/, '');
+          const pack = activePacks.find((p: any) => p.id === item.packId || p.id === cleanPackId);
+          if (pack) {
+            const rawItems = Array.isArray(pack.items)
+              ? pack.items
+              : (() => { try { return JSON.parse(pack.items as any) ?? []; } catch { return []; } })();
+            if (rawItems.length > 0) {
+              for (const comp of rawItems) {
+                const compProductId = comp.productId ?? comp.product_id;
+                const compQty = Number(comp.qty ?? comp.quantity ?? 1);
+                const totalPiecesSold = item.packMode === 'retail_pieces' ? item.qty : (compQty * item.qty);
+                const qtyChange = saleType === 'return' ? Math.abs(totalPiecesSold) : -totalPiecesSold;
+                deltas.set(compProductId, (deltas.get(compProductId) || 0) + qtyChange);
+              }
+              continue;
+            }
+          }
+        }
+
+        // منتج منفرد أو عبوة جملة لمنتج يمتلك حجم تعبئة package_size
+        const effectiveProdId = item.productId.replace(/^pack-/, '');
+        const product = activeProducts.find((p: any) => p.id === effectiveProdId || p.id === item.productId);
+        const pieces = Number(item.packPiecesCount || (product?.packageSize ? parseInt(product.packageSize, 10) : 1) || 1);
+        const isWholesalePack = item.packMode === 'wholesale_packs' || (isWholesaleSale && pieces > 1);
+        const totalPiecesSold = (isWholesalePack && pieces > 1) ? (item.qty * pieces) : item.qty;
+        const qtyChange = saleType === 'return' ? Math.abs(totalPiecesSold) : -totalPiecesSold;
+        const targetId = product?.id || effectiveProdId;
+        deltas.set(targetId, (deltas.get(targetId) || 0) + qtyChange);
+      }
+
+      // 2. تحديث تفاؤلي فوري لكاش المنتجات في React Query (0ms)
+      queryClient.setQueryData<any[]>(['products'], (old) => {
+        if (!old || !Array.isArray(old)) return old;
+        return old.map((p) => {
+          const delta = deltas.get(p.id);
+          if (delta === undefined) return p;
+          const newQuantity = settings?.allowNegativeStock
+            ? p.quantity + delta
+            : Math.max(0, p.quantity + delta);
+          return { ...p, quantity: newQuantity };
+        });
+      });
+
+      // 3. تحديث تفاؤلي فوري لرصيد العميل إذا كان بيعاً بالآجل أو مرتجعاً
+      if (selectedCustomer) {
+        queryClient.setQueryData<any[]>(['customers'], (old) => {
+          if (!old || !Array.isArray(old)) return old;
+          return old.map((c) => {
+            if (c.id !== selectedCustomer) return c;
+            if (saleType === 'return') {
+              return { ...c, balance: (c.balance || 0) - saleSummary.total };
+            } else if (paymentMethod === 'credit') {
+              const unpaidPart = Math.max(0, saleSummary.total - effectivePaidAmount);
+              return { ...c, balance: (c.balance || 0) + unpaidPart };
+            }
+            return c;
+          });
+        });
+      }
+
       // تنفيذ المعاملة الذرية الحقيقية عبر IPC في بيئة Electron
       // أو التراجع الاحتياطي (Fallback) في بيئة المتصفح الخالص/الاختبار
       const electronApi = typeof window !== 'undefined' ? (window as any).electronAPI : undefined;
       if (electronApi?.sales?.create) {
         const payload = {
-          id: sale.id,
-          number: sale.number,
-          date: sale.date,
-          docType: sale.docType,
-          type: sale.type,
-          items: enrichedCart,
-          subtotal: sale.subtotal,
-          discount: sale.discount,
+          ...sale,
+          items: sale.items,
           discountType: sale.discountType,
-          tvaAmount: sale.tvaAmount,
-          total: sale.total,
+          docType: sale.docType,
           paymentMethod: sale.paymentMethod,
           customerId: sale.customerId,
           customerName: sale.customerName,
@@ -181,6 +247,18 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
         const res = await electronApi.sales.create(payload);
         if (!res || res.data === null) {
           throw new Error('فشل تسجيل الفاتورة في قاعدة البيانات المركزية');
+        }
+
+        // تحديث كاش الفاتورة والمنتجات محلياً في Dexie لضمان توافق الكاش دون وميض
+        await db.sales.put(sale as any).catch(() => {});
+        for (const [prodId, delta] of deltas.entries()) {
+          const currentProd = await db.products.get(prodId).catch(() => null);
+          if (currentProd) {
+            const newQty = settings?.allowNegativeStock
+              ? (currentProd.quantity || 0) + delta
+              : Math.max(0, (currentProd.quantity || 0) + delta);
+            await db.products.update(prodId, { quantity: newQty }).catch(() => {});
+          }
         }
       } else {
         // تنفيذ المعاملة الشاملة في قاعدة البيانات (Fallback)
@@ -204,7 +282,8 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
             // 2. تحديث المخزون وسجل الحركات
             for (const item of enrichedCart) {
               if (item.isPack && item.packId) {
-                const pack = packs.find((p) => p.id === item.packId);
+                const cleanPackId = item.packId.replace(/^pack-/, '');
+                const pack = activePacks.find((p: any) => p.id === item.packId || p.id === cleanPackId);
                 if (pack) {
                   const rawItems = Array.isArray(pack.items)
                     ? pack.items
@@ -212,7 +291,7 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
                   for (const comp of rawItems) {
                     const compProductId = comp.productId ?? comp.product_id;
                     const compQty = Number(comp.qty ?? comp.quantity ?? 1);
-                    const product = products.find((p) => p.id === compProductId);
+                    const product = activeProducts.find((p: any) => p.id === compProductId);
                     if (product) {
                       const totalPiecesSold = item.packMode === 'retail_pieces'
                         ? item.qty
@@ -240,29 +319,34 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
                       });
                     }
                   }
+                  continue;
                 }
-              } else {
-                const product = products.find((p) => p.id === item.productId);
-                if (product) {
-                  const qtyChange = saleType === 'return' ? Math.abs(item.qty) : -item.qty;
-                  const newQuantity = settings?.allowNegativeStock
-                    ? product.quantity + qtyChange
-                    : Math.max(0, product.quantity + qtyChange);
-                  await db.products.update(product.id, {
-                    quantity: newQuantity,
-                  });
-                  await db.stock_movements.add({
-                    id: createId(),
-                    productId: product.id,
-                    type: saleType === 'return' ? 'return' : 'sale',
-                    qty: qtyChange,
-                    date: new Date().toISOString(),
-                    reference: sale.number,
-                    createdBy: currentUser?.name || '',
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString(),
-                  });
-                }
+              }
+
+              const effectiveProdId = item.productId.replace(/^pack-/, '');
+              const product = activeProducts.find((p: any) => p.id === effectiveProdId || p.id === item.productId);
+              if (product) {
+                const pieces = Number(item.packPiecesCount || (product.packageSize ? parseInt(product.packageSize, 10) : 1) || 1);
+                const isWholesalePack = item.packMode === 'wholesale_packs' || (isWholesaleSale && pieces > 1);
+                const totalPiecesSold = (isWholesalePack && pieces > 1) ? (item.qty * pieces) : item.qty;
+                const qtyChange = saleType === 'return' ? Math.abs(totalPiecesSold) : -totalPiecesSold;
+                const newQuantity = settings?.allowNegativeStock
+                  ? product.quantity + qtyChange
+                  : Math.max(0, product.quantity + qtyChange);
+                await db.products.update(product.id, {
+                  quantity: newQuantity,
+                });
+                await db.stock_movements.add({
+                  id: createId(),
+                  productId: product.id,
+                  type: saleType === 'return' ? 'return' : 'sale',
+                  qty: qtyChange,
+                  date: new Date().toISOString(),
+                  reference: sale.number,
+                  createdBy: currentUser?.name || '',
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                });
               }
             }
 
@@ -349,11 +433,30 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
       }
 
       clearCart();
+
+      // إرسال إشعار فوري إلى نظام الإشعارات والتنبيهات
+      const isReturn = sale.type === 'return';
+      const formattedTotal = Number(sale.total || 0).toLocaleString('ar-DZ', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+      addNotification({
+        title: isReturn ? 'تم تسجيل المرتجع بنجاح' : 'تم إتمام عملية البيع بنجاح',
+        message: isReturn
+          ? `مرتجع بقيمة ${formattedTotal} ${settings?.baseCurrency || 'دج'}`
+          : `فاتورة رقم ${sale.invoiceNumber || sale.id?.slice(0, 8) || ''} بقيمة ${formattedTotal} ${settings?.baseCurrency || 'دج'}`,
+        type: 'success',
+        category: 'sales',
+      });
+
       if (onSaleSuccess) {
         onSaleSuccess(sale);
       }
     },
     onError: (error: any) => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      queryClient.invalidateQueries({ queryKey: ['cashSessions'] });
       addNotification({
         title: 'خطأ في إتمام البيع',
         message: error?.message || 'حدث خطأ غير متوقع أثناء حفظ العملية',

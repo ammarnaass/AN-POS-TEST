@@ -1,5 +1,5 @@
 import React from 'react';
-import { Package, AlertTriangle, ShieldAlert, TrendingUp } from 'lucide-react';
+import { Package, AlertTriangle, ShieldAlert, TrendingUp, ChevronLeft } from 'lucide-react';
 import type { StockFilterStatus } from '../hooks/useInventoryFilter';
 
 interface InventoryStatsCardsProps {
@@ -30,128 +30,149 @@ export const InventoryStatsCards: React.FC<InventoryStatsCardsProps> = ({
   onClearCategory,
 }) => {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" dir="rtl">
-      {/* Card 1: Total Products */}
+    <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" data-purpose="kpi-metrics" dir="rtl">
+      {/* Card 1: Total Stock (المخزون الكلي) */}
       <div
         onClick={() => {
           onSelectStockStatus('all');
           onClearCategory();
         }}
-        className={`p-5 rounded-2xl border transition-all duration-200 cursor-pointer relative overflow-hidden group ${
+        className={`bg-blue-50/70 dark:bg-blue-950/20 border-2 rounded-2xl p-4 relative flex flex-col justify-between shadow-xs transition hover:shadow-md cursor-pointer group ${
           filterStockStatus === 'all' && filterCategory === ''
-            ? 'bg-primary/5 border-primary/40 shadow-sm ring-1 ring-primary/30'
-            : 'bg-surface-container border-outline-variant/20 hover:border-outline-variant/40 hover:shadow-md'
+            ? 'border-blue-500 ring-2 ring-blue-500/20 shadow-sm'
+            : 'border-blue-200/80 dark:border-blue-800/40 hover:border-blue-400'
         }`}
       >
-        <div className="flex justify-between items-start mb-3">
-          <div className="w-11 h-11 rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-            <Package className="w-5 h-5" />
-          </div>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 font-semibold">
+        <div className="flex items-start justify-between mb-2">
+          <span className="inline-block px-2.5 py-0.5 text-xs font-semibold rounded-md bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300">
             المخزون الكلي
           </span>
+          <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+            <Package className="w-5 h-5" />
+          </div>
         </div>
-        <p className="text-body-sm text-on-surface-variant">إجمالي الأصناف</p>
-        <div className="flex items-baseline gap-2 mt-1">
-          <h3 className="font-cairo text-2xl font-bold text-on-surface">{stats.totalProducts}</h3>
-          <span className="text-xs text-on-surface-variant">صنف مسجل</span>
+        <div className="text-right">
+          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">إجمالي الأصناف</span>
+          <div className="flex items-baseline gap-2 mt-0.5">
+            <span className="text-3xl font-extrabold text-slate-900 dark:text-slate-100 font-mono">
+              {stats.totalProducts}
+            </span>
+            <span className="text-xs font-bold text-slate-600 dark:text-slate-400">صنف مسجل</span>
+          </div>
         </div>
-        <div className="mt-3 pt-3 border-t border-outline-variant/10 flex justify-between items-center text-xs text-on-surface-variant">
-          <span>النشطة: {activeProductsCount}</span>
-          <span>المعطلة: {inactiveProductsCount}</span>
+        <div className="pt-3 mt-3 border-t border-blue-200/60 dark:border-blue-800/40 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-medium">
+          <span>النشطة: <strong className="text-slate-800 dark:text-slate-200 font-bold font-mono">{activeProductsCount}</strong></span>
+          <span>المعطلة: <strong className="text-slate-800 dark:text-slate-200 font-bold font-mono">{inactiveProductsCount}</strong></span>
         </div>
       </div>
 
-      {/* Card 2: Low Stock Warning */}
+      {/* Card 2: Low Stock (مخزون منخفض) */}
       <div
         onClick={() => onSelectStockStatus('low_stock')}
-        className={`p-5 rounded-2xl border transition-all duration-200 cursor-pointer relative overflow-hidden group ${
+        className={`bg-amber-50/50 dark:bg-amber-950/20 border rounded-2xl p-4 relative flex flex-col justify-between shadow-xs transition hover:shadow-md cursor-pointer group ${
           filterStockStatus === 'low_stock'
-            ? 'bg-amber-500/10 border-amber-500/50 shadow-sm ring-1 ring-amber-500/40'
-            : 'bg-surface-container border-outline-variant/20 hover:border-amber-500/30 hover:shadow-md'
+            ? 'border-amber-500 ring-2 ring-amber-500/20 shadow-sm'
+            : 'border-amber-200 dark:border-amber-800/40 hover:border-amber-400'
         }`}
       >
-        <div className="flex justify-between items-start mb-3">
-          <div className="w-11 h-11 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center group-hover:scale-110 transition-transform">
-            <AlertTriangle className="w-5 h-5" />
-          </div>
+        <div className="flex items-start justify-between mb-2">
           <span
-            className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
-              stats.lowStock > 0 ? 'bg-amber-500/15 text-amber-500 animate-pulse' : 'bg-surface-container-highest text-on-surface-variant'
+            className={`inline-block px-2.5 py-0.5 text-xs font-semibold rounded-md ${
+              stats.lowStock > 0
+                ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-300'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600'
             }`}
           >
             {stats.lowStock > 0 ? 'يتطلب إعادة طلب' : 'مستقر'}
           </span>
+          <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+            <AlertTriangle className="w-5 h-5" />
+          </div>
         </div>
-        <p className="text-body-sm text-on-surface-variant">مخزون منخفض</p>
-        <div className="flex items-baseline gap-2 mt-1">
-          <h3 className={`font-cairo text-2xl font-bold ${stats.lowStock > 0 ? 'text-amber-500' : 'text-on-surface'}`}>
-            {stats.lowStock}
-          </h3>
-          <span className="text-xs text-on-surface-variant">منتج تحت حد الأمان</span>
+        <div className="text-right">
+          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">مخزون منخفض</span>
+          <div className="flex items-baseline gap-2 mt-0.5">
+            <span className={`text-3xl font-extrabold font-mono ${stats.lowStock > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-800 dark:text-slate-200'}`}>
+              {stats.lowStock}
+            </span>
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">منتج تحت حد الأمان</span>
+          </div>
         </div>
-        <div className="mt-3 pt-3 border-t border-outline-variant/10 text-xs text-amber-600 dark:text-amber-400 font-medium">
-          اضغط للتصفية السريعة
+        <div className="pt-3 mt-3 border-t border-amber-200/60 dark:border-amber-800/40 text-right">
+          <span className="text-xs font-bold text-amber-700 dark:text-amber-400 inline-flex items-center gap-1 group-hover:underline">
+            <span>اضغط للتصفية السريعة</span>
+            <ChevronLeft className="w-3.5 h-3.5" />
+          </span>
         </div>
       </div>
 
-      {/* Card 3: Out of Stock */}
+      {/* Card 3: Out of Stock (منتجات نافذة) */}
       <div
         onClick={() => onSelectStockStatus('out_of_stock')}
-        className={`p-5 rounded-2xl border transition-all duration-200 cursor-pointer relative overflow-hidden group ${
+        className={`bg-rose-50/50 dark:bg-rose-950/20 border rounded-2xl p-4 relative flex flex-col justify-between shadow-xs transition hover:shadow-md cursor-pointer group ${
           filterStockStatus === 'out_of_stock'
-            ? 'bg-rose-500/10 border-rose-500/50 shadow-sm ring-1 ring-rose-500/40'
-            : 'bg-surface-container border-outline-variant/20 hover:border-rose-500/30 hover:shadow-md'
+            ? 'border-rose-500 ring-2 ring-rose-500/20 shadow-sm'
+            : 'border-rose-200 dark:border-rose-800/40 hover:border-rose-400'
         }`}
       >
-        <div className="flex justify-between items-start mb-3">
-          <div className="w-11 h-11 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center group-hover:scale-110 transition-transform">
-            <ShieldAlert className="w-5 h-5" />
-          </div>
+        <div className="flex items-start justify-between mb-2">
           <span
-            className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
-              stats.outOfStock > 0 ? 'bg-rose-500/15 text-rose-500' : 'bg-surface-container-highest text-on-surface-variant'
+            className={`inline-block px-2.5 py-0.5 text-xs font-semibold rounded-md ${
+              stats.outOfStock > 0
+                ? 'bg-rose-100 dark:bg-rose-900/50 text-rose-800 dark:text-rose-300'
+                : 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300'
             }`}
           >
-            {stats.outOfStock > 0 ? 'نفاد الكمية' : 'مكتمل'}
+            {stats.outOfStock > 0 ? 'نفاد' : 'مكتمل'}
           </span>
+          <div className="w-9 h-9 rounded-xl bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+            <ShieldAlert className="w-5 h-5" />
+          </div>
         </div>
-        <p className="text-body-sm text-on-surface-variant">منتجات نافذة (0)</p>
-        <div className="flex items-baseline gap-2 mt-1">
-          <h3 className={`font-cairo text-2xl font-bold ${stats.outOfStock > 0 ? 'text-rose-500' : 'text-on-surface'}`}>
-            {stats.outOfStock}
-          </h3>
-          <span className="text-xs text-on-surface-variant">منتج غير متوفر للبيع</span>
+        <div className="text-right">
+          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">منتجات نافذة ({stats.outOfStock})</span>
+          <div className="flex items-baseline gap-2 mt-0.5">
+            <span className={`text-3xl font-extrabold font-mono ${stats.outOfStock > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-800 dark:text-slate-200'}`}>
+              {stats.outOfStock}
+            </span>
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">منتج غير متوفر للبيع</span>
+          </div>
         </div>
-        <div className="mt-3 pt-3 border-t border-outline-variant/10 text-xs text-rose-600 dark:text-rose-400 font-medium">
-          اضغط لتحديد النواقص
+        <div className="pt-3 mt-3 border-t border-rose-200/60 dark:border-rose-800/40 text-right">
+          <span className="text-xs font-bold text-rose-600 dark:text-rose-400 inline-flex items-center gap-1 group-hover:underline">
+            <span>اضغط لتحديد النواقص</span>
+            <ChevronLeft className="w-3.5 h-3.5" />
+          </span>
         </div>
       </div>
 
-      {/* Card 4: Inventory Valuation */}
-      <div className="p-5 rounded-2xl bg-surface-container border border-outline-variant/20 hover:border-outline-variant/40 transition-all hover:shadow-md">
-        <div className="flex justify-between items-start mb-3">
-          <div className="w-11 h-11 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
-            <TrendingUp className="w-5 h-5" />
-          </div>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-semibold">
+      {/* Card 4: Total Inventory Value (القيمة الإجمالية) */}
+      <div className="bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 rounded-2xl p-4 relative flex flex-col justify-between shadow-xs transition hover:shadow-md">
+        <div className="flex items-start justify-between mb-2">
+          <span className="inline-block px-2 py-0.5 text-xs font-bold rounded-md bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 font-mono">
             هامش متوقع: +{stats.avgMargin.toFixed(0)}%
           </span>
+          <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+            <TrendingUp className="w-5 h-5" />
+          </div>
         </div>
-        <p className="text-body-sm text-on-surface-variant">القيمة الإجمالية (بالتكلفة)</p>
-        <div className="flex items-baseline gap-2 mt-1">
-          <h3 className="font-cairo text-xl font-bold text-on-surface truncate">
-            {stats.stockValue.toLocaleString('ar-DZ')} <span className="text-xs font-normal">دج</span>
-          </h3>
+        <div className="text-right">
+          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">القيمة الإجمالية (بالتكلفة)</span>
+          <div className="flex items-baseline gap-1 mt-0.5">
+            <span className="text-2xl font-extrabold text-slate-900 dark:text-slate-100 font-mono">
+              {stats.stockValue.toLocaleString('ar-DZ')}
+            </span>
+            <span className="text-xs font-bold text-slate-600 dark:text-slate-400">دج</span>
+          </div>
         </div>
-        <div className="mt-3 pt-3 border-t border-outline-variant/10 flex justify-between items-center text-xs text-on-surface-variant">
-          <span>قيمة البيع:</span>
-          <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+        <div className="pt-3 mt-3 border-t border-emerald-200/60 dark:border-emerald-800/40 flex items-center justify-between text-xs">
+          <span className="text-slate-500 dark:text-slate-400">قيمة البيع:</span>
+          <span className="font-bold text-emerald-700 dark:text-emerald-400 font-mono">
             {stats.retailValue.toLocaleString('ar-DZ')} دج
           </span>
         </div>
       </div>
-    </div>
+    </section>
   );
 };
 

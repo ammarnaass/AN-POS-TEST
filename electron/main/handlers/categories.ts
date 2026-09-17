@@ -82,7 +82,7 @@ export async function updateCategory(id: string, data: Record<string, unknown>):
   if (name) {
     const existing = queryOne('SELECT id FROM categories WHERE name = ? AND id != ?', [name, id]);
     if (existing) {
-      return { error: { status: 409, detail: 'اسم الفئة موجود مسبقاً' } };
+      return { data: null, error: { status: 409, detail: 'اسم الفئة موجود مسبقاً' } };
     }
   }
 
@@ -116,13 +116,13 @@ export async function removeCategory(id: string): Promise<{ success: boolean; er
     [id, category.name]
   );
   if (count && Number(count.count) > 0) {
-    return { error: { status: 409, detail: `لا يمكن حذف الفئة: يوجد ${count.count} منتج مرتبط بها` } };
+    return { success: false, error: { status: 409, detail: `لا يمكن حذف الفئة: يوجد ${count.count} منتج مرتبط بها` } };
   }
 
   // فحص وجود فئات فرعية
   const childCount = queryOne('SELECT COUNT(*) as count FROM categories WHERE parent_id = ?', [id]);
   if (childCount && Number(childCount.count) > 0) {
-    return { error: { status: 409, detail: `لا يمكن حذف الفئة: يوجد ${childCount.count} فئات فرعية تابعة لها` } };
+    return { success: false, error: { status: 409, detail: `لا يمكن حذف الفئة: يوجد ${childCount.count} فئات فرعية تابعة لها` } };
   }
 
   execute('DELETE FROM categories WHERE id = ?', [id]);

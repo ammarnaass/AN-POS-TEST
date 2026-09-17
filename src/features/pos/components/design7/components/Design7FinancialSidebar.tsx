@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Banknote, Calculator, User, PhoneCall, CheckCircle2 } from 'lucide-react';
+import { Banknote, Calculator, User, PhoneCall, CheckCircle2, Printer } from 'lucide-react';
 
 export interface Design7FinancialSidebarProps {
   subtotal: number;
@@ -15,6 +15,7 @@ export interface Design7FinancialSidebarProps {
   onOpenDiscount: () => void;
   onSettleSale: () => void;
   userName?: string;
+  priceTier?: '1' | '2' | '3' | '4';
 }
 
 export const Design7FinancialSidebar: React.FC<Design7FinancialSidebarProps> = ({
@@ -31,6 +32,7 @@ export const Design7FinancialSidebar: React.FC<Design7FinancialSidebarProps> = (
   onOpenDiscount,
   onSettleSale,
   userName = 'admin',
+  priceTier = '1',
 }) => {
   const [internalPaidAmount, setInternalPaidAmount] = useState<number>(0);
   const paidAmount = controlledPaid !== undefined ? controlledPaid : internalPaidAmount;
@@ -127,6 +129,35 @@ export const Design7FinancialSidebar: React.FC<Design7FinancialSidebarProps> = (
           </div>
           <span className="text-base font-black text-blue-950 pr-1 font-mono">
             {formatMoney(total)}
+          </span>
+        </div>
+
+        {/* مؤشر الطباعة الذكية المتكيفة مع نوع السعر (س1-س4 عادي vs س3 جملة) */}
+        <div
+          data-testid="design7-smart-print-indicator"
+          className={`border rounded p-1 shadow-2xs flex items-center justify-between text-[10px] font-bold transition-all ${
+            priceTier === '3'
+              ? 'bg-purple-50 border-purple-300 text-purple-900'
+              : 'bg-emerald-50 border-emerald-300 text-emerald-800'
+          }`}
+          title={
+            priceTier === '3'
+              ? 'سعر الجملة س3: توجيه الطباعة آلياً إلى فاتورة جملة مجهزة ببيانات العميل (A4/A5)'
+              : 'سعر تجزئة/عادي: طباعة وصل بيع حراري عادي (80mm/58mm)'
+          }
+        >
+          <div className="flex items-center gap-1">
+            <Printer className="w-3.5 h-3.5 shrink-0 text-slate-700" />
+            <span>قالب الطباعة (F1):</span>
+          </div>
+          <span
+            className={`px-1.5 py-0.5 rounded font-bold text-[10px] shadow-2xs ${
+              priceTier === '3'
+                ? 'bg-purple-600 text-white'
+                : 'bg-emerald-600 text-white'
+            }`}
+          >
+            {priceTier === '3' ? 'فاتورة جملة (A4/A5)' : 'وصل حراري (80mm)'}
           </span>
         </div>
 

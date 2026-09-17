@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Bell,
   CheckCircle2,
   Zap,
   Percent,
@@ -17,6 +18,8 @@ import {
   Sun,
   Moon,
 } from 'lucide-react';
+import NotificationDropdown from '@/components/notifications/NotificationDropdown';
+import { useNotificationStore } from '@/store/notificationStore';
 
 export interface Design6TopActionsBarProps {
   onNewOrder?: () => void;
@@ -73,6 +76,8 @@ export const Design6TopActionsBar: React.FC<Design6TopActionsBarProps> = ({
   theme = 'dark',
   onToggleTheme,
 }) => {
+  const unreadCount = useNotificationStore((s) => s.getUnreadCount());
+
   const getTierLabel = () => {
     switch (priceTier) {
       case '1':
@@ -342,6 +347,25 @@ export const Design6TopActionsBar: React.FC<Design6TopActionsBarProps> = ({
             )}
           </button>
         )}
+
+        {/* زر الإشعارات والتنبيهات التشغيلية */}
+        <NotificationDropdown hideBadge>
+          <button
+            type="button"
+            className="h-[42px] relative bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800/90 dark:hover:bg-slate-700 dark:text-slate-200 active:scale-95 px-3 rounded-lg border border-slate-300 dark:border-slate-700/80 flex items-center gap-1.5 transition-all text-xs font-bold cursor-pointer"
+            title="الإشعارات والتنبيهات التشغيلية"
+          >
+            <div className="relative flex items-center justify-center">
+              <Bell className="w-4 h-4 text-amber-500" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1.5 -right-2 min-w-[17px] h-[17px] flex items-center justify-center bg-rose-600 text-white text-[9px] font-black rounded-full px-1 shadow-xs animate-pulse">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </div>
+            <span className="hidden md:inline">الإشعارات</span>
+          </button>
+        </NotificationDropdown>
 
         {/* زر تخصيص التصميم والواجهة */}
         {onOpenCustomize && (

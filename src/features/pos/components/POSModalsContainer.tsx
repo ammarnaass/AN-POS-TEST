@@ -21,12 +21,16 @@ import {
   OpenSessionModal,
   DiscountModal,
   AdvancedFiltersModal,
-  CustomizeLayoutModal,
   SaveAsProformaModal,
   SaveAsOrderModal,
   QuickProductModal,
   TouchKeypadModal,
 } from '../modals';
+
+// Lazy-loaded heavy customization modal (800+ lines) to keep POSPage chunk smaller
+const CustomizeLayoutModal = React.lazy(() =>
+  import('../modals/CustomizeLayoutModal').then((m) => ({ default: m.CustomizeLayoutModal }))
+);
 
 export interface POSModalsContainerProps {
   modals: POSModalsState;
@@ -285,24 +289,28 @@ export const POSModalsContainer: React.FC<POSModalsContainerProps> = ({
       />
 
       {/* 12. Customize Layout Modal */}
-      <CustomizeLayoutModal
-        isOpen={modals.showCustomizeModal}
-        onClose={() => modals.setShowCustomizeModal(false)}
-        posLayout={posLayout}
-        setPosLayout={setPosLayout}
-        viewMode={viewMode}
-        setViewMode={setViewMode}
-        showProductImages={showProductImages}
-        setShowProductImages={setShowProductImages}
-        uiZoom={uiZoom}
-        setUiZoom={setUiZoom}
-        screenResolution={screenResolution}
-        setScreenResolution={setScreenResolution}
-        customResolution={customResolution}
-        setCustomResolution={setCustomResolution}
-        resolutionScaleMode={resolutionScaleMode}
-        setResolutionScaleMode={setResolutionScaleMode}
-      />
+      {modals.showCustomizeModal && (
+        <React.Suspense fallback={null}>
+          <CustomizeLayoutModal
+            isOpen={modals.showCustomizeModal}
+            onClose={() => modals.setShowCustomizeModal(false)}
+            posLayout={posLayout}
+            setPosLayout={setPosLayout}
+            viewMode={viewMode}
+            setViewMode={setViewMode}
+            showProductImages={showProductImages}
+            setShowProductImages={setShowProductImages}
+            uiZoom={uiZoom}
+            setUiZoom={setUiZoom}
+            screenResolution={screenResolution}
+            setScreenResolution={setScreenResolution}
+            customResolution={customResolution}
+            setCustomResolution={setCustomResolution}
+            resolutionScaleMode={resolutionScaleMode}
+            setResolutionScaleMode={setResolutionScaleMode}
+          />
+        </React.Suspense>
+      )}
 
       {/* 13. Save as Proforma / Quotation Modal */}
       <SaveAsProformaModal

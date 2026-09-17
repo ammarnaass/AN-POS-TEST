@@ -1,19 +1,38 @@
-import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMemo, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/infrastructure/database/dexie/db';
 import type { Product, Customer } from '@/types';
 import type { QuickPOSSettings } from '../types';
 
 export function useQuickPOSData() {
-  // 1. المنتجات النشطة
+  const queryClient = useQueryClient();
+
+  // 1. المنتجات النشطة — تحديث فوري لحظي
   const { data: products = [] } = useQuery<Product[]>({
     queryKey: ['products'],
     queryFn: async () => {
       const list = await db.products.toArray();
       return list.filter((p: Product) => p.status === 'active' || !p.status);
     },
-    staleTime: 1000 * 60 * 5,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
+
+  // مزامنة فورية لحظية مع SQLite عبر IPC
+  useEffect(() => {
+    const electron = (window as any).electronAPI;
+    if (electron?.db?.onTableUpdated) {
+      return electron.db.onTableUpdated((data: { table: string }) => {
+        if (data.table === 'products' || data.table === 'packs' || data.table === 'categories') {
+          queryClient.invalidateQueries({ queryKey: [data.table] });
+        } else if (data.table === 'customers') {
+          queryClient.invalidateQueries({ queryKey: ['customers'] });
+        } else if (data.table === 'cash_sessions') {
+          queryClient.invalidateQueries({ queryKey: ['cashSessions'] });
+        }
+      });
+    }
+  }, [queryClient]);
 
   // 2. الباقات والكراتين
   const { data: packs = [] } = useQuery({

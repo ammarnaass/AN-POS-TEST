@@ -2,15 +2,17 @@
 import React from 'react';
 import { ShoppingCart, Zap, Package, Bell, BarChart3, CreditCard, ShieldCheck, ArrowLeftRight, Star } from 'lucide-react';
 import { usePOSSessionStore } from '@/features/pos/store/usePOSSessionStore';
+import { useSystemSettings } from '../hooks/useSystemSettings';
 
 interface PosSettingsTabProps {
   [key: string]: any;
 }
 
-export default function PosSettingsTab({
-  handleSaveSettings,
-  settings
-}: PosSettingsTabProps) {
+export default function PosSettingsTab(props: PosSettingsTabProps) {
+  const hookData = useSystemSettings();
+  const settings = props.settings || hookData.settings;
+  const handleSaveSettings = props.handleSaveSettings || hookData.handleSaveSettings;
+
   return (
     <div className="space-y-6">
             <div className="bg-surface-container-low rounded-3xl border border-outline-variant/20 p-6 shadow-sm space-y-6">

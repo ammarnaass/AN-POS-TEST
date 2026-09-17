@@ -4,7 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/infrastructure/database/dexie/db';
 import { generateId } from '@/utils';
-import { syncProductCreate, syncProductUpdate } from '@/lib/products-sync';
+import { useNotificationStore } from '@/store/notificationStore';
 import type { Product } from '@/types';
 import ProductInfoSection from './sections/ProductInfoSection';
 import PricingSection from './sections/PricingSection';
@@ -140,20 +140,22 @@ export default function ProductFormPage() {
       const record = { ...(emptyProduct as Omit<Product, 'id'>), ...product };
       if (isEdit && id) {
         await db.products.put({ ...record, id } as Product);
-        // Write-Through → SQLite (for mobile sync)
-        await syncProductUpdate(id, { ...record, id });
         return { ...record, id };
       }
       const newId = generateId();
       await db.products.add({ ...record, id: newId } as Product);
-      // Write-Through → SQLite (for mobile sync)
-      await syncProductCreate({ ...record, id: newId });
       return { ...record, id: newId };
     },
     onSuccess: (saved) => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       setSavedToast(true);
       setTimeout(() => setSavedToast(false), 2000);
+      useNotificationStore.getState().addNotification({
+        title: isEdit ? 'تم تحديث بيانات الصنف' : 'تمت إضافة الصنف بنجاح',
+        message: `تم حفظ الصنف "${(saved as Product).name || ''}" بنجاح.`,
+        type: 'success',
+        category: 'inventory',
+      });
       if (isEdit) {
         // يبقى في الصفحة للتعديل الإضافي
       } else {

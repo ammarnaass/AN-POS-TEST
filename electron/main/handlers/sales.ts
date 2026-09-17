@@ -162,7 +162,7 @@ export async function createSale(data: Record<string, unknown>): Promise<{ data:
     );
 
     // دالة مساعدة لتحديث المخزون وتسجيل الحركة
-    const updateProductAndMovement = (prodId: string, qtyChange: number) => {
+    const updateProductAndMovement = (prodId: string, qtyChange: number, unitPrice: number = 0, lineTotal: number = 0) => {
       if (!prodId || prodId.startsWith('custom-')) return;
 
       if (allowNegativeStock) {
@@ -195,9 +195,37 @@ export async function createSale(data: Record<string, unknown>): Promise<{ data:
           now,
         ]
       );
+
+      try {
+        execute(
+          `INSERT INTO stock_movements_v2 (id, movement_number, date, type, warehouse_id, item_id, quantity, unit_price, total_amount, reference, description, is_reviewed, reviewed_by, created_by, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            randomUUID(),
+            `MOV-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`,
+            now,
+            isReturn ? 'return' : 'sale',
+            'main',
+            prodId,
+            qtyChange,
+            unitPrice,
+            lineTotal || (Math.abs(qtyChange) * unitPrice),
+            saleNumber,
+            `${isReturn ? 'مرتجع' : 'مبيعات'} فاتورة رقم ${saleNumber}`,
+            1,
+            soldBy,
+            soldBy,
+            now,
+          ]
+        );
+      } catch {
+        // non-blocking if table structure differs
+      }
     };
 
-    // 2. إدراج بنود البيع في sale_items وتحديث المخزون (مع فك الباقات Packs)
+    // 2. إدراج بنود البيع في sale_items وتحديث المخزون (مع فك الباقات Packs وحساب طرود الجملة)
+    const isWholesaleSale = docType === 'wholesale' || (data.priceTier === '3' || data.price_tier === '3');
+
     if (Array.isArray(parsedItems)) {
       for (let i = 0; i < parsedItems.length; i++) {
         const item = parsedItems[i] as Record<string, unknown>;
@@ -230,7 +258,8 @@ export async function createSale(data: Record<string, unknown>): Promise<{ data:
         if (isPack && packId) {
           // فك مكونات الباقة وخصم مخزون كل منتج فرعي
           let packItems: Array<{ productId: string; qty: number }> = [];
-          const packRow = queryOne('SELECT items FROM packs WHERE id = ?', [packId]);
+          const cleanPackId = packId.replace(/^pack-/, '');
+          const packRow = queryOne('SELECT items FROM packs WHERE id = ? OR id = ?', [packId, cleanPackId]);
           if (packRow && typeof packRow.items === 'string') {
             try {
               const decoded = JSON.parse(packRow.items);
@@ -245,16 +274,43 @@ export async function createSale(data: Record<string, unknown>): Promise<{ data:
             }
           }
 
-          for (const comp of packItems) {
-            if (comp.productId) {
-              const totalPiecesSold = packMode === 'retail_pieces' ? qty : (comp.qty * qty);
-              const compQtyChange = sign * totalPiecesSold;
-              updateProductAndMovement(comp.productId, compQtyChange);
+          if (packItems.length > 0) {
+            for (const comp of packItems) {
+              if (comp.productId) {
+                const totalPiecesSold = packMode === 'retail_pieces' ? qty : (comp.qty * qty);
+                const compQtyChange = sign * totalPiecesSold;
+                updateProductAndMovement(comp.productId, compQtyChange, unitPrice, lineTotal);
+              }
+            }
+          } else {
+            // في حال عدم وجود تفصيل للمكونات بالباقة ولكن الصنف مرتبط بمنتج أساسي
+            const effectiveProdId = productId.replace(/^pack-/, '');
+            if (effectiveProdId) {
+              const pieces = Number(item.packPiecesCount ?? item.pack_pieces_count ?? 1);
+              const totalPieces = packMode === 'retail_pieces' ? qty : (pieces > 1 ? qty * pieces : qty);
+              updateProductAndMovement(effectiveProdId, sign * totalPieces, unitPrice, lineTotal);
             }
           }
         } else if (productId) {
-          const qtyChange = sign * qty;
-          updateProductAndMovement(productId, qtyChange);
+          // منتج منفرد أو عبوة جملة لمنتج يمتلك حجم تعبئة package_size
+          const effectiveProdId = productId.replace(/^pack-/, '');
+          let piecesPerPack = Number(item.packPiecesCount ?? item.pack_pieces_count ?? 0);
+          if (piecesPerPack <= 0) {
+            try {
+              const prodRow = queryOne('SELECT package_size FROM products WHERE id = ?', [effectiveProdId]);
+              if (prodRow?.package_size) {
+                const parsed = parseInt(String(prodRow.package_size), 10);
+                if (parsed > 0) piecesPerPack = parsed;
+              }
+            } catch {
+              // ignore
+            }
+          }
+
+          const isWholesalePack = packMode === 'wholesale_packs' || (isWholesaleSale && piecesPerPack > 1);
+          const totalPieces = (isWholesalePack && piecesPerPack > 1) ? (qty * piecesPerPack) : qty;
+          const qtyChange = sign * totalPieces;
+          updateProductAndMovement(effectiveProdId, qtyChange, unitPrice, lineTotal);
         }
       }
     }
@@ -340,7 +396,46 @@ export async function updateSale(id: string, data: Record<string, unknown>): Pro
 }
 
 export async function removeSale(id: string): Promise<{ success: boolean }> {
+  const saleRow = queryOne('SELECT * FROM sales WHERE id = ?', [id]);
+  const saleItems = queryAll('SELECT * FROM sale_items WHERE sale_id = ?', [id]);
+  const now = new Date().toISOString();
+
   transaction(() => {
+    if (saleRow) {
+      const isReturn = saleRow.type === 'return';
+      // في حذف البيع العادي: تعاد البضاعة للمخزون (+1). وفي حذف المرتجع: تخصم (-1).
+      const restoreSign = isReturn ? -1 : 1;
+
+      for (const item of saleItems) {
+        const prodId = String(item.product_id || '');
+        const qty = Number(item.qty || 0);
+        if (prodId && !prodId.startsWith('custom-')) {
+          execute('UPDATE products SET quantity = quantity + ?, updated_at = ? WHERE id = ?', [
+            restoreSign * qty,
+            now,
+            prodId,
+          ]);
+
+          execute(
+            `INSERT INTO stock_movements (id, date, type, product_id, qty, reference, reason, created_by, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              randomUUID(),
+              now.slice(0, 10),
+              'adjustment',
+              prodId,
+              restoreSign * qty,
+              String(saleRow.number || ''),
+              `إلغاء فاتورة رقم ${saleRow.number || id}`,
+              'النظام',
+              now,
+              now,
+            ]
+          );
+        }
+      }
+    }
+
     execute('DELETE FROM sale_items WHERE sale_id = ?', [id]);
     execute('DELETE FROM sales WHERE id = ?', [id]);
     try {

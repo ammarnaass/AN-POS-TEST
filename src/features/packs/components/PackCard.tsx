@@ -1,8 +1,14 @@
+// src/features/packs/components/PackCard.tsx
+// بطاقة عرض الباقة والحزمة التجارية مع مؤشرات الجاهزية والربحية (AN POS)
+
 import React, { useState } from 'react';
 import type { PackEntity } from '@/infrastructure/database/dexie/db';
 import type { Product } from '@/types';
-import { Barcode, Edit2, Trash2, Copy, Check, Sparkles, Box, ShoppingBag, Gift, Layers } from 'lucide-react';
-import { formatPackMoney, calculatePackStockReadiness } from '../services/packCalculations';
+import { Barcode, Edit2, Trash2, Copy, Check } from 'lucide-react';
+import { calculatePackStockReadiness } from '../services/packCalculations';
+import { getPackThemeConfig } from './card/PackThemeHelper';
+import { PackStockReadinessBadge } from './card/PackStockReadinessBadge';
+import { PackFinancialSummary } from './card/PackFinancialSummary';
 
 interface PackCardProps {
   pack: PackEntity;
@@ -56,36 +62,7 @@ export const PackCard: React.FC<PackCardProps> = ({
     setTimeout(() => setCopied(false), 1800);
   };
 
-  // ثيم البطاقة حسب نوع الباقة
-  const getThemeConfig = () => {
-    if (pack.packType === 'bundle') {
-      return {
-        badge: '🎁 باقة وحزمة مجمعة',
-        badgeClass: 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/20',
-        cardBorder: 'hover:border-purple-500/40',
-        icon: Gift,
-        gradient: 'from-purple-500/10 to-transparent',
-      };
-    }
-    if (pack.packType === 'half_wholesale') {
-      return {
-        badge: '🛍️ نصف جملة',
-        badgeClass: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20',
-        cardBorder: 'hover:border-amber-500/40',
-        icon: ShoppingBag,
-        gradient: 'from-amber-500/10 to-transparent',
-      };
-    }
-    return {
-      badge: '📦 طرد كرتونة جملة',
-      badgeClass: 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20',
-      cardBorder: 'hover:border-blue-500/40',
-      icon: Box,
-      gradient: 'from-blue-500/10 to-transparent',
-    };
-  };
-
-  const theme = getThemeConfig();
+  const theme = getPackThemeConfig(pack.packType as any);
 
   return (
     <div
@@ -146,62 +123,34 @@ export const PackCard: React.FC<PackCardProps> = ({
         </div>
 
         {/* جاهزية التجميع من المخزون (Stock Readiness Badge) */}
-        <div className="mb-3">
-          {readiness.availablePacks > 5 ? (
-            <div className="flex items-center justify-between text-[11px] font-bold px-2.5 py-1 rounded-lg bg-green-500/10 text-green-700 dark:text-green-300 border border-green-500/20">
-              <span className="flex items-center gap-1">
-                <Sparkles className="w-3 h-3" />
-                جاهز للتجميع من المخزون
-              </span>
-              <span>{readiness.availablePacks} عبوة متوفرة</span>
-            </div>
-          ) : readiness.availablePacks > 0 ? (
-            <div className="flex items-center justify-between text-[11px] font-bold px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
-              <span>⚠️ رصيد التجميع منخفض</span>
-              <span>{readiness.availablePacks} عبوة فقط</span>
-            </div>
-          ) : (
-            <div className="flex items-center justify-between text-[11px] font-bold px-2.5 py-1 rounded-lg bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/20 truncate">
-              <span>❌ غير جاهز (نفد مخزون مكون)</span>
-              {readiness.bottleneckProductName && (
-                <span className="text-[10px] truncate max-w-[120px]">
-                  ({readiness.bottleneckProductName})
-                </span>
-              )}
-            </div>
-          )}
-        </div>
+        <PackStockReadinessBadge readiness={readiness} />
 
-        {/* Included Items Summary */}
-        <div className="bg-surface-container-low/50 rounded-xl p-3 border border-outline-variant/15">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-bold text-on-surface-variant">
-              محتويات الباقة ({items.length} صنف):
-            </span>
-            <span className="text-[10px] text-on-surface-variant font-medium">
-              التكلفة: {formatPackMoney(totalCost)} {currencySymbol}
-            </span>
-          </div>
+        {/* التسعير والملخص المالي */}
+        <PackFinancialSummary
+          price={price}
+          totalCost={totalCost}
+          totalRetail={totalRetail}
+          margin={margin}
+          savings={savings}
+          currencySymbol={currencySymbol}
+        />
 
-          <div className="space-y-1.5 max-h-28 overflow-y-auto pr-1 scrollbar-thin">
+        {/* Included Items Preview */}
+        <div className="space-y-1.5 mb-4">
+          <span className="text-[11px] font-bold text-on-surface-variant block font-tajawal">
+            الأصناف المشمولة ({items.length}):
+          </span>
+          <div className="space-y-1 max-h-24 overflow-y-auto pr-1">
             {items.map((it: any, idx: number) => {
-              const prod = products.find((p) => p.id === it.productId);
-              const prodName = it.name || prod?.name || 'منتج غير معروف';
-              const stock = prod?.quantity ?? 0;
-
+              const p = products.find((pr) => pr.id === it.productId);
               return (
                 <div
                   key={idx}
-                  className="flex items-center justify-between text-xs text-on-surface bg-surface-container-lowest/80 px-2 py-1.5 rounded-lg border border-outline-variant/10"
+                  className="flex items-center justify-between text-xs py-1 px-2 rounded-lg bg-surface-container-low text-on-surface-variant font-tajawal"
                 >
-                  <div className="truncate flex-1 pl-2">
-                    <span className="font-medium block truncate">{prodName}</span>
-                    <span className="text-[10px] text-on-surface-variant">
-                      مخزون الصنف: {stock}
-                    </span>
-                  </div>
-                  <span className="font-bold shrink-0 bg-primary/10 text-primary px-2 py-0.5 rounded-md text-[11px] font-sans">
-                    × {it.qty}
+                  <span className="truncate flex-1 font-medium">{p?.name || 'صنف غير معروف'}</span>
+                  <span className="font-bold font-sans text-[11px] shrink-0 mr-2">
+                    ×{it.qty} {p?.unit || 'قطعة'}
                   </span>
                 </div>
               );
@@ -210,55 +159,23 @@ export const PackCard: React.FC<PackCardProps> = ({
         </div>
       </div>
 
-      {/* Footer / Price, Margins & Actions */}
-      <div className="mt-4 pt-3.5 border-t border-outline-variant/20">
-        <div className="flex items-end justify-between gap-2 mb-3">
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] text-on-surface-variant">سعر بيع الباقة:</span>
-              {savings > 0 && (
-                <span className="text-[10px] font-bold text-blue-600 bg-blue-500/10 px-1.5 py-0.2 rounded">
-                  توفير {formatPackMoney(savings)} {currencySymbol}
-                </span>
-              )}
-            </div>
-            <span className="text-xl font-black text-primary font-cairo block mt-0.5">
-              {formatPackMoney(price)} {currencySymbol}
-            </span>
-          </div>
+      {/* Action Buttons */}
+      <div className="flex items-center gap-2 pt-3 border-t border-outline-variant/20">
+        <button
+          onClick={() => onEdit(pack)}
+          className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface text-xs font-bold transition-colors cursor-pointer"
+        >
+          <Edit2 className="w-3.5 h-3.5" />
+          <span>تعديل</span>
+        </button>
 
-          <div className="text-left">
-            <span className="text-[10px] text-on-surface-variant block">هامش الربح:</span>
-            <span
-              className={`text-xs font-bold px-2 py-0.5 rounded-md inline-block mt-0.5 ${
-                margin >= 20
-                  ? 'bg-green-500/15 text-green-700 dark:text-green-300'
-                  : margin > 0
-                  ? 'bg-blue-500/15 text-blue-700 dark:text-blue-300'
-                  : 'bg-rose-500/15 text-rose-700 dark:text-rose-300'
-              }`}
-            >
-              {margin.toFixed(1)}%
-            </span>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-end gap-2 pt-1 border-t border-outline-variant/10">
-          <button
-            onClick={() => onEdit(pack)}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border border-outline-variant/40 text-on-surface hover:bg-surface-container-high hover:text-primary transition-all text-xs font-bold cursor-pointer"
-          >
-            <Edit2 className="w-3.5 h-3.5" />
-            <span>تعديل الباقة</span>
-          </button>
-          <button
-            onClick={() => onDelete(pack.id, pack.name)}
-            className="p-2 rounded-xl border border-outline-variant/40 text-error hover:bg-error/10 hover:border-error/30 transition-all cursor-pointer"
-            title="حذف الباقة"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
+        <button
+          onClick={() => onDelete(pack.id, pack.name)}
+          className="p-2 rounded-xl text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors cursor-pointer"
+          title="حذف العبوة"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import type { Product } from '@/types';
 import { generateId } from '@/utils';
 import { db } from '@/infrastructure/database/dexie/db';
 import { categoriesApi, type Category } from '@/services/api/categoriesApi';
+import { generateEAN13 } from '@/services/barcode/generateBarcode';
 
 export const emptyProduct: Omit<Product, 'id'> = {
   name: '',
@@ -231,6 +232,14 @@ export function useProductFormState({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showForm, closeFormModal, handleSubmit]);
 
+  const handleGenerateBarcode = useCallback(() => {
+    const code = generateEAN13('20');
+    setFormData((prev) => ({ ...prev, barcode: code }));
+    if (formErrors.barcode) {
+      setFormErrors((prev) => ({ ...prev, barcode: undefined }));
+    }
+  }, [formErrors.barcode]);
+
   return {
     showForm,
     setShowForm,
@@ -262,5 +271,6 @@ export function useProductFormState({
     validateForm,
     handleSubmit,
     handleAddNewCategory,
+    handleGenerateBarcode,
   };
 }

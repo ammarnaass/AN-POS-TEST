@@ -42,22 +42,37 @@ function getBrandInfo(vendor?: string, model?: string) {
   return { name: vendor || 'جهاز ذكي', badgeClass: 'bg-surface-container-high text-on-surface-variant border-outline-variant/20' };
 }
 
-export default function MobileDevicesTab({
-  copiedField,
-  deleteMobileDeviceMutation,
-  handleCopyText,
-  handleRegenerateKey,
-  mobilePhones = [],
-  pairingInfo,
-  refetchConnected,
-  serverLoading,
-  serverStatus,
-  toggleServer,
-  settings,
-  handleSaveSettings,
-  saveNet,
-  isDeveloper,
-}: MobileDevicesTabProps) {
+import { useNetworkServer } from '../hooks/useNetworkServer';
+import { useSystemSettings } from '../hooks/useSystemSettings';
+import { useAuthStore } from '@/store/authStore';
+
+export default function MobileDevicesTab(props: MobileDevicesTabProps) {
+  const netHook = useNetworkServer('mobile');
+  const sysHook = useSystemSettings();
+  const { user: currentUser } = useAuthStore();
+
+  const [internalCopiedField, setInternalCopiedField] = useState<string | null>(null);
+  const internalHandleCopy = (text: string, field: string) => {
+    navigator.clipboard?.writeText(text);
+    setInternalCopiedField(field);
+    setTimeout(() => setInternalCopiedField(null), 2000);
+  };
+
+  const copiedField = props.copiedField !== undefined ? props.copiedField : internalCopiedField;
+  const handleCopyText = props.handleCopyText || internalHandleCopy;
+  const deleteMobileDeviceMutation = props.deleteMobileDeviceMutation || netHook.deleteMobileDeviceMutation;
+  const handleRegenerateKey = props.handleRegenerateKey || netHook.handleRegenerateKey;
+  const mobilePhones = props.mobilePhones !== undefined ? props.mobilePhones : netHook.mobilePhones;
+  const pairingInfo = props.pairingInfo || netHook.pairingInfo;
+  const refetchConnected = props.refetchConnected || netHook.refetchConnected;
+  const serverLoading = props.serverLoading !== undefined ? props.serverLoading : netHook.serverLoading;
+  const serverStatus = props.serverStatus !== undefined ? props.serverStatus : netHook.serverStatus;
+  const settings = props.settings || sysHook.settings;
+  const toggleServer = props.toggleServer || (() => netHook.toggleServer(settings.syncMode));
+  const handleSaveSettings = props.handleSaveSettings || sysHook.handleSaveSettings;
+  const saveNet = props.saveNet || netHook.saveNet;
+  const isDeveloper = props.isDeveloper !== undefined ? props.isDeveloper : (currentUser?.role === 'developer');
+
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'online' | 'offline'>('all');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');

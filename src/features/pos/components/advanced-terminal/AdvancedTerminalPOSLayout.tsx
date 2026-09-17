@@ -31,6 +31,7 @@ import { useDesign6TouchNavigation } from './hooks/useDesign6TouchNavigation';
 import { useDesign6CashCalculator } from './hooks/useDesign6CashCalculator';
 import { useFavoritesStore } from '@/features/favorites/store/useFavoritesStore';
 import { usePOSSessionStore } from '@/features/pos/store/usePOSSessionStore';
+import { readWeightFromSerial } from '@/services/hardware/scaleService';
 
 export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps> = ({
   cart,
@@ -72,6 +73,7 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
   searchQuery,
   setSearchQuery,
   onOpenAddProduct,
+  onOpenFavoritesManagement,
 }) => {
   // Local state
   const [selectedCartRowId, setSelectedCartRowId] = useState<string | null>(
@@ -143,6 +145,23 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
       onRemoveFromCart(selectedCartRowId);
     }
   }, [selectedCartRowId, onRemoveFromCart]);
+
+  // قراءة الوزن الحي من الميزان الذكي
+  const handleReadScale = useCallback(async () => {
+    try {
+      const reading = await readWeightFromSerial();
+      if (reading && reading.weight > 0) {
+        setPendingQty(reading.weight);
+        const targetId = selectedCartRowId || (cart.length > 0 ? cart[cart.length - 1].productId : null);
+        if (targetId) {
+          onUpdateQty(targetId, reading.weight);
+        }
+      }
+    } catch {
+      quantityInputRef.current?.focus();
+      quantityInputRef.current?.select();
+    }
+  }, [selectedCartRowId, cart, onUpdateQty]);
 
   const isAnyModalOpen = isProductSearchOpen || isLocked || isFlexyOpen || editingPriceItemId !== null;
 
@@ -489,10 +508,9 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
             barcodeInputRef={barcodeInputRef}
             products={allProducts && allProducts.length > 0 ? allProducts : products}
             onSelectProduct={(product, qty) => {
-              for (let i = 0; i < qty; i++) {
-                onAddToCart(product);
-              }
+              onAddToCart(product, undefined, qty);
             }}
+            onReadScale={handleReadScale}
             onOpenAddProduct={onOpenAddProduct}
             onSettleSale={onSettleSale}
             cartCount={cart.length}
@@ -548,6 +566,7 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
         setSelectedFavoriteCatId={setSelectedFavoriteCatId}
         terminalCategoryMode={terminalCategoryMode}
         setTerminalCategoryMode={setTerminalCategoryMode}
+        onOpenFavoritesManagement={onOpenFavoritesManagement}
       />
 
       {/* 5. Bottom System Status Bar */}

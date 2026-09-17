@@ -74,6 +74,20 @@ function toSQLiteProduct(product: Partial<Product>): Record<string, unknown> {
     ['askQuantity', 'ask_quantity'],
     ['type', 'type'],
     ['taxRate', 'tax_rate'],
+    ['retailPrice', 'retail_price'],
+    ['costPrice', 'cost_price'],
+    ['wholesalePrice', 'wholesale_price'],
+    ['salePrice1', 'sale_price1'],
+    ['salePrice2', 'sale_price2'],
+    ['salePrice3', 'sale_price3'],
+    ['invoicePrice', 'invoice_price'],
+    ['profitMargin', 'profit_margin'],
+    ['packageSize', 'package_size'],
+    ['location', 'location'],
+    ['weight', 'weight'],
+    ['tax', 'tax'],
+    ['discount', 'discount'],
+    ['pointPrice', 'point_price'],
     ['createdAt', 'created_at'],
     ['updatedAt', 'updated_at'],
   ];
@@ -83,6 +97,14 @@ function toSQLiteProduct(product: Partial<Product>): Record<string, unknown> {
     // أيضاً نقبل الصيغة snake_case مباشرة إن وُجدت
     if (p[snake] !== undefined && row[snake] === undefined) row[snake] = p[snake];
   }
+
+  // مزامنة التسميات المترادفة بين المخطط القديم والجديد لضمان التوافق التام
+  if (row['price'] === undefined && row['retail_price'] !== undefined) row['price'] = row['retail_price'];
+  if (row['retail_price'] === undefined && row['price'] !== undefined) row['retail_price'] = row['price'];
+  if (row['cost_price'] === undefined && row['purchase_price'] !== undefined) row['cost_price'] = row['purchase_price'];
+  if (row['purchase_price'] === undefined && row['cost_price'] !== undefined) row['purchase_price'] = row['cost_price'];
+  if (row['price2'] === undefined && row['wholesale_price'] !== undefined) row['price2'] = row['wholesale_price'];
+  if (row['wholesale_price'] === undefined && row['price2'] !== undefined) row['wholesale_price'] = row['price2'];
 
   return row;
 }

@@ -38,7 +38,7 @@ export async function getCurrentCashSession(): Promise<{ data: Record<string, un
 export async function openCashSession(data: {
   openedBy: string;
   openingBalance: number;
-}): Promise<{ data: Record<string, unknown> | null }> {
+}): Promise<{ data: Record<string, unknown> | null; error?: { status: number; detail: string } }> {
   // إغلاق أي جلسة مفتوحة سابقاً
   execute("UPDATE cash_sessions SET status = 'closed', closed_at = ? WHERE status = 'open'", [new Date().toISOString()]);
 
@@ -62,7 +62,7 @@ export async function closeCashSession(
   data: { actualBalance: number; note?: string }
 ): Promise<{ data: Record<string, unknown> | null; error?: { status: number; detail: string } }> {
   const session = queryOne('SELECT * FROM cash_sessions WHERE id = ?', [id]);
-  if (!session) return { error: { status: 404, detail: 'الجلسة غير موجودة' } };
+  if (!session) return { data: null, error: { status: 404, detail: 'الجلسة غير موجودة' } };
 
   const now = new Date().toISOString();
   execute(
@@ -79,7 +79,7 @@ export async function depositCash(
   data: { amount: number; note?: string }
 ): Promise<{ data: Record<string, unknown> | null; error?: { status: number; detail: string } }> {
   const session = queryOne('SELECT * FROM cash_sessions WHERE id = ?', [id]);
-  if (!session) return { error: { status: 404, detail: 'الجلسة غير موجودة' } };
+  if (!session) return { data: null, error: { status: 404, detail: 'الجلسة غير موجودة' } };
 
   // إضافة الإيداع إلى مصفوفة deposits
   const deposits: unknown[] = typeof session.deposits === 'string'

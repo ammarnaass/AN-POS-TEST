@@ -14,7 +14,7 @@ import {
 import { TEMPLATE_PRESETS } from '@/services/print/templateService';
 import { seedDefaultTemplates } from '@/services/print/defaultTemplates';
 import { useNotificationStore } from '@/store/notificationStore';
-import TemplateEditor from '@/components/print/TemplateEditor';
+import TemplateEditor from './components/editor/TemplateEditor';
 import TemplateAssignmentManager from '@/components/print/TemplateAssignmentManager';
 
 import { usePrintTemplatesManager } from './hooks/usePrintTemplatesManager';

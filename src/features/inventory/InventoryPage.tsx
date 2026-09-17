@@ -1,7 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, lazy, Suspense } from 'react';
 import type { Product } from '@/types';
 import { generateId } from '@/utils';
-import * as XLSX from 'xlsx';
 import { useBarcodeScanner } from '@/features/barcode/useBarcodeScanner';
 import { useInventoryData } from './hooks/useInventoryData';
 import { useInventoryFilter, getStockStatus, isExpiringSoon } from './hooks/useInventoryFilter';
@@ -16,12 +15,15 @@ import { InventoryGridView } from './components/InventoryGridView';
 import { InventoryPagination } from './components/InventoryPagination';
 import { InventoryEmptyState } from './components/InventoryEmptyState';
 import { BarcodeReportSection } from './components/BarcodeReportSection';
+import { StockMovementsHistorySection } from './components/StockMovementsHistorySection';
 
 // Modular Modals
 import { QuickAdjustStockModal } from './components/modals/QuickAdjustStockModal';
 import { ProductFormModal } from './components/modals/ProductFormModal';
 import ProductExportModal from './ProductExportModal';
-import SupplierInvoicePdfModal from '@/features/suppliers/SupplierInvoicePdfModal';
+
+// Lazy-loaded heavy PDF/OCR modal to keep initial inventory bundle lightweight
+const SupplierInvoicePdfModal = lazy(() => import('@/features/suppliers/SupplierInvoicePdfModal'));
 
 export { emptyProduct, type FormErrors };
 
@@ -37,6 +39,7 @@ export default function InventoryPage() {
     updateMutation,
     deleteMutation,
     importMutation,
+    adjustStockMutation,
     queryClient,
   } = useInventoryData();
 
@@ -79,7 +82,7 @@ export default function InventoryPage() {
   }), [products]);
 
   // Local UI modals state
-  const [inventoryTab, setInventoryTab] = useState<'products' | 'barcode-report'>('products');
+  const [inventoryTab, setInventoryTab] = useState<'products' | 'barcode-report' | 'movements'>('products');
   const [showExportModal, setShowExportModal] = useState(false);
   const [showPdfInvoiceModal, setShowPdfInvoiceModal] = useState(false);
   const [quickAdjustProduct, setQuickAdjustProduct] = useState<Product | null>(null);
@@ -109,11 +112,11 @@ export default function InventoryPage() {
 
   const handleQuickAdjust = (product: Product, delta: number) => {
     const newQty = Math.max(0, (product.quantity || 0) + delta);
-    updateMutation.mutate({ id: product.id, data: { quantity: newQty } });
+    adjustStockMutation.mutate({ product, newQuantity: newQty, delta });
   };
 
   const handleSaveCustomAdjust = (product: Product, newQuantity: number) => {
-    updateMutation.mutate({ id: product.id, data: { quantity: newQuantity } });
+    adjustStockMutation.mutate({ product, newQuantity });
     setQuickAdjustProduct(null);
   };
 
@@ -128,7 +131,8 @@ export default function InventoryPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
+      const XLSX = await import('xlsx');
       const wb = XLSX.read(event.target?.result, { type: 'binary' });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const data = XLSX.utils.sheet_to_json<Record<string, any>>(ws);
@@ -173,6 +177,9 @@ export default function InventoryPage() {
 
       {/* Barcode Audit Report Tab */}
       {inventoryTab === 'barcode-report' && <BarcodeReportSection />}
+
+      {/* Stock Movements History Tab */}
+      {inventoryTab === 'movements' && <StockMovementsHistorySection />}
 
       {/* Main Inventory Products Management Tab */}
       {inventoryTab === 'products' && (
@@ -280,13 +287,15 @@ export default function InventoryPage() {
 
       {/* Supplier Invoice PDF Import Modal */}
       {showPdfInvoiceModal && (
-        <SupplierInvoicePdfModal
-          open={showPdfInvoiceModal}
-          onClose={() => setShowPdfInvoiceModal(false)}
-          products={products as any}
-          suppliers={suppliers}
-          categories={categories as any}
-        />
+        <Suspense fallback={null}>
+          <SupplierInvoicePdfModal
+            open={showPdfInvoiceModal}
+            onClose={() => setShowPdfInvoiceModal(false)}
+            products={products as any}
+            suppliers={suppliers}
+            categories={categories as any}
+          />
+        </Suspense>
       )}
     </div>
   );

@@ -9,42 +9,47 @@ import {
 } from 'lucide-react';
 import PairingQR from '../components/PairingQR';
 import ConnectedDevicesManager from '../components/ConnectedDevicesManager';
+import { useNetworkServer } from '../hooks/useNetworkServer';
+import { useSystemSettings } from '../hooks/useSystemSettings';
 
 interface NetworkTabProps {
   [key: string]: any;
 }
 
-export default function NetworkTab({
-  deleteDeviceMutation,
-  deleteMobileDeviceMutation,
-  devices = [],
-  handleAddDevice,
-  handleSaveSettings,
-  handleTestLan,
-  handleTestPrinter,
-  handleTestScanner,
-  hasActiveConnections = false,
-  mobilePhones = [],
-  netSettings,
-  netSubTab,
-  newDevice,
-  onlineDevicesCount = 0,
-  pairingInfo,
-  refetchConnected,
-  saveNet,
-  serverLoading = false,
-  serverStatus,
-  setNetSubTab,
-  setNewDevice,
-  setPrinterSavedUnlocked,
-  setShowDeviceForm,
-  settings,
-  showDeviceForm,
-  testingLan,
-  testingPrinter,
-  testingScanner,
-  toggleServer
-}: NetworkTabProps) {
+export default function NetworkTab(props: NetworkTabProps) {
+  const netHook = useNetworkServer('network');
+  const sysHook = useSystemSettings();
+
+  const deleteDeviceMutation = props.deleteDeviceMutation || netHook.deleteDeviceMutation;
+  const deleteMobileDeviceMutation = props.deleteMobileDeviceMutation || netHook.deleteMobileDeviceMutation;
+  const devices = props.devices !== undefined ? props.devices : netHook.devices;
+  const handleAddDevice = props.handleAddDevice || netHook.handleAddDevice;
+  const handleSaveSettings = props.handleSaveSettings || sysHook.handleSaveSettings;
+  const handleTestLan = props.handleTestLan || netHook.handleTestLan;
+  const handleTestPrinter = props.handleTestPrinter || netHook.handleTestPrinter;
+  const handleTestScanner = props.handleTestScanner || netHook.handleTestScanner;
+  const hasActiveConnections = props.hasActiveConnections !== undefined ? props.hasActiveConnections : netHook.hasActiveConnections;
+  const mobilePhones = props.mobilePhones !== undefined ? props.mobilePhones : netHook.mobilePhones;
+  const netSettings = props.netSettings || netHook.netSettings;
+  const netSubTab = props.netSubTab || netHook.netSubTab;
+  const newDevice = props.newDevice || netHook.newDevice;
+  const onlineDevicesCount = props.onlineDevicesCount !== undefined ? props.onlineDevicesCount : netHook.onlineDevicesCount;
+  const pairingInfo = props.pairingInfo || netHook.pairingInfo;
+  const refetchConnected = props.refetchConnected || netHook.refetchConnected;
+  const saveNet = props.saveNet || netHook.saveNet;
+  const serverLoading = props.serverLoading !== undefined ? props.serverLoading : netHook.serverLoading;
+  const serverStatus = props.serverStatus !== undefined ? props.serverStatus : netHook.serverStatus;
+  const setNetSubTab = props.setNetSubTab || netHook.setNetSubTab;
+  const setNewDevice = props.setNewDevice || netHook.setNewDevice;
+  const setPrinterSavedUnlocked = props.setPrinterSavedUnlocked || netHook.setPrinterSavedUnlocked;
+  const setShowDeviceForm = props.setShowDeviceForm || netHook.setShowDeviceForm;
+  const settings = props.settings || sysHook.settings;
+  const showDeviceForm = props.showDeviceForm !== undefined ? props.showDeviceForm : netHook.showDeviceForm;
+  const testingLan = props.testingLan !== undefined ? props.testingLan : netHook.testingLan;
+  const testingPrinter = props.testingPrinter !== undefined ? props.testingPrinter : netHook.testingPrinter;
+  const testingScanner = props.testingScanner !== undefined ? props.testingScanner : netHook.testingScanner;
+  const toggleServer = props.toggleServer || (() => netHook.toggleServer(settings.syncMode));
+
   // تتبع حالة النسخ للحقول السريعة
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [showConnectionKey, setShowConnectionKey] = useState(false);

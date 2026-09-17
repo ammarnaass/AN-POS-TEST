@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import type { CartItem } from '@/types';
-import { ScanBarcode } from 'lucide-react';
+import { ScanBarcode, Scale } from 'lucide-react';
 
 interface Design7ActiveScanStripProps {
   activeItem?: CartItem | null;
@@ -9,6 +9,8 @@ interface Design7ActiveScanStripProps {
   onBarcodeSubmit: (e?: React.FormEvent) => void;
   formatMoney: (amount?: number | null) => string;
   inputRef?: React.RefObject<HTMLInputElement | null>;
+  priceTier?: '1' | '2' | '3' | '4';
+  onReadScale?: () => void;
 }
 
 export const Design7ActiveScanStrip: React.FC<Design7ActiveScanStripProps> = ({
@@ -18,6 +20,8 @@ export const Design7ActiveScanStrip: React.FC<Design7ActiveScanStripProps> = ({
   onBarcodeSubmit,
   formatMoney,
   inputRef,
+  priceTier = '1',
+  onReadScale,
 }) => {
   const localRef = useRef<HTMLInputElement>(null);
   const resolvedRef = inputRef || localRef;
@@ -34,7 +38,7 @@ export const Design7ActiveScanStrip: React.FC<Design7ActiveScanStripProps> = ({
       className="bg-[#d5ecd8] border-b border-[#a9c9ad] py-1 px-2 sm:px-4 flex items-center justify-between text-slate-800 shrink-0 gap-2 sm:gap-3 overflow-hidden"
       data-purpose="scan-status-strip"
     >
-      {/* Right side in RTL: الكمية */}
+      {/* Right side in RTL: الكمية + مؤشر فئة السعر */}
       <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
         <span className="d7-pill-gloss-cyan px-2 sm:px-2.5 py-0.5 rounded text-slate-800 font-bold border text-[10px] sm:text-xs">
           الكمية
@@ -42,37 +46,60 @@ export const Design7ActiveScanStrip: React.FC<Design7ActiveScanStripProps> = ({
         <span className="text-lg sm:text-xl font-black text-amber-700 px-1 sm:px-2 min-w-[28px] text-center font-mono">
           {activeQty}
         </span>
+        <span
+          className={`px-1.5 py-0.5 rounded text-[10px] font-black border shadow-2xs ${
+            priceTier === '3'
+              ? 'bg-purple-100 text-purple-800 border-purple-300'
+              : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+          }`}
+          title={priceTier === '3' ? 'سعر الجملة س3 (فاتورة جملة A4/A5)' : `سعر البيع العادي س${priceTier} (وصل عادي)`}
+        >
+          {priceTier === '3' ? 'س3: فاتورة جملة' : `س${priceTier}: بيع عادي`}
+        </span>
       </div>
 
-      {/* Center: Barcode Input with instant scan support */}
-      <form onSubmit={onBarcodeSubmit} className="flex-1 max-w-xs sm:max-w-md flex items-center gap-1.5 mx-1 sm:mx-2">
-        <div className="relative w-full flex items-center">
-          <ScanBarcode className="w-4 h-4 text-emerald-700 absolute right-2.5 pointer-events-none" />
-          <input
-            ref={resolvedRef}
-            type="text"
-            value={barcodeInput}
-            onChange={(e) => setBarcodeInput(e.target.value)}
-            placeholder="امسح الباركود أو أدخله يدوياً..."
-            autoComplete="off"
-            data-purpose="barcode-input"
-            className="w-full h-7 sm:h-8 pr-8 pl-12 text-xs bg-white/95 border border-[#96b89b] focus:border-emerald-600 rounded-md focus:outline-hidden text-slate-900 font-mono shadow-inner transition-colors"
-          />
-          {barcodeInput ? (
-            <button
-              type="button"
-              onClick={() => setBarcodeInput('')}
-              className="absolute left-7 w-4 h-4 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 flex items-center justify-center text-[10px] cursor-pointer"
-              title="مسح الحقل"
-            >
-              ✕
-            </button>
-          ) : null}
-          <span className="absolute left-1.5 text-[9px] sm:text-[10px] font-mono bg-emerald-100 text-emerald-800 border border-emerald-300 px-1 py-0.5 rounded pointer-events-none">
-            F3
-          </span>
-        </div>
-      </form>
+      {/* Center: Barcode Input with instant scan support & Scale button */}
+      <div className="flex-1 max-w-xs sm:max-w-md flex items-center gap-1.5 mx-1 sm:mx-2">
+        <form onSubmit={onBarcodeSubmit} className="flex-1 flex items-center">
+          <div className="relative w-full flex items-center">
+            <ScanBarcode className="w-4 h-4 text-emerald-700 absolute right-2.5 pointer-events-none" />
+            <input
+              ref={resolvedRef}
+              type="text"
+              value={barcodeInput}
+              onChange={(e) => setBarcodeInput(e.target.value)}
+              placeholder="امسح الباركود أو أدخله يدوياً..."
+              autoComplete="off"
+              data-purpose="barcode-input"
+              className="w-full h-7 sm:h-8 pr-8 pl-12 text-xs bg-white/95 border border-[#96b89b] focus:border-emerald-600 rounded-md focus:outline-hidden text-slate-900 font-mono shadow-inner transition-colors"
+            />
+            {barcodeInput ? (
+              <button
+                type="button"
+                onClick={() => setBarcodeInput('')}
+                className="absolute left-7 w-4 h-4 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 flex items-center justify-center text-[10px] cursor-pointer"
+                title="مسح الحقل"
+              >
+                ✕
+              </button>
+            ) : null}
+            <span className="absolute left-1.5 text-[9px] sm:text-[10px] font-mono bg-emerald-100 text-emerald-800 border border-emerald-300 px-1 py-0.5 rounded pointer-events-none">
+              F3
+            </span>
+          </div>
+        </form>
+        {onReadScale && (
+          <button
+            type="button"
+            onClick={onReadScale}
+            title="قراءة الوزن من الميزان الذكي (RS232/Serial)"
+            className="h-7 sm:h-8 px-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md font-bold text-[10px] sm:text-xs flex items-center gap-1 shrink-0 cursor-pointer shadow-xs transition-colors"
+          >
+            <Scale className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">وزن</span>
+          </button>
+        )}
+      </div>
 
       {/* Left side in RTL: سعر الوحدة + اسم المنتوج النشط */}
       <div className="flex items-center gap-1.5 sm:gap-2.5 overflow-hidden">

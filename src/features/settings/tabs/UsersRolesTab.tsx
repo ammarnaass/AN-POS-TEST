@@ -5,48 +5,75 @@ import {
   KeyRound, Lock, CheckCircle2, ShieldCheck, AlertCircle, Sparkles, UserCheck
 } from 'lucide-react';
 import { PERMISSION_LABELS } from '../constants/permissionGroups';
+import {
+  useUsersAndRoles,
+  ACTION_LABELS as defaultActionLabels,
+  SYSTEM_ROLE_INFO as defaultSystemRoleInfo,
+} from '../hooks/useUsersAndRoles';
+import { useSystemSettings } from '../hooks/useSystemSettings';
+import UserFormModal from '../modals/UserFormModal';
+import ResetPasswordModal from '../modals/ResetPasswordModal';
+import RoleFormModal from '../modals/RoleFormModal';
+import RoleDetailsModal from '../modals/RoleDetailsModal';
 
 interface UsersRolesTabProps {
   [key: string]: any;
 }
 
-export default function UsersRolesTab({
-  ACTION_LABELS,
-  SYSTEM_ROLE_INFO,
-  actActionFilter,
-  actUserFilter,
-  currentUser,
-  deleteUserMutation,
-  filteredActivities,
-  filteredUsers,
-  getRoleUsers,
-  handleSaveSettings,
-  openAddRole,
-  openEditRole,
-  removeRole,
-  roles,
-  setActActionFilter,
-  setActUserFilter,
-  setEditingUser,
-  setNewPassword,
-  setShowResetPassword,
-  setShowUserForm,
-  settings,
-  setUserForm,
-  setUserSearch,
-  setUserStatusFilter,
-  setUserSubTab,
-  setViewingRoleDetails,
-  toggleStatusMutation,
-  uniqueActions,
-  userName,
-  userSearch,
-  userStatusFilter,
-  userSubTab,
-  users
-}: UsersRolesTabProps) {
+export default function UsersRolesTab(props: UsersRolesTabProps) {
+  const hookData = useUsersAndRoles();
+  const { settings: hookSettings, handleSaveSettings: hookSaveSettings } = useSystemSettings();
+
+  const ACTION_LABELS = props.ACTION_LABELS || defaultActionLabels;
+  const SYSTEM_ROLE_INFO = props.SYSTEM_ROLE_INFO || defaultSystemRoleInfo;
+  const actActionFilter = props.actActionFilter !== undefined ? props.actActionFilter : hookData.actActionFilter;
+  const actUserFilter = props.actUserFilter !== undefined ? props.actUserFilter : hookData.actUserFilter;
+  const currentUser = props.currentUser || hookData.currentUser;
+  const deleteUserMutation = props.deleteUserMutation || hookData.deleteUserMutation;
+  const filteredActivities = props.filteredActivities || hookData.filteredActivities;
+  const filteredUsers = props.filteredUsers || hookData.filteredUsers;
+  const getRoleUsers = props.getRoleUsers || hookData.getRoleUsers;
+  const handleSaveSettings = props.handleSaveSettings || hookSaveSettings;
+  const openAddRole = props.openAddRole || hookData.openAddRole;
+  const openEditRole = props.openEditRole || hookData.openEditRole;
+  const removeRole = props.removeRole || hookData.removeRole;
+  const roles = props.roles || hookData.roles;
+  const setActActionFilter = props.setActActionFilter || hookData.setActActionFilter;
+  const setActUserFilter = props.setActUserFilter || hookData.setActUserFilter;
+  const setEditingUser = props.setEditingUser || hookData.setEditingUser;
+  const setNewPassword = props.setNewPassword || hookData.setNewPassword;
+  const setShowResetPassword = props.setShowResetPassword || hookData.setShowResetPassword;
+  const setShowUserForm = props.setShowUserForm || hookData.setShowUserForm;
+  const settings = props.settings || hookSettings;
+  const setUserForm = props.setUserForm || hookData.setUserForm;
+  const setUserSearch = props.setUserSearch || hookData.setUserSearch;
+  const setUserStatusFilter = props.setUserStatusFilter || hookData.setUserStatusFilter;
+  const setUserSubTab = props.setUserSubTab || hookData.setUserSubTab;
+  const setViewingRoleDetails = props.setViewingRoleDetails || hookData.setViewingRoleDetails;
+  const toggleStatusMutation = props.toggleStatusMutation || hookData.toggleStatusMutation;
+  const uniqueActions = props.uniqueActions || hookData.uniqueActions;
+  const userName = props.userName || hookData.userName;
+  const userSearch = props.userSearch !== undefined ? props.userSearch : hookData.userSearch;
+  const userStatusFilter = props.userStatusFilter || hookData.userStatusFilter;
+  const userSubTab = props.userSubTab || hookData.userSubTab;
+  const handleAddUser = props.handleAddUser || hookData.handleAddUser;
+  const handleResetPassword = props.handleResetPassword || hookData.handleResetPassword;
+  const submitRole = props.submitRole || hookData.submitRole;
+  const togglePermission = props.togglePermission || hookData.togglePermission;
+  const editingUser = props.editingUser !== undefined ? props.editingUser : hookData.editingUser;
+  const userForm = props.userForm || hookData.userForm;
+  const showUserForm = props.showUserForm !== undefined ? props.showUserForm : hookData.showUserForm;
+  const showResetPassword = props.showResetPassword !== undefined ? props.showResetPassword : hookData.showResetPassword;
+  const newPassword = props.newPassword !== undefined ? props.newPassword : hookData.newPassword;
+  const showRoleForm = props.showRoleForm !== undefined ? props.showRoleForm : hookData.showRoleForm;
+  const editingRole = props.editingRole !== undefined ? props.editingRole : hookData.editingRole;
+  const roleForm = props.roleForm || hookData.roleForm;
+  const setRoleForm = props.setRoleForm || hookData.setRoleForm;
+  const viewingRoleDetails = props.viewingRoleDetails !== undefined ? props.viewingRoleDetails : hookData.viewingRoleDetails;
+
   return (
     <div className="bg-surface-container-low rounded-3xl border border-outline-variant/20 p-6 shadow-sm space-y-6">
+
             {/* رأس القسم */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-outline-variant/15">
               <div className="flex items-center gap-3.5">
@@ -731,6 +758,52 @@ export default function UsersRolesTab({
                 </div>
               </div>
             )}
+
+      {/* Modals for Users and Roles */}
+      <UserFormModal
+        isOpen={showUserForm}
+        onClose={() => {
+          setShowUserForm(false);
+          setEditingUser(null);
+        }}
+        onSubmit={handleAddUser}
+        editingUser={editingUser}
+        userForm={userForm}
+        setUserForm={setUserForm}
+        roles={roles}
+      />
+
+      <ResetPasswordModal
+        isOpen={Boolean(showResetPassword)}
+        onClose={() => {
+          setShowResetPassword(null);
+          setNewPassword('');
+        }}
+        onSubmit={() => handleResetPassword(showResetPassword!)}
+        newPassword={newPassword}
+        setNewPassword={setNewPassword}
+      />
+
+      <RoleFormModal
+        isOpen={showRoleForm}
+        onClose={() => {
+          setShowRoleForm(false);
+          setEditingRole(null);
+        }}
+        onSubmit={submitRole}
+        editingRole={editingRole}
+        roleForm={roleForm}
+        setRoleForm={setRoleForm}
+        togglePermission={togglePermission}
+      />
+
+      <RoleDetailsModal
+        role={viewingRoleDetails}
+        onClose={() => setViewingRoleDetails(null)}
+        getRoleUsers={getRoleUsers}
+        systemRoleInfo={SYSTEM_ROLE_INFO}
+      />
     </div>
   );
 }
+

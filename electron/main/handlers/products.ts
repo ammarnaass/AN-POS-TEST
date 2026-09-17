@@ -292,15 +292,20 @@ export async function createProduct(
     return { data: null, error: { status: 422, detail: 'اسم المنتج مطلوب' } };
   }
 
+  const id = (data.id as string) || randomUUID();
   const barcode = String(data.barcode || '').trim();
   if (barcode) {
     const existing = queryOne('SELECT id FROM products WHERE barcode = ?', [barcode]);
-    if (existing) {
+    if (existing && existing.id !== id) {
       return { data: null, error: { status: 409, detail: 'الباركود مسجل مسبقاً لمنتج آخر' } };
     }
   }
 
-  const id = (data.id as string) || randomUUID();
+  const existingById = queryOne('SELECT id FROM products WHERE id = ?', [id]);
+  if (existingById) {
+    return updateProduct(id, data);
+  }
+
   const now = new Date().toISOString();
   const norm = normalizeProductForDB(data);
 

@@ -1,6 +1,7 @@
 import React from 'react';
 import type { CartItem } from '@/types';
 import { Plus, Minus, Trash2, Edit3 } from 'lucide-react';
+import { getProductTierPrice } from '@/services';
 import { getCartRowKey } from '../utils/cartRow';
 
 interface Design7BasketTableProps {
@@ -11,6 +12,10 @@ interface Design7BasketTableProps {
   onRemoveFromCart: (productId: string) => void;
   formatMoney: (amount?: number | null) => string;
   onOpenItemEdit?: (item: CartItem, mode?: 'qty' | 'price') => void;
+  priceTier?: '1' | '2' | '3' | '4';
+  products?: any[];
+  allProducts?: any[];
+  onEditPrice?: (productId: string, price: number) => void;
 }
 
 export const Design7BasketTable: React.FC<Design7BasketTableProps> = ({
@@ -21,6 +26,10 @@ export const Design7BasketTable: React.FC<Design7BasketTableProps> = ({
   onRemoveFromCart,
   formatMoney,
   onOpenItemEdit,
+  priceTier = '1',
+  products = [],
+  allProducts = [],
+  onEditPrice,
 }) => {
   return (
     <main
@@ -104,14 +113,99 @@ export const Design7BasketTable: React.FC<Design7BasketTableProps> = ({
                         isSelected ? 'border-[#bdd0e3] font-bold text-slate-950' : 'border-slate-200'
                       }`}
                     >
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="truncate">{name}</span>
+                      <div className="flex items-center justify-between gap-1 flex-wrap">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="truncate">{name}</span>
+                          {item.isPack && (
+                            <span
+                              className={`text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 border ${
+                                item.packMode === 'wholesale_packs'
+                                  ? 'bg-purple-100 text-purple-800 border-purple-200'
+                                  : 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                              }`}
+                            >
+                              {item.packMode === 'wholesale_packs'
+                                ? `عبوة جملة (${item.packUnit || 'طرد'})`
+                                : `عبوة تجزئة (${item.packPiecesCount || qty} قطع)`}
+                            </span>
+                          )}
+                        </div>
                         {item.unit && (
                           <span className="text-[10px] text-slate-500 font-normal bg-slate-100 px-1 rounded">
                             {item.unit}
                           </span>
                         )}
                       </div>
+
+                      {/* إمكانية تبديل فئة السعر للصنف المحدد عند تحديده */}
+                      {isSelected && !item.isPack && onEditPrice && (
+                        <div className="flex items-center gap-1 mt-1 flex-wrap" onClick={(e) => e.stopPropagation()}>
+                          <span className="text-[10px] text-slate-500 font-normal">تبديل السعر:</span>
+                          {(() => {
+                            const productList = allProducts && allProducts.length > 0 ? allProducts : products;
+                            const prod = productList.find(
+                              (p: any) => p.id === item.productId || (item.barcode && p.barcode === item.barcode)
+                            );
+                            if (!prod) return null;
+                            const p1 = getProductTierPrice(prod, '1');
+                            const p2 = getProductTierPrice(prod, '2');
+                            const p3 = getProductTierPrice(prod, '3');
+                            const p4 = getProductTierPrice(prod, '4');
+                            return (
+                              <div className="flex items-center gap-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => onEditPrice(item.productId, p1)}
+                                  className={`px-1.5 py-0.2 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
+                                    item.unitPrice === p1
+                                      ? 'bg-sky-600 text-white'
+                                      : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                                  }`}
+                                  title={`سعر تجزئة س1: ${formatMoney(p1)}`}
+                                >
+                                  س1
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onEditPrice(item.productId, p2)}
+                                  className={`px-1.5 py-0.2 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
+                                    item.unitPrice === p2
+                                      ? 'bg-amber-600 text-white'
+                                      : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                                  }`}
+                                  title={`سعر نصف جملة س2: ${formatMoney(p2)}`}
+                                >
+                                  س2
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onEditPrice(item.productId, p3)}
+                                  className={`px-1.5 py-0.2 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
+                                    item.unitPrice === p3
+                                      ? 'bg-purple-600 text-white'
+                                      : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                                  }`}
+                                  title={`سعر جملة س3: ${formatMoney(p3)}`}
+                                >
+                                  س3
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onEditPrice(item.productId, p4)}
+                                  className={`px-1.5 py-0.2 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
+                                    item.unitPrice === p4
+                                      ? 'bg-indigo-600 text-white'
+                                      : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                                  }`}
+                                  title={`سعر خاص س4: ${formatMoney(p4)}`}
+                                >
+                                  س4
+                                </button>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
                     </td>
 
                     {/* سعر الوحدة */}
@@ -143,7 +237,7 @@ export const Design7BasketTable: React.FC<Design7BasketTableProps> = ({
                             onUpdateQty(effectiveProductId, qty + 1);
                           }}
                           className="w-5 h-5 rounded bg-slate-200 hover:bg-slate-300 active:bg-slate-400 text-slate-700 flex items-center justify-center font-bold text-xs cursor-pointer"
-                          title="زيادة الكمية"
+                          title={item.isPack && item.packMode === 'wholesale_packs' ? 'زيادة عدد العبوات' : 'زيادة الكمية'}
                         >
                           <Plus className="w-3 h-3 stroke-[3]" />
                         </button>
@@ -173,11 +267,25 @@ export const Design7BasketTable: React.FC<Design7BasketTableProps> = ({
                             }
                           }}
                           className="w-5 h-5 rounded bg-slate-200 hover:bg-slate-300 active:bg-slate-400 text-slate-700 flex items-center justify-center font-bold text-xs cursor-pointer"
-                          title="إنقاص الكمية"
+                          title={item.isPack && item.packMode === 'wholesale_packs' ? 'تقليل عدد العبوات' : 'إنقاص الكمية'}
                         >
                           <Minus className="w-3 h-3 stroke-[3]" />
                         </button>
                       </div>
+
+                      {/* تفصيل العبوات vs قطع التجزئة */}
+                      {item.isPack && item.packMode === 'wholesale_packs' ? (
+                        <div className="text-[10px] font-mono font-bold text-purple-700 leading-tight mt-0.5">
+                          <span>{qty} {item.packUnit || 'عبوة'}</span>
+                          <span className="text-[9px] text-slate-500 font-normal mr-1">
+                            (×{item.packPiecesCount || 1} قطع = {qty * (item.packPiecesCount || 1)} قطعة)
+                          </span>
+                        </div>
+                      ) : item.isPack ? (
+                        <div className="text-[9px] font-bold text-emerald-700 mt-0.5">
+                          {qty} قطعة (تجزئة)
+                        </div>
+                      ) : null}
                     </td>
 
                     {/* المبلغ */}

@@ -31,10 +31,41 @@ export async function getAvailablePrinters(): Promise<Electron.PrinterInfo[]> {
   }
 }
 
-/**
- * تنفيذ طباعة صامتة عبر نافذة Electron خفية
- */
-export function executeSilentPrint(
+interface PrintJob {
+  html: string;
+  options: SilentPrintOptions;
+  resolve: (val: { success: boolean; error?: string; queued?: boolean }) => void;
+}
+
+const printQueue: PrintJob[] = [];
+let isProcessingQueue = false;
+
+async function processNextPrintJob(): Promise<void> {
+  if (isProcessingQueue || printQueue.length === 0) return;
+  isProcessingQueue = true;
+
+  const job = printQueue.shift();
+  if (!job) {
+    isProcessingQueue = false;
+    return;
+  }
+
+  try {
+    const res = await renderAndPrintWindow(job.html, job.options);
+    job.resolve(res);
+  } catch (err: any) {
+    job.resolve({ success: false, error: err?.message || 'خطأ غير متوقع في طابور الطباعة' });
+  } finally {
+    isProcessingQueue = false;
+    if (printQueue.length > 0) {
+      setTimeout(() => {
+        processNextPrintJob().catch(() => {});
+      }, 100);
+    }
+  }
+}
+
+function renderAndPrintWindow(
   html: string,
   options: SilentPrintOptions = {}
 ): Promise<{ success: boolean; error?: string }> {
@@ -69,7 +100,7 @@ export function executeSilentPrint(
 
     // مهلة أمان قصوى (15 ثانية) لمنع تسريب النوافذ الخفية
     timeoutId = setTimeout(() => {
-      console.warn('[print] مهلة الطباعة انتهت (Timeout)');
+      console.warn('[print] مهلة أمر الطباعة انتهت (Timeout)');
       cleanup();
       resolve({ success: false, error: 'مهلة أمر الطباعة انتهت (Timeout)' });
     }, 15000);
@@ -110,6 +141,19 @@ export function executeSilentPrint(
 
     // تحميل محتوى الـ HTML المشفر
     printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+  });
+}
+
+/**
+ * تنفيذ طباعة صامتة عبر رتل خلفي غير متزامن (Background Spooling)
+ */
+export function executeSilentPrint(
+  html: string,
+  options: SilentPrintOptions = {}
+): Promise<{ success: boolean; error?: string; queued?: boolean }> {
+  return new Promise((resolve) => {
+    printQueue.push({ html, options, resolve });
+    processNextPrintJob().catch(() => {});
   });
 }
 
