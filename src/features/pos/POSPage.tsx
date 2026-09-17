@@ -724,6 +724,7 @@ export default function POSPage() {
             }}
             onSelectPriceTier={handleSelectPriceTier}
             isWholesaleActive={isWholesaleActive}
+            currentPriceTier={priceTier}
             onOpenShortcuts={() => modals.setShowShortcutsModal(true)}
             onOpenFilters={() => modals.setShowFiltersModal(true)}
             activeFiltersCount={activeFiltersCount}

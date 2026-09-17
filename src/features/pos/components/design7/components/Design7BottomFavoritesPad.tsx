@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Star, Package, Plus } from 'lucide-react';
 import type { Product, Category } from '@/types';
+import { getProductTierPrice } from '@/services';
 
 export interface FavoritePackItem {
   id: string;
@@ -29,6 +30,7 @@ export interface Design7BottomFavoritesPadProps {
   selectedCategory?: string;
   onSelectCategory?: (catId: string) => void;
   products?: Product[];
+  priceTier?: '1' | '2' | '3' | '4';
 }
 
 export const Design7BottomFavoritesPad: React.FC<Design7BottomFavoritesPadProps> = ({
@@ -46,6 +48,7 @@ export const Design7BottomFavoritesPad: React.FC<Design7BottomFavoritesPadProps>
   selectedCategory,
   onSelectCategory,
   products = [],
+  priceTier = '1',
 }) => {
   // Check if we have dedicated favorite categories
   const hasFavoriteCategories = favoriteCategories.length > 0;
@@ -272,6 +275,17 @@ export const Design7BottomFavoritesPad: React.FC<Design7BottomFavoritesPadProps>
             const pack = activePacksList[slotIdx];
 
             if (pack) {
+              const displayPrice = (() => {
+                if (pack.isPack === false) {
+                  const prod = products.find((p) => String(p.id) === String(pack.itemId || pack.id));
+                  if (prod) {
+                    const tp = getProductTierPrice(prod, priceTier);
+                    if (tp > 0) return tp;
+                  }
+                }
+                return pack.price;
+              })();
+
               return (
                 <button
                   key={pack.id || slotIdx}
@@ -280,10 +294,10 @@ export const Design7BottomFavoritesPad: React.FC<Design7BottomFavoritesPadProps>
                     if (onSelectFavoritePack) {
                       onSelectFavoritePack(pack);
                     } else {
-                      onAddToCart(pack as any, pack.price);
+                      onAddToCart(pack as any, pack.isPack === false ? undefined : pack.price);
                     }
                   }}
-                  title={`${pack.name} - ${formatMoney(pack.price)} (عبوة)`}
+                  title={`${pack.name} - ${formatMoney(displayPrice)} (${pack.isPack === false ? 'سلعة' : 'عبوة'})`}
                   className="d7-glossy-product-tile rounded p-1 flex flex-col justify-between items-center text-center cursor-pointer overflow-hidden group active:scale-95 transition-all shadow-2xs hover:shadow-xs min-h-[38px]"
                 >
                   {/* Pack Name: 2 lines with clear bold typography */}
@@ -305,7 +319,7 @@ export const Design7BottomFavoritesPad: React.FC<Design7BottomFavoritesPadProps>
                       </span>
                     )}
                     <span className="text-[10px] sm:text-[11px] font-black text-amber-800 font-mono bg-amber-100/90 px-1.5 py-0.2 rounded border border-amber-300/80 shadow-2xs shrink-0">
-                      {formatMoney(pack.price)}
+                      {formatMoney(displayPrice)}
                     </span>
                   </div>
                 </button>

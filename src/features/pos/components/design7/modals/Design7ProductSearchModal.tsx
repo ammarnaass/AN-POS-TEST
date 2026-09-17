@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Search, X, Package, Plus, Check } from 'lucide-react';
 import type { Product, Category } from '@/types';
+import { getProductTierPrice } from '@/services';
 
 export interface Design7ProductSearchModalProps {
   isOpen: boolean;
@@ -9,6 +10,7 @@ export interface Design7ProductSearchModalProps {
   onSelectProduct: (product: Product) => void;
   formatMoney: (val?: number | null) => string;
   categories?: (Category | { id: string; name: string } | string)[];
+  priceTier?: '1' | '2' | '3' | '4';
 }
 
 export const Design7ProductSearchModal: React.FC<Design7ProductSearchModalProps> = ({
@@ -18,6 +20,7 @@ export const Design7ProductSearchModal: React.FC<Design7ProductSearchModalProps>
   onSelectProduct,
   formatMoney,
   categories = [],
+  priceTier = '1',
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCat, setSelectedCat] = useState<string>('ALL');
@@ -91,6 +94,19 @@ export const Design7ProductSearchModal: React.FC<Design7ProductSearchModalProps>
                 <span>بحث واستعراض السلع والمواد</span>
                 <span className="text-[10px] font-mono bg-teal-100 text-teal-800 border border-teal-300 px-1.5 py-0.5 rounded">
                   F10
+                </span>
+                <span
+                  className={`text-[10px] font-bold border px-1.5 py-0.5 rounded ${
+                    priceTier === '3'
+                      ? 'bg-purple-100 text-purple-800 border-purple-300'
+                      : priceTier === '2'
+                      ? 'bg-amber-100 text-amber-800 border-amber-300'
+                      : priceTier === '4'
+                      ? 'bg-blue-100 text-blue-800 border-blue-300'
+                      : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                  }`}
+                >
+                  فئة السعر: س{priceTier} ({priceTier === '3' ? 'جملة' : priceTier === '2' ? 'نصف جملة' : priceTier === '4' ? 'خاص' : 'تجزئة'})
                 </span>
               </h3>
               <p className="text-[11px] text-slate-600">
@@ -173,7 +189,7 @@ export const Design7ProductSearchModal: React.FC<Design7ProductSearchModalProps>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
               {filteredProducts.map((p) => {
                 const isRecentlyAdded = addedId === p.id;
-                const price = p.price || (p as any).salePrice || p.retailPrice || 0;
+                const price = getProductTierPrice(p, priceTier || '1');
                 const stock = p.quantity ?? 0;
 
                 return (

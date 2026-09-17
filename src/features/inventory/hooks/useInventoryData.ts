@@ -70,25 +70,47 @@ export function useInventoryData() {
   const addMutation = useMutation({
     mutationFn: async (data: Omit<Product, 'id'>) => {
       const newProduct = {
-        id: generateId(),
+        id: (data as any).id || generateId(),
         ...data,
-        status: 'active' as const,
+        status: (data.status || 'active') as const,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
       await db.products.add(newProduct as any);
       return newProduct;
     },
-    onSuccess: (newProduct) => {
+    onMutate: async (newProductData) => {
+      await queryClient.cancelQueries({ queryKey: ['products'] });
+      const previousProducts = queryClient.getQueryData<Product[]>(['products']) || [];
+      const tempId = (newProductData as any).id || generateId();
+      const optimisticProduct: Product = {
+        id: tempId,
+        ...newProductData,
+        status: (newProductData.status || 'active') as const,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      } as Product;
+
+      // إضافة آنية وفورية (0ms) إلى الكاش
+      queryClient.setQueryData<Product[]>(['products'], (old = []) => [optimisticProduct, ...old]);
+      return { previousProducts, optimisticProduct };
+    },
+    onSuccess: (savedProduct, _vars, context) => {
+      queryClient.setQueryData<Product[]>(['products'], (old = []) =>
+        old.map((p) => (p.id === context?.optimisticProduct?.id ? savedProduct : p))
+      );
       queryClient.invalidateQueries({ queryKey: ['products'] });
       useNotificationStore.getState().addNotification({
         title: 'تمت إضافة المنتج بنجاح',
-        message: `تم تسجيل الصنف "${newProduct.name}" بنجاح في المخزون.`,
+        message: `تم تسجيل الصنف "${savedProduct.name}" بنجاح في المخزون.`,
         type: 'success',
         category: 'inventory',
       });
     },
-    onError: (err: any) => {
+    onError: (err: any, _vars, context) => {
+      if (context?.previousProducts) {
+        queryClient.setQueryData(['products'], context.previousProducts);
+      }
       useNotificationStore.getState().addNotification({
         title: 'فشل إضافة المنتج',
         message: err?.message || 'حدث خطأ أثناء حفظ المنتج.',
@@ -102,7 +124,17 @@ export function useInventoryData() {
     mutationFn: async ({ id, data }: { id: string; data: Partial<Product> }) => {
       const changes = { ...data, updatedAt: new Date().toISOString() };
       await db.products.update(id, changes as any);
-      return changes;
+      return { id, changes };
+    },
+    onMutate: async ({ id, data }) => {
+      await queryClient.cancelQueries({ queryKey: ['products'] });
+      const previousProducts = queryClient.getQueryData<Product[]>(['products']) || [];
+
+      // تحديث آني وفوري (0ms) في الكاش
+      queryClient.setQueryData<Product[]>(['products'], (old = []) =>
+        old.map((p) => (p.id === id ? { ...p, ...data, updatedAt: new Date().toISOString() } : p))
+      );
+      return { previousProducts };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
@@ -113,7 +145,10 @@ export function useInventoryData() {
         category: 'inventory',
       });
     },
-    onError: (err: any) => {
+    onError: (err: any, _vars, context) => {
+      if (context?.previousProducts) {
+        queryClient.setQueryData(['products'], context.previousProducts);
+      }
       useNotificationStore.getState().addNotification({
         title: 'فشل تحديث المنتج',
         message: err?.message || 'حدث خطأ أثناء تعديل بيانات المنتج.',
@@ -128,6 +163,16 @@ export function useInventoryData() {
       await db.products.delete(id);
       return id;
     },
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['products'] });
+      const previousProducts = queryClient.getQueryData<Product[]>(['products']) || [];
+
+      // إزالة آنية ولحظية (0ms) للصنف من الكاش قبل انتظار الخادم/القرص
+      queryClient.setQueryData<Product[]>(['products'], (old = []) =>
+        old.filter((p) => p.id !== id)
+      );
+      return { previousProducts };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       useNotificationStore.getState().addNotification({
@@ -137,7 +182,10 @@ export function useInventoryData() {
         category: 'inventory',
       });
     },
-    onError: (err: any) => {
+    onError: (err: any, _vars, context) => {
+      if (context?.previousProducts) {
+        queryClient.setQueryData(['products'], context.previousProducts);
+      }
       useNotificationStore.getState().addNotification({
         title: 'فشل حذف المنتج',
         message: err?.message || 'تعذر حذف المنتج من قاعدة البيانات.',
@@ -159,6 +207,19 @@ export function useInventoryData() {
       await db.products.bulkAdd(prepared as any);
       return prepared;
     },
+    onMutate: async (importedProducts) => {
+      await queryClient.cancelQueries({ queryKey: ['products'] });
+      const previousProducts = queryClient.getQueryData<Product[]>(['products']) || [];
+      const now = new Date().toISOString();
+      const prepared = importedProducts.map((p) => ({
+        ...p,
+        id: p.id || generateId(),
+        createdAt: p.createdAt || now,
+        updatedAt: now,
+      }));
+      queryClient.setQueryData<Product[]>(['products'], (old = []) => [...prepared, ...old]);
+      return { previousProducts };
+    },
     onSuccess: (imported) => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       useNotificationStore.getState().addNotification({
@@ -168,7 +229,10 @@ export function useInventoryData() {
         category: 'inventory',
       });
     },
-    onError: (err: any) => {
+    onError: (err: any, _vars, context) => {
+      if (context?.previousProducts) {
+        queryClient.setQueryData(['products'], context.previousProducts);
+      }
       useNotificationStore.getState().addNotification({
         title: 'فشل استيراد المنتجات',
         message: err?.message || 'حدث خطأ أثناء استيراد ملف المنتجات.',

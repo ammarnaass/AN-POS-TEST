@@ -433,6 +433,24 @@ startxref
       // Check total sum (62,233.52 DZD)
       expect(result.invoice.totalAmount).toBe(62233.52);
     });
+
+    it('returns empty invoice with helpful ocrWarning when no image/template matches', async () => {
+      const dummyBuffer = new Uint8Array([37, 80, 68, 70, 45, 49, 46, 52]); // %PDF-1.4
+      const progressSteps: string[] = [];
+      const result = await parseScannedSupplierInvoice(
+        dummyBuffer,
+        'unknown_scanned_doc.pdf',
+        [],
+        [],
+        25,
+        (msg) => progressSteps.push(msg)
+      );
+
+      expect(result.invoice.items).toEqual([]);
+      expect(result.ocrWarning).toBeDefined();
+      expect(result.ocrWarning).toContain('لم يُستخرج أي نص');
+      expect(progressSteps.length).toBeGreaterThan(0);
+    });
   });
 });
 

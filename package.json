@@ -79,6 +79,7 @@
     "react-hook-form": "^7.80.0",
     "react-router-dom": "^7.18.0",
     "recharts": "^3.9.0",
+    "tesseract.js": "^7.0.0",
     "uuid": "^14.0.1",
     "xlsx": "^0.18.5",
     "zod": "^4.4.3",

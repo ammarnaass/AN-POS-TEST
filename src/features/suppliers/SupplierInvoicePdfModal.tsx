@@ -64,8 +64,10 @@ export default function SupplierInvoicePdfModal({
   const [activeTab, setActiveTab] = useState<'upload' | 'paste'>('upload');
   const [pasteText, setPasteText] = useState('');
   const [isParsing, setIsParsing] = useState(false);
+  const [parsingProgress, setParsingProgress] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [ocrWarning, setOcrWarning] = useState<string | null>(null);
 
   // Parsed invoice state
   const [invoiceMetadata, setInvoiceMetadata] = useState<ParsedSupplierInvoice | null>(null);
@@ -115,6 +117,8 @@ export default function SupplierInvoicePdfModal({
     }
 
     setErrorMsg(null);
+    setOcrWarning(null);
+    setParsingProgress('');
     setIsParsing(true);
 
     try {
@@ -123,6 +127,7 @@ export default function SupplierInvoicePdfModal({
         matchedItems: MatchedInvoiceItem[];
         matchedSupplierId?: string;
         documentImageUrl?: string | null;
+        ocrWarning?: string;
       };
 
       if (isExcel) {
@@ -138,20 +143,26 @@ export default function SupplierInvoicePdfModal({
           file.name,
           products,
           suppliers,
-          defaultMargin
+          defaultMargin,
+          (msg) => setParsingProgress(msg)
         );
       } else {
         result = await parsePdfSupplierInvoice(
           file,
           products,
           suppliers,
-          defaultMargin
+          defaultMargin,
+          (msg) => setParsingProgress(msg)
         );
       }
 
       if (!result.invoice.items || result.invoice.items.length === 0) {
-        setErrorMsg('لم يتم العثور على جداول أو أسطر سلع واضحة في الملف. يمكنك استخدام تبويب لصق النص.');
+        setErrorMsg(
+          result.ocrWarning ||
+            'لم يتم العثور على جداول أو أسطر سلع واضحة في الملف. يمكنك استخدام تبويب لصق النص.'
+        );
         setIsParsing(false);
+        setParsingProgress('');
         return;
       }
 
@@ -161,6 +172,10 @@ export default function SupplierInvoicePdfModal({
       setInvoiceDate(result.invoice.invoiceDate || new Date().toISOString().slice(0, 10));
       if (result.documentImageUrl || result.invoice.documentImageUrl) {
         setDocumentImageUrl(result.documentImageUrl || result.invoice.documentImageUrl || null);
+      }
+      // عرض تحذير OCR إن وجد
+      if (result.ocrWarning) {
+        setOcrWarning(result.ocrWarning);
       }
 
       if (preselectedSupplierId) {
@@ -175,6 +190,7 @@ export default function SupplierInvoicePdfModal({
       setErrorMsg(err?.message || 'فشل في قراءة ملف الفاتورة. تأكد من سلامة الملف.');
     } finally {
       setIsParsing(false);
+      setParsingProgress('');
       e.target.value = '';
     }
   };
@@ -373,6 +389,10 @@ export default function SupplierInvoicePdfModal({
 
         if (item.isNewProduct || !productId) {
           // إضافة منتج جديد تماماً في المخزون
+          const unitCost = Number(item.unitPrice) || 0;
+          const retPrice = Number(item.retailPrice) > 0 ? Number(item.retailPrice) : Math.round(unitCost * 1.25);
+          const wsPrice = Math.round(unitCost * 1.12);
+          const halfWsPrice = Math.round(unitCost * 1.18);
           productId = generateId();
           const newProduct: Product = {
             id: productId,
@@ -381,12 +401,16 @@ export default function SupplierInvoicePdfModal({
             sku: item.code || '',
             category: item.category || 'عام',
             unit: item.unit || 'قطعة',
-            costPrice: Number(item.unitPrice) || 0,
-            wholesalePrice: Number(item.unitPrice) || 0,
-            retailPrice: Number(item.retailPrice) || 0,
+            costPrice: unitCost,
+            wholesalePrice: wsPrice > unitCost ? wsPrice : unitCost + 1,
+            retailPrice: retPrice,
+            salePrice1: retPrice,
+            salePrice2: halfWsPrice > wsPrice ? halfWsPrice : wsPrice + 1,
+            salePrice3: wsPrice > unitCost ? wsPrice : unitCost + 1,
+            invoicePrice: unitCost,
             quantity: Number(item.qty) || 0,
             lowStockThreshold: 5,
-            wholesaleMinQty: 1,
+            wholesaleMinQty: 10,
             status: 'active',
             createdAt: now,
             updatedAt: now,
@@ -562,6 +586,16 @@ export default function SupplierInvoicePdfModal({
             </div>
           )}
 
+          {ocrWarning && !errorMsg && (
+            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
+              <div>
+                <p className="font-bold mb-0.5">⚠️ تحذير جودة OCR</p>
+                <p>{ocrWarning}</p>
+              </div>
+            </div>
+          )}
+
           {/* المرحلة 1: رفع الملف أو اللصق (إذا لم يتم استخراج بنود بعد) */}
           {items.length === 0 ? (
             <div className="space-y-4">
@@ -569,7 +603,7 @@ export default function SupplierInvoicePdfModal({
               <div className="flex items-center gap-2 border-b border-outline-variant/20 pb-2">
                 <button
                   type="button"
-                  onClick={() => { setActiveTab('upload'); setErrorMsg(null); }}
+                  onClick={() => { setActiveTab('upload'); setErrorMsg(null); setOcrWarning(null); }}
                   className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                     activeTab === 'upload'
                       ? 'bg-primary text-on-primary shadow-xs'
@@ -582,7 +616,7 @@ export default function SupplierInvoicePdfModal({
 
                 <button
                   type="button"
-                  onClick={() => { setActiveTab('paste'); setErrorMsg(null); }}
+                  onClick={() => { setActiveTab('paste'); setErrorMsg(null); setOcrWarning(null); }}
                   className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                     activeTab === 'paste'
                       ? 'bg-primary text-on-primary shadow-xs'
@@ -619,7 +653,7 @@ export default function SupplierInvoicePdfModal({
                       </div>
                     </div>
                     <h3 className="text-base font-bold text-on-surface mb-1">
-                      {isParsing ? 'جاري قراءة واستخراج بنود الفاتورة...' : 'انقر لاختيار ملف فاتورة المورد (PDF أو صورة أو إكسل)'}
+                      {isParsing ? (parsingProgress || 'جاري قراءة واستخراج بنود الفاتورة...') : 'انقر لاختيار ملف فاتورة المورد (PDF أو صورة أو إكسل)'}
                     </h3>
                     <p className="text-xs text-on-surface-variant max-w-lg mx-auto leading-relaxed">
                       يدعم فواتير الشراء والتوريد: ملفات <strong>PDF</strong>، صور الفواتير الممسوحة ضوئياً بـ <strong>CamScanner</strong>، وجداول <strong>Excel (XLSX/CSV)</strong>. يقوم النظام بمطابقة السلع وحساب التعبئة والكوليزاج تلقائياً.
@@ -803,7 +837,13 @@ export default function SupplierInvoicePdfModal({
 
                   <button
                     type="button"
-                    onClick={() => { setItems([]); setInvoiceMetadata(null); setDocumentImageUrl(null); }}
+                    onClick={() => {
+                      setItems([]);
+                      setInvoiceMetadata(null);
+                      setDocumentImageUrl(null);
+                      setOcrWarning(null);
+                      setErrorMsg(null);
+                    }}
                     className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs text-rose-500 hover:bg-rose-500/10 transition-all cursor-pointer font-bold"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />

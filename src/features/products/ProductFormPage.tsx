@@ -146,6 +146,19 @@ export default function ProductFormPage() {
       await db.products.add({ ...record, id: newId } as Product);
       return { ...record, id: newId };
     },
+    onMutate: async (productData) => {
+      await queryClient.cancelQueries({ queryKey: ['products'] });
+      const previousProducts = queryClient.getQueryData<Product[]>(['products']) || [];
+      if (isEdit && id) {
+        queryClient.setQueryData<Product[]>(['products'], (old = []) =>
+          old.map((p) => (p.id === id ? ({ ...p, ...productData, id } as Product) : p))
+        );
+      } else {
+        const optimistic = { ...emptyProduct, ...productData, id: generateId() } as Product;
+        queryClient.setQueryData<Product[]>(['products'], (old = []) => [optimistic, ...old]);
+      }
+      return { previousProducts };
+    },
     onSuccess: (saved) => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       setSavedToast(true);
@@ -162,7 +175,12 @@ export default function ProductFormPage() {
         navigate(`/products/${(saved as Product).id}/edit`, { replace: true });
       }
     },
-    onError: (err: Error) => setFormError(err.message),
+    onError: (err: Error, _vars, context: any) => {
+      if (context?.previousProducts) {
+        queryClient.setQueryData(['products'], context.previousProducts);
+      }
+      setFormError(err.message);
+    },
   });
 
   const handleSubmit = useCallback((e?: React.FormEvent) => {

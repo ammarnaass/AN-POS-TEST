@@ -126,6 +126,11 @@ export const resolveUnitPrice = (
   if (priceTier && priceTier !== '1') {
     return getProductTierPrice(product, priceTier);
   }
+  if (priceTier === '1') {
+    const promoPrice = applyPromotionPrice(product, promotions);
+    if (promoPrice !== null) return promoPrice;
+    return getProductTierPrice(product, '1');
+  }
   if (forceWholesale) {
     const ws = Number(product.salePrice3 || (product as any).sale_price3 || product.wholesalePrice || (product as any).wholesale_price || 0);
     if (ws > 0) return ws;

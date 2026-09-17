@@ -46,16 +46,23 @@ export const Design7ActiveScanStrip: React.FC<Design7ActiveScanStripProps> = ({
         <span className="text-lg sm:text-xl font-black text-amber-700 px-1 sm:px-2 min-w-[28px] text-center font-mono">
           {activeQty}
         </span>
-        <span
-          className={`px-1.5 py-0.5 rounded text-[10px] font-black border shadow-2xs ${
-            priceTier === '3'
-              ? 'bg-purple-100 text-purple-800 border-purple-300'
-              : 'bg-emerald-100 text-emerald-800 border-emerald-300'
-          }`}
-          title={priceTier === '3' ? 'سعر الجملة س3 (فاتورة جملة A4/A5)' : `سعر البيع العادي س${priceTier} (وصل عادي)`}
-        >
-          {priceTier === '3' ? 'س3: فاتورة جملة' : `س${priceTier}: بيع عادي`}
-        </span>
+        {(() => {
+          const tierMeta: Record<'1' | '2' | '3' | '4', { label: string; title: string; style: string }> = {
+            '1': { label: 'س1: بيع عادي', title: 'سعر التجزئة س1 (وصل عادي)', style: 'bg-emerald-100 text-emerald-800 border-emerald-300' },
+            '2': { label: 'س2: نصف جملة', title: 'سعر نصف الجملة س2', style: 'bg-amber-100 text-amber-800 border-amber-300' },
+            '3': { label: 'س3: فاتورة جملة', title: 'سعر الجملة س3 (فاتورة جملة A4/A5)', style: 'bg-purple-100 text-purple-800 border-purple-300' },
+            '4': { label: 'س4: خاص', title: 'سعر خاص / بالفاتورة س4', style: 'bg-blue-100 text-blue-800 border-blue-300' },
+          };
+          const currentTier = tierMeta[priceTier || '1'];
+          return (
+            <span
+              className={`px-1.5 py-0.5 rounded text-[10px] font-black border shadow-2xs ${currentTier.style}`}
+              title={currentTier.title}
+            >
+              {currentTier.label}
+            </span>
+          );
+        })()}
       </div>
 
       {/* Center: Barcode Input with instant scan support & Scale button */}

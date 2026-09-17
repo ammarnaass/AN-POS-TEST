@@ -606,12 +606,15 @@ export async function parsePdfSupplierInvoice(
   fileOrBuffer: File | ArrayBuffer | Uint8Array,
   existingProducts: Product[] = [],
   suppliers: Supplier[] = [],
-  defaultMarginPercent = 25
+  defaultMarginPercent = 25,
+  onProgress?: (msg: string) => void
 ): Promise<{
   invoice: ParsedSupplierInvoice;
   matchedItems: MatchedInvoiceItem[];
   matchedSupplierId?: string;
   documentImageUrl?: string | null;
+  /** تحذير يظهر للمستخدم عند ضعف جودة OCR أو استخدام قالب احتياطي */
+  ocrWarning?: string;
 }> {
   let lines: string[] = [];
   try {
@@ -649,7 +652,8 @@ export async function parsePdfSupplierInvoice(
       fileName,
       existingProducts,
       suppliers,
-      defaultMarginPercent
+      defaultMarginPercent,
+      onProgress
     );
   }
 

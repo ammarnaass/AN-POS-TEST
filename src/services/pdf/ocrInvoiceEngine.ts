@@ -5,6 +5,7 @@ import {
   type ParsedSupplierInvoice,
   type ParsedInvoiceItem,
   type MatchedInvoiceItem,
+  parseSupplierInvoiceFromLines,
   matchInvoiceItemsWithInventory,
 } from './supplierInvoicePdfParser';
 
@@ -68,7 +69,9 @@ const KNOWN_TEMPLATES: KnownInvoiceTemplate[] = [
  * استخراج صورة الصفحة الأولى من ملف PDF كـ Base64 أو DataURL
  */
 export async function extractPdfFirstPageImage(
-  fileOrBuffer: File | ArrayBuffer | Uint8Array
+  fileOrBuffer: File | ArrayBuffer | Uint8Array,
+  /** scale مرتفع يُحسّن دقة OCR — 2.5 مثالي للفواتير */
+  scale = 2.5
 ): Promise<string | null> {
   try {
     let uint8: Uint8Array;
@@ -112,7 +115,7 @@ export async function extractPdfFirstPageImage(
       }
     }
 
-    // في حال المتصفح: رندر الصفحة بواسطة Canvas
+    // في حال المتصفح: رندر الصفحة بواسطة Canvas بجودة عالية لـ OCR
     if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       const loadingTask = (pdfjsLib as any).getDocument({
         data: uint8,
@@ -122,14 +125,15 @@ export async function extractPdfFirstPageImage(
       const pdf = await loadingTask.promise;
       if (pdf.numPages > 0) {
         const page = await pdf.getPage(1);
-        const viewport = page.getViewport({ scale: 1.5 });
+        const viewport = page.getViewport({ scale });
         const canvas = document.createElement('canvas');
         canvas.width = viewport.width;
         canvas.height = viewport.height;
         const ctx = canvas.getContext('2d');
         if (ctx) {
           await page.render({ canvasContext: ctx, viewport }).promise;
-          return canvas.toDataURL('image/jpeg', 0.85);
+          // جودة 0.95 للحفاظ على التفاصيل الدقيقة لـ OCR
+          return canvas.toDataURL('image/jpeg', 0.95);
         }
       }
     }
@@ -141,20 +145,58 @@ export async function extractPdfFirstPageImage(
   }
 }
 
-/**
- * قراءة ومعالجة فاتورة مصورة (Scanned Invoice PDF أو ملف صورة)
- */
+// ---------------------------------------------------------------------------
+// محرك OCR الحقيقي — Tesseract.js (عربي + فرنسي)
+// ---------------------------------------------------------------------------
+interface OCRResult {
+  lines: string[];
+  confidence: number; // 0–100
+  rawText: string;
+}
+
+async function runOCR(imageDataUrl: string): Promise<OCRResult> {
+  // Dynamic import لتجنّب تحميل Tesseract في كل تشغيل
+  const { createWorker } = await import('tesseract.js');
+
+  const worker = await createWorker('ara+fra', 1, {
+    // CDN رسمي — يُحمَّل مرة ثم يُخزَّن في cache
+    langPath: 'https://tessdata.projectnaptha.com/4.0.0',
+    logger: () => {}, // تعطيل logs التقدّم الداخلية
+    errorHandler: (err: unknown) => console.warn('[OCR Worker]', err),
+  });
+
+  try {
+    const { data } = await worker.recognize(imageDataUrl);
+
+    const lines: string[] = ((data as any).lines ?? [])
+      .map((l: any) => (l.text ?? '').trim())
+      .filter((t: string) => t.length > 2 && t.length < 500);
+
+    const confidence = Math.round((data as any).confidence ?? 0);
+    return { lines, confidence, rawText: (data as any).text ?? '' };
+  } finally {
+    // إغلاق Worker دائماً لتحرير الذاكرة
+    await worker.terminate();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// الدالة الرئيسية: قراءة ومعالجة فاتورة مصورة
+// ---------------------------------------------------------------------------
 export async function parseScannedSupplierInvoice(
   fileOrBuffer: File | ArrayBuffer | Uint8Array,
   fileName: string = '',
   existingProducts: Product[] = [],
   suppliers: Supplier[] = [],
-  defaultMarginPercent = 25
+  defaultMarginPercent = 25,
+  onProgress?: (msg: string) => void
 ): Promise<{
   invoice: ParsedSupplierInvoice;
   matchedItems: MatchedInvoiceItem[];
   matchedSupplierId?: string;
   documentImageUrl?: string | null;
+  /** تحذير OCR — يظهر للمستخدم إذا كانت الجودة منخفضة أو استُخدم القالب الاحتياطي */
+  ocrWarning?: string;
 }> {
   let uint8: Uint8Array;
   if (fileOrBuffer instanceof File) {
@@ -165,12 +207,14 @@ export async function parseScannedSupplierInvoice(
     uint8 = new Uint8Array(fileOrBuffer);
   }
 
-  // 1. استخراج صورة المستند للمعاينة
+  // ── الخطوة 1: استخراج صورة المستند (للمعاينة + OCR) ──────────────────
+  onProgress?.('جارٍ تحضير صورة الفاتورة...');
   let documentImageUrl: string | null = null;
   const headerStr = String.fromCharCode(...uint8.slice(0, 5));
   const isPdf = headerStr.startsWith('%PDF') || fileName.toLowerCase().endsWith('.pdf');
+
   if (isPdf) {
-    documentImageUrl = await extractPdfFirstPageImage(uint8);
+    documentImageUrl = await extractPdfFirstPageImage(uint8, 2.5);
   } else if (fileOrBuffer instanceof File) {
     try {
       documentImageUrl = URL.createObjectURL(fileOrBuffer);
@@ -179,33 +223,52 @@ export async function parseScannedSupplierInvoice(
     }
   }
 
-  // 2. التحقق مما إذا كان المستند يطابق قالب وراقة سعدين أو النماذج الشائعة
-  const isSaadine =
-    /saadine|سعدين|1877|2025.*1877|media_1789324779898/i.test(fileName) ||
-    (uint8.length >= 800000 && uint8.length <= 900000) ||
-    (documentImageUrl !== null && documentImageUrl.length > 500000);
+  // ── الخطوة 2: تشغيل OCR على الصورة ──────────────────────────────────
+  let ocrResult: OCRResult | null = null;
+  let ocrWarning: string | undefined;
 
-  if (!isSaadine) {
-    // ملف ممسوح ضوئياً فارغ أو غير مطابق لأي قالب معروف
-    return {
-      invoice: {
-        supplierName: '',
-        invoiceNumber: '',
-        invoiceDate: '',
-        items: [],
-        totalAmount: 0,
-        subtotal: 0,
-      },
-      matchedItems: [],
-      matchedSupplierId: undefined,
-      documentImageUrl,
-    };
+  if (documentImageUrl) {
+    try {
+      onProgress?.('جارٍ قراءة نص الفاتورة (OCR)... قد يستغرق حتى 15 ثانية');
+      ocrResult = await runOCR(documentImageUrl);
+
+      if (ocrResult.confidence < 20) {
+        ocrWarning = `جودة الصورة منخفضة جداً (ثقة OCR: ${ocrResult.confidence}%). النتائج قد تحتوي أخطاء — يُنصح باستخدام تبويب "لصق النص" كبديل.`;
+      } else if (ocrResult.confidence < 40) {
+        ocrWarning = `جودة الصورة ضعيفة (ثقة OCR: ${ocrResult.confidence}%). راجع البيانات المستخرجة يدوياً قبل الحفظ.`;
+      }
+    } catch (err) {
+      console.warn('[OCR] Tesseract failed:', err);
+      ocrResult = null;
+      ocrWarning = 'فشل تشغيل محرك OCR — جارٍ البحث في القوالب الاحتياطية.';
+    }
   }
 
-  const matchedTemplate = KNOWN_TEMPLATES[0]; // قالب سعدين القياسي لفواتير الأدوات والمكتبات
+  // ── مسار أ: OCR نجح وأرجع أسطر → parseSupplierInvoiceFromLines ────────
+  if (ocrResult && ocrResult.lines.length > 0) {
+    onProgress?.(`تم استخراج ${ocrResult.lines.length} سطر — جارٍ تحليل البنود...`);
 
-  const items: ParsedInvoiceItem[] = matchedTemplate.items.map((it) => {
-    return {
+    const invoice = parseSupplierInvoiceFromLines(ocrResult.lines);
+    const { matchedItems, matchedSupplierId } = matchInvoiceItemsWithInventory(
+      invoice.items,
+      existingProducts,
+      suppliers,
+      invoice.supplierName,
+      defaultMarginPercent
+    );
+
+    return { invoice, matchedItems, matchedSupplierId, documentImageUrl, ocrWarning };
+  }
+
+  // ── مسار ب: OCR أرجع 0 أسطر → KNOWN_TEMPLATES كـ fallback ────────────
+  onProgress?.('لم يُستخرج نص — جارٍ البحث في القوالب الاحتياطية...');
+  const lowerName = fileName.toLowerCase();
+  const matchedTemplate = KNOWN_TEMPLATES.find((tmpl) =>
+    tmpl.identifierKeywords.some((kw) => lowerName.includes(kw.toLowerCase()))
+  );
+
+  if (matchedTemplate) {
+    const items: ParsedInvoiceItem[] = matchedTemplate.items.map((it) => ({
       id: generateId(),
       name: it.name,
       code: it.code,
@@ -213,32 +276,46 @@ export async function parseScannedSupplierInvoice(
       qty: it.qty,
       unitPrice: it.unitPrice,
       lineTotal: it.lineTotal,
+    }));
+
+    const calculatedTotal = items.reduce((sum, it) => sum + it.lineTotal, 0);
+    const invoice: ParsedSupplierInvoice = {
+      supplierName: matchedTemplate.supplierName,
+      invoiceNumber: matchedTemplate.invoiceNumber,
+      invoiceDate: matchedTemplate.invoiceDate,
+      items,
+      totalAmount: Number(calculatedTotal.toFixed(2)),
+      subtotal: Number(calculatedTotal.toFixed(2)),
     };
-  });
 
-  const calculatedTotal = items.reduce((sum, it) => sum + it.lineTotal, 0);
+    const { matchedItems, matchedSupplierId } = matchInvoiceItemsWithInventory(
+      invoice.items, existingProducts, suppliers, invoice.supplierName, defaultMarginPercent
+    );
 
-  const invoice: ParsedSupplierInvoice = {
-    supplierName: matchedTemplate.supplierName,
-    invoiceNumber: matchedTemplate.invoiceNumber,
-    invoiceDate: matchedTemplate.invoiceDate,
-    items,
-    totalAmount: Number(calculatedTotal.toFixed(2)),
-    subtotal: Number(calculatedTotal.toFixed(2)),
-  };
+    return {
+      invoice,
+      matchedItems,
+      matchedSupplierId,
+      documentImageUrl,
+      ocrWarning: ocrWarning ?? 'تم استخدام قالب احتياطي (OCR لم يستخرج نصاً). راجع البيانات قبل الحفظ.',
+    };
+  }
 
-  const { matchedItems, matchedSupplierId } = matchInvoiceItemsWithInventory(
-    invoice.items,
-    existingProducts,
-    suppliers,
-    invoice.supplierName,
-    defaultMarginPercent
-  );
-
+  // ── مسار ج: لا OCR ولا قالب → نتيجة فارغة مع رسالة واضحة ────────────
   return {
-    invoice,
-    matchedItems,
-    matchedSupplierId,
+    invoice: {
+      supplierName: '',
+      invoiceNumber: '',
+      invoiceDate: '',
+      items: [],
+      totalAmount: 0,
+      subtotal: 0,
+    },
+    matchedItems: [],
+    matchedSupplierId: undefined,
     documentImageUrl,
+    ocrWarning:
+      ocrWarning ??
+      'لم يُستخرج أي نص من الصورة. تأكد من جودة الصورة أو استخدم تبويب "لصق النص" لإدخال البيانات يدوياً.',
   };
 }

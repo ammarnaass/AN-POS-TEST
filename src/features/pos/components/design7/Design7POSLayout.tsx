@@ -202,7 +202,8 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
         const pool = (allProducts && allProducts.length > 0 ? allProducts : products) || [];
         const originalProduct = pool.find((p) => String(p.id) === String(pack.itemId || pack.id));
         if (originalProduct) {
-          onAddToCart(originalProduct, pack.price);
+          // للمنتج الفردي: نعتمد على فئة السعر النشطة priceTier في السلة بدلاً من فرض سعر المفضلة الثابت
+          onAddToCart(originalProduct);
         } else {
           onAddToCart(
             {
@@ -527,6 +528,7 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
           selectedCategory={selectedCategory}
           onSelectCategory={onSelectCategory}
           products={(allProducts && allProducts.length > 0 ? allProducts : products) || []}
+          priceTier={priceTier}
         />
       </div>
 
@@ -540,6 +542,7 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
         }}
         formatMoney={formatMoney}
         categories={categories}
+        priceTier={priceTier}
       />
 
       {/* Item Details, Quantity & Price Touch Calculator Modal */}

@@ -52,6 +52,7 @@ export interface POSTopBarProps {
   toggleWholesaleMode: () => void;
   onSelectPriceTier: (tier: '1' | '2' | '3' | '4') => void;
   isWholesaleActive: boolean;
+  currentPriceTier?: '1' | '2' | '3' | '4';
   onOpenShortcuts: () => void;
   onOpenFilters: () => void;
   activeFiltersCount: number;
@@ -92,6 +93,7 @@ export const POSTopBar: React.FC<POSTopBarProps> = ({
   toggleWholesaleMode,
   onSelectPriceTier,
   isWholesaleActive,
+  currentPriceTier = '1',
   onOpenShortcuts,
   onOpenFilters,
   activeFiltersCount,
@@ -146,37 +148,57 @@ export const POSTopBar: React.FC<POSTopBarProps> = ({
             <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-500 text-white shadow-2xs">⚡ FAST</span>
           </button>
 
-          {/* Wholesale Mode Toggle Button */}
-          <button
-            onClick={() => {
-              const willBeWholesale = !wholesaleMode;
-              toggleWholesaleMode();
-              onSelectPriceTier(willBeWholesale ? '3' : '1');
-              if (onNotify) {
-                onNotify({
-                  title: willBeWholesale ? 'وضع الجملة مفعّل (Gros)' : 'وضع التجزئة مفعّل (Détail)',
-                  message: willBeWholesale ? 'تم تفعيل أسعار وفواتير الجملة تلقائياً (Alt+W)' : 'تم العودة إلى أسعار التجزئة العادية (Alt+W)',
-                  type: willBeWholesale ? 'success' : 'info',
-                });
-              }
-            }}
-            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-2xs hover:shadow-xs active:scale-95 cursor-pointer shrink-0 ${
-              isWholesaleActive
-                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-blue-500 shadow-md ring-2 ring-blue-500/30'
-                : 'bg-surface-container/70 hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface border-outline-variant/30'
-            }`}
-            title="تبديل وضع بيع الجملة (Alt+W)"
-          >
-            <Layers className={`w-4 h-4 ${isWholesaleActive ? 'text-white' : 'text-blue-500'}`} />
-            <span className="font-cairo font-extrabold hidden md:inline">
-              {isWholesaleActive ? 'بيع بالجملة' : 'بيع تجزئة'}
-            </span>
-            <span className={`px-1.5 py-0.5 rounded text-[9px] font-black ${
-              isWholesaleActive ? 'bg-white/20 text-white' : 'bg-surface-container-highest text-on-surface-variant'
-            }`}>
-              {isWholesaleActive ? 'GROS' : 'DÉTAIL'}
-            </span>
-          </button>
+          {/* Price Tier Selector - 4 buttons */}
+          {([
+            { tier: '1' as const, label: 'تجزئة',    badge: 'P1', color: 'emerald' },
+            { tier: '2' as const, label: 'نصف جملة', badge: 'P2', color: 'sky'     },
+            { tier: '3' as const, label: 'جملة',     badge: 'P3', color: 'blue'    },
+            { tier: '4' as const, label: 'فاتورة',   badge: 'P4', color: 'violet'  },
+          ] as const).map(({ tier, label, badge, color }) => {
+            const isActive = currentPriceTier === tier;
+            const colorMap: Record<string, { active: string; idle: string }> = {
+              emerald: {
+                active: 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white border-emerald-500 shadow-md ring-2 ring-emerald-500/30',
+                idle: 'bg-surface-container/70 hover:bg-emerald-500/10 text-on-surface-variant hover:text-emerald-700 dark:hover:text-emerald-300 border-outline-variant/30 hover:border-emerald-500/50',
+              },
+              sky: {
+                active: 'bg-gradient-to-r from-sky-500 to-cyan-600 text-white border-sky-400 shadow-md ring-2 ring-sky-400/30',
+                idle: 'bg-surface-container/70 hover:bg-sky-500/10 text-on-surface-variant hover:text-sky-700 dark:hover:text-sky-300 border-outline-variant/30 hover:border-sky-500/50',
+              },
+              blue: {
+                active: 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-blue-500 shadow-md ring-2 ring-blue-500/30',
+                idle: 'bg-surface-container/70 hover:bg-blue-500/10 text-on-surface-variant hover:text-blue-700 dark:hover:text-blue-300 border-outline-variant/30 hover:border-blue-500/50',
+              },
+              violet: {
+                active: 'bg-gradient-to-r from-violet-600 to-purple-600 text-white border-violet-500 shadow-md ring-2 ring-violet-500/30',
+                idle: 'bg-surface-container/70 hover:bg-violet-500/10 text-on-surface-variant hover:text-violet-700 dark:hover:text-violet-300 border-outline-variant/30 hover:border-violet-500/50',
+              },
+            };
+            return (
+              <button
+                key={tier}
+                onClick={() => {
+                  onSelectPriceTier(tier);
+                  if (tier === '3' && !wholesaleMode) toggleWholesaleMode();
+                  if (tier !== '3' && wholesaleMode) toggleWholesaleMode();
+                  if (onNotify) {
+                    const titles = { '1': 'سعر التجزئة', '2': 'سعر نصف الجملة', '3': 'سعر الجملة', '4': 'سعر الفاتورة' };
+                    onNotify({ title: `${titles[tier]} مفعّل`, message: `تم تطبيق ${titles[tier]} على جميع المنتجات`, type: 'success' });
+                  }
+                }}
+                className={`flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-2xs hover:shadow-xs active:scale-95 cursor-pointer shrink-0 ${
+                  isActive ? colorMap[color].active : colorMap[color].idle
+                }`}
+                title={`تطبيق ${label} على جميع المنتجات`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span className="font-cairo font-extrabold hidden lg:inline">{label}</span>
+                <span className={`px-1 py-0.5 rounded text-[9px] font-black ${isActive ? 'bg-white/20 text-white' : 'bg-surface-container-highest text-on-surface-variant'}`}>
+                  {badge}
+                </span>
+              </button>
+            );
+          })}
 
           {/* Search by Name */}
           <div className="relative flex-1 min-w-[110px] max-w-xs group">
