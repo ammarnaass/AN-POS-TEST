@@ -359,6 +359,7 @@ export function useNetworkServer(activeTab?: string) {
       status: 'online',
       lastSeen: new Date().toISOString(),
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     });
     setNewDevice({ deviceName: '', deviceType: 'printer', connectionType: 'usb', ipAddress: '', macAddress: '', port: '', vendor: '', model: '' });
     setShowDeviceForm(false);

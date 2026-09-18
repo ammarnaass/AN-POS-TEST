@@ -69,6 +69,12 @@ export default function UsersRolesTab(props: UsersRolesTabProps) {
   const editingRole = props.editingRole !== undefined ? props.editingRole : hookData.editingRole;
   const roleForm = props.roleForm || hookData.roleForm;
   const setRoleForm = props.setRoleForm || hookData.setRoleForm;
+  const users = props.users || hookData.users || [];
+  const activities = props.activities || hookData.activities || [];
+  const addUserMutation = props.addUserMutation || hookData.addUserMutation;
+  const updateUserMutation = props.updateUserMutation || hookData.updateUserMutation;
+  const setShowRoleForm = props.setShowRoleForm || hookData.setShowRoleForm;
+  const setEditingRole = props.setEditingRole || hookData.setEditingRole;
   const viewingRoleDetails = props.viewingRoleDetails !== undefined ? props.viewingRoleDetails : hookData.viewingRoleDetails;
 
   return (

@@ -8,14 +8,14 @@ import PairingQR from '../components/PairingQR';
 
 interface MobileDevicesTabProps {
   copiedField?: string | null;
-  handleCopyText: (text: string, field: string) => void;
-  handleRegenerateKey: () => void;
-  mobilePhones: any[];
-  pairingInfo: any;
-  refetchConnected: () => void;
-  serverLoading: boolean;
-  serverStatus: any;
-  toggleServer: () => void;
+  handleCopyText?: (text: string, field: string) => void;
+  handleRegenerateKey?: () => void;
+  mobilePhones?: any[];
+  pairingInfo?: any;
+  refetchConnected?: () => void;
+  serverLoading?: boolean;
+  serverStatus?: any;
+  toggleServer?: () => void;
   settings?: any;
   handleSaveSettings?: (settings: any) => void;
   saveNet?: (net: any) => void;
@@ -459,7 +459,7 @@ export default function MobileDevicesTab(props: MobileDevicesTabProps) {
 
                   <button
                     type="button"
-                    onClick={refetchConnected}
+                    onClick={() => refetchConnected && refetchConnected()}
                     className="p-2 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface-variant border border-outline-variant/15 transition-all cursor-pointer shadow-xs"
                     title="تحديث قائمة الأجهزة"
                   >
