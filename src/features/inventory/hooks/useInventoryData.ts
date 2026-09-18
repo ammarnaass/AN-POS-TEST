@@ -5,6 +5,10 @@ import type { Product, Supplier } from '@/types';
 import { generateId } from '@/utils';
 import { useNotificationStore } from '@/store/notificationStore';
 import { categoriesApi, type Category } from '@/services/api/categoriesApi';
+import {
+  mergeImportedProducts,
+  syncMissingCategories,
+} from '@/services/products/productImportService';
 
 export function useInventoryData() {
   const queryClient = useQueryClient();
@@ -244,35 +248,85 @@ export function useInventoryData() {
   });
 
   const importMutation = useMutation({
-    mutationFn: async (importedProducts: Product[]) => {
-      const now = new Date().toISOString();
-      const prepared = importedProducts.map((p) => ({
-        ...p,
-        id: p.id || generateId(),
-        createdAt: p.createdAt || now,
-        updatedAt: now,
-      }));
-      await db.products.bulkAdd(prepared as any);
-      return prepared;
+    mutationFn: async (
+      payload:
+        | Product[]
+        | {
+            products: Product[];
+            mode?: 'upsert' | 'skip_duplicates';
+          }
+    ) => {
+      const importedProducts = Array.isArray(payload) ? payload : payload.products;
+      const mode = Array.isArray(payload) ? 'upsert' : payload.mode || 'upsert';
+
+      // 1. مزامنة وإنشاء الفئات الجديدة تلقائياً
+      const currentCategories =
+        queryClient.getQueryData<Category[]>(['categories']) || (await categoriesApi.list().catch(() => []));
+      const uniqueCategoryNames = Array.from(
+        new Set(importedProducts.map((p) => p.category?.trim()).filter(Boolean))
+      );
+      const { updatedCategories } = await syncMissingCategories(
+        uniqueCategoryNames as string[],
+        currentCategories
+      );
+
+      // 2. دمج وحل السلع الحالية مع المستوردة
+      const currentProducts =
+        queryClient.getQueryData<Product[]>(['products']) || (await db.products.toArray()) || [];
+      const { finalProducts, toSaveProducts, insertedCount, updatedCount } = mergeImportedProducts(
+        currentProducts,
+        importedProducts,
+        mode,
+        updatedCategories
+      );
+
+      // 3. التخزين في Dexie و SQLite
+      if (toSaveProducts.length > 0) {
+        if (typeof (db.products as any).bulkPut === 'function') {
+          await (db.products as any).bulkPut(toSaveProducts as any);
+        } else {
+          await (db.products as any).bulkAdd(toSaveProducts as any);
+        }
+
+        const api = (window as any).electronAPI;
+        if (api?.db?.bulkCreate) {
+          await api.db.bulkCreate('products', toSaveProducts).catch(() => {});
+        }
+      }
+
+      return {
+        finalProducts,
+        toSaveProducts,
+        insertedCount,
+        updatedCount,
+      };
     },
-    onMutate: async (importedProducts) => {
+    onMutate: async (payload) => {
       await queryClient.cancelQueries({ queryKey: ['products'] });
       const previousProducts = queryClient.getQueryData<Product[]>(['products']) || [];
-      const now = new Date().toISOString();
-      const prepared = importedProducts.map((p) => ({
-        ...p,
-        id: p.id || generateId(),
-        createdAt: p.createdAt || now,
-        updatedAt: now,
-      }));
-      queryClient.setQueryData<Product[]>(['products'], (old = []) => [...prepared, ...old]);
+      const importedProducts = Array.isArray(payload) ? payload : payload.products;
+      const mode = Array.isArray(payload) ? 'upsert' : payload.mode || 'upsert';
+      const currentCategories = queryClient.getQueryData<Category[]>(['categories']) || [];
+
+      const { finalProducts } = mergeImportedProducts(
+        previousProducts,
+        importedProducts,
+        mode,
+        currentCategories
+      );
+
+      // تحديث آني ولحظي (0ms) في الكاش
+      queryClient.setQueryData<Product[]>(['products'], finalProducts);
       return { previousProducts };
     },
-    onSuccess: (imported) => {
+    onSuccess: (result) => {
+      queryClient.setQueryData(['products'], result.finalProducts);
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+
       useNotificationStore.getState().addNotification({
         title: 'تم استيراد المنتجات بنجاح',
-        message: `تم استيراد وتحديث ${imported.length} صنفاً بنجاح من ملف Excel.`,
+        message: `تمت معالجة ${result.toSaveProducts.length} صنفاً بنجاح (${result.insertedCount} صنف جديد، ${result.updatedCount} صنف تم تحديثه).`,
         type: 'success',
         category: 'inventory',
       });
@@ -283,7 +337,7 @@ export function useInventoryData() {
       }
       useNotificationStore.getState().addNotification({
         title: 'فشل استيراد المنتجات',
-        message: err?.message || 'حدث خطأ أثناء استيراد ملف المنتجات.',
+        message: err?.message || 'حدث خطأ أثناء استيراد وحفظ ملف المنتجات.',
         type: 'error',
         category: 'inventory',
       });

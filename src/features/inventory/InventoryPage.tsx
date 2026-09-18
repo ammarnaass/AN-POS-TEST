@@ -22,7 +22,13 @@ import { QuickAdjustStockModal } from './components/modals/QuickAdjustStockModal
 import { ProductFormModal } from './components/modals/ProductFormModal';
 import { BulkDeleteProductsModal } from './components/modals/BulkDeleteProductsModal';
 import { InventoryBulkActionBar } from './components/InventoryBulkActionBar';
+import { ProductImportModal } from './components/modals/ProductImportModal';
 import ProductExportModal from './ProductExportModal';
+import {
+  parseProductsFromFile,
+  type ProductImportSummary,
+} from '@/services/products/productImportService';
+import { useNotificationStore } from '@/store/notificationStore';
 
 // Lazy-loaded heavy PDF/OCR modal to keep initial inventory bundle lightweight
 const SupplierInvoicePdfModal = lazy(() => import('@/features/suppliers/SupplierInvoicePdfModal'));
@@ -90,6 +96,8 @@ export default function InventoryPage() {
   const [showPdfInvoiceModal, setShowPdfInvoiceModal] = useState(false);
   const [quickAdjustProduct, setQuickAdjustProduct] = useState<Product | null>(null);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [importSummary, setImportSummary] = useState<ProductImportSummary | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   // Multi-selection state for products
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
@@ -195,38 +203,48 @@ export default function InventoryPage() {
     }
   };
 
-  // Excel file import
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Excel file import via smart parser and preview modal
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const XLSX = await import('xlsx');
-      const wb = XLSX.read(event.target?.result, { type: 'binary' });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const data = XLSX.utils.sheet_to_json<Record<string, any>>(ws);
-      const imported: Product[] = data.map((row) => ({
-        id: generateId(),
-        name: row['الاسم'] || row['name'] || '',
-        barcode: String(row['الباركود'] || row['barcode'] || ''),
-        category: row['الفئة'] || row['category'] || '',
-        unit: row['الوحدة'] || row['unit'] || 'قطعة',
-        costPrice: Number(row['سعر التكلفة'] || row['costPrice'] || 0),
-        wholesalePrice: Number(row['سعر الجملة'] || row['wholesalePrice'] || 0),
-        retailPrice: Number(row['سعر التجزئة'] || row['retailPrice'] || 0),
-        wholesaleMinQty: Number(row['الحد الأدنى للجملة'] || row['wholesaleMinQty'] || 0),
-        quantity: Number(row['الكمية'] || row['quantity'] || 0),
-        lowStockThreshold: Number(row['حد التنبيه'] || row['lowStockThreshold'] || 0),
-        variant: row['المقاس'] || row['variant'] || '',
-        expiryDate: row['تاريخ الصلاحية'] || row['expiryDate'] || '',
-        batchNumber: row['رقم الدفعة'] || row['batchNumber'] || '',
-        highlighted: false,
-        status: 'active' as const,
-      }));
-      importMutation.mutate(imported);
-    };
-    reader.readAsBinaryString(file);
-    e.target.value = '';
+
+    try {
+      const summary = await parseProductsFromFile(file, products, categories);
+      if (summary.validProducts.length === 0) {
+        useNotificationStore.getState().addNotification({
+          title: 'لا توجد بيانات صالحة',
+          message: 'لم يتم العثور على أي منتجات صالحة للاستيراد في هذا الملف.',
+          type: 'warning',
+          category: 'inventory',
+        });
+        return;
+      }
+      setImportSummary(summary);
+      setShowImportModal(true);
+    } catch (err: any) {
+      useNotificationStore.getState().addNotification({
+        title: 'فشل قراءة الملف',
+        message: err?.message || 'تعذر قراءة ملف Excel، يرجى التأكد من سلامة صيغة الملف.',
+        type: 'error',
+        category: 'inventory',
+      });
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  const handleConfirmImport = async (mode: 'upsert' | 'skip_duplicates') => {
+    if (!importSummary) return;
+    try {
+      await importMutation.mutateAsync({
+        products: importSummary.validProducts,
+        mode,
+      });
+      setShowImportModal(false);
+      setImportSummary(null);
+    } catch (err) {
+      console.error('Failed to import products:', err);
+    }
   };
 
   return (
@@ -379,6 +397,20 @@ export default function InventoryPage() {
           allProducts={products}
           filteredProducts={filteredProducts}
           categories={categories}
+        />
+      )}
+
+      {/* Import Products Modal (Excel / CSV) */}
+      {showImportModal && importSummary && (
+        <ProductImportModal
+          open={showImportModal}
+          onClose={() => {
+            setShowImportModal(false);
+            setImportSummary(null);
+          }}
+          summary={importSummary}
+          onConfirm={handleConfirmImport}
+          isImporting={importMutation.isPending}
         />
       )}
 
