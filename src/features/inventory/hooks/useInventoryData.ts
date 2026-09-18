@@ -161,6 +161,10 @@ export function useInventoryData() {
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       await db.products.delete(id);
+      const api = (window as any).electronAPI;
+      if (api?.db?.delete) {
+        await api.db.delete('products', id).catch(() => {});
+      }
       return id;
     },
     onMutate: async (id) => {
@@ -189,6 +193,50 @@ export function useInventoryData() {
       useNotificationStore.getState().addNotification({
         title: 'فشل حذف المنتج',
         message: err?.message || 'تعذر حذف المنتج من قاعدة البيانات.',
+        type: 'error',
+        category: 'inventory',
+      });
+    },
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      await db.products.bulkDelete(ids);
+      const api = (window as any).electronAPI;
+      if (api?.db?.delete) {
+        for (const id of ids) {
+          await api.db.delete('products', id).catch(() => {});
+        }
+      }
+      return ids;
+    },
+    onMutate: async (ids) => {
+      await queryClient.cancelQueries({ queryKey: ['products'] });
+      const previousProducts = queryClient.getQueryData<Product[]>(['products']) || [];
+      const idSet = new Set(ids);
+
+      // إزالة آنية ولحظية (0ms) للأصناف من الكاش
+      queryClient.setQueryData<Product[]>(['products'], (old = []) =>
+        old.filter((p) => !idSet.has(p.id))
+      );
+      return { previousProducts };
+    },
+    onSuccess: (ids) => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      useNotificationStore.getState().addNotification({
+        title: 'تم حذف المنتجات بنجاح',
+        message: `تم حذف ${ids.length} منتجاً من المخزون بنجاح.`,
+        type: 'info',
+        category: 'inventory',
+      });
+    },
+    onError: (err: any, _vars, context) => {
+      if (context?.previousProducts) {
+        queryClient.setQueryData(['products'], context.previousProducts);
+      }
+      useNotificationStore.getState().addNotification({
+        title: 'فشل الحذف الجماعي',
+        message: err?.message || 'تعذر حذف بعض المنتجات من قاعدة البيانات.',
         type: 'error',
         category: 'inventory',
       });
@@ -331,6 +379,7 @@ export function useInventoryData() {
     addMutation,
     updateMutation,
     deleteMutation,
+    bulkDeleteMutation,
     importMutation,
     adjustStockMutation,
     queryClient,

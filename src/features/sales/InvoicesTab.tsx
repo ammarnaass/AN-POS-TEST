@@ -8,8 +8,10 @@ import {
   Search, Eye, Trash2, Receipt, Printer as PrinterIcon, X,
   ShoppingCart, DollarSign, TrendingUp, ChevronLeft, ChevronRight,
   Download, Calendar, User, FileText, CheckCircle2, RotateCcw,
-  Sparkles, RefreshCw, AlertCircle, ArrowUpDown, Filter, History
+  Sparkles, RefreshCw, AlertCircle, ArrowUpDown, Filter, History,
+  CheckSquare, Layers
 } from 'lucide-react';
+import { useNotificationStore } from '@/store/notificationStore';
 import { generateReceiptHTML } from '@/services';
 import { printDocument, previewDocument } from '@/services/print/printService';
 import { getAllTemplates } from '@/services/print/templateService';
@@ -129,6 +131,24 @@ export default function InvoicesTab() {
   const [isPrinting, setIsPrinting] = useState(false);
   const previewDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Multi-selection state for sales
+  const [selectedSaleIds, setSelectedSaleIds] = useState<Set<string>>(new Set());
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const salesCheckboxRef = useRef<HTMLInputElement>(null);
+
+  const toggleSelectSale = (id: string) => {
+    setSelectedSaleIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const clearSaleSelection = () => {
+    setSelectedSaleIds(new Set());
+  };
+
   const applyQuickPeriod = (days: number) => {
     if (days === -1) {
       setDateFrom('');
@@ -185,6 +205,46 @@ export default function InvoicesTab() {
     setCurrentPage(1);
   }, [searchQuery, filterStatus, filterType, filterDocType, filterCustomer, dateFrom, dateTo, sortBy, itemsPerPage]);
 
+  const isAllPageSalesSelected = useMemo(() => {
+    if (paginatedSales.length === 0) return false;
+    return paginatedSales.every((s) => selectedSaleIds.has(s.id));
+  }, [paginatedSales, selectedSaleIds]);
+
+  const isPageSalesIndeterminate = useMemo(() => {
+    const count = paginatedSales.filter((s) => selectedSaleIds.has(s.id)).length;
+    return count > 0 && count < paginatedSales.length;
+  }, [paginatedSales, selectedSaleIds]);
+
+  useEffect(() => {
+    if (salesCheckboxRef.current) {
+      salesCheckboxRef.current.indeterminate = isPageSalesIndeterminate;
+    }
+  }, [isPageSalesIndeterminate]);
+
+  const toggleSelectAllOnPage = () => {
+    setSelectedSaleIds((prev) => {
+      const next = new Set(prev);
+      if (isAllPageSalesSelected) {
+        paginatedSales.forEach((s) => next.delete(s.id));
+      } else {
+        paginatedSales.forEach((s) => next.add(s.id));
+      }
+      return next;
+    });
+  };
+
+  const selectAllFilteredSales = () => {
+    setSelectedSaleIds(new Set(filteredSales.map((s) => s.id)));
+  };
+
+  const selectedSalesList = useMemo(() => {
+    return sales.filter((s) => selectedSaleIds.has(s.id));
+  }, [sales, selectedSaleIds]);
+
+  const selectedTotalAmount = useMemo(() => {
+    return selectedSalesList.reduce((sum, s) => sum + (Number(s.total) || 0), 0);
+  }, [selectedSalesList]);
+
   const stats = useMemo(() => {
     const totalSales = filteredSales.filter(s => s.type === 'sale').reduce((sum, s) => sum + (Number(s.total) || 0), 0);
     const totalReturns = filteredSales.filter(s => s.type === 'return').reduce((sum, s) => sum + (Number(s.total) || 0), 0);
@@ -197,11 +257,74 @@ export default function InvoicesTab() {
   const deleteMutation = useMutation({
     mutationFn: async (saleId: string) => {
       await db.sales.delete(saleId);
+      const electron = (window as any).electronAPI;
+      if (electron?.db?.delete) {
+        await electron.db.delete('sales', saleId).catch(() => {});
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sales'] });
+      useNotificationStore.getState().addNotification({
+        title: 'تم حذف الفاتورة',
+        message: 'تم حذف الفاتورة من السجل بنجاح.',
+        type: 'info',
+        category: 'sales',
+      });
     },
   });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (saleIds: string[]) => {
+      await db.sales.bulkDelete(saleIds);
+      const electron = (window as any).electronAPI;
+      if (electron?.db?.delete) {
+        for (const id of saleIds) {
+          await electron.db.delete('sales', id).catch(() => {});
+        }
+      }
+      return saleIds;
+    },
+    onMutate: async (saleIds) => {
+      await queryClient.cancelQueries({ queryKey: ['sales'] });
+      const previousSales = queryClient.getQueryData<typeof sales>(['sales']) || [];
+      const idSet = new Set(saleIds);
+      queryClient.setQueryData<typeof sales>(['sales'], (old = []) =>
+        old.filter((s) => !idSet.has(s.id))
+      );
+      return { previousSales };
+    },
+    onSuccess: (saleIds) => {
+      queryClient.invalidateQueries({ queryKey: ['sales'] });
+      useNotificationStore.getState().addNotification({
+        title: 'تم حذف الفواتير بنجاح',
+        message: `تم حذف ${saleIds.length} فاتورة بنجاح.`,
+        type: 'info',
+        category: 'sales',
+      });
+    },
+    onError: (err: any, _vars, context) => {
+      if (context?.previousSales) {
+        queryClient.setQueryData(['sales'], context.previousSales);
+      }
+      useNotificationStore.getState().addNotification({
+        title: 'فشل حذف الفواتير',
+        message: err?.message || 'حدث خطأ أثناء حذف الفواتير المحددة.',
+        type: 'error',
+        category: 'sales',
+      });
+    },
+  });
+
+  const handleConfirmBulkDeleteSales = () => {
+    const ids = Array.from(selectedSaleIds);
+    if (ids.length === 0) return;
+    bulkDeleteMutation.mutate(ids, {
+      onSuccess: () => {
+        clearSaleSelection();
+        setShowBulkDeleteModal(false);
+      },
+    });
+  };
 
   const selectedSale = sales.find((s) => s.id === viewSale);
   const selectedSaleItems = useMemo(() => parseSaleItems(selectedSale?.items), [selectedSale?.items]);
@@ -620,6 +743,17 @@ export default function InvoicesTab() {
           <table className="w-full text-right border-collapse">
             <thead>
               <tr className="bg-surface-container-high/50 text-on-surface-variant text-xs font-semibold border-b border-outline-variant/20">
+                <th className="px-3 py-3.5 text-center w-12">
+                  <input
+                    ref={salesCheckboxRef}
+                    type="checkbox"
+                    checked={isAllPageSalesSelected}
+                    onChange={toggleSelectAllOnPage}
+                    title={isAllPageSalesSelected ? "إلغاء تحديد الكل" : "تحديد كل فواتير هذه الصفحة"}
+                    className="w-4 h-4 rounded-md border-outline-variant/40 text-primary focus:ring-primary cursor-pointer accent-primary transition-all"
+                    aria-label="تحديد كل الفواتير المعروضة"
+                  />
+                </th>
                 <th className="px-5 py-3.5">رقم الفاتورة</th>
                 <th className="px-4 py-3.5">التاريخ والوقت</th>
                 <th className="px-4 py-3.5">الزبون</th>
@@ -634,13 +768,29 @@ export default function InvoicesTab() {
               {paginatedSales.map((sale) => {
                 const customer = customers.find((c) => c.id === sale.customerId);
                 const itemsList = parseSaleItems(sale.items);
+                const isSelected = selectedSaleIds.has(sale.id);
 
                 return (
                   <tr
                     key={sale.id}
-                    className="hover:bg-surface-container-high/40 transition-colors group cursor-pointer"
+                    className={`transition-colors group cursor-pointer ${
+                      isSelected ? 'bg-primary/10 hover:bg-primary/15' : 'hover:bg-surface-container-high/40'
+                    }`}
                     onClick={() => setViewSale(sale.id)}
                   >
+                    {/* Checkbox Column */}
+                    <td className="px-3 py-3.5 text-center w-12" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          toggleSelectSale(sale.id);
+                        }}
+                        className="w-4 h-4 rounded-md border-outline-variant/40 text-primary focus:ring-primary cursor-pointer accent-primary transition-all"
+                        aria-label={`تحديد الفاتورة ${sale.number}`}
+                      />
+                    </td>
                     {/* Invoice ID & Icon */}
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
@@ -1074,6 +1224,162 @@ export default function InvoicesTab() {
                   <>
                     <PrinterIcon className="w-4 h-4" />
                     <span>طباعة الفاتورة الآن</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Bulk Action Bar */}
+      {selectedSaleIds.size > 0 && (
+        <div
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-3xl w-[92%] sm:w-auto min-w-[340px] sm:min-w-[540px] bg-slate-900/95 dark:bg-slate-800/95 text-white backdrop-blur-md px-5 py-3.5 rounded-2xl shadow-2xl border border-slate-700/60 flex flex-wrap items-center justify-between gap-4 animate-in slide-in-from-bottom-5 duration-200"
+          dir="rtl"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center border border-blue-500/30 shrink-0">
+              <CheckSquare className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold font-cairo">
+                  تم تحديد <span className="text-blue-400 font-mono text-base px-1">{selectedSaleIds.size}</span> فاتورة
+                </span>
+                <span className="text-xs text-slate-400 hidden sm:inline">
+                  (المجموع: <span className="font-mono text-emerald-400 font-bold">{selectedTotalAmount.toLocaleString('fr-DZ', { minimumFractionDigits: 2 })} دج</span>)
+                </span>
+              </div>
+              {filteredSales.length > selectedSaleIds.size && (
+                <button
+                  type="button"
+                  onClick={selectAllFilteredSales}
+                  className="text-[11px] text-blue-400 hover:text-blue-300 font-semibold underline underline-offset-2 flex items-center gap-1 cursor-pointer transition-colors mt-0.5"
+                >
+                  <Layers className="w-3 h-3" />
+                  <span>تحديد كل الـ {filteredSales.length} فاتورة المفلترة</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 mr-auto">
+            <button
+              type="button"
+              onClick={clearSaleSelection}
+              className="px-3 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-800 dark:hover:bg-slate-700 transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+              <span>إلغاء التحديد</span>
+            </button>
+
+            {canDelete && (
+              <button
+                type="button"
+                onClick={() => setShowBulkDeleteModal(true)}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-rose-900/30 flex items-center gap-2 cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>حذف الفواتير المحددة ({selectedSaleIds.size})</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal for Bulk Delete Sales */}
+      {showBulkDeleteModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-200" dir="rtl">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 w-full max-w-md shadow-2xl p-6 space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center border border-rose-500/20 shrink-0">
+                  <AlertCircle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold font-cairo text-slate-900 dark:text-slate-100">
+                    تأكيد حذف الفواتير المحددة
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    عملية الحذف نهائية ولا يمكن التراجع عنها
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBulkDeleteModal(false)}
+                disabled={bulkDeleteMutation.isPending}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 rounded-2xl p-4 text-xs text-rose-800 dark:text-rose-300 space-y-1.5">
+              <p className="font-bold text-sm">
+                أنت على وشك حذف <span className="font-mono underline px-1">{selectedSaleIds.size}</span> فاتورة.
+              </p>
+              <p>
+                إجمالي قيمة هذه الفواتير: <span className="font-mono font-bold text-slate-900 dark:text-slate-100">{selectedTotalAmount.toLocaleString('fr-DZ', { minimumFractionDigits: 2 })} دج</span>.
+              </p>
+              <p className="text-[11px] text-rose-700 dark:text-rose-400">
+                سيتم مسح سجلات الفواتير المحددة من قاعدة البيانات ولن تظهر في التقارير أو كشف الحساب.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                معاينة لأرقام الفواتير المستهدفة:
+              </span>
+              <div className="max-h-36 overflow-y-auto space-y-1.5 border border-slate-100 dark:border-slate-800 rounded-xl p-2 bg-slate-50/50 dark:bg-slate-800/40 custom-scrollbar">
+                {selectedSalesList.slice(0, 5).map((s) => (
+                  <div
+                    key={s.id}
+                    className="flex items-center justify-between text-xs py-1.5 px-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800"
+                  >
+                    <div className="flex items-center gap-2 truncate max-w-[200px]">
+                      <Receipt className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span className="font-mono font-bold text-slate-800 dark:text-slate-200">#{s.number}</span>
+                      {s.customerName && <span className="text-[10px] text-slate-500 truncate">({s.customerName})</span>}
+                    </div>
+                    <span className="font-mono font-bold text-blue-600 dark:text-blue-400 text-[11px] shrink-0">
+                      {Number(s.total || 0).toLocaleString('fr-DZ', { minimumFractionDigits: 2 })} دج
+                    </span>
+                  </div>
+                ))}
+                {selectedSaleIds.size > 5 && (
+                  <div className="text-center text-[11px] font-bold text-slate-500 dark:text-slate-400 py-1">
+                    ... بالإضافة إلى {selectedSaleIds.size - 5} فواتير أخرى
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowBulkDeleteModal(false)}
+                disabled={bulkDeleteMutation.isPending}
+                className="flex-1 h-11 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold text-xs transition-all cursor-pointer"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmBulkDeleteSales}
+                disabled={bulkDeleteMutation.isPending}
+                className="flex-1 h-11 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-xl font-bold text-xs transition-all shadow-md shadow-rose-900/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                {bulkDeleteMutation.isPending ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>جارٍ الحذف...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>تأكيد الحذف ({selectedSaleIds.size})</span>
                   </>
                 )}
               </button>

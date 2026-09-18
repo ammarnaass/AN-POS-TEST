@@ -13,6 +13,11 @@ interface InventoryTableViewProps {
   onDelete: (product: Product) => void;
   getStockStatus: (product: Product) => 'in_stock' | 'low_stock' | 'out_of_stock';
   isExpiringSoon: (product: Product) => boolean;
+  selectedProductIds?: Set<string>;
+  onToggleSelectProduct?: (id: string) => void;
+  onToggleSelectAll?: () => void;
+  isAllSelected?: boolean;
+  isIndeterminate?: boolean;
 }
 
 export const InventoryTableView: React.FC<InventoryTableViewProps> = ({
@@ -24,6 +29,11 @@ export const InventoryTableView: React.FC<InventoryTableViewProps> = ({
   onDelete,
   getStockStatus,
   isExpiringSoon,
+  selectedProductIds,
+  onToggleSelectProduct,
+  onToggleSelectAll,
+  isAllSelected = false,
+  isIndeterminate = false,
 }) => {
   const parentRef = useRef<HTMLDivElement>(null);
   const [scrollElement, setScrollElement] = useState<HTMLElement | null>(null);
@@ -127,11 +137,15 @@ export const InventoryTableView: React.FC<InventoryTableViewProps> = ({
     >
       <div className="overflow-x-auto">
         <table className="w-full text-right text-sm border-collapse" id="products-table">
-          <InventoryTableHeader />
+          <InventoryTableHeader
+            isAllSelected={isAllSelected}
+            isIndeterminate={isIndeterminate}
+            onToggleSelectAll={onToggleSelectAll}
+          />
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
             {paddingTop > 0 && (
               <tr>
-                <td colSpan={7} style={{ height: `${paddingTop}px`, padding: 0, border: 0 }} />
+                <td colSpan={8} style={{ height: `${paddingTop}px`, padding: 0, border: 0 }} />
               </tr>
             )}
             {itemsToRender.map((virtualRow) => {
@@ -151,12 +165,14 @@ export const InventoryTableView: React.FC<InventoryTableViewProps> = ({
                   onDelete={onDelete}
                   stockStatus={getStockStatus(product)}
                   expiringSoon={isExpiringSoon(product)}
+                  isSelected={selectedProductIds?.has(product.id)}
+                  onToggleSelect={onToggleSelectProduct}
                 />
               );
             })}
             {paddingBottom > 0 && (
               <tr>
-                <td colSpan={7} style={{ height: `${paddingBottom}px`, padding: 0, border: 0 }} />
+                <td colSpan={8} style={{ height: `${paddingBottom}px`, padding: 0, border: 0 }} />
               </tr>
             )}
           </tbody>

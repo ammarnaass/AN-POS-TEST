@@ -17,9 +17,11 @@ import { InventoryEmptyState } from './components/InventoryEmptyState';
 import { BarcodeReportSection } from './components/BarcodeReportSection';
 import { StockMovementsHistorySection } from './components/StockMovementsHistorySection';
 
-// Modular Modals
+// Modular Modals & Bars
 import { QuickAdjustStockModal } from './components/modals/QuickAdjustStockModal';
 import { ProductFormModal } from './components/modals/ProductFormModal';
+import { BulkDeleteProductsModal } from './components/modals/BulkDeleteProductsModal';
+import { InventoryBulkActionBar } from './components/InventoryBulkActionBar';
 import ProductExportModal from './ProductExportModal';
 
 // Lazy-loaded heavy PDF/OCR modal to keep initial inventory bundle lightweight
@@ -38,6 +40,7 @@ export default function InventoryPage() {
     addMutation,
     updateMutation,
     deleteMutation,
+    bulkDeleteMutation,
     importMutation,
     adjustStockMutation,
     queryClient,
@@ -86,6 +89,72 @@ export default function InventoryPage() {
   const [showExportModal, setShowExportModal] = useState(false);
   const [showPdfInvoiceModal, setShowPdfInvoiceModal] = useState(false);
   const [quickAdjustProduct, setQuickAdjustProduct] = useState<Product | null>(null);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+
+  // Multi-selection state for products
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
+
+  const toggleSelectProduct = (id: string) => {
+    setSelectedProductIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const isAllPageSelected = useMemo(() => {
+    if (paginatedProducts.length === 0) return false;
+    return paginatedProducts.every((p) => selectedProductIds.has(p.id));
+  }, [paginatedProducts, selectedProductIds]);
+
+  const isPageIndeterminate = useMemo(() => {
+    const countOnPage = paginatedProducts.filter((p) => selectedProductIds.has(p.id)).length;
+    return countOnPage > 0 && countOnPage < paginatedProducts.length;
+  }, [paginatedProducts, selectedProductIds]);
+
+  const toggleSelectAllOnPage = () => {
+    setSelectedProductIds((prev) => {
+      const next = new Set(prev);
+      if (isAllPageSelected) {
+        paginatedProducts.forEach((p) => next.delete(p.id));
+      } else {
+        paginatedProducts.forEach((p) => next.add(p.id));
+      }
+      return next;
+    });
+  };
+
+  const selectAllFiltered = () => {
+    setSelectedProductIds(new Set(filteredProducts.map((p) => p.id)));
+  };
+
+  const clearSelection = () => {
+    setSelectedProductIds(new Set());
+  };
+
+  const isAllFilteredSelected = useMemo(() => {
+    if (filteredProducts.length === 0) return false;
+    return filteredProducts.every((p) => selectedProductIds.has(p.id));
+  }, [filteredProducts, selectedProductIds]);
+
+  const selectedProductsList = useMemo(() => {
+    return products.filter((p) => selectedProductIds.has(p.id));
+  }, [products, selectedProductIds]);
+
+  const handleConfirmBulkDelete = () => {
+    const ids = Array.from(selectedProductIds);
+    if (ids.length === 0) return;
+    bulkDeleteMutation.mutate(ids, {
+      onSuccess: () => {
+        clearSelection();
+        setShowBulkDeleteModal(false);
+      },
+    });
+  };
 
   // Barcode scanner integration
   useBarcodeScanner({
@@ -224,6 +293,11 @@ export default function InventoryPage() {
               onDelete={handleDelete}
               getStockStatus={getStockStatus}
               isExpiringSoon={isExpiringSoon}
+              selectedProductIds={selectedProductIds}
+              onToggleSelectProduct={toggleSelectProduct}
+              onToggleSelectAll={toggleSelectAllOnPage}
+              isAllSelected={isAllPageSelected}
+              isIndeterminate={isPageIndeterminate}
             />
           )}
 
@@ -236,6 +310,8 @@ export default function InventoryPage() {
               onDelete={handleDelete}
               getStockStatus={getStockStatus}
               isExpiringSoon={isExpiringSoon}
+              selectedProductIds={selectedProductIds}
+              onToggleSelectProduct={toggleSelectProduct}
             />
           )}
 
@@ -273,6 +349,27 @@ export default function InventoryPage() {
         categories={categories}
         isPending={addMutation.isPending || updateMutation.isPending}
       />
+
+      {/* Bulk Delete Confirmation Modal */}
+      <BulkDeleteProductsModal
+        isOpen={showBulkDeleteModal}
+        onClose={() => setShowBulkDeleteModal(false)}
+        onConfirm={handleConfirmBulkDelete}
+        selectedProducts={selectedProductsList}
+        isPending={bulkDeleteMutation.isPending}
+      />
+
+      {/* Floating Bulk Action Bar */}
+      {inventoryTab === 'products' && (
+        <InventoryBulkActionBar
+          selectedCount={selectedProductIds.size}
+          totalFilteredCount={filteredProducts.length}
+          isAllFilteredSelected={isAllFilteredSelected}
+          onSelectAllFiltered={selectAllFiltered}
+          onClearSelection={clearSelection}
+          onOpenDeleteModal={() => setShowBulkDeleteModal(true)}
+        />
+      )}
 
       {/* Export Products Modal (Excel / CSV) */}
       {showExportModal && (

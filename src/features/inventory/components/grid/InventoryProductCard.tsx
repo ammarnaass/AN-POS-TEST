@@ -15,6 +15,8 @@ interface InventoryProductCardProps {
   onDelete: (product: Product) => void;
   stockStatus: 'in_stock' | 'low_stock' | 'out_of_stock';
   expiringSoon: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }
 
 export const InventoryProductCard: React.FC<InventoryProductCardProps> = ({
@@ -24,6 +26,8 @@ export const InventoryProductCard: React.FC<InventoryProductCardProps> = ({
   onDelete,
   stockStatus,
   expiringSoon,
+  isSelected = false,
+  onToggleSelect,
 }) => {
   const navigate = useNavigate();
 
@@ -33,10 +37,27 @@ export const InventoryProductCard: React.FC<InventoryProductCardProps> = ({
       : String(product.category || 'غير مصنف');
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 hover:border-blue-500/50 hover:shadow-lg transition-all duration-200 flex flex-col justify-between group shadow-xs">
+    <div className={`bg-white dark:bg-slate-900 rounded-2xl border p-4 transition-all duration-200 flex flex-col justify-between group shadow-xs ${
+      isSelected
+        ? 'border-blue-500 ring-2 ring-blue-500/50 bg-blue-50/20 dark:bg-blue-900/10'
+        : 'border-slate-200 dark:border-slate-800 hover:border-blue-500/50 hover:shadow-lg'
+    }`}>
       <div>
         {/* Card Image & Status Badges */}
         <div className="relative w-full h-40 bg-slate-50 dark:bg-slate-800 rounded-xl overflow-hidden mb-3.5 border border-slate-100 dark:border-slate-700/60 flex items-center justify-center">
+          {/* Checkbox overlay */}
+          <div className="absolute top-2.5 left-2.5 z-10">
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={(e) => {
+                e.stopPropagation();
+                onToggleSelect?.(product.id);
+              }}
+              className="w-4 h-4 rounded-md border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500 cursor-pointer accent-blue-600 transition-all bg-white dark:bg-slate-800 shadow-sm"
+              aria-label={`تحديد المنتج ${product.name}`}
+            />
+          </div>
           {product.image ? (
             <img
               src={product.image}

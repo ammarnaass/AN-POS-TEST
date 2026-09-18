@@ -10,6 +10,8 @@ interface InventoryGridViewProps {
   onDelete: (product: Product) => void;
   getStockStatus: (product: Product) => 'in_stock' | 'low_stock' | 'out_of_stock';
   isExpiringSoon: (product: Product) => boolean;
+  selectedProductIds?: Set<string>;
+  onToggleSelectProduct?: (id: string) => void;
 }
 
 export const InventoryGridView: React.FC<InventoryGridViewProps> = ({
@@ -19,6 +21,8 @@ export const InventoryGridView: React.FC<InventoryGridViewProps> = ({
   onDelete,
   getStockStatus,
   isExpiringSoon,
+  selectedProductIds,
+  onToggleSelectProduct,
 }) => {
   const parentRef = useRef<HTMLDivElement>(null);
   const [scrollElement, setScrollElement] = useState<HTMLElement | null>(null);
@@ -179,6 +183,8 @@ export const InventoryGridView: React.FC<InventoryGridViewProps> = ({
                     onDelete={onDelete}
                     stockStatus={getStockStatus(product)}
                     expiringSoon={isExpiringSoon(product)}
+                    isSelected={selectedProductIds?.has(product.id)}
+                    onToggleSelect={onToggleSelectProduct}
                   />
                 ))}
               </div>

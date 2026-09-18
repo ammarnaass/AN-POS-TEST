@@ -20,6 +20,8 @@ interface InventoryTableRowProps {
   onDelete: (product: Product) => void;
   stockStatus: 'in_stock' | 'low_stock' | 'out_of_stock';
   expiringSoon: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }
 
 export const InventoryTableRow: React.FC<InventoryTableRowProps> = ({
@@ -33,6 +35,8 @@ export const InventoryTableRow: React.FC<InventoryTableRowProps> = ({
   onDelete,
   stockStatus,
   expiringSoon,
+  isSelected = false,
+  onToggleSelect,
 }) => {
   const navigate = useNavigate();
 
@@ -51,9 +55,23 @@ export const InventoryTableRow: React.FC<InventoryTableRowProps> = ({
       data-index={virtualIndex}
       ref={measureElement}
       className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors group ${
-        expiringSoon ? 'bg-amber-500/5' : ''
+        isSelected ? 'bg-blue-50/70 dark:bg-blue-900/20' : expiringSoon ? 'bg-amber-500/5' : ''
       }`}
     >
+      {/* 0. Checkbox */}
+      <td className="py-3.5 px-3 text-center">
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={(e) => {
+            e.stopPropagation();
+            onToggleSelect?.(product.id);
+          }}
+          className="w-4 h-4 rounded-md border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500 cursor-pointer accent-blue-600 transition-all"
+          aria-label={`تحديد المنتج ${product.name}`}
+        />
+      </td>
+
       {/* 1. Product Name & Unit */}
       <td className="py-3.5 px-4">
         <div className="font-bold text-slate-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition">
