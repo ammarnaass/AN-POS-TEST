@@ -54,8 +54,9 @@ export const Design7ProductSearchModal: React.FC<Design7ProductSearchModalProps>
     return products.filter((p) => {
       if (p.status === 'inactive') return false;
       if (selectedCat !== 'ALL') {
-        const pCat = p.category || (p as any).category_id;
-        if (pCat !== selectedCat) return false;
+        const pCat = p.category || '';
+        const pCatId = (p as any).category_id || p.categoryId || '';
+        if (pCat !== selectedCat && pCatId !== selectedCat) return false;
       }
       if (!q) return true;
       return (

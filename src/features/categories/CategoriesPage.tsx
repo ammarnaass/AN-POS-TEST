@@ -33,6 +33,7 @@ export default function CategoriesPage() {
     form,
     setForm,
     formError,
+    isDuplicateName,
     deleteConfirmCat,
     setDeleteConfirmCat,
     openNew,
@@ -110,6 +111,7 @@ export default function CategoriesPage() {
         form={form}
         categories={categories}
         formError={formError}
+        isDuplicateName={isDuplicateName}
         isSubmitting={isSubmitting}
         onFormChange={setForm}
         onSubmit={handleSubmit}

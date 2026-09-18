@@ -2,7 +2,7 @@
 // نافذة إضافة وتعديل عائلات وفئات المنتجات (AN POS)
 
 import React from 'react';
-import { FolderPlus, X, Check, AlertCircle } from 'lucide-react';
+import { FolderPlus, X, Check, AlertCircle, AlertTriangle } from 'lucide-react';
 import type { Category, CategoryWrite } from '@/services/api/categoriesApi';
 import { AVAILABLE_ICONS, COLOR_PALETTE } from '../constants/categoryConstants';
 
@@ -12,6 +12,7 @@ interface CategoryFormModalProps {
   form: CategoryWrite;
   categories: Category[];
   formError: string;
+  isDuplicateName?: boolean;
   isSubmitting: boolean;
   onFormChange: (form: CategoryWrite) => void;
   onSubmit: (e: React.FormEvent) => void;
@@ -24,6 +25,7 @@ export const CategoryFormModal: React.FC<CategoryFormModalProps> = ({
   form,
   categories,
   formError,
+  isDuplicateName = false,
   isSubmitting,
   onFormChange,
   onSubmit,
@@ -60,17 +62,34 @@ export const CategoryFormModal: React.FC<CategoryFormModalProps> = ({
         <form onSubmit={onSubmit} className="p-6 space-y-5">
           {/* اسم الفئة */}
           <div>
-            <label className="block text-xs font-bold text-on-surface mb-1.5">
-              اسم العائلة / الفئة <span className="text-error">*</span>
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold text-on-surface">
+                اسم العائلة / الفئة <span className="text-error">*</span>
+              </label>
+              {isDuplicateName && (
+                <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                  مكرر
+                </span>
+              )}
+            </div>
             <input
               type="text"
               value={form.name}
               onChange={(e) => onFormChange({ ...form, name: e.target.value })}
               autoFocus
-              className="w-full h-11 px-4 bg-surface-container-low rounded-xl text-sm text-right focus:outline-none focus:ring-2 focus:ring-primary/30 border border-outline-variant/20 font-semibold"
+              className={`w-full h-11 px-4 bg-surface-container-low rounded-xl text-sm text-right focus:outline-none focus:ring-2 border font-semibold transition-colors ${
+                isDuplicateName
+                  ? 'border-amber-500/80 focus:ring-amber-500/30 text-amber-700 dark:text-amber-300'
+                  : 'border-outline-variant/20 focus:ring-primary/30'
+              }`}
               placeholder="مثال: مشروبات، ألبان، معلبات..."
             />
+            {isDuplicateName && (
+              <div className="mt-2 flex items-center gap-2 text-xs text-amber-700 dark:text-amber-300 font-bold bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-xl animate-in fade-in">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
+                <span>عائلة بهذا الاسم موجودة مسبقاً — يُرجى اختيار اسم آخر لمنع التكرار آنياً.</span>
+              </div>
+            )}
           </div>
 
           {/* العائلة الرئيسية (للتسلسل الهرمي) */}
@@ -167,8 +186,13 @@ export const CategoryFormModal: React.FC<CategoryFormModalProps> = ({
           <div className="flex gap-3 pt-2">
             <button
               type="submit"
-              disabled={isSubmitting}
-              className="flex-1 h-12 bg-primary text-on-primary rounded-xl font-bold text-sm hover:brightness-110 active:scale-95 transition-all shadow-md shadow-primary/20 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
+              disabled={isSubmitting || isDuplicateName || !form.name.trim()}
+              title={isDuplicateName ? 'اسم العائلة مكرر — يُرجى اختيار اسم آخر' : undefined}
+              className={`flex-1 h-12 rounded-xl font-bold text-sm transition-all shadow-md flex items-center justify-center gap-2 ${
+                isDuplicateName || !form.name.trim()
+                  ? 'bg-outline-variant/30 text-on-surface-variant/40 cursor-not-allowed shadow-none'
+                  : 'bg-primary text-on-primary hover:brightness-110 active:scale-95 shadow-primary/20 cursor-pointer'
+              }`}
             >
               <Check className="w-4 h-4" />
               <span>{editing ? 'حفظ التعديلات' : 'إضافة العائلة'}</span>

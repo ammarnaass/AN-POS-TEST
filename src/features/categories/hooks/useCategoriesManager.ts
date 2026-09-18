@@ -4,6 +4,8 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { categoriesApi, type Category, type CategoryWrite } from '@/services/api/categoriesApi';
+import { generateId } from '@/utils';
+import { useNotificationStore } from '@/store/notificationStore';
 import {
   COLOR_PALETTE,
   emptyCategoryForm,
@@ -13,6 +15,7 @@ import {
 
 export function useCategoriesManager() {
   const queryClient = useQueryClient();
+  const { addNotification } = useNotificationStore();
 
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState<CategoryFilterType>('all');
@@ -35,42 +38,164 @@ export function useCategoriesManager() {
     queryFn: () => categoriesApi.list(),
   });
 
-  // إضافة عائلة جديدة
+  // فحص آني ولحظي لمنع تكرار اسم العائلة (Real-time duplicate check)
+  const isDuplicateName = useMemo(() => {
+    const trimmed = form.name.trim().toLowerCase();
+    if (!trimmed) return false;
+    return categories.some(
+      (c) => c.name.trim().toLowerCase() === trimmed && c.id !== editing?.id
+    );
+  }, [form.name, categories, editing]);
+
+  // إضافة عائلة جديدة (آني 0ms مع حماية التراجع التلقائي)
   const createMutation = useMutation({
     mutationFn: (body: CategoryWrite) => categoriesApi.create(body),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['categories'] });
+    onMutate: async (newCatData) => {
+      await queryClient.cancelQueries({ queryKey: ['categories'] });
+      const previousCategories = queryClient.getQueryData<Category[]>(['categories']) || [];
+      const tempId = generateId();
+      const optimisticCategory: Category = {
+        id: tempId,
+        name: newCatData.name.trim(),
+        parentId: newCatData.parentId ?? null,
+        description: newCatData.description ?? '',
+        icon: newCatData.icon || 'FolderTree',
+        color: newCatData.color || '#3B82F6',
+        productCount: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      // تحديث آني وفوري في الكاش (0ms)
+      queryClient.setQueryData<Category[]>(['categories'], (old = []) => [...old, optimisticCategory]);
+
+      // إغلاق النافذة وتصفير النموذج فوراً لتجربة مستخدم سريعة
       setShowForm(false);
       setForm(emptyCategoryForm);
       setFormError('');
+
+      addNotification({
+        title: 'تمت إضافة العائلة',
+        message: `تم إنشاء فئة "${optimisticCategory.name}" بنجاح وتحديث الكاشير.`,
+        type: 'success',
+        category: 'inventory',
+      });
+
+      return { previousCategories, tempId };
     },
-    onError: (err: Error) => setFormError(err.message),
+    onSuccess: (savedCat, _vars, context) => {
+      if (context?.tempId && savedCat?.id) {
+        queryClient.setQueryData<Category[]>(['categories'], (old = []) =>
+          old.map((c) => (c.id === context.tempId ? savedCat : c))
+        );
+      }
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+    },
+    onError: (err: Error, _vars, context) => {
+      if (context?.previousCategories) {
+        queryClient.setQueryData(['categories'], context.previousCategories);
+      }
+      addNotification({
+        title: 'فشل إضافة العائلة',
+        message: err?.message || 'حدث خطأ أثناء حفظ الفئة.',
+        type: 'error',
+        category: 'inventory',
+      });
+      setFormError(err.message);
+      setShowForm(true);
+    },
   });
 
-  // تعديل بيانات عائلة
+  // تعديل بيانات عائلة (آني 0ms)
   const updateMutation = useMutation({
     mutationFn: ({ id, body }: { id: string; body: CategoryWrite }) =>
       categoriesApi.update(id, body),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['categories'] });
+    onMutate: async ({ id, body }) => {
+      await queryClient.cancelQueries({ queryKey: ['categories'] });
+      const previousCategories = queryClient.getQueryData<Category[]>(['categories']) || [];
+
+      // تطبيق التعديل فوراً (0ms) في الكاش
+      queryClient.setQueryData<Category[]>(['categories'], (old = []) =>
+        old.map((c) =>
+          c.id === id
+            ? {
+                ...c,
+                ...body,
+                name: body.name.trim(),
+                updatedAt: new Date().toISOString(),
+              }
+            : c
+        )
+      );
+
       setShowForm(false);
       setEditing(null);
       setForm(emptyCategoryForm);
       setFormError('');
-    },
-    onError: (err: Error) => setFormError(err.message),
-  });
 
-  // حذف عائلة
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => categoriesApi.remove(id),
+      addNotification({
+        title: 'تم تعديل العائلة',
+        message: 'تم تحديث بيانات وتصنيف العائلة بنجاح.',
+        type: 'success',
+        category: 'inventory',
+      });
+
+      return { previousCategories };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories'] });
-      setDeleteConfirmCat(null);
     },
-    onError: (err: Error) => {
-      alert(err.message);
+    onError: (err: Error, _vars, context) => {
+      if (context?.previousCategories) {
+        queryClient.setQueryData(['categories'], context.previousCategories);
+      }
+      addNotification({
+        title: 'فشل تعديل العائلة',
+        message: err?.message || 'حدث خطأ أثناء تحديث الفئة.',
+        type: 'error',
+        category: 'inventory',
+      });
+      setFormError(err.message);
+      setShowForm(true);
+    },
+  });
+
+  // حذف عائلة (آني 0ms)
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => categoriesApi.remove(id),
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['categories'] });
+      const previousCategories = queryClient.getQueryData<Category[]>(['categories']) || [];
+
+      // إزالة آنية ولحظية (0ms)
+      queryClient.setQueryData<Category[]>(['categories'], (old = []) =>
+        old.filter((c) => c.id !== id)
+      );
+
       setDeleteConfirmCat(null);
+
+      addNotification({
+        title: 'تم حذف العائلة',
+        message: 'تمت إزالة الفئة بنجاح من النظام وتحديث الكاشير.',
+        type: 'info',
+        category: 'inventory',
+      });
+
+      return { previousCategories };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+    },
+    onError: (err: Error, _vars, context) => {
+      if (context?.previousCategories) {
+        queryClient.setQueryData(['categories'], context.previousCategories);
+      }
+      addNotification({
+        title: 'فشل حذف العائلة',
+        message: err?.message || 'تعذر حذف الفئة لوجود ارتباطات أو خطأ في النظام.',
+        type: 'error',
+        category: 'inventory',
+      });
     },
   });
 
@@ -138,14 +263,19 @@ export function useCategoriesManager() {
   // معالجة حفظ النموذج
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim()) {
+    const trimmed = form.name.trim();
+    if (!trimmed) {
       setFormError('اسم الفئة مطلوب');
       return;
     }
+    if (isDuplicateName) {
+      setFormError('اسم الفئة موجود مسبقاً، يرجى اختيار اسم آخر لمنع التكرار.');
+      return;
+    }
     if (editing) {
-      updateMutation.mutate({ id: editing.id, body: form });
+      updateMutation.mutate({ id: editing.id, body: { ...form, name: trimmed } });
     } else {
-      createMutation.mutate(form);
+      createMutation.mutate({ ...form, name: trimmed });
     }
   };
 
@@ -179,6 +309,7 @@ export function useCategoriesManager() {
     form,
     setForm,
     formError,
+    isDuplicateName,
     deleteConfirmCat,
     setDeleteConfirmCat,
 

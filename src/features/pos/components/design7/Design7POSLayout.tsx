@@ -111,8 +111,17 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
     if (customFavoriteCategories && customFavoriteCategories.length > 0) {
       return customFavoriteCategories;
     }
-    return storeFavoriteCategories || [];
-  }, [customFavoriteCategories, storeFavoriteCategories]);
+    if (storeFavoriteCategories && storeFavoriteCategories.length > 0) {
+      return storeFavoriteCategories;
+    }
+    // الربط التلقائي بأقسام وعائلات المتجر الفعلية
+    return (categories || []).map((c: any) => ({
+      id: typeof c === 'string' ? c : c.id || c.name,
+      name: typeof c === 'string' ? c : c.name,
+      color: typeof c === 'string' ? '#2563eb' : c.color || '#2563eb',
+      icon: typeof c === 'string' ? 'FolderTree' : c.icon || 'FolderTree',
+    }));
+  }, [customFavoriteCategories, storeFavoriteCategories, categories]);
 
   // Packs only from favorites store
   const packOnlyFavorites = useMemo(() => {
@@ -143,21 +152,40 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
       }));
     }
 
-    // Smart fallback: map available products into favorite packs
+    // Smart fallback: map available products into favorite packs and link directly to real departments
     const available = (allProducts && allProducts.length > 0 ? allProducts : products) || [];
-    return available.slice(0, 16).map((p: any, idx: number) => ({
-      id: `fav-pack-${p.id || idx}`,
-      categoryId: idx % 3 === 0 ? 'fav-cat-drinks' : idx % 3 === 1 ? 'fav-cat-wholesale' : 'fav-cat-quick',
-      type: 'pack' as const,
-      itemId: String(p.id),
-      name: p.name || (p as any).productName || 'عبوة مفضلة',
-      barcode: p.barcode,
-      price: Number(p.retailPrice ?? p.price ?? 0),
-      packQty: (p as any).packPiecesCount || (p as any).piecesCount || 1,
-      packUnit: (p as any).unit || (p as any).unitName || 'عبوة',
-      order: idx,
-      isPack: true,
-    }));
+    return available.map((p: any, idx: number) => {
+      let prodCatId = p.categoryId || (p as any).category_id;
+      const byId = activeFavoriteCategories.find((c) => c.id === prodCatId);
+      if (!byId && p.category) {
+        const byName = activeFavoriteCategories.find(
+          (c) => c.name.trim().toLowerCase() === p.category.trim().toLowerCase()
+        );
+        if (byName) prodCatId = byName.id;
+      }
+      if (!prodCatId || (!byId && !activeFavoriteCategories.some((c) => c.id === prodCatId))) {
+        if (activeFavoriteCategories.length > 0) {
+          prodCatId = activeFavoriteCategories[idx % activeFavoriteCategories.length].id;
+        } else {
+          prodCatId = idx % 3 === 0 ? 'fav-cat-drinks' : idx % 3 === 1 ? 'fav-cat-wholesale' : 'fav-cat-quick';
+        }
+      }
+
+      return {
+        id: `fav-pack-${p.id || idx}`,
+        categoryId: prodCatId,
+        category: p.category,
+        type: 'pack' as const,
+        itemId: String(p.id),
+        name: p.name || (p as any).productName || 'سلعة',
+        barcode: p.barcode,
+        price: Number(p.retailPrice ?? p.price ?? 0),
+        packQty: (p as any).packPiecesCount || (p as any).piecesCount || 1,
+        packUnit: (p as any).unit || (p as any).unitName || 'عبوة',
+        order: idx,
+        isPack: true,
+      };
+    });
   }, [systemPacks, allProducts, products]);
 
   // Active full list of favorite packs
@@ -173,9 +201,15 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
     if (selectedFavoriteCatId === 'ALL') {
       return activeFavoritesList;
     }
-    const catExists = activeFavoriteCategories.some((c) => c.id === selectedFavoriteCatId);
-    if (!catExists) return activeFavoritesList;
-    return activeFavoritesList.filter((it) => it.categoryId === selectedFavoriteCatId);
+    const catObj = activeFavoriteCategories.find((c) => c.id === selectedFavoriteCatId);
+    const catName = catObj ? catObj.name.trim().toLowerCase() : '';
+    return activeFavoritesList.filter((it: any) => {
+      if (it.categoryId === selectedFavoriteCatId) return true;
+      if (catName && (it.category?.trim().toLowerCase() === catName || it.name?.trim().toLowerCase().includes(catName))) {
+        return true;
+      }
+      return false;
+    });
   }, [activeFavoritesList, activeFavoriteCategories, selectedFavoriteCatId]);
 
   // Handle selecting / adding a favorite pack to the basket
