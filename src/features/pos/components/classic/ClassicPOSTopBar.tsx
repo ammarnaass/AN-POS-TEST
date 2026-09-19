@@ -87,9 +87,65 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
   const unreadCount = useNotificationStore((s) => s.getUnreadCount());
 
   return (
-    <div className="bg-surface-container-low border-b border-outline-variant/20 p-2 sm:p-2.5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 shrink-0 shadow-sm">
-      {/* 1. RIGHT / CENTER (in RTL): ACTIONS TOOLBAR */}
-      <div className="flex-1 flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-0.5 min-w-0">
+    <div className="bg-surface-container-low border-b border-outline-variant/20 p-2 sm:p-2.5 flex flex-col gap-2 shrink-0 shadow-sm">
+      {/* 1. TOP ROW: GIANT PRICE DISPLAY (85%) + SETTLE BUTTON (15%) */}
+      <div className="w-full flex items-stretch gap-2">
+        {/* The Classic LED Digital Total Display (شاشة عرض السعر الكبرى - 85%) */}
+        <div className="w-[85%] flex-1 bg-black/95 dark:bg-black rounded-2xl border-2 border-emerald-500/40 px-3.5 sm:px-5 py-2 shadow-2xl flex items-center justify-between gap-3 overflow-hidden relative">
+          {/* Subtle glowing ambient effect */}
+          <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 via-teal-500/10 to-transparent pointer-events-none" />
+
+          {/* Right side in RTL: Cart metadata & indicators */}
+          <div className="flex items-center gap-2 sm:gap-3 relative z-10 min-w-0">
+            <div className="px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-700/80 shrink-0">
+              <span className="text-[10px] font-mono font-bold text-slate-400 block leading-tight">الإجمالي الكلي:</span>
+              <span className="text-xs font-mono font-bold text-emerald-400 block leading-tight">
+                {cartLength > 0 ? `${totalItemsCount} سلع (${totalUnitsCount} قطع)` : 'شاشة المبيعات جاهزة'}
+              </span>
+            </div>
+
+            {selectedCustomerName && (
+              <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-900/90 border border-primary/30 text-primary text-xs font-bold shrink-0">
+                <User className="w-3.5 h-3.5" />
+                <span className="truncate max-w-[120px]">{selectedCustomerName}</span>
+              </div>
+            )}
+
+            {discountAmount > 0 && (
+              <div className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[11px] font-bold shrink-0">
+                <span>تخفيض:</span>
+                <span className="font-mono">-{formatMoney(discountAmount)}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Left side in RTL: Giant glowing LED total amount */}
+          <div className="text-left flex items-baseline gap-1.5 sm:gap-2 relative z-10 shrink-0" dir="ltr">
+            <span className="text-2xl sm:text-3xl md:text-4xl font-black font-mono text-emerald-400 tracking-wider drop-shadow-[0_0_16px_rgba(52,211,153,0.6)]">
+              {formatMoney(totalAmount)}
+            </span>
+            <span className="text-xs sm:text-base font-black text-emerald-500">{currency}</span>
+          </div>
+        </div>
+
+        {/* Giant Settle Button F1 (زر تأكيد البيع - 15%) */}
+        <button
+          type="button"
+          onClick={onSettleSale}
+          disabled={cartLength === 0 || isSalePending}
+          className="w-[15%] min-w-[120px] rounded-2xl bg-gradient-to-br from-emerald-600 via-emerald-500 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs sm:text-sm flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 shadow-lg shadow-emerald-600/30 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all shrink-0 p-2"
+          title="تأكيد البيع وتسوية الفاتورة (F1)"
+        >
+          <Receipt className="w-5 h-5 sm:w-6 sm:h-6 shrink-0 drop-shadow-xs" />
+          <div className="flex flex-col items-center sm:items-start leading-tight">
+            <span className="font-extrabold text-xs sm:text-sm">تأكيد بيع</span>
+            <span className="bg-black/30 px-1.5 py-0.2 rounded text-[10px] font-mono font-bold">F1</span>
+          </div>
+        </button>
+      </div>
+
+      {/* 2. BOTTOM ROW (UNDERNEATH): LONGITUDINAL ACTION BUTTONS TOOLBAR (شريط الأزرار الطولي) */}
+      <div className="w-full flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-0.5 min-w-0 border-t border-outline-variant/15 pt-1.5">
         {/* زر الخروج إلى لوحة التحكم الرئيسية */}
         {onNavigateBack && (
           <button
@@ -346,8 +402,6 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
           <span className="hidden sm:inline">{theme === 'dark' ? 'نهاري' : 'ليلي'}</span>
         </button>
 
-
-
         {/* زر الإشعارات والتنبيهات التشغيلية */}
         <NotificationDropdown hideBadge>
           <button
@@ -366,38 +420,6 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
             <span className="hidden sm:inline">إشعارات</span>
           </button>
         </NotificationDropdown>
-      </div>
-
-      {/* 2. LEFT (in RTL): UNIFIED SETTLEMENT & DIGITAL DISPLAY BLOCK */}
-      <div className="flex items-center gap-2 shrink-0">
-        {/* Giant Settle Button F1 (Placed directly adjacent to the Total Display) */}
-        <button
-          type="button"
-          onClick={onSettleSale}
-          disabled={cartLength === 0 || isSalePending}
-          className="h-12 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-emerald-600/30 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all shrink-0"
-          title="تأكيد البيع وتسوية الفاتورة (F1)"
-        >
-          <Receipt className="w-4 h-4 sm:w-5 sm:h-5" />
-          <span className="font-extrabold">تأكيد بيع</span>
-          <span className="bg-black/30 px-2 py-0.5 rounded-lg text-xs font-mono font-bold">F1</span>
-        </button>
-
-        {/* The Classic LED Digital Total Display (شاشة العرض الرقمية الكلاسيكية) */}
-        <div className="bg-black/95 rounded-2xl border-2 border-slate-700/80 px-3.5 py-1.5 shadow-2xl flex items-center justify-between gap-3 min-w-[180px] sm:min-w-[220px]">
-          <div>
-            <span className="text-[10px] font-mono font-bold text-slate-400 block">الإجمالي:</span>
-            <span className="text-[10px] font-mono text-emerald-400/80 block">
-              {cartLength > 0 ? `${totalItemsCount} سلع (${totalUnitsCount} قطع)` : 'شاشة جاهزة'}
-            </span>
-          </div>
-          <div className="text-left flex items-baseline gap-1">
-            <span className="text-xl sm:text-2xl font-black font-mono text-emerald-400 tracking-wider drop-shadow-[0_0_12px_rgba(52,211,153,0.5)]">
-              {formatMoney(totalAmount)}
-            </span>
-            <span className="text-xs font-bold text-emerald-500">{currency}</span>
-          </div>
-        </div>
       </div>
     </div>
   );
