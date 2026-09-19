@@ -411,6 +411,7 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
   useDesign7Shortcuts({
     onSettleSale,
     onOpenSalesHistory,
+    onSuspendSale,
     onOpenReturns,
     onOpenSuspended,
     onOpenDiscount,
@@ -555,6 +556,7 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
                 setIsVirtualKeyboardOpen(true);
               }}
               onOpenSalesHistory={onOpenSalesHistory}
+              onSuspendSale={onSuspendSale}
               onOpenFreeProduct={onOpenFreeProduct}
               onEditPrice={handleEditPrice}
               hasSelectedItem={Boolean(selectedCartRowId)}

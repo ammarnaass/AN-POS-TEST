@@ -5,6 +5,7 @@ import { getCartRowKey } from '../utils/cartRow';
 interface UseDesign7ShortcutsProps {
   onSettleSale: () => void;
   onOpenSalesHistory?: () => void;
+  onSuspendSale?: () => void;
   onOpenReturns?: () => void;
   onOpenSuspended: () => void;
   onOpenDiscount: () => void;
@@ -33,6 +34,7 @@ interface UseDesign7ShortcutsProps {
 export function useDesign7Shortcuts({
   onSettleSale,
   onOpenSalesHistory,
+  onSuspendSale,
   onOpenReturns,
   onOpenSuspended,
   onOpenDiscount,
@@ -85,7 +87,8 @@ export function useDesign7Shortcuts({
         onSettleSale();
       } else if (e.key === 'F2') {
         e.preventDefault();
-        if (onOpenSalesHistory) onOpenSalesHistory();
+        if (onSuspendSale) onSuspendSale();
+        else if (onOpenSalesHistory) onOpenSalesHistory();
         else if (onOpenReturns) onOpenReturns();
       } else if (e.key === 'F3') {
         e.preventDefault();

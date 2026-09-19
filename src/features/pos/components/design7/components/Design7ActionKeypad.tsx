@@ -14,6 +14,7 @@ interface Design7ActionKeypadProps {
   onOpenKeypad?: () => void;
   onOpenKeyboard?: () => void;
   onOpenSalesHistory?: () => void;
+  onSuspendSale?: () => void;
   onOpenFreeProduct?: () => void;
   onEditPrice?: () => void;
   hasSelectedItem?: boolean;
@@ -33,6 +34,7 @@ export const Design7ActionKeypad: React.FC<Design7ActionKeypadProps> = ({
   onOpenKeypad,
   onOpenKeyboard,
   onOpenSalesHistory,
+  onSuspendSale,
   onOpenFreeProduct,
   onEditPrice,
   hasSelectedItem = false,
@@ -222,19 +224,19 @@ export const Design7ActionKeypad: React.FC<Design7ActionKeypadProps> = ({
         </button>
 
         {/* ================= Row 5 ================= */}
-        {/* Row 5, Col 1: Sales History (Right in RTL) */}
+        {/* Row 5, Col 1: Suspend Sale / Hold Bill (Right in RTL) */}
         <button
           onClick={() => {
-            if (onOpenSalesHistory) onOpenSalesHistory();
+            if (onSuspendSale) onSuspendSale();
           }}
-          title="سجل الفواتير والمبيعات السابقة والمرتجع (F2)"
+          title="تعليق الفاتورة الحالية كمسودة (F2)"
           className="d7-glossy-action-tile min-h-[44px] rounded flex flex-col items-center justify-center p-0.5 cursor-pointer active:scale-95 transition-all"
           type="button"
         >
-          <svg className="w-4 h-4 text-slate-700 drop-shadow-xs" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"></path>
+          <svg className="w-4 h-4 text-amber-600 drop-shadow-xs" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"></path>
           </svg>
-          <span className="text-[9px] font-bold text-slate-800 leading-tight mt-0.5">سجل الفواتير</span>
+          <span className="text-[9px] font-bold text-amber-900 leading-tight mt-0.5">تعليق (F2)</span>
         </button>
 
         {/* Row 5, Col 2: Keypad Matrix / Numpad (Center) */}

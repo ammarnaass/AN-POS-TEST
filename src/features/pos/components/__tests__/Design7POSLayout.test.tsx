@@ -326,10 +326,10 @@ describe('Design7POSLayout (تصميم 7 - كاشير اللمس الكلاسي�
     fireEvent.click(printerBtn);
     expect(defaultProps.onSettleSale).toHaveBeenCalledTimes(2);
 
-    // 4. Sales history button
-    const historyBtn = screen.getByTitle(/سجل الفواتير والمبيعات السابقة/);
-    fireEvent.click(historyBtn);
-    expect(defaultProps.onOpenSalesHistory).toHaveBeenCalled();
+    // 4. Suspend sale button
+    const suspendBtn = screen.getByTitle(/تعليق الفاتورة الحالية/);
+    fireEvent.click(suspendBtn);
+    expect(defaultProps.onSuspendSale).toHaveBeenCalled();
 
     // 5. Numpad / Calculator button in side keypad opens Design 7 touch calculator modal
     const numpadBtn = screen.getByTitle(/لوحة الأرقام اللمسية والآلة الحاسبة/);
@@ -364,9 +364,9 @@ describe('Design7POSLayout (تصميم 7 - كاشير اللمس الكلاسي�
   it('handles shortcuts F2, F3, F5, F7, F8, F9, F10, F12 and Escape', () => {
     render(<Design7POSLayout {...defaultProps} />);
 
-    // F2 -> Sales history
+    // F2 -> Suspend sale
     fireEvent.keyDown(window, { key: 'F2' });
-    expect(defaultProps.onOpenSalesHistory).toHaveBeenCalled();
+    expect(defaultProps.onSuspendSale).toHaveBeenCalled();
 
     // F5 -> Free product
     fireEvent.keyDown(window, { key: 'F5' });
