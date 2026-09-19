@@ -151,14 +151,14 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
         </button>
       </div>
 
-      {/* 2. BOTTOM ROW (UNDERNEATH): LONGITUDINAL ACTION BUTTONS TOOLBAR (شريط الأزرار الطولي) */}
+      {/* 2. ACTION STRIP 1 (شريط الأزرار الأول: التحكم، السلة، والمعاملات السريعة) */}
       <div className="w-full flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-0.5 min-w-0 border-t border-outline-variant/15 pt-1.5">
-        {/* زر الخروج إلى لوحة التحكم الرئيسية */}
+        {/* زر الخروج إلى لوحة التحكم الرئيسية (Esc) */}
         {onNavigateBack && (
           <button
             type="button"
             onClick={onNavigateBack}
-            className="h-10 px-3 rounded-xl bg-red-500/15 hover:bg-red-500/25 border border-red-500/40 text-red-600 dark:text-red-400 text-xs font-black flex items-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0 shadow-2xs"
+            className="h-9 px-3 rounded-xl bg-red-500/15 hover:bg-red-500/25 border border-red-500/40 text-red-600 dark:text-red-400 text-xs font-black flex items-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0 shadow-2xs"
             title="الخروج إلى لوحة التحكم الرئيسية (Esc)"
           >
             <LogOut className="w-3.5 h-3.5 text-red-500" />
@@ -167,12 +167,12 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
           </button>
         )}
 
-        {/* زر تخصيص الواجهة ودقة الشاشة */}
+        {/* زر تخصيص الواجهة ودقة الشاشة (F10) */}
         {onOpenCustomize && (
           <button
             type="button"
             onClick={onOpenCustomize}
-            className="h-10 px-3 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/40 text-purple-700 dark:text-purple-300 text-xs font-black flex items-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0 shadow-2xs"
+            className="h-9 px-3 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/40 text-purple-700 dark:text-purple-300 text-xs font-black flex items-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0 shadow-2xs"
             title="تخصيص الواجهة ودقة العرض ومقياس التكبير (F10)"
           >
             <Sliders className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
@@ -181,12 +181,12 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
           </button>
         )}
 
-        {/* SAFE DESTRUCTIVE / EDITING ZONE: Ctrl+D & Isolated F4 */}
+        {/* زر حذف السلعة المحددة (Ctrl+D) */}
         <button
           type="button"
           onClick={onDeleteSelectedOrLast}
           disabled={cartLength === 0}
-          className="h-10 px-2.5 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-on-surface text-xs font-bold flex items-center gap-1.5 active:scale-95 disabled:opacity-40 cursor-pointer transition-all shrink-0"
+          className="h-9 px-2.5 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-on-surface text-xs font-bold flex items-center gap-1.5 active:scale-95 disabled:opacity-40 cursor-pointer transition-all shrink-0"
           title="حذف السلعة المحددة (Ctrl+D / Delete)"
         >
           <X className="w-3.5 h-3.5 text-red-400" />
@@ -194,12 +194,12 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
           <span className="bg-surface-container-highest px-1.5 py-0.5 rounded text-[10px] font-mono opacity-80">Ctrl+D</span>
         </button>
 
-        {/* Isolated Destructive Action: إلغاء الوصل (F4) */}
+        {/* زر إلغاء الوصل بالكامل (F4) */}
         <button
           type="button"
           onClick={onClearCart}
           disabled={cartLength === 0}
-          className="h-10 px-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-500 text-xs font-bold flex items-center gap-1.5 active:scale-95 disabled:opacity-40 cursor-pointer transition-all shrink-0"
+          className="h-9 px-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-500 text-xs font-bold flex items-center gap-1.5 active:scale-95 disabled:opacity-40 cursor-pointer transition-all shrink-0"
           title="إلغاء الفاتورة الحالية بالكامل (F4)"
         >
           <Trash2 className="w-3.5 h-3.5 text-red-500" />
@@ -207,15 +207,14 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
           <span className="bg-red-500/20 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold">F4</span>
         </button>
 
-        <div className="w-px h-6 bg-outline-variant/30 mx-0.5 shrink-0" />
+        <div className="w-px h-5 bg-outline-variant/30 mx-0.5 shrink-0" />
 
-        {/* SALE OPERATIONS: F2, F3, F6, Discount, F5, F9 */}
-        {/* تعليق البيع (F2) */}
+        {/* زر تعليق البيع (F2) */}
         <button
           type="button"
           onClick={onSuspendSale}
           disabled={cartLength === 0}
-          className="h-10 px-2.5 rounded-xl bg-surface-container hover:bg-amber-500/15 text-on-surface hover:text-amber-500 border border-outline-variant/20 hover:border-amber-500/30 text-xs font-bold flex items-center gap-1.5 active:scale-95 disabled:opacity-40 cursor-pointer transition-all shrink-0"
+          className="h-9 px-2.5 rounded-xl bg-surface-container hover:bg-amber-500/15 text-on-surface hover:text-amber-500 border border-outline-variant/20 hover:border-amber-500/30 text-xs font-bold flex items-center gap-1.5 active:scale-95 disabled:opacity-40 cursor-pointer transition-all shrink-0"
           title="تعليق البيع / سلة جديدة (F2)"
         >
           <PauseCircle className="w-3.5 h-3.5 text-amber-500" />
@@ -223,11 +222,11 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
           <span className="bg-surface-container-highest px-1.5 py-0.5 rounded text-[10px] font-mono opacity-80">F2</span>
         </button>
 
-        {/* مسودات (F3) */}
+        {/* زر المسودات (F3) */}
         <button
           type="button"
           onClick={onOpenSuspended}
-          className="h-10 px-2.5 rounded-xl bg-surface-container hover:bg-purple-500/15 text-on-surface hover:text-purple-500 border border-outline-variant/20 hover:border-purple-500/30 text-xs font-bold flex items-center gap-1.5 active:scale-95 cursor-pointer relative transition-all shrink-0"
+          className="h-9 px-2.5 rounded-xl bg-surface-container hover:bg-purple-500/15 text-on-surface hover:text-purple-500 border border-outline-variant/20 hover:border-purple-500/30 text-xs font-bold flex items-center gap-1.5 active:scale-95 cursor-pointer relative transition-all shrink-0"
           title="قائمة الفواتير المعلقة والمسودات (F3)"
         >
           <FolderOpen className="w-3.5 h-3.5 text-purple-500" />
@@ -238,11 +237,11 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
           )}
         </button>
 
-        {/* اختيار الزبون (F6) */}
+        {/* زر اختيار الزبون (F6) */}
         <button
           type="button"
           onClick={onSelectCustomer}
-          className={`h-10 px-2.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0 ${
+          className={`h-9 px-2.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0 ${
             selectedCustomerName
               ? 'bg-primary/15 text-primary border-primary/40'
               : 'bg-surface-container hover:bg-surface-container-high border-outline-variant/20 text-on-surface'
@@ -250,15 +249,18 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
           title="تحديد أو تغيير الزبون (F6)"
         >
           <User className="w-3.5 h-3.5 text-primary" />
-          <span className="max-w-[90px] truncate">{selectedCustomerName || 'زبون (F6)'}</span>
+          <span className="max-w-[120px] truncate">{selectedCustomerName || 'زبون (F6)'}</span>
         </button>
+      </div>
 
+      {/* 3. ACTION STRIP 2 (شريط الأزرار الثاني: فئات الأسعار، التخفيض، الطباعة، المستندات والأدوات) */}
+      <div className="w-full flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-0.5 min-w-0 border-t border-outline-variant/15 pt-1">
         {/* فئات الأسعار: س1 تجزئة، س2 نصف جملة، س3 جملة، س4 خاص */}
-        <div className="flex items-center bg-surface-container border border-outline-variant/20 rounded-xl p-0.5 gap-0.5 shrink-0 text-xs font-bold h-10">
+        <div className="flex items-center bg-surface-container border border-outline-variant/20 rounded-xl p-0.5 gap-0.5 shrink-0 text-xs font-bold h-9">
           <button
             type="button"
             onClick={() => onSelectPriceTier?.('1')}
-            className={`h-8.5 px-2 rounded-lg flex items-center gap-1 transition cursor-pointer text-xs font-bold ${
+            className={`h-7.5 px-2 rounded-lg flex items-center gap-1 transition cursor-pointer text-xs font-bold ${
               priceTier === '1'
                 ? 'bg-blue-600 text-white shadow-xs'
                 : 'text-on-surface hover:bg-surface-container-high'
@@ -271,7 +273,7 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
           <button
             type="button"
             onClick={() => onSelectPriceTier?.('2')}
-            className={`h-8.5 px-2 rounded-lg flex items-center gap-1 transition cursor-pointer text-xs font-bold ${
+            className={`h-7.5 px-2 rounded-lg flex items-center gap-1 transition cursor-pointer text-xs font-bold ${
               priceTier === '2'
                 ? 'bg-emerald-600 text-white shadow-xs'
                 : 'text-on-surface hover:bg-surface-container-high'
@@ -284,7 +286,7 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
           <button
             type="button"
             onClick={() => onSelectPriceTier?.('3')}
-            className={`h-8.5 px-2 rounded-lg flex items-center gap-1 transition cursor-pointer text-xs font-bold ${
+            className={`h-7.5 px-2 rounded-lg flex items-center gap-1 transition cursor-pointer text-xs font-bold ${
               priceTier === '3'
                 ? 'bg-purple-600 text-white shadow-xs'
                 : 'text-on-surface hover:bg-surface-container-high'
@@ -297,7 +299,7 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
           <button
             type="button"
             onClick={() => onSelectPriceTier?.('4')}
-            className={`h-8.5 px-2 rounded-lg flex items-center gap-1 transition cursor-pointer text-xs font-bold ${
+            className={`h-7.5 px-2 rounded-lg flex items-center gap-1 transition cursor-pointer text-xs font-bold ${
               priceTier === '4'
                 ? 'bg-amber-600 text-white shadow-xs'
                 : 'text-on-surface hover:bg-surface-container-high'
@@ -309,22 +311,24 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
           </button>
         </div>
 
-        {/* تخفيض */}
+        <div className="w-px h-5 bg-outline-variant/30 mx-0.5 shrink-0" />
+
+        {/* زر التخفيض */}
         <button
           type="button"
           onClick={onOpenDiscount}
-          className="h-10 px-2.5 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-on-surface text-xs font-bold flex items-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0"
+          className="h-9 px-2.5 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-on-surface text-xs font-bold flex items-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0"
           title="إضافة تخفيض أو زيادة على الفاتورة"
         >
           <Edit3 className="w-3.5 h-3.5 text-blue-400" />
           <span>تخفيض: {formatMoney(discountAmount)}</span>
         </button>
 
-        {/* طباعة (F5) */}
+        {/* زر الطباعة التلقائية (F5) */}
         <button
           type="button"
           onClick={onToggleAutoPrint}
-          className={`h-10 px-2.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0 ${
+          className={`h-9 px-2.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0 ${
             autoPrintReceipt
               ? 'bg-emerald-500/15 text-emerald-500 border-emerald-500/30'
               : 'bg-surface-container text-on-surface-variant border-outline-variant/20'
@@ -336,12 +340,12 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
           <span className="bg-surface-container-highest px-1.5 py-0.5 rounded text-[10px] font-mono opacity-80">F5</span>
         </button>
 
-        {/* سجل المبيعات (صفحة السجل — وليس مودال الإرجاع) */}
+        {/* زر سجل المبيعات (F9 / Alt+S) */}
         <button
           type="button"
           onClick={onOpenSalesHistory}
           disabled={!onOpenSalesHistory}
-          className="h-10 px-2.5 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-on-surface text-xs font-bold flex items-center gap-1.5 active:scale-95 disabled:opacity-40 cursor-pointer transition-all shrink-0"
+          className="h-9 px-2.5 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-on-surface text-xs font-bold flex items-center gap-1.5 active:scale-95 disabled:opacity-40 cursor-pointer transition-all shrink-0"
           title="سجل المبيعات (Alt+S)"
         >
           <History className="w-3.5 h-3.5 text-blue-400" />
@@ -349,13 +353,15 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
           <span className="bg-surface-container-highest px-1.5 py-0.5 rounded text-[10px] font-mono opacity-80">F9</span>
         </button>
 
+        <div className="w-px h-5 bg-outline-variant/30 mx-0.5 shrink-0" />
+
         {/* حفظ كفاتورة مبدئية */}
         {onSaveAsProforma && (
           <button
             type="button"
             onClick={onSaveAsProforma}
             disabled={cartLength === 0}
-            className="h-10 px-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 text-amber-700 dark:text-amber-400 text-xs font-bold flex items-center gap-1.5 active:scale-95 disabled:opacity-40 cursor-pointer transition-all shrink-0"
+            className="h-9 px-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 text-amber-700 dark:text-amber-400 text-xs font-bold flex items-center gap-1.5 active:scale-95 disabled:opacity-40 cursor-pointer transition-all shrink-0"
             title="حفظ الفاتورة كمسودة مبدئية (Proforma)"
           >
             <FileText className="w-3.5 h-3.5 text-amber-500" />
@@ -369,7 +375,7 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
             type="button"
             onClick={onSaveAsOrder}
             disabled={cartLength === 0}
-            className="h-10 px-2.5 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/25 text-blue-700 dark:text-blue-400 text-xs font-bold flex items-center gap-1.5 active:scale-95 disabled:opacity-40 cursor-pointer transition-all shrink-0"
+            className="h-9 px-2.5 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/25 text-blue-700 dark:text-blue-400 text-xs font-bold flex items-center gap-1.5 active:scale-95 disabled:opacity-40 cursor-pointer transition-all shrink-0"
             title="حفظ السلة كطلبيّة زبون"
           >
             <FileCheck className="w-3.5 h-3.5 text-blue-500" />
@@ -382,7 +388,7 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
           <button
             type="button"
             onClick={onOpenKeypad}
-            className="h-10 px-2.5 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-primary text-xs font-bold flex items-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0"
+            className="h-9 px-2.5 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-primary text-xs font-bold flex items-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0"
             title="فتح لوحة الأرقام اللمسية"
           >
             <Calculator className="w-3.5 h-3.5" />
@@ -394,7 +400,7 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
         <button
           type="button"
           onClick={toggleTheme}
-          className={`h-10 px-2.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0 ${
+          className={`h-9 px-2.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0 ${
             theme === 'dark'
               ? 'bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/25 text-amber-400'
               : 'bg-indigo-500/10 hover:bg-indigo-500/20 border-indigo-500/25 text-indigo-600'
@@ -413,7 +419,7 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
         <NotificationDropdown hideBadge>
           <button
             type="button"
-            className="h-10 px-2.5 rounded-xl bg-surface-container hover:bg-amber-500/15 text-on-surface hover:text-amber-500 border border-outline-variant/20 hover:border-amber-500/30 text-xs font-bold flex items-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0 relative"
+            className="h-9 px-2.5 rounded-xl bg-surface-container hover:bg-amber-500/15 text-on-surface hover:text-amber-500 border border-outline-variant/20 hover:border-amber-500/30 text-xs font-bold flex items-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0 relative"
             title="الإشعارات والتنبيهات التشغيلية"
           >
             <div className="relative flex items-center justify-center">
