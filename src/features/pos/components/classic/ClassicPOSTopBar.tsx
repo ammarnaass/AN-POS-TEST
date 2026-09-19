@@ -163,47 +163,68 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
         </button>
       </div>
 
-      {/* 2. ACTION STRIP 1 (شريط الأزرار الأول: التحكم، السلة، والمعاملات السريعة - بظلال وتباين مميز) */}
+      {/* 2. ACTION STRIP 1 (شريط الأزرار الأول: مرتب وظيفياً: الزبون والمعاملات -> السلة -> النظام والخروج) */}
       <div className="w-full flex items-stretch gap-1.5 overflow-x-auto no-scrollbar py-0.5 min-w-0 border-t border-outline-variant/15 pt-1.5">
-        {/* زر الخروج إلى لوحة التحكم الرئيسية (Esc) */}
-        {onNavigateBack && (
-          <button
-            type="button"
-            onClick={onNavigateBack}
-            className="h-9 flex-1 min-w-0 px-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 hover:border-rose-500 text-rose-700 dark:text-rose-300 text-xs font-black flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5"
-            title="الخروج إلى لوحة التحكم الرئيسية (Esc)"
-          >
-            <LogOut className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-            <span className="truncate">خروج</span>
-            <span className="bg-rose-600 text-white px-1.5 py-0.5 rounded text-[10px] font-mono font-bold shrink-0 shadow-xs">Esc</span>
-          </button>
-        )}
+        {/* المجموعة 1: الزبون والمعاملات السريعة */}
+        {/* زر اختيار الزبون (F6) */}
+        <button
+          type="button"
+          onClick={onSelectCustomer}
+          className={`h-9 flex-1 min-w-0 px-2 rounded-xl border text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5 ${
+            selectedCustomerName
+              ? 'bg-teal-500/25 dark:bg-teal-950/60 border-teal-500/70 text-slate-900 dark:text-white'
+              : 'bg-teal-500/15 dark:bg-teal-950/40 hover:bg-teal-500/25 border-teal-500/40 text-slate-900 dark:text-white'
+          }`}
+          title="تحديد أو تغيير الزبون (F6)"
+        >
+          <User className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0" />
+          <span className="truncate font-black">{selectedCustomerName || 'زبون'}</span>
+          <span className="bg-black/75 dark:bg-black/90 text-white border border-white/20 px-1.5 py-0.5 rounded text-[10px] sm:text-[11px] font-mono font-black shrink-0 shadow-xs">F6</span>
+        </button>
 
-        {/* زر تخصيص الواجهة ودقة الشاشة (F10) */}
-        {onOpenCustomize && (
-          <button
-            type="button"
-            onClick={onOpenCustomize}
-            className="h-9 flex-1 min-w-0 px-2 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/40 hover:border-purple-500 text-purple-700 dark:text-purple-300 text-xs font-black flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5"
-            title="تخصيص الواجهة ودقة العرض ومقياس التكبير (F10)"
-          >
-            <Sliders className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
-            <span className="truncate">تخصيص</span>
-            <span className="bg-purple-600 text-white px-1.5 py-0.5 rounded text-[10px] font-mono font-bold shrink-0 shadow-xs">F10</span>
-          </button>
-        )}
+        {/* زر تعليق البيع (F2) */}
+        <button
+          type="button"
+          onClick={onSuspendSale}
+          disabled={cartLength === 0}
+          className="h-9 flex-1 min-w-0 px-2 rounded-xl bg-amber-500/20 dark:bg-amber-950/50 hover:bg-amber-500/30 text-slate-900 dark:text-white border border-amber-500/60 hover:border-amber-500 text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-40 cursor-pointer transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5"
+          title="تعليق البيع / سلة جديدة (F2)"
+        >
+          <PauseCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+          <span className="truncate font-black">تعليق</span>
+          <span className="bg-black/75 dark:bg-black/90 text-white border border-white/20 px-1.5 py-0.5 rounded text-[10px] sm:text-[11px] font-mono font-black shrink-0 shadow-xs">F2</span>
+        </button>
 
+        {/* زر المسودات (F3) */}
+        <button
+          type="button"
+          onClick={onOpenSuspended}
+          className="h-9 flex-1 min-w-0 px-2 rounded-xl bg-indigo-500/20 dark:bg-indigo-950/50 hover:bg-indigo-500/30 text-slate-900 dark:text-white border border-indigo-500/60 hover:border-indigo-500 text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer relative transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5"
+          title="قائمة الفواتير المعلقة والمسودات (F3)"
+        >
+          <FolderOpen className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+          <span className="truncate font-black">مسودات</span>
+          <span className="bg-black/75 dark:bg-black/90 text-white border border-white/20 px-1.5 py-0.5 rounded text-[10px] sm:text-[11px] font-mono font-black shrink-0 shadow-xs">F3</span>
+          {suspendedCount > 0 && (
+            <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-ping absolute top-1 right-2" />
+          )}
+        </button>
+
+        {/* فاصل تباين رأسي بين المعاملات وإدارة السلة */}
+        <div className="w-px h-6 bg-outline-variant/40 shrink-0 self-center mx-0.5" />
+
+        {/* المجموعة 2: إدارة السلة */}
         {/* زر حذف السلعة المحددة (Ctrl+D) */}
         <button
           type="button"
           onClick={onDeleteSelectedOrLast}
           disabled={cartLength === 0}
-          className="h-9 flex-1 min-w-0 px-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 hover:border-red-500/60 text-red-600 dark:text-red-400 text-xs font-bold flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-40 cursor-pointer transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5"
+          className="h-9 flex-1 min-w-0 px-2 rounded-xl bg-red-500/15 dark:bg-red-950/50 hover:bg-red-500/25 border border-red-500/40 hover:border-red-500/70 text-slate-900 dark:text-white text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-40 cursor-pointer transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5"
           title="حذف السلعة المحددة (Ctrl+D / Delete)"
         >
-          <X className="w-3.5 h-3.5 text-red-500 shrink-0" />
-          <span className="truncate">حذف سلعة</span>
-          <span className="bg-red-600/90 text-white px-1.5 py-0.5 rounded text-[10px] font-mono font-bold shrink-0 shadow-xs">Ctrl+D</span>
+          <X className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />
+          <span className="truncate font-black">حذف سلعة</span>
+          <span className="bg-black/75 dark:bg-black/90 text-white border border-white/20 px-1.5 py-0.5 rounded text-[10px] sm:text-[11px] font-mono font-black shrink-0 shadow-xs">Ctrl+D</span>
         </button>
 
         {/* زر إلغاء الوصل بالكامل (F4) */}
@@ -211,152 +232,139 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
           type="button"
           onClick={onClearCart}
           disabled={cartLength === 0}
-          className="h-9 flex-1 min-w-0 px-2 rounded-xl bg-red-600/15 hover:bg-red-600/25 border border-red-600/40 hover:border-red-600 text-red-700 dark:text-red-300 text-xs font-bold flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-40 cursor-pointer transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5"
+          className="h-9 flex-1 min-w-0 px-2 rounded-xl bg-red-600/20 dark:bg-red-950/60 hover:bg-red-600/30 border border-red-600/50 hover:border-red-600 text-slate-900 dark:text-white text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-40 cursor-pointer transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5"
           title="إلغاء الفاتورة الحالية بالكامل (F4)"
         >
-          <Trash2 className="w-3.5 h-3.5 text-red-600 dark:text-red-400 shrink-0" />
-          <span className="truncate">إلغاء الوصل</span>
-          <span className="bg-red-600 text-white px-1.5 py-0.5 rounded text-[10px] font-mono font-bold shrink-0 shadow-xs">F4</span>
+          <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />
+          <span className="truncate font-black">إلغاء الوصل</span>
+          <span className="bg-black/75 dark:bg-black/90 text-white border border-white/20 px-1.5 py-0.5 rounded text-[10px] sm:text-[11px] font-mono font-black shrink-0 shadow-xs">F4</span>
         </button>
 
-        {/* فاصل تباين بين مجموعات الشريط الأول */}
+        {/* فاصل تباين رأسي بين السلة وأدوات النظام */}
         <div className="w-px h-6 bg-outline-variant/40 shrink-0 self-center mx-0.5" />
 
-        {/* زر تعليق البيع (F2) */}
-        <button
-          type="button"
-          onClick={onSuspendSale}
-          disabled={cartLength === 0}
-          className="h-9 flex-1 min-w-0 px-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-300 border border-amber-500/40 hover:border-amber-500 text-xs font-bold flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-40 cursor-pointer transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5"
-          title="تعليق البيع / سلة جديدة (F2)"
-        >
-          <PauseCircle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-          <span className="truncate">تعليق</span>
-          <span className="bg-amber-600 text-white px-1.5 py-0.5 rounded text-[10px] font-mono font-bold shrink-0 shadow-xs">F2</span>
-        </button>
+        {/* المجموعة 3: أدوات النظام والخروج */}
+        {/* زر تخصيص الواجهة ودقة الشاشة (F10) */}
+        {onOpenCustomize && (
+          <button
+            type="button"
+            onClick={onOpenCustomize}
+            className="h-9 flex-1 min-w-0 px-2 rounded-xl bg-purple-500/20 dark:bg-purple-950/50 hover:bg-purple-500/30 border border-purple-500/50 hover:border-purple-500 text-slate-900 dark:text-white text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5"
+            title="تخصيص الواجهة ودقة العرض ومقياس التكبير (F10)"
+          >
+            <Sliders className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
+            <span className="truncate font-black">تخصيص</span>
+            <span className="bg-black/75 dark:bg-black/90 text-white border border-white/20 px-1.5 py-0.5 rounded text-[10px] sm:text-[11px] font-mono font-black shrink-0 shadow-xs">F10</span>
+          </button>
+        )}
 
-        {/* زر المسودات (F3) */}
-        <button
-          type="button"
-          onClick={onOpenSuspended}
-          className="h-9 flex-1 min-w-0 px-2 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-700 dark:text-indigo-300 border border-indigo-500/40 hover:border-indigo-500 text-xs font-bold flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer relative transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5"
-          title="قائمة الفواتير المعلقة والمسودات (F3)"
-        >
-          <FolderOpen className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
-          <span className="truncate">مسودات</span>
-          <span className="bg-indigo-600 text-white px-1.5 py-0.5 rounded text-[10px] font-mono font-bold shrink-0 shadow-xs">F3</span>
-          {suspendedCount > 0 && (
-            <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping absolute top-1 right-2" />
-          )}
-        </button>
-
-        {/* زر اختيار الزبون (F6) */}
-        <button
-          type="button"
-          onClick={onSelectCustomer}
-          className={`h-9 flex-1 min-w-0 px-2 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5 ${
-            selectedCustomerName
-              ? 'bg-teal-500/20 text-teal-800 dark:text-teal-200 border-teal-500/50'
-              : 'bg-teal-500/10 hover:bg-teal-500/20 border-teal-500/30 text-teal-700 dark:text-teal-300'
-          }`}
-          title="تحديد أو تغيير الزبون (F6)"
-        >
-          <User className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
-          <span className="truncate">{selectedCustomerName || 'زبون'}</span>
-          <span className="bg-teal-600 text-white px-1.5 py-0.5 rounded text-[10px] font-mono font-bold shrink-0 shadow-xs">F6</span>
-        </button>
+        {/* زر الخروج إلى لوحة التحكم الرئيسية (Esc) */}
+        {onNavigateBack && (
+          <button
+            type="button"
+            onClick={onNavigateBack}
+            className="h-9 flex-1 min-w-0 px-2 rounded-xl bg-rose-500/20 dark:bg-rose-950/50 hover:bg-rose-500/30 border border-rose-500/50 hover:border-rose-500 text-slate-900 dark:text-white text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5"
+            title="الخروج إلى لوحة التحكم الرئيسية (Esc)"
+          >
+            <LogOut className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+            <span className="truncate font-black">خروج</span>
+            <span className="bg-black/75 dark:bg-black/90 text-white border border-white/20 px-1.5 py-0.5 rounded text-[10px] sm:text-[11px] font-mono font-black shrink-0 shadow-xs">Esc</span>
+          </button>
+        )}
       </div>
 
-      {/* 3. ACTION STRIP 2 (شريط الأزرار الثاني: فئات الأسعار، التخفيض، الطباعة، المستندات والأدوات - بظلال وتباين) */}
+      {/* 3. ACTION STRIP 2 (شريط الأزرار الثاني: مرتب وظيفياً: فئات الأسعار -> عمليات الفاتورة -> المستندات -> الأدوات) */}
       <div className="w-full flex items-stretch gap-1.5 overflow-x-auto no-scrollbar py-0.5 min-w-0 border-t border-outline-variant/15 pt-1">
+        {/* المجموعة 1: فئات الأسعار السريعة */}
         {/* فئة س1 (تجزئة) */}
         <button
           type="button"
           onClick={() => onSelectPriceTier?.('1')}
-          className={`h-9 flex-1 min-w-0 px-1 rounded-xl border text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 ${
+          className={`h-9 flex-1 min-w-0 px-1 rounded-xl border text-xs sm:text-sm font-black flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 ${
             priceTier === '1'
-              ? 'bg-blue-600 text-white border-blue-700 shadow-md ring-2 ring-blue-400/40'
-              : 'bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30 text-blue-700 dark:text-blue-300'
+              ? 'bg-blue-600 text-white border-blue-700 shadow-md ring-2 ring-blue-400/50'
+              : 'bg-blue-500/15 dark:bg-blue-950/40 hover:bg-blue-500/25 border-blue-500/40 text-slate-900 dark:text-white'
           }`}
           title="سعر التجزئة س1 (Alt+1)"
         >
-          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${priceTier === '1' ? 'bg-white' : 'bg-blue-500'}`} />
-          <span className="truncate">س1</span>
+          <span className={`w-2 h-2 rounded-full shrink-0 ${priceTier === '1' ? 'bg-white' : 'bg-blue-500'}`} />
+          <span className="truncate font-black">س1</span>
         </button>
 
         {/* فئة س2 (نصف جملة) */}
         <button
           type="button"
           onClick={() => onSelectPriceTier?.('2')}
-          className={`h-9 flex-1 min-w-0 px-1 rounded-xl border text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 ${
+          className={`h-9 flex-1 min-w-0 px-1 rounded-xl border text-xs sm:text-sm font-black flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 ${
             priceTier === '2'
-              ? 'bg-emerald-600 text-white border-emerald-700 shadow-md ring-2 ring-emerald-400/40'
-              : 'bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+              ? 'bg-emerald-600 text-white border-emerald-700 shadow-md ring-2 ring-emerald-400/50'
+              : 'bg-emerald-500/15 dark:bg-emerald-950/40 hover:bg-emerald-500/25 border-emerald-500/40 text-slate-900 dark:text-white'
           }`}
           title="سعر نصف الجملة س2 (Alt+2)"
         >
-          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${priceTier === '2' ? 'bg-white' : 'bg-emerald-500'}`} />
-          <span className="truncate">س2</span>
+          <span className={`w-2 h-2 rounded-full shrink-0 ${priceTier === '2' ? 'bg-white' : 'bg-emerald-500'}`} />
+          <span className="truncate font-black">س2</span>
         </button>
 
         {/* فئة س3 (جملة) */}
         <button
           type="button"
           onClick={() => onSelectPriceTier?.('3')}
-          className={`h-9 flex-1 min-w-0 px-1 rounded-xl border text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 ${
+          className={`h-9 flex-1 min-w-0 px-1 rounded-xl border text-xs sm:text-sm font-black flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 ${
             priceTier === '3'
-              ? 'bg-purple-600 text-white border-purple-700 shadow-md ring-2 ring-purple-400/40'
-              : 'bg-purple-500/10 hover:bg-purple-500/20 border-purple-500/30 text-purple-700 dark:text-purple-300'
+              ? 'bg-purple-600 text-white border-purple-700 shadow-md ring-2 ring-purple-400/50'
+              : 'bg-purple-500/15 dark:bg-purple-950/40 hover:bg-purple-500/25 border-purple-500/40 text-slate-900 dark:text-white'
           }`}
           title="سعر الجملة س3 (Alt+3)"
         >
-          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${priceTier === '3' ? 'bg-white' : 'bg-purple-500'}`} />
-          <span className="truncate">س3</span>
+          <span className={`w-2 h-2 rounded-full shrink-0 ${priceTier === '3' ? 'bg-white' : 'bg-purple-500'}`} />
+          <span className="truncate font-black">س3</span>
         </button>
 
         {/* فئة س4 (خاص) */}
         <button
           type="button"
           onClick={() => onSelectPriceTier?.('4')}
-          className={`h-9 flex-1 min-w-0 px-1 rounded-xl border text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 ${
+          className={`h-9 flex-1 min-w-0 px-1 rounded-xl border text-xs sm:text-sm font-black flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 ${
             priceTier === '4'
-              ? 'bg-amber-600 text-white border-amber-700 shadow-md ring-2 ring-amber-400/40'
-              : 'bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30 text-amber-700 dark:text-amber-300'
+              ? 'bg-amber-600 text-white border-amber-700 shadow-md ring-2 ring-amber-400/50'
+              : 'bg-amber-500/15 dark:bg-amber-950/40 hover:bg-amber-500/25 border-amber-500/40 text-slate-900 dark:text-white'
           }`}
           title="سعر خاص س4 (Alt+4)"
         >
-          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${priceTier === '4' ? 'bg-white' : 'bg-amber-500'}`} />
-          <span className="truncate">س4</span>
+          <span className={`w-2 h-2 rounded-full shrink-0 ${priceTier === '4' ? 'bg-white' : 'bg-amber-500'}`} />
+          <span className="truncate font-black">س4</span>
         </button>
 
-        {/* فاصل تباين بين فئات الأسعار والعمليات */}
+        {/* فاصل تباين بين فئات الأسعار وعمليات الفاتورة */}
         <div className="w-px h-6 bg-outline-variant/40 shrink-0 self-center mx-0.5" />
 
+        {/* المجموعة 2: عمليات الفاتورة الأساسية */}
         {/* زر التخفيض */}
         <button
           type="button"
           onClick={onOpenDiscount}
-          className="h-9 flex-1 min-w-0 px-1 rounded-xl bg-orange-500/15 hover:bg-orange-500/25 border border-orange-500/40 hover:border-orange-500 text-orange-800 dark:text-orange-300 text-xs font-bold flex items-center justify-center gap-1 active:scale-95 cursor-pointer transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5"
+          className="h-9 flex-1 min-w-0 px-1 rounded-xl bg-orange-500/20 dark:bg-orange-950/50 hover:bg-orange-500/30 border border-orange-500/50 hover:border-orange-500 text-slate-900 dark:text-white text-xs sm:text-sm font-black flex items-center justify-center gap-1 active:scale-95 cursor-pointer transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5"
           title="إضافة تخفيض أو زيادة على الفاتورة"
         >
-          <Edit3 className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400 shrink-0" />
-          <span className="truncate">تخفيض: {formatMoney(discountAmount)}</span>
+          <Edit3 className="w-4 h-4 text-orange-600 dark:text-orange-400 shrink-0" />
+          <span className="truncate font-black">{discountAmount > 0 ? `تخفيض: ${formatMoney(discountAmount)}` : 'تخفيض'}</span>
         </button>
 
         {/* زر الطباعة التلقائية (F5) */}
         <button
           type="button"
           onClick={onToggleAutoPrint}
-          className={`h-9 flex-1 min-w-0 px-1 rounded-xl border text-xs font-bold flex items-center justify-center gap-1 active:scale-95 cursor-pointer transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5 ${
+          className={`h-9 flex-1 min-w-0 px-1 rounded-xl border text-xs sm:text-sm font-black flex items-center justify-center gap-1 active:scale-95 cursor-pointer transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5 ${
             autoPrintReceipt
-              ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-800 dark:text-emerald-300 border-emerald-500/50 hover:border-emerald-500'
-              : 'bg-slate-500/10 hover:bg-slate-500/20 text-slate-700 dark:text-slate-300 border-slate-500/30'
+              ? 'bg-emerald-500/25 dark:bg-emerald-950/60 text-slate-900 dark:text-white border-emerald-500/60 hover:border-emerald-500'
+              : 'bg-slate-500/15 dark:bg-slate-900/50 hover:bg-slate-500/25 text-slate-900 dark:text-white border-slate-500/40'
           }`}
           title="الطباعة التلقائية (F5)"
         >
-          <Printer className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-          <span className="truncate">طباعة</span>
-          <span className="bg-emerald-600 text-white px-1.5 py-0.5 rounded text-[10px] font-mono font-bold shrink-0 shadow-xs">F5</span>
+          <Printer className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+          <span className="truncate font-black">طباعة</span>
+          <span className="bg-black/75 dark:bg-black/90 text-white border border-white/20 px-1.5 py-0.5 rounded text-[10px] sm:text-[11px] font-mono font-black shrink-0 shadow-xs">F5</span>
         </button>
 
         {/* زر سجل المبيعات (F9 / Alt+S) */}
@@ -364,28 +372,29 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
           type="button"
           onClick={onOpenSalesHistory}
           disabled={!onOpenSalesHistory}
-          className="h-9 flex-1 min-w-0 px-1 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 hover:border-sky-500 text-sky-800 dark:text-sky-300 text-xs font-bold flex items-center justify-center gap-1 active:scale-95 disabled:opacity-40 cursor-pointer transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5"
+          className="h-9 flex-1 min-w-0 px-1 rounded-xl bg-sky-500/20 dark:bg-sky-950/50 hover:bg-sky-500/30 border border-sky-500/50 hover:border-sky-500 text-slate-900 dark:text-white text-xs sm:text-sm font-black flex items-center justify-center gap-1 active:scale-95 disabled:opacity-40 cursor-pointer transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5"
           title="سجل المبيعات (Alt+S)"
         >
-          <History className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
-          <span className="truncate">سجل</span>
-          <span className="bg-sky-600 text-white px-1.5 py-0.5 rounded text-[10px] font-mono font-bold shrink-0 shadow-xs">F9</span>
+          <History className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0" />
+          <span className="truncate font-black">سجل</span>
+          <span className="bg-black/75 dark:bg-black/90 text-white border border-white/20 px-1.5 py-0.5 rounded text-[10px] sm:text-[11px] font-mono font-black shrink-0 shadow-xs">F9</span>
         </button>
 
-        {/* فاصل تباين بين عمليات الفاتورة والأدوات الإضافية */}
+        {/* فاصل تباين بين العمليات والمستندات */}
         <div className="w-px h-6 bg-outline-variant/40 shrink-0 self-center mx-0.5" />
 
+        {/* المجموعة 3: حفظ المستندات والطلبيات */}
         {/* حفظ كفاتورة مبدئية */}
         {onSaveAsProforma && (
           <button
             type="button"
             onClick={onSaveAsProforma}
             disabled={cartLength === 0}
-            className="h-9 flex-1 min-w-0 px-1 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 hover:border-amber-500 text-amber-800 dark:text-amber-300 text-xs font-bold flex items-center justify-center gap-1 active:scale-95 disabled:opacity-40 cursor-pointer transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5"
+            className="h-9 flex-1 min-w-0 px-1 rounded-xl bg-amber-500/20 dark:bg-amber-950/50 hover:bg-amber-500/30 border border-amber-500/50 hover:border-amber-500 text-slate-900 dark:text-white text-xs sm:text-sm font-black flex items-center justify-center gap-1 active:scale-95 disabled:opacity-40 cursor-pointer transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5"
             title="حفظ الفاتورة كمسودة مبدئية (Proforma)"
           >
-            <FileText className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-            <span className="truncate">مبدئية</span>
+            <FileText className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span className="truncate font-black">مبدئية</span>
           </button>
         )}
 
@@ -395,24 +404,28 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
             type="button"
             onClick={onSaveAsOrder}
             disabled={cartLength === 0}
-            className="h-9 flex-1 min-w-0 px-1 rounded-xl bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/40 hover:border-blue-500 text-blue-800 dark:text-blue-300 text-xs font-bold flex items-center justify-center gap-1 active:scale-95 disabled:opacity-40 cursor-pointer transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5"
+            className="h-9 flex-1 min-w-0 px-1 rounded-xl bg-blue-500/20 dark:bg-blue-950/50 hover:bg-blue-500/30 border border-blue-500/50 hover:border-blue-500 text-slate-900 dark:text-white text-xs sm:text-sm font-black flex items-center justify-center gap-1 active:scale-95 disabled:opacity-40 cursor-pointer transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5"
             title="حفظ السلة كطلبيّة زبون"
           >
-            <FileCheck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
-            <span className="truncate">طلبيّة</span>
+            <FileCheck className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+            <span className="truncate font-black">طلبيّة</span>
           </button>
         )}
 
+        {/* فاصل تباين بين المستندات والأدوات */}
+        <div className="w-px h-6 bg-outline-variant/40 shrink-0 self-center mx-0.5" />
+
+        {/* المجموعة 4: الأدوات التشغيلية */}
         {/* لوحة الأرقام اللمسية */}
         {onOpenKeypad && (
           <button
             type="button"
             onClick={onOpenKeypad}
-            className="h-9 flex-1 min-w-0 px-1 rounded-xl bg-teal-500/15 hover:bg-teal-500/25 border border-teal-500/40 hover:border-teal-500 text-teal-800 dark:text-teal-300 text-xs font-bold flex items-center justify-center gap-1 active:scale-95 cursor-pointer transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5"
+            className="h-9 flex-1 min-w-0 px-1 rounded-xl bg-teal-500/20 dark:bg-teal-950/50 hover:bg-teal-500/30 border border-teal-500/50 hover:border-teal-500 text-slate-900 dark:text-white text-xs sm:text-sm font-black flex items-center justify-center gap-1 active:scale-95 cursor-pointer transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5"
             title="فتح لوحة الأرقام اللمسية"
           >
-            <Calculator className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
-            <span className="truncate">حاسبة</span>
+            <Calculator className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0" />
+            <span className="truncate font-black">حاسبة</span>
           </button>
         )}
 
@@ -420,19 +433,19 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
         <button
           type="button"
           onClick={toggleTheme}
-          className={`h-9 flex-1 min-w-0 px-1 rounded-xl border text-xs font-bold flex items-center justify-center gap-1 active:scale-95 cursor-pointer transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5 ${
+          className={`h-9 flex-1 min-w-0 px-1 rounded-xl border text-xs sm:text-sm font-black flex items-center justify-center gap-1 active:scale-95 cursor-pointer transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5 ${
             theme === 'dark'
-              ? 'bg-amber-500/15 hover:bg-amber-500/25 border-amber-500/40 hover:border-amber-500 text-amber-300'
-              : 'bg-indigo-500/15 hover:bg-indigo-500/25 border-indigo-500/40 hover:border-indigo-500 text-indigo-700'
+              ? 'bg-amber-500/20 dark:bg-amber-950/50 hover:bg-amber-500/30 border-amber-500/50 text-slate-900 dark:text-white'
+              : 'bg-indigo-500/20 dark:bg-indigo-950/50 hover:bg-indigo-500/30 border-indigo-500/50 text-slate-900 dark:text-white'
           }`}
           title={theme === 'dark' ? 'التحويل إلى الوضع النهاري' : 'التحويل إلى الوضع الليلي'}
         >
           {theme === 'dark' ? (
-            <Sun className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <Sun className="w-4 h-4 text-amber-400 shrink-0" />
           ) : (
-            <Moon className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+            <Moon className="w-4 h-4 text-indigo-600 shrink-0" />
           )}
-          <span className="truncate">{theme === 'dark' ? 'نهاري' : 'ليلي'}</span>
+          <span className="truncate font-black">{theme === 'dark' ? 'نهاري' : 'ليلي'}</span>
         </button>
 
         {/* زر الإشعارات والتنبيهات التشغيلية */}
@@ -440,18 +453,18 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
           <NotificationDropdown hideBadge>
             <button
               type="button"
-              className="h-9 w-full px-1 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-800 dark:text-rose-300 border border-rose-500/40 hover:border-rose-500 text-xs font-bold flex items-center justify-center gap-1 active:scale-95 cursor-pointer transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5 relative"
+              className="h-9 w-full px-1 rounded-xl bg-rose-500/20 dark:bg-rose-950/50 hover:bg-rose-500/30 text-slate-900 dark:text-white border border-rose-500/50 hover:border-rose-500 text-xs sm:text-sm font-black flex items-center justify-center gap-1 active:scale-95 cursor-pointer transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5 relative"
               title="الإشعارات والتنبيهات التشغيلية"
             >
               <div className="relative flex items-center justify-center shrink-0">
-                <Bell className="w-3.5 h-3.5 text-rose-500" />
+                <Bell className="w-4 h-4 text-rose-600 dark:text-rose-400" />
                 {unreadCount > 0 && (
                   <span className="absolute -top-1.5 -right-2 min-w-[14px] h-3.5 flex items-center justify-center bg-rose-600 text-white text-[8px] font-black rounded-full px-0.5 shadow-xs animate-pulse">
                     {unreadCount > 99 ? '99+' : unreadCount}
                   </span>
                 )}
               </div>
-              <span className="truncate">إشعارات</span>
+              <span className="truncate font-black">إشعارات</span>
             </button>
           </NotificationDropdown>
         </div>
