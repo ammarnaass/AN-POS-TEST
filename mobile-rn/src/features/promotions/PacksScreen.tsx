@@ -28,6 +28,7 @@ import {
   AlertCircle,
   Tag,
   Sparkles,
+  Star,
 } from 'lucide-react-native';
 import CameraScanner from '@/features/barcode/CameraScanner';
 import { generateEAN13 } from '@/lib/barcodeSvg';
@@ -304,14 +305,24 @@ export const PacksScreen = ({ navigation }: any) => {
           <BackIcon size={20} color={colors.text.primary} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text.primary }]}>عبوات الجملة والباقات</Text>
-        <TouchableOpacity
-          style={[styles.addBtn, { backgroundColor: colors.primary[600], flexDirection: isRTL ? 'row-reverse' : 'row' }]}
-          onPress={openCreatePack}
-          activeOpacity={0.8}
-        >
-          <Plus size={16} color="#fff" />
-          <Text style={styles.addBtnText}>عبوة جديدة</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }}>
+          <TouchableOpacity
+            style={[styles.addBtn, { backgroundColor: '#f59e0b', flexDirection: isRTL ? 'row-reverse' : 'row', paddingHorizontal: 10 }]}
+            onPress={() => navigation.navigate('Favorites')}
+            activeOpacity={0.8}
+          >
+            <Star size={15} color="#fff" />
+            <Text style={styles.addBtnText}>المفضلة</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.addBtn, { backgroundColor: colors.primary[600], flexDirection: isRTL ? 'row-reverse' : 'row' }]}
+            onPress={openCreatePack}
+            activeOpacity={0.8}
+          >
+            <Plus size={16} color="#fff" />
+            <Text style={styles.addBtnText}>عبوة جديدة</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Main Content */}

@@ -39,6 +39,7 @@ import ProductFormScreen from '@/features/inventory/ProductFormScreen';
 import CategoriesScreen from '@/features/categories/CategoriesScreen';
 import PromotionsScreen from '@/features/promotions/PromotionsScreen';
 import PacksScreen from '@/features/promotions/PacksScreen';
+import FavoritesScreen from '@/features/favorites/FavoritesScreen';
 import WarehousesScreen from '@/features/inventory/WarehousesScreen';
 import InventoryCountScreen from '@/features/inventory/InventoryCountScreen';
 import StockMovementsScreen from '@/features/inventory/StockMovementsScreen';
@@ -154,6 +155,7 @@ export default function App() {
             <Stack.Screen name="Categories" component={CategoriesScreen} />
             <Stack.Screen name="Promotions" component={PromotionsScreen} />
             <Stack.Screen name="Packs" component={PacksScreen} />
+            <Stack.Screen name="Favorites" component={FavoritesScreen} />
             <Stack.Screen name="Warehouses" component={WarehousesScreen} />
             <Stack.Screen name="InventoryCount" component={InventoryCountScreen} />
             <Stack.Screen name="StockMovements" component={StockMovementsScreen} />

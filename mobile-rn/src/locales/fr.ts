@@ -84,6 +84,7 @@ export const fr: TranslationSchema = {
     categories: 'Catégories',
     promotions: 'Promotions',
     packs: 'Packs & Lots',
+    favorites: 'Favoris & Packs Rapides',
     warehouses: 'Entrepôts',
     inventoryCount: 'Inventaire Réel',
     stockMovements: 'Mouvements de Stock',

@@ -84,6 +84,7 @@ export const ar: TranslationSchema = {
     categories: 'التصنيفات',
     promotions: 'العروض',
     packs: 'عبوات الجملة والباقات',
+    favorites: 'المفضلة والعبوات السريعة',
     warehouses: 'المستودعات',
     inventoryCount: 'الجرد الفعلي',
     stockMovements: 'حركات المخزون',

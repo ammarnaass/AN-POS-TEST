@@ -84,6 +84,7 @@ export interface TranslationSchema {
     categories: string;
     promotions: string;
     packs: string;
+    favorites: string;
     warehouses: string;
     inventoryCount: string;
     stockMovements: string;

@@ -65,6 +65,7 @@ import type { DocTypeKey } from '@shared/types/invoicePrint';
 import type { Product, Customer } from '@/lib/apiClient';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuthStore } from '@/store/authStore';
+import { useFavoritesStore } from '@/features/favorites/store/useFavoritesStore';
 import { useTheme } from '@/theme';
 import { useI18n } from '@/store/i18nStore';
 import { radii, spacing, typography, shadows } from '@/theme/tokens';
@@ -869,6 +870,45 @@ export const POSScreen = ({ route, navigation }: any) => {
     setCart((prev) => prev.filter((c) => c.productId !== productId));
 
   const filterProducts = () => {
+    if (selectedCategory === 'favorites') {
+      const favStore = useFavoritesStore.getState();
+      let favList = favStore.items;
+      if (search.trim()) {
+        const term = search.toLowerCase();
+        favList = favList.filter(
+          (it) =>
+            it.name.toLowerCase().includes(term) ||
+            (it.barcode && it.barcode.toLowerCase().includes(term))
+        );
+      }
+      setFiltered(
+        favList.map((it) => {
+          const parentProd = it.parentProductId ? products.find((pr) => pr.id === it.parentProductId) : undefined;
+          const parentStock = parentProd ? Number(parentProd.quantity ?? 0) : 0;
+          const packPieces = it.packQty || 1;
+          const availablePacks = packPieces > 0 ? Math.max(0, Math.floor(parentStock / packPieces)) : 0;
+
+          return {
+            id: it.itemId,
+            name: `★ ${it.name} (×${packPieces})`,
+            retailPrice: it.price || 0,
+            wholesalePrice: 0,
+            wholesaleMinQty: 0,
+            quantity: availablePacks,
+            unit: it.packUnit || 'عبوة',
+            barcode: it.barcode || '',
+            category: 'favorites',
+            status: 'active',
+            lowStockThreshold: 0,
+            isPack: true,
+            packPiecesCount: packPieces,
+            packId: it.itemId,
+          };
+        }) as any
+      );
+      return;
+    }
+
     if (selectedCategory === 'packs') {
       let resultPacks = packs;
       if (search.trim()) {
@@ -1713,6 +1753,28 @@ export const POSScreen = ({ route, navigation }: any) => {
               ]}
             >
               {t('dashboard.topProducts')}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Favorites Category */}
+          <TouchableOpacity
+            style={[
+              styles.categoryChip,
+              selectedCategory === 'favorites'
+                ? { backgroundColor: '#f59e0b', borderColor: '#f59e0b' }
+                : { backgroundColor: isDark ? '#1e293b' : colors.surface, borderColor: isDark ? '#334155' : colors.border.default },
+            ]}
+            onPress={() => setSelectedCategory(selectedCategory === 'favorites' ? null : 'favorites')}
+            activeOpacity={0.7}
+          >
+            <Star size={13} color={selectedCategory === 'favorites' ? '#ffffff' : '#f59e0b'} style={{ marginRight: 4 }} />
+            <Text
+              style={[
+                styles.categoryChipText,
+                selectedCategory === 'favorites' ? { color: '#ffffff', fontWeight: '800' } : { color: '#f59e0b', fontWeight: '700' },
+              ]}
+            >
+              ★ المفضلة والعبوات
             </Text>
           </TouchableOpacity>
 

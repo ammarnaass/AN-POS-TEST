@@ -84,6 +84,7 @@ export const en: TranslationSchema = {
     categories: 'Categories',
     promotions: 'Promotions',
     packs: 'Packs & Bundles',
+    favorites: 'Favorites & Quick Packs',
     warehouses: 'Warehouses',
     inventoryCount: 'Stock Count',
     stockMovements: 'Stock Movements',

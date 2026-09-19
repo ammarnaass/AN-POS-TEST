@@ -48,6 +48,7 @@ import {
   Trash2,
   Globe,
   Sparkles,
+  Star,
 } from 'lucide-react-native';
 import { useAuthStore } from '@/store/authStore';
 import { session } from '@/lib/apiClient';
@@ -660,6 +661,18 @@ export const MoreScreen = ({ navigation }: any) => {
           </View>
           <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('nav.categories')}</Text>
           <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('categories.title')}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+          onPress={() => navigation.navigate('Favorites')}
+          activeOpacity={0.75}
+        >
+          <View style={[styles.hubIconBox, { backgroundColor: '#fef3c7' }]}>
+            <Star size={20} color="#d97706" />
+          </View>
+          <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>المفضلة والعبوات السريعة</Text>
+          <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>إدارة كراتين وباقات البيع الفوري</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
