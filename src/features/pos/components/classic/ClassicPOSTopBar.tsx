@@ -7,6 +7,7 @@ import {
   History,
   Printer,
   User,
+  Package,
   X,
   Edit3,
   FolderOpen,
@@ -95,41 +96,52 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
           {/* Subtle glowing ambient effect */}
           <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 via-teal-500/10 to-transparent pointer-events-none" />
 
-          {/* Right wing in RTL: Cart metadata & indicators (flex-1) */}
+          {/* Right wing in RTL: Customer & Items metadata in glowing LED Green */}
           <div className="flex items-center gap-2 sm:gap-2.5 relative z-10 min-w-0 flex-1 justify-start">
-            <div className="px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-700/80 shrink-0">
-              <span className="text-[10px] font-mono font-bold text-slate-400 block leading-tight">الإجمالي الكلي:</span>
-              <span className="text-xs font-mono font-bold text-emerald-400 block leading-tight">
-                {cartLength > 0 ? `${totalItemsCount} سلع (${totalUnitsCount} قطع)` : 'شاشة المبيعات جاهزة'}
+            {/* عنصر الزبون باللون الأخضر */}
+            <div
+              onClick={onSelectCustomer}
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 text-xs font-bold shrink-0 transition-all ${
+                onSelectCustomer ? 'cursor-pointer hover:bg-emerald-900/50 hover:border-emerald-400' : ''
+              }`}
+              title="زبون الفاتورة (F6)"
+            >
+              <User className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span className="text-emerald-500/90 text-[11px] font-bold">الزبون:</span>
+              <span className="text-emerald-300 font-bold truncate max-w-[100px] sm:max-w-[130px]">
+                {selectedCustomerName || 'زبون عام'}
               </span>
             </div>
 
-            {selectedCustomerName && (
-              <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-900/90 border border-primary/30 text-primary text-xs font-bold shrink-0">
-                <User className="w-3.5 h-3.5" />
-                <span className="truncate max-w-[120px]">{selectedCustomerName}</span>
-              </div>
-            )}
+            {/* عنصر السلع باللون الأخضر */}
+            <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 text-xs font-bold shrink-0">
+              <Package className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span className="text-emerald-500/90 text-[11px] font-bold">السلع:</span>
+              <span className="text-emerald-300 font-mono font-black">
+                {cartLength > 0 ? `${totalItemsCount} سلع (${totalUnitsCount} قطع)` : '0 قطع'}
+              </span>
+            </div>
           </div>
 
-          {/* Exact Center: Giant glowing LED total amount (+15% larger & centered) */}
+          {/* Exact Center: Giant glowing LED total amount (+15% larger & centered) باللون الأخضر الكامل */}
           <div className="flex items-baseline justify-center gap-2 relative z-10 shrink-0 px-2 text-center" dir="ltr">
+            <span className="text-xs sm:text-sm font-bold text-emerald-500/90 shrink-0">الإجمالي الكلي:</span>
             <span className="text-3xl sm:text-4xl md:text-5xl font-black font-mono text-emerald-400 tracking-wider drop-shadow-[0_0_20px_rgba(52,211,153,0.7)]">
               {formatMoney(totalAmount)}
             </span>
-            <span className="text-sm sm:text-lg font-black text-emerald-500">{currency}</span>
+            <span className="text-sm sm:text-lg font-black text-emerald-400">{currency}</span>
           </div>
 
-          {/* Left wing in RTL: Discount & LED status pill (flex-1) */}
+          {/* Left wing in RTL: Discount & LED status pill (flex-1) باللون الأخضر */}
           <div className="flex items-center gap-2 relative z-10 min-w-0 flex-1 justify-end">
             {discountAmount > 0 && (
-              <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 text-xs font-bold shrink-0">
-                <span>تخفيض:</span>
-                <span className="font-mono">-{formatMoney(discountAmount)}</span>
+              <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 text-xs font-bold shrink-0">
+                <span className="text-emerald-500/90">تخفيض:</span>
+                <span className="font-mono text-emerald-300">-{formatMoney(discountAmount)}</span>
               </div>
             )}
-            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-700/80 text-[11px] font-mono font-bold text-slate-400 shrink-0">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-[11px] font-mono font-bold text-emerald-400 shrink-0">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span>LED POS</span>
             </div>
           </div>
