@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Banknote, Calculator, User, PhoneCall, CheckCircle2, Printer } from 'lucide-react';
+import { Banknote, Calculator, User, CheckCircle2, Printer } from 'lucide-react';
 
 export interface Design7FinancialSidebarProps {
   subtotal: number;
@@ -293,9 +293,9 @@ export const Design7FinancialSidebar: React.FC<Design7FinancialSidebarProps> = (
         </div>
       </div>
 
-      {/* بيانات الكاشير والمستخدم وخدمات ما بعد البيع (مطابقة للنموذج المرجعي) */}
+      {/* بيانات الكاشير والمستخدم */}
       <div
-        className="pt-2 border-t border-[#b7c6d6] space-y-1.5 text-[11px]"
+        className="pt-2 border-t border-[#b7c6d6] text-[11px]"
         data-purpose="operator-details"
       >
         <div className="flex items-center justify-between text-blue-900 font-bold">
@@ -306,21 +306,6 @@ export const Design7FinancialSidebar: React.FC<Design7FinancialSidebarProps> = (
           <span className="font-mono font-black text-blue-800 text-xs px-1.5 py-0.5 bg-white/60 rounded border border-blue-200">
             {userName}
           </span>
-        </div>
-
-        <div className="pt-1 border-t border-slate-300/60">
-          <div className="flex items-center justify-between text-blue-900 font-bold text-[10px]">
-            <div className="flex items-center gap-1">
-              <PhoneCall className="w-3.5 h-3.5 text-cyan-600" />
-              <span>خدمات ما بعد البيع</span>
-            </div>
-          </div>
-          <div
-            className="text-center font-bold text-slate-800 text-[11px] tracking-wider font-mono mt-0.5 bg-white/80 py-0.5 rounded border border-slate-300"
-            dir="ltr"
-          >
-            TEL 0642 06.97.58
-          </div>
         </div>
       </div>
     </div>
