@@ -75,4 +75,7 @@ export interface AdvancedTerminalPOSLayoutProps {
   showProductImages?: boolean;
   onOpenAddProduct?: () => void;
   onOpenFavoritesManagement?: () => void;
+  /** Global (POSPage-level) modal state — Esc closes those before navigating back */
+  isAnyModalOpen?: boolean;
+  onCloseAllModals?: () => void;
 }

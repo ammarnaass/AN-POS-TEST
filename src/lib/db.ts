@@ -127,7 +127,13 @@ function createTableProxy(table: string) {
 
     add: async (obj: Record<string, unknown>) => {
       const api = await waitForAPI();
-      const res = await api.create(table, toSnake(obj));
+      const payload = toSnake(obj);
+      if (table === 'sales') {
+        const now = new Date().toISOString();
+        if (!payload.date) payload.date = (obj.date as string) || (obj.createdAt as string) || (obj.created_at as string) || now;
+        if (!payload.number) payload.number = (obj.number as string) || `INV-${Date.now().toString().slice(-6)}`;
+      }
+      const res = await api.create(table, payload);
       return res?.data ? toCamel(res.data) : undefined;
     },
 
@@ -143,6 +149,11 @@ function createTableProxy(table: string) {
         if (id && !payload.id) {
           payload.id = id;
         }
+        if (table === 'sales') {
+          const now = new Date().toISOString();
+          if (!payload.date) payload.date = (obj.date as string) || (obj.createdAt as string) || (obj.created_at as string) || now;
+          if (!payload.number) payload.number = (obj.number as string) || `INV-${Date.now().toString().slice(-6)}`;
+        }
         const res = await api.create(table, payload);
         return res?.data ? toCamel(res.data) : undefined;
       }
@@ -150,10 +161,19 @@ function createTableProxy(table: string) {
 
     bulkAdd: async (items: Record<string, unknown>[]) => {
       const api = await waitForAPI();
+      const transformed = items.map((i) => {
+        const p = toSnake(i);
+        if (table === 'sales') {
+          const now = new Date().toISOString();
+          if (!p.date) p.date = (i.date as string) || (i.createdAt as string) || (i.created_at as string) || now;
+          if (!p.number) p.number = (i.number as string) || `INV-${Date.now().toString().slice(-6)}`;
+        }
+        return p;
+      });
       if (typeof api.bulkCreate === 'function') {
-        await api.bulkCreate(table, items.map(toSnake));
+        await api.bulkCreate(table, transformed);
       } else {
-        await Promise.all(items.map((i) => api.create(table, toSnake(i))));
+        await Promise.all(transformed.map((p) => api.create(table, p)));
       }
     },
 
@@ -169,6 +189,11 @@ function createTableProxy(table: string) {
             const payload = toSnake(i);
             if (id && !payload.id) {
               payload.id = id;
+            }
+            if (table === 'sales') {
+              const now = new Date().toISOString();
+              if (!payload.date) payload.date = (i.date as string) || (i.createdAt as string) || (i.created_at as string) || now;
+              if (!payload.number) payload.number = (i.number as string) || `INV-${Date.now().toString().slice(-6)}`;
             }
             return api.create(table, payload);
           }

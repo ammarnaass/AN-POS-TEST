@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   Bell,
-  Home,
+  LogOut,
   Check,
   X,
   Trash2,
@@ -10,7 +10,6 @@ import {
   RotateCcw,
   User,
   UserCheck,
-  Settings,
   Eye,
   Scale,
   Calculator,
@@ -19,6 +18,8 @@ import {
   Moon,
   Maximize,
   Minimize,
+  History,
+  Sliders,
 } from 'lucide-react';
 import NotificationDropdown from '@/components/notifications/NotificationDropdown';
 import { useNotificationStore } from '@/store/notificationStore';
@@ -26,6 +27,7 @@ import type { CartItem } from '@/types';
 
 export interface TerminalPOSTopBarProps {
   onNavigateBack: () => void;
+  onOpenSalesHistory?: () => void;
   onSettleSale: () => void;
   cart: CartItem[];
   isSalePending: boolean;
@@ -55,6 +57,7 @@ export interface TerminalPOSTopBarProps {
 
 export const TerminalPOSTopBar: React.FC<TerminalPOSTopBarProps> = ({
   onNavigateBack,
+  onOpenSalesHistory,
   onSettleSale,
   cart,
   isSalePending,
@@ -298,16 +301,16 @@ export const TerminalPOSTopBar: React.FC<TerminalPOSTopBarProps> = ({
           </button>
         </NotificationDropdown>
 
-        {/* إعدادات وتخصيص العرض ودقة الشاشة (F10) */}
+        {/* تخصيص العرض ودقة الشاشة (F10) */}
         <button
           type="button"
           onClick={onOpenCustomize}
-          className="h-9.5 px-2.5 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800/90 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:border-blue-300 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 transition-all flex items-center gap-1 cursor-pointer shrink-0 active:scale-95"
-          title="إعدادات تخصيص العرض ودقة الشاشة (F10)"
-          aria-label="إعدادات وتخصيص العرض"
+          className="h-9.5 px-2.5 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800/90 hover:bg-purple-50 dark:hover:bg-purple-950/40 hover:border-purple-300 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 transition-all flex items-center gap-1 cursor-pointer shrink-0 active:scale-95"
+          title="تخصيص الواجهة ودقة الشاشة (F10)"
+          aria-label="تخصيص الواجهة"
         >
-          <Settings className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
-          <span className="hidden sm:inline">إعدادات</span>
+          <Sliders className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+          <span className="hidden sm:inline">تخصيص</span>
           <kbd className="font-mono text-[9px] text-slate-400 bg-black/5 dark:bg-white/10 px-1 py-0.2 rounded font-bold">F10</kbd>
         </button>
 
@@ -333,17 +336,32 @@ export const TerminalPOSTopBar: React.FC<TerminalPOSTopBarProps> = ({
           {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
         </button>
 
-        {/* العودة للرئيسية (Esc) */}
+        {/* زر سجل المبيعات */}
+        {onOpenSalesHistory && (
+          <button
+            type="button"
+            onClick={onOpenSalesHistory}
+            className="h-9.5 px-3 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white border border-blue-500 shadow-sm transition-all flex items-center gap-1.5 cursor-pointer shrink-0 active:scale-95"
+            title="سجل المبيعات والفواتير (Alt+S)"
+            aria-label="سجل المبيعات"
+          >
+            <History className="w-3.5 h-3.5 text-white" />
+            <span className="hidden sm:inline">سجل المبيعات</span>
+            <kbd className="font-mono text-[9px] text-blue-100 bg-white/20 px-1 py-0.2 rounded font-bold">Alt+S</kbd>
+          </button>
+        )}
+
+        {/* زر الخروج (Esc) */}
         <button
           type="button"
           onClick={onNavigateBack}
-          className="h-9.5 px-3 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-900 text-white dark:bg-slate-700 dark:hover:bg-slate-600 border border-slate-700 dark:border-slate-600 shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 active:scale-95"
-          title="الرجوع إلى الصفحة الرئيسية (Esc)"
-          aria-label="الصفحة الرئيسية"
+          className="h-9.5 px-3 rounded-lg text-xs font-black bg-rose-600 hover:bg-rose-700 text-white border border-rose-500 shadow-sm transition-all flex items-center gap-1.5 cursor-pointer shrink-0 active:scale-95"
+          title="الخروج إلى لوحة التحكم الرئيسية (Esc)"
+          aria-label="الخروج"
         >
-          <Home className="w-3.5 h-3.5" />
-          <span className="hidden md:inline">الرئيسية</span>
-          <kbd className="font-mono text-[9px] text-slate-300 bg-white/10 px-1 py-0.2 rounded font-bold">Esc</kbd>
+          <LogOut className="w-3.5 h-3.5 text-white" />
+          <span>خروج</span>
+          <kbd className="font-mono text-[9px] text-rose-100 bg-white/20 px-1 py-0.2 rounded font-bold">Esc</kbd>
         </button>
       </div>
     </header>

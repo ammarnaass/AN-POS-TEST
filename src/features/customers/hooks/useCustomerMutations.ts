@@ -123,9 +123,30 @@ export function useCustomerMutations(
         created_at: paymentDate,
       });
 
+      // إذا كان الدفع نقداً، نقيد حركة إيداع في جلسة الصندوق المفتوحة لضبط الجرد النقدي
+      if (method === 'cash') {
+        try {
+          const openSession = await db.cash_sessions.where('status').equals('open').first();
+          if (openSession) {
+            const newDeposit = {
+              amount: Number(amount) || 0,
+              note: `تحصيل دين عميل: ${customerName}`,
+              createdAt: paymentDate,
+            };
+            await db.cash_sessions.update(openSession.id, {
+              deposits: [...(openSession.deposits || []), newDeposit],
+              updatedAt: new Date().toISOString(),
+            });
+          }
+        } catch (sessionErr) {
+          console.error('Failed to link cash collection to open cash session:', sessionErr);
+        }
+      }
+
       const freshCustomer = await db.customers.get(customerId);
       const actualBalance = Number(freshCustomer?.balance ?? currentBalance ?? 0);
-      const newBalance = Math.max(0, actualBalance - amount);
+      // حساب الرصيد الجديد دون تصفير قسري؛ في حال تجاوز الدفعة للدين يصبح الرصيد سالباً (رصيد دائن للزبون)
+      const newBalance = actualBalance - (Number(amount) || 0);
 
       await db.customers.update(customerId, {
         balance: newBalance,
@@ -146,6 +167,8 @@ export function useCustomerMutations(
     onSuccess: (voucherData) => {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       queryClient.invalidateQueries({ queryKey: ['payments'] });
+      queryClient.invalidateQueries({ queryKey: ['cashSessions'] });
+      queryClient.invalidateQueries({ queryKey: ['cash_sessions'] });
       if (voucherData) {
         handlePaymentSuccess(voucherData);
       }

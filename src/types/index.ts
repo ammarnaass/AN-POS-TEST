@@ -189,6 +189,10 @@ export interface Sale {
   note?: string;
   customerName?: string;
   lastPrintedAt?: string;
+  originalSaleId?: string;
+  originalSaleNumber?: string;
+  returnReason?: string;
+  refundMethod?: 'cash' | 'customer_credit';
 }
 
 export interface Payment {

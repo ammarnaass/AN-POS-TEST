@@ -94,7 +94,7 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
                 const creditStatus = getCreditStatus(customer);
                 const ratio =
                   customer.creditLimit > 0
-                    ? (customer.balance / customer.creditLimit) * 100
+                    ? (Math.max(0, customer.balance) / customer.creditLimit) * 100
                     : 0;
                 const waUrl = getWhatsAppUrl(customer, effectiveShopName, currencySymbol);
 
@@ -136,6 +136,11 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
                             {customer.rc && (
                               <span className="text-[10px] text-on-surface-variant font-mono">
                                 س.ت: {customer.rc}
+                              </span>
+                            )}
+                            {creditStatus === 'in_credit' && (
+                              <span className="px-2 py-0.5 rounded-md bg-teal-500/15 text-teal-700 dark:text-teal-400 text-[10px] font-black border border-teal-500/30">
+                                رصيد دائن (دفعة مسبقة)
                               </span>
                             )}
                             {creditStatus === 'settled' && (
@@ -195,16 +200,23 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
 
                     {/* Current Balance / Debt */}
                     <td className="py-3.5 px-4 text-center">
-                      <span
-                        className={`font-mono font-black text-sm px-2.5 py-1 rounded-lg inline-block ${
-                          customer.balance > 0
-                            ? 'text-red-600 bg-red-500/10 font-mono'
-                            : 'text-emerald-600 bg-emerald-500/10 font-mono'
-                        }`}
-                      >
-                        {formatCustomerMoney(customer.balance)}{' '}
-                        <span className="text-[10px] font-cairo">{currencySymbol}</span>
-                      </span>
+                      {customer.balance < 0 ? (
+                        <span className="font-mono font-black text-sm px-2.5 py-1 rounded-lg inline-flex items-center gap-1 text-teal-700 dark:text-teal-300 bg-teal-500/15 border border-teal-500/30">
+                          <span>+{formatCustomerMoney(Math.abs(customer.balance))}</span>
+                          <span className="text-[10px] font-cairo">دائن ({currencySymbol})</span>
+                        </span>
+                      ) : (
+                        <span
+                          className={`font-mono font-black text-sm px-2.5 py-1 rounded-lg inline-block ${
+                            customer.balance > 0
+                              ? 'text-red-600 bg-red-500/10 font-mono'
+                              : 'text-emerald-600 bg-emerald-500/10 font-mono'
+                          }`}
+                        >
+                          {formatCustomerMoney(customer.balance)}{' '}
+                          <span className="text-[10px] font-cairo">{currencySymbol}</span>
+                        </span>
+                      )}
                     </td>
 
                     {/* Credit Limit & Consumption Gauge */}

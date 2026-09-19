@@ -285,8 +285,8 @@ describe('AdvancedTerminalPOSLayout (تصميم 6 - نقطة البيع المت
   it('provides screen compatibility features: navigation back, fullscreen toggle, customization, and top bar collapse', () => {
     render(<AdvancedTerminalPOSLayout {...defaultProps} />);
 
-    // 1. زر الرجوع (موجود في الشريط العلوي + الشريط الجانبي الأيسر)
-    const backBtns = screen.getAllByTitle('الرجوع إلى الصفحة الرئيسية (Esc)');
+    // 1. زر الرجوع/الخروج (موجود في الشريط العلوي + الشريط الجانبي الأيسر)
+    const backBtns = screen.getAllByTitle(/الخروج إلى لوحة التحكم الرئيسية|الرجوع إلى الصفحة الرئيسية/);
     expect(backBtns.length).toBeGreaterThanOrEqual(1);
     fireEvent.click(backBtns[0]);
     expect(defaultProps.onNavigateBack).toHaveBeenCalled();

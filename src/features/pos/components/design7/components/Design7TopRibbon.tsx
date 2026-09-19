@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bell } from 'lucide-react';
+import { Bell, LogOut } from 'lucide-react';
 import NotificationDropdown from '@/components/notifications/NotificationDropdown';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useDesign7Clock } from '../hooks/useDesign7Clock';
@@ -52,26 +52,23 @@ export const Design7TopRibbon: React.FC<Design7TopRibbonProps> = ({
     <header className="bg-gradient-to-b from-[#e3e8ee] to-[#cad3de] px-1.5 sm:px-2 py-1 border-b border-[#9ba8b7] flex items-center justify-between gap-1 shadow-sm shrink-0 select-none overflow-hidden">
       {/* Primary Toolbar Actions (Right in RTL) */}
       <div className="flex items-center gap-1 sm:gap-1.5 flex-nowrap overflow-x-auto custom-scrollbar-none shrink-0 py-0.5 max-w-full">
-        {/* الرئيسية / خروج للوحة التحكم */}
+        {/* زر الخروج للوحة التحكم */}
         <button
           onClick={onNavigateBack}
-          title="الرجوع إلى لوحة التحكم الرئيسية (Esc)"
-          className="d7-glossy-top-btn flex flex-col items-center justify-center w-14 sm:w-16 md:w-20 h-10 sm:h-11 md:h-12 rounded px-1 group cursor-pointer active:scale-95 transition-all shrink-0"
+          title="الخروج إلى لوحة التحكم الرئيسية (Esc)"
+          className="d7-glossy-top-btn flex flex-col items-center justify-center w-14 sm:w-16 md:w-20 h-10 sm:h-11 md:h-12 rounded px-1 group cursor-pointer active:scale-95 transition-all shrink-0 border-rose-300 hover:border-rose-400 bg-gradient-to-b from-rose-50 to-rose-100/60"
           type="button"
         >
-          <svg className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-600 drop-shadow-sm" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L11 13.17V7h2v6.17l2.59-2.58L17 12l-5 5z"></path>
-          </svg>
-          <span className="text-[10px] sm:text-[11px] font-bold text-slate-800 leading-tight">الرئيسية</span>
+          <LogOut className="w-4 h-4 sm:w-5 sm:h-5 text-rose-600 drop-shadow-sm group-hover:scale-105 transition-transform" />
+          <span className="text-[10px] sm:text-[11px] font-black text-rose-700 leading-tight">خروج</span>
         </button>
 
-        {/* سجل المبيعات والمرتجع */}
+        {/* سجل المبيعات (صفحة السجل — زر الإرجاع مستقل) */}
         <button
           onClick={() => {
-            if (onOpenSalesHistory) onOpenSalesHistory();
-            else if (onOpenReturns) onOpenReturns();
+            onOpenSalesHistory?.();
           }}
-          title="سجل الفواتير والمبيعات والمرتجع (F2)"
+          title="سجل الفواتير والمبيعات (Alt+S)"
           className="d7-glossy-top-btn flex flex-col items-center justify-center w-14 sm:w-16 md:w-20 h-10 sm:h-11 md:h-12 rounded px-1 cursor-pointer active:scale-95 transition-all shrink-0"
           type="button"
         >

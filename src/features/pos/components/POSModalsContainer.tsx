@@ -17,20 +17,17 @@ import {
   CustomerSelectModal,
   SuspendedOrdersModal,
   ReturnSaleModal,
+  PartialReturnModal,
   SessionWarningModal,
   OpenSessionModal,
   DiscountModal,
   AdvancedFiltersModal,
+  CustomizeLayoutModal,
   SaveAsProformaModal,
   SaveAsOrderModal,
   QuickProductModal,
   TouchKeypadModal,
 } from '../modals';
-
-// Lazy-loaded heavy customization modal (800+ lines) to keep POSPage chunk smaller
-const CustomizeLayoutModal = React.lazy(() =>
-  import('../modals/CustomizeLayoutModal').then((m) => ({ default: m.CustomizeLayoutModal }))
-);
 
 export interface POSModalsContainerProps {
   modals: POSModalsState;
@@ -90,6 +87,18 @@ export interface POSModalsContainerProps {
   onResumeOrder: (order: SuspendedOrder) => void;
   onDeleteSuspendedOrder: (id: string) => void;
   onSelectReturnSale: (sale: Sale) => void;
+  onConfirmPartialReturn?: (params: {
+    returnItems: CartItem[];
+    originalSale: Sale;
+    reason: string;
+    refundMethod: 'cash' | 'customer_credit';
+  }) => void;
+  onLoadReturnToCart?: (params: {
+    returnItems: CartItem[];
+    originalSale: Sale;
+    reason: string;
+    refundMethod: 'cash' | 'customer_credit';
+  }) => void;
   onKeypadPress: (key: string) => void;
   selectedItemId: string | null;
   setSelectedItemId: (id: string | null) => void;
@@ -150,6 +159,8 @@ export const POSModalsContainer: React.FC<POSModalsContainerProps> = ({
   onResumeOrder,
   onDeleteSuspendedOrder,
   onSelectReturnSale,
+  onConfirmPartialReturn,
+  onLoadReturnToCart,
   onKeypadPress,
   selectedItemId,
   setSelectedItemId,
@@ -246,6 +257,17 @@ export const POSModalsContainer: React.FC<POSModalsContainerProps> = ({
         onSelectReturnSale={onSelectReturnSale}
       />
 
+      {/* 7.1. Dedicated Partial Return Modal */}
+      {modals.showPartialReturnModal && (
+        <PartialReturnModal
+          isOpen={modals.showPartialReturnModal}
+          onClose={() => modals.setShowPartialReturnModal(false)}
+          sale={modals.selectedSaleForReturn}
+          onConfirmReturn={(params) => onConfirmPartialReturn?.(params)}
+          onLoadToCart={(params) => onLoadReturnToCart?.(params)}
+        />
+      )}
+
       {/* 8. Session Warning Modal */}
       <SessionWarningModal
         isOpen={modals.showSessionWarning}
@@ -290,26 +312,24 @@ export const POSModalsContainer: React.FC<POSModalsContainerProps> = ({
 
       {/* 12. Customize Layout Modal */}
       {modals.showCustomizeModal && (
-        <React.Suspense fallback={null}>
-          <CustomizeLayoutModal
-            isOpen={modals.showCustomizeModal}
-            onClose={() => modals.setShowCustomizeModal(false)}
-            posLayout={posLayout}
-            setPosLayout={setPosLayout}
-            viewMode={viewMode}
-            setViewMode={setViewMode}
-            showProductImages={showProductImages}
-            setShowProductImages={setShowProductImages}
-            uiZoom={uiZoom}
-            setUiZoom={setUiZoom}
-            screenResolution={screenResolution}
-            setScreenResolution={setScreenResolution}
-            customResolution={customResolution}
-            setCustomResolution={setCustomResolution}
-            resolutionScaleMode={resolutionScaleMode}
-            setResolutionScaleMode={setResolutionScaleMode}
-          />
-        </React.Suspense>
+        <CustomizeLayoutModal
+          isOpen={modals.showCustomizeModal}
+          onClose={() => modals.setShowCustomizeModal(false)}
+          posLayout={posLayout}
+          setPosLayout={setPosLayout}
+          viewMode={viewMode}
+          setViewMode={setViewMode}
+          showProductImages={showProductImages}
+          setShowProductImages={setShowProductImages}
+          uiZoom={uiZoom}
+          setUiZoom={setUiZoom}
+          screenResolution={screenResolution}
+          setScreenResolution={setScreenResolution}
+          customResolution={customResolution}
+          setCustomResolution={setCustomResolution}
+          resolutionScaleMode={resolutionScaleMode}
+          setResolutionScaleMode={setResolutionScaleMode}
+        />
       )}
 
       {/* 13. Save as Proforma / Quotation Modal */}
@@ -318,9 +338,12 @@ export const POSModalsContainer: React.FC<POSModalsContainerProps> = ({
         onClose={() => modals.setShowSaveAsProformaModal(false)}
         onConfirm={async () => {
           const saleId = createId();
+          const now = new Date().toISOString();
           const proformaSale: Sale = {
             id: saleId,
             number: `PRF-${Date.now().toString().slice(-6)}`,
+            date: now,
+            docType: 'proforma',
             type: 'facture',
             status: 'draft',
             items: cart.map((i) => ({
@@ -343,8 +366,8 @@ export const POSModalsContainer: React.FC<POSModalsContainerProps> = ({
             cashierId: currentUser?.id || 'cashier',
             cashierName: currentUser?.name || 'الكاشير',
             notes: 'فاتورة مبدئية / عرض أسعار',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
+            createdAt: now,
+            updatedAt: now,
           };
           await db.sales.add(proformaSale);
           queryClient.invalidateQueries({ queryKey: ['sales'] });
@@ -359,9 +382,12 @@ export const POSModalsContainer: React.FC<POSModalsContainerProps> = ({
         onClose={() => modals.setShowSaveAsOrderModal(false)}
         onConfirm={async () => {
           const saleId = createId();
+          const now = new Date().toISOString();
           const orderSale: Sale = {
             id: saleId,
             number: `ORD-${Date.now().toString().slice(-6)}`,
+            date: now,
+            docType: 'bl',
             type: 'bon',
             status: 'draft',
             items: cart.map((i) => ({
@@ -384,8 +410,8 @@ export const POSModalsContainer: React.FC<POSModalsContainerProps> = ({
             cashierId: currentUser?.id || 'cashier',
             cashierName: currentUser?.name || 'الكاشير',
             notes: 'طلبية زبون معلقة للتجهيز',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
+            createdAt: now,
+            updatedAt: now,
           };
           await db.sales.add(orderSale);
           queryClient.invalidateQueries({ queryKey: ['sales'] });

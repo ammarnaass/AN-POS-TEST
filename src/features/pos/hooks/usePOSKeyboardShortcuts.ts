@@ -34,6 +34,8 @@ export interface UsePOSKeyboardShortcutsProps {
   onOpenCustomize?: () => void;
   onOpenDiscount?: () => void;
   onToggleWholesale?: () => void;
+  onNavigateBack?: () => void;
+  onOpenSalesHistory?: () => void;
   addNotification: (notif: { title: string; message: string; type: 'success' | 'error' | 'warning' | 'info' }) => void;
 }
 
@@ -68,15 +70,23 @@ export function usePOSKeyboardShortcuts({
   onOpenShortcuts,
   onUpdateQty,
   onRemoveItem,
+  onNavigateBack,
+  onOpenSalesHistory,
   addNotification,
 }: UsePOSKeyboardShortcutsProps) {
   useEffect(() => {
     if (!enabled) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      // 1. Always handle Escape to close any open modal
+      // 1. Always handle Escape to close any open modal, or navigate back if no modal is open
       if (e.key === 'Escape') {
         e.preventDefault();
-        onCloseAllModals();
+        if (isAnyModalOpen) {
+          onCloseAllModals();
+        } else if (onNavigateBack) {
+          onNavigateBack();
+        } else {
+          onCloseAllModals();
+        }
         return;
       }
 
@@ -124,6 +134,15 @@ export function usePOSKeyboardShortcuts({
         e.preventDefault();
         if (onToggleWholesale) {
           onToggleWholesale();
+        }
+        return;
+      }
+
+      // Alt + S: فتح سجل المبيعات
+      if (e.altKey && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+        if (onOpenSalesHistory) {
+          onOpenSalesHistory();
         }
         return;
       }

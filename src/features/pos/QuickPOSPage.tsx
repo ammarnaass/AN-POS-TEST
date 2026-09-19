@@ -30,10 +30,13 @@ import {
   QuickPOSModals,
 } from './quick';
 
+import { CustomizeLayoutModal } from './modals/CustomizeLayoutModal';
 import { usePOSKeyboardShortcuts } from './hooks/usePOSKeyboardShortcuts';
+import { usePOSNavigation } from './hooks/usePOSNavigation';
 
 export default function QuickPOSPage() {
   const navigate = useNavigate();
+  const { goHome: handleNavigateHome } = usePOSNavigation();
   const { items: cart, addItem, removeItem, updateQty, clear: clearCart } = useCartStore();
   const { user: currentUser } = useAuthStore();
   const { theme, toggleTheme } = useThemeStore();
@@ -51,6 +54,20 @@ export default function QuickPOSPage() {
   const setPaymentMethod = usePOSSessionStore((s) => s.setPaymentMethod);
   const autoPrintReceipt = usePOSSessionStore((s) => s.autoPrintReceipt);
   const setAutoPrintReceipt = usePOSSessionStore((s) => s.setAutoPrintReceipt);
+  const posLayout = usePOSSessionStore((s) => s.posLayout);
+  const setPosLayout = usePOSSessionStore((s) => s.setPosLayout);
+  const viewMode = usePOSSessionStore((s) => s.viewMode);
+  const setViewMode = usePOSSessionStore((s) => s.setViewMode);
+  const showProductImages = usePOSSessionStore((s) => s.showProductImages);
+  const setShowProductImages = usePOSSessionStore((s) => s.setShowProductImages);
+  const uiZoom = usePOSSessionStore((s) => s.uiZoom);
+  const setUiZoom = usePOSSessionStore((s) => s.setUiZoom);
+  const screenResolution = usePOSSessionStore((s) => s.screenResolution);
+  const setScreenResolution = usePOSSessionStore((s) => s.setScreenResolution);
+  const customResolution = usePOSSessionStore((s) => s.customResolution);
+  const setCustomResolution = usePOSSessionStore((s) => s.setCustomResolution);
+  const resolutionScaleMode = usePOSSessionStore((s) => s.resolutionScaleMode);
+  const setResolutionScaleMode = usePOSSessionStore((s) => s.setResolutionScaleMode);
 
   // Local UI States
   const [mobileTab, setMobileTab] = useState<QuickPOSMobileTab>('catalog');
@@ -60,6 +77,7 @@ export default function QuickPOSPage() {
   const [soundEnabled, setSoundEnabled] = useState(true);
 
   // Modals Visibility State
+  const [showCustomizeModal, setShowCustomizeModal] = useState(false);
   const [showHeldSalesModal, setShowHeldSalesModal] = useState(false);
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
   const [showOpenSessionModal, setShowOpenSessionModal] = useState(false);
@@ -309,9 +327,10 @@ export default function QuickPOSPage() {
         onToggleSound={() => setSoundEnabled((prev) => !prev)}
         autoPrintReceipt={autoPrintReceipt}
         onToggleAutoPrint={() => setAutoPrintReceipt(!autoPrintReceipt)}
-        onNavigateHome={() => navigate('/')}
+        onNavigateHome={handleNavigateHome}
         onNavigateAdvancedPOS={() => navigate('/pos')}
         onOpenSidebar={openSidebar}
+        onOpenCustomize={() => setShowCustomizeModal(true)}
         theme={theme}
         onToggleTheme={toggleTheme}
         cashierName={currentUser?.name || 'محمد العربي'}
@@ -440,6 +459,26 @@ export default function QuickPOSPage() {
         }}
         showShortcutsModal={showShortcutsModal}
         onCloseShortcutsModal={() => setShowShortcutsModal(false)}
+      />
+
+      {/* 4. CUSTOMIZE LAYOUT MODAL */}
+      <CustomizeLayoutModal
+        isOpen={showCustomizeModal}
+        onClose={() => setShowCustomizeModal(false)}
+        posLayout={posLayout}
+        setPosLayout={setPosLayout}
+        viewMode={viewMode}
+        setViewMode={setViewMode}
+        showProductImages={showProductImages}
+        setShowProductImages={setShowProductImages}
+        uiZoom={uiZoom}
+        setUiZoom={setUiZoom}
+        screenResolution={screenResolution}
+        setScreenResolution={setScreenResolution}
+        customResolution={customResolution}
+        setCustomResolution={setCustomResolution}
+        resolutionScaleMode={resolutionScaleMode}
+        setResolutionScaleMode={setResolutionScaleMode}
       />
     </div>
   );

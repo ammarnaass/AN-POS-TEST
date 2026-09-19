@@ -15,12 +15,16 @@ import {
   FileCheck,
   Sun,
   Moon,
+  LogOut,
+  Sliders,
 } from 'lucide-react';
 import NotificationDropdown from '@/components/notifications/NotificationDropdown';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useThemeStore } from '@/store/themeStore';
 
 interface ClassicPOSTopBarProps {
+  onNavigateBack?: () => void;
+  onOpenCustomize?: () => void;
   onSettleSale: () => void;
   isSalePending: boolean;
   cartLength: number;
@@ -36,6 +40,7 @@ interface ClassicPOSTopBarProps {
   autoPrintReceipt: boolean;
   onToggleAutoPrint: () => void;
   onOpenReturns: () => void;
+  onOpenSalesHistory?: () => void;
   onOpenKeypad?: () => void;
   onSaveAsProforma?: () => void;
   onSaveAsOrder?: () => void;
@@ -49,6 +54,8 @@ interface ClassicPOSTopBarProps {
 }
 
 export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
+  onNavigateBack,
+  onOpenCustomize,
   onSettleSale,
   isSalePending,
   cartLength,
@@ -64,6 +71,7 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
   autoPrintReceipt,
   onToggleAutoPrint,
   onOpenReturns,
+  onOpenSalesHistory,
   onOpenKeypad,
   onSaveAsProforma,
   onSaveAsOrder,
@@ -82,6 +90,34 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
     <div className="bg-surface-container-low border-b border-outline-variant/20 p-2 sm:p-2.5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 shrink-0 shadow-sm">
       {/* 1. RIGHT / CENTER (in RTL): ACTIONS TOOLBAR */}
       <div className="flex-1 flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-0.5 min-w-0">
+        {/* زر الخروج إلى لوحة التحكم الرئيسية */}
+        {onNavigateBack && (
+          <button
+            type="button"
+            onClick={onNavigateBack}
+            className="h-10 px-3 rounded-xl bg-red-500/15 hover:bg-red-500/25 border border-red-500/40 text-red-600 dark:text-red-400 text-xs font-black flex items-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0 shadow-2xs"
+            title="الخروج إلى لوحة التحكم الرئيسية (Esc)"
+          >
+            <LogOut className="w-3.5 h-3.5 text-red-500" />
+            <span>خروج</span>
+            <span className="bg-red-500/20 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold">Esc</span>
+          </button>
+        )}
+
+        {/* زر تخصيص الواجهة ودقة الشاشة */}
+        {onOpenCustomize && (
+          <button
+            type="button"
+            onClick={onOpenCustomize}
+            className="h-10 px-3 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/40 text-purple-700 dark:text-purple-300 text-xs font-black flex items-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0 shadow-2xs"
+            title="تخصيص الواجهة ودقة العرض ومقياس التكبير (F10)"
+          >
+            <Sliders className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+            <span>تخصيص</span>
+            <span className="bg-purple-500/20 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold">F10</span>
+          </button>
+        )}
+
         {/* SAFE DESTRUCTIVE / EDITING ZONE: Ctrl+D & Isolated F4 */}
         <button
           type="button"
@@ -237,12 +273,13 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
           <span className="bg-surface-container-highest px-1.5 py-0.5 rounded text-[10px] font-mono opacity-80">F5</span>
         </button>
 
-        {/* سجل المبيعات (F9) */}
+        {/* سجل المبيعات (صفحة السجل — وليس مودال الإرجاع) */}
         <button
           type="button"
-          onClick={onOpenReturns}
-          className="h-10 px-2.5 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-on-surface text-xs font-bold flex items-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0"
-          title="سجل المبيعات والمرتجع (F9)"
+          onClick={onOpenSalesHistory}
+          disabled={!onOpenSalesHistory}
+          className="h-10 px-2.5 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-on-surface text-xs font-bold flex items-center gap-1.5 active:scale-95 disabled:opacity-40 cursor-pointer transition-all shrink-0"
+          title="سجل المبيعات (Alt+S)"
         >
           <History className="w-3.5 h-3.5 text-blue-400" />
           <span className="hidden sm:inline">سجل</span>
@@ -308,6 +345,8 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
           )}
           <span className="hidden sm:inline">{theme === 'dark' ? 'نهاري' : 'ليلي'}</span>
         </button>
+
+
 
         {/* زر الإشعارات والتنبيهات التشغيلية */}
         <NotificationDropdown hideBadge>

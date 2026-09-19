@@ -8,6 +8,7 @@ import {
   Sliders,
   LogOut,
   User,
+  History,
 } from 'lucide-react';
 import NotificationDropdown from '@/components/notifications/NotificationDropdown';
 import { useNotificationStore } from '@/store/notificationStore';
@@ -127,6 +128,7 @@ export const SidebarPOSLayout: React.FC<SidebarPOSLayoutProps> = ({
   onToggleFullscreen,
   isFullscreen,
   onNavigateBack,
+  onOpenSalesHistory,
   onOpenKeypadForQty,
   viewMode = 'grid',
   showProductImages = true,
@@ -259,14 +261,27 @@ export const SidebarPOSLayout: React.FC<SidebarPOSLayoutProps> = ({
             <button
               type="button"
               onClick={onOpenCustomize}
-              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition text-white cursor-pointer"
-              title="تخصيص الواجهة"
+              className="bg-purple-500/80 hover:bg-purple-600 px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition text-white shadow-sm mr-1 cursor-pointer"
+              title="تخصيص الواجهة (Alt+C)"
             >
               <Sliders className="w-4 h-4" />
+              <span className="hidden sm:inline">تخصيص</span>
             </button>
+            {onOpenSalesHistory && (
+              <button
+                type="button"
+                onClick={onOpenSalesHistory}
+                title="سجل المبيعات (Alt+S)"
+                className="bg-blue-500/80 hover:bg-blue-600 px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition text-white shadow-sm mr-1 cursor-pointer"
+              >
+                <History className="w-4 h-4" />
+                <span className="hidden sm:inline">سجل المبيعات</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={onNavigateBack}
+              title="الخروج إلى لوحة التحكم الرئيسية (Esc)"
               className="bg-rose-500/80 hover:bg-rose-600 px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition text-white shadow-sm mr-1 cursor-pointer"
             >
               <LogOut className="w-4 h-4" />

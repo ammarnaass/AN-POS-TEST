@@ -103,7 +103,7 @@ describe('Design7POSLayout (تصميم 7 - كاشير اللمس الكلاسي�
     render(<Design7POSLayout {...defaultProps} />);
 
     // Check top action buttons
-    expect(screen.getByText('الرئيسية')).toBeInTheDocument();
+    expect(screen.getByText('خروج')).toBeInTheDocument();
     expect(screen.getByText('سجل المبيعات')).toBeInTheDocument();
     expect(screen.getByText('حفظ كطلبيّة')).toBeInTheDocument();
     expect(screen.getByText('إلغاء السلة')).toBeInTheDocument();
@@ -392,7 +392,8 @@ describe('Design7POSLayout (تصميم 7 - كاشير اللمس الكلاسي�
     fireEvent.keyDown(window, { key: 'F12' });
     expect(defaultProps.onOpenCustomize).toHaveBeenCalled();
 
-    // Escape -> Navigate back
+    // Escape -> Close modal on first press, then navigate back on second press
+    fireEvent.keyDown(window, { key: 'Escape' });
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(defaultProps.onNavigateBack).toHaveBeenCalled();
   });

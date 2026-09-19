@@ -17,6 +17,7 @@ export interface UseDesign6ShortcutsProps {
   onLockTerminal?: () => void;
   onToggleFullscreen?: () => void;
   onNavigateBack?: () => void;
+  onOpenSalesHistory?: () => void;
   onDeleteSelectedRow?: () => void;
   onArrowUp?: () => void;
   onArrowDown?: () => void;
@@ -45,6 +46,7 @@ export const useDesign6Shortcuts = ({
   onLockTerminal,
   onToggleFullscreen,
   onNavigateBack,
+  onOpenSalesHistory,
   onDeleteSelectedRow,
   onArrowUp,
   onArrowDown,
@@ -65,9 +67,16 @@ export const useDesign6Shortcuts = ({
         e.preventDefault();
         if (isAnyModalOpen) {
           onCloseModals?.();
-        } else if (!isInput) {
+        } else {
           onNavigateBack?.();
         }
+        return;
+      }
+
+      // Alt + S: فتح سجل المبيعات (مطابق للاختصار العام في usePOSKeyboardShortcuts)
+      if (e.altKey && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+        onOpenSalesHistory?.();
         return;
       }
 
@@ -231,6 +240,7 @@ export const useDesign6Shortcuts = ({
     onLockTerminal,
     onToggleFullscreen,
     onNavigateBack,
+    onOpenSalesHistory,
     onDeleteSelectedRow,
     onArrowUp,
     onArrowDown,

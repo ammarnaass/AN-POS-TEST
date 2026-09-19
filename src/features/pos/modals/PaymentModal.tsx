@@ -1,10 +1,11 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Banknote,
   CreditCard,
   ArrowLeftRight,
   UserCheck,
   UserPlus,
+  AlertTriangle,
   X,
 } from 'lucide-react';
 import { formatMoney, formatNumber } from '../utils/format';
@@ -19,7 +20,7 @@ interface PaymentModalProps {
   setPaidAmount: (amount: number) => void;
   selectedCustomer: string;
   setSelectedCustomer: (id: string) => void;
-  customers: Array<{ id: string; name: string; phone?: string; balance?: number }>;
+  customers: Array<{ id: string; name: string; phone?: string; balance?: number; creditLimit?: number }>;
   onOpenAddCustomer: () => void;
   onConfirmPayment: () => void;
   isPending: boolean;
@@ -46,6 +47,22 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 }) => {
   const customerSelectRef = useRef<HTMLSelectElement>(null);
   const paidInputRef = useRef<HTMLInputElement>(null);
+  const [overrideCreditLimit, setOverrideCreditLimit] = useState(false);
+
+  // إعادة ضبط إذن التجاوز عند تغيير العميل أو فتح النافذة
+  useEffect(() => {
+    setOverrideCreditLimit(false);
+  }, [selectedCustomer, isOpen]);
+
+  const matchedCustomer = customers.find((c) => c.id === selectedCustomer);
+  const currentCustBalance = Number(matchedCustomer?.balance || 0);
+  const creditLimit = Number(matchedCustomer?.creditLimit || 0);
+  const hasCreditAdvance = currentCustBalance < 0;
+  const isCreditSale = paymentMethod === 'credit';
+  const projectedDebt = currentCustBalance + total;
+  const isCreditLimitExceeded = isCreditSale && Boolean(selectedCustomer) && creditLimit > 0 && projectedDebt > creditLimit;
+  const creditExcessAmount = isCreditLimitExceeded ? projectedDebt - creditLimit : 0;
+  const isConfirmDisabled = isPending || (isCreditSale && (!selectedCustomer || (isCreditLimitExceeded && !overrideCreditLimit)));
 
   // Self-contained keyboard shortcuts handling for the payment process
   useEffect(() => {
@@ -59,6 +76,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         if (isPending) return;
         if (paymentMethod === 'credit' && !selectedCustomer) {
           customerSelectRef.current?.focus();
+          return;
+        }
+        if (isCreditLimitExceeded && !overrideCreditLimit) {
           return;
         }
         onConfirmPayment();
@@ -326,17 +346,63 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   className="w-full h-10 pr-3 pl-8 bg-surface-container-low border border-outline-variant/25 rounded-xl text-xs text-on-surface font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none cursor-pointer"
                 >
                   <option value="">— اختر الزبون من القائمة ({customers.length} مسجل) —</option>
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} {c.phone ? `(${c.phone})` : ''}{' '}
-                      {c.balance && c.balance > 0 ? `[دين سابق: ${formatNumber(c.balance)} دج]` : ''}
-                    </option>
-                  ))}
+                  {customers.map((c) => {
+                    const isNeg = (c.balance || 0) < 0;
+                    const isExceeded = (c.creditLimit || 0) > 0 && (c.balance || 0) >= (c.creditLimit || 0);
+                    return (
+                      <option key={c.id} value={c.id}>
+                        {c.name} {c.phone ? `(${c.phone})` : ''}{' '}
+                        {isNeg
+                          ? `[رصيد دائن: +${formatNumber(Math.abs(c.balance || 0))} دج]`
+                          : c.balance && c.balance > 0
+                          ? `[دين سابق: ${formatNumber(c.balance)} دج${isExceeded ? ' ⚠️ متجاوز' : ''}]`
+                          : ''}
+                      </option>
+                    );
+                  })}
                 </select>
                 <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant/70 text-[10px]">
                   ▼
                 </div>
               </div>
+
+              {/* Notice when customer has credit advance */}
+              {selectedCustomer && hasCreditAdvance && (
+                <div className="p-2.5 rounded-xl bg-teal-500/10 border border-teal-500/30 text-teal-700 dark:text-teal-300 text-xs flex items-center gap-2">
+                  <span className="text-base shrink-0">💡</span>
+                  <span>
+                    العميل يمتلك رصيداً دائناً مسبقاً بقيمة: <strong>+{formatMoney(Math.abs(currentCustBalance))} دج</strong>
+                  </span>
+                </div>
+              )}
+
+              {/* Warning when credit limit is exceeded */}
+              {isCreditLimitExceeded && (
+                <div className="p-3 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-400 space-y-2 text-xs animate-in fade-in">
+                  <div className="flex items-center justify-between font-bold">
+                    <div className="flex items-center gap-1.5">
+                      <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                      <span>تنبيه: تجاوز سقف الائتمان المسموح به!</span>
+                    </div>
+                    <span className="font-mono font-black">
+                      {formatMoney(projectedDebt)} / {formatMoney(creditLimit)} دج
+                    </span>
+                  </div>
+                  <p className="text-[11px] leading-relaxed text-red-600 dark:text-red-300">
+                    الدين الحالي ({formatMoney(currentCustBalance)} دج) + الفاتورة الحالية ({formatMoney(total)} دج) سيتجاوز سقف الائتمان بمقدار <strong>{formatMoney(creditExcessAmount)} دج</strong>.
+                  </p>
+                  <label className="flex items-center gap-2 pt-1 font-bold text-[11px] text-on-surface cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={overrideCreditLimit}
+                      onChange={(e) => setOverrideCreditLimit(e.target.checked)}
+                      className="w-4 h-4 rounded text-red-600 focus:ring-red-500/20 cursor-pointer"
+                    />
+                    <span>الموافقة الاستثنائية على تجاوز سقف الدين بتصريح المشرف</span>
+                  </label>
+                </div>
+              )}
+
               {!selectedCustomer && (
                 <p className="text-[11px] text-amber-600 dark:text-amber-400 font-bold">
                   ⚠️ يجب اختيار زبون من القائمة لتسجيل الفاتورة كدين آجل.
@@ -356,7 +422,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           </button>
           <button
             onClick={onConfirmPayment}
-            disabled={isPending || (paymentMethod === 'credit' && !selectedCustomer)}
+            disabled={isConfirmDisabled}
             className="flex-2 py-3 rounded-xl bg-primary hover:bg-primary/90 text-on-primary text-xs font-bold transition-all shadow-md active:scale-95 disabled:opacity-50 cursor-pointer"
           >
             {isPending ? 'جاري الحفظ...' : 'تأكيد ودفع الفاتورة (Enter)'}

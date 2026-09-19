@@ -71,6 +71,8 @@ export interface TerminalPOSLayoutProps {
   onOpenKeypadForQty?: (item: CartItem) => void;
   viewMode?: 'grid' | 'list';
   showProductImages?: boolean;
+  /** Global (POSPage-level) modal state — Esc skips navigation while a modal is open (the global hook closes it) */
+  isAnyModalOpen?: boolean;
 }
 
 export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
@@ -125,6 +127,7 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
   onNavigateBack,
   onOpenKeypad,
   onOpenKeypadForQty,
+  isAnyModalOpen = false,
 }) => {
   const { theme, toggleTheme } = useThemeStore();
 
@@ -289,7 +292,8 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
           setIsPriceCheckerMode(false);
           setPriceCheckerResult(null);
           setPriceCheckerNotFound(null);
-        } else {
+        } else if (!isAnyModalOpen) {
+          // Global keyboard hook closes open modals; navigate only when none are open
           onNavigateBack();
         }
       } else if (e.key === 'Delete' || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd')) {
@@ -344,6 +348,7 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
     onOpenKeypad,
     isPriceCheckerMode,
     onNavigateBack,
+    isAnyModalOpen,
     handleSelectPriceTier,
   ]);
 
@@ -465,6 +470,7 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
         {/* 1. TOP COMMAND BAR (شريط الأوامر السريعة العلوية F1-F12) */}
         <TerminalPOSTopBar
           onNavigateBack={onNavigateBack}
+          onOpenSalesHistory={onOpenSalesHistory}
           onSettleSale={onSettleSale}
           cart={cart}
           isSalePending={isSalePending}

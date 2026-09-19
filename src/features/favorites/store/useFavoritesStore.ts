@@ -123,7 +123,10 @@ export const useFavoritesStore = create<FavoritesState>()(
       },
 
       purgeProductItems: () => {
-        set({ items: get().items.filter((it) => it.type === 'pack') });
+        const currentItems = get().items;
+        if (currentItems.some((it) => it.type !== 'pack')) {
+          set({ items: currentItems.filter((it) => it.type === 'pack') });
+        }
       },
     }),
     {

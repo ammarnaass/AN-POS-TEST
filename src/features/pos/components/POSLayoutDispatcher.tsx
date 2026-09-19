@@ -96,6 +96,9 @@ export interface POSLayoutDispatcherProps {
   onUpdatePrice: (productId: string, price: number) => void;
   onRemoveItem: (productId: string) => void;
   formatNumber: (val: number | null | undefined) => string;
+  /** Global modal state — lets per-layout Esc handlers close modals before navigating back */
+  isAnyModalOpen?: boolean;
+  onCloseAllModals?: () => void;
 }
 
 export const POSLayoutDispatcher: React.FC<POSLayoutDispatcherProps> = ({
@@ -178,6 +181,8 @@ export const POSLayoutDispatcher: React.FC<POSLayoutDispatcherProps> = ({
   onUpdatePrice,
   onRemoveItem,
   formatNumber,
+  isAnyModalOpen = false,
+  onCloseAllModals,
 }) => {
   const handleItemQtyChange = (productId: string, qty: number) => {
     const it = cart.find((c) => c.productId === productId);
@@ -285,6 +290,9 @@ export const POSLayoutDispatcher: React.FC<POSLayoutDispatcherProps> = ({
         storeName={storeName}
         isSessionOpen={isSessionOpen}
         isSalePending={isSalePending}
+        onNavigateBack={onNavigateBack}
+        onOpenSalesHistory={onOpenSalesHistory}
+        onOpenCustomize={onOpenCustomize}
         onSaveAsProforma={onSaveAsProforma}
         onSaveAsOrder={onSaveAsOrder}
       />
@@ -404,6 +412,7 @@ export const POSLayoutDispatcher: React.FC<POSLayoutDispatcherProps> = ({
         onNavigateBack={onNavigateBack}
         onOpenKeypad={onOpenKeypad}
         onOpenKeypadForQty={onOpenKeypadForQty}
+        isAnyModalOpen={isAnyModalOpen}
       />
     );
   }
@@ -464,6 +473,8 @@ export const POSLayoutDispatcher: React.FC<POSLayoutDispatcherProps> = ({
         onOpenKeypadForQty={onOpenKeypadForQty}
         onOpenAddProduct={onOpenAddProduct}
         onOpenFavoritesManagement={onOpenFavoritesManagement}
+        isAnyModalOpen={isAnyModalOpen}
+        onCloseAllModals={onCloseAllModals}
       />
     );
   }
@@ -525,6 +536,8 @@ export const POSLayoutDispatcher: React.FC<POSLayoutDispatcherProps> = ({
         onOpenKeypadForQty={onOpenKeypadForQty}
         onOpenAddProduct={onOpenAddProduct}
         onOpenFavoritesManagement={onOpenFavoritesManagement}
+        isAnyModalOpen={isAnyModalOpen}
+        onCloseAllModals={onCloseAllModals}
       />
     );
   }
@@ -576,6 +589,9 @@ export const POSLayoutDispatcher: React.FC<POSLayoutDispatcherProps> = ({
       onRemoveItem={onRemoveItem}
       formatNumber={formatNumber}
       formatMoney={formatMoney}
+      onNavigateBack={onNavigateBack}
+      onOpenSalesHistory={onOpenSalesHistory}
+      onOpenCustomize={onOpenCustomize}
     />
   );
 };

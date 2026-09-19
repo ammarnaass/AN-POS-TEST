@@ -7,8 +7,9 @@ export function formatCustomerMoney(val: number | undefined | null): string {
   });
 }
 
-export function getCreditStatus(customer: Customer): 'settled' | 'normal_debt' | 'warning' | 'exceeded' {
-  if (customer.balance <= 0) return 'settled';
+export function getCreditStatus(customer: Customer): 'in_credit' | 'settled' | 'normal_debt' | 'warning' | 'exceeded' {
+  if (customer.balance < 0) return 'in_credit';
+  if (customer.balance === 0) return 'settled';
   if (customer.creditLimit <= 0) return 'normal_debt';
   const ratio = customer.balance / customer.creditLimit;
   if (ratio >= 1) return 'exceeded';
@@ -17,7 +18,7 @@ export function getCreditStatus(customer: Customer): 'settled' | 'normal_debt' |
 }
 
 export function getWhatsAppUrl(customer: Customer, storeName = 'متجرنا', currencySymbol = 'دج'): string | null {
-  if (!customer.phone) return null;
+  if (!customer.phone || customer.balance <= 0) return null;
   let cleanPhone = customer.phone.replace(/\D/g, '');
   if (cleanPhone.startsWith('0')) {
     cleanPhone = '213' + cleanPhone.slice(1);

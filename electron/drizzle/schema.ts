@@ -409,7 +409,7 @@ export const sales = sqliteTable(
   {
     id: text('id').primaryKey(),
     number: text('number').notNull(),
-    date: text('date').notNull(),
+    date: text('date').notNull().default(sql`datetime('now')`),
     docType: text('doc_type').notNull().default('facture'),
     type: text('type').notNull().default('sale'),
     items: text('items').notNull().default('[]'),

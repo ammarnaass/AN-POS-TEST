@@ -40,6 +40,10 @@ interface SaleCompletionParams {
   products: any[];
   packs: any[];
   customers: any[];
+  originalSaleId?: string;
+  originalSaleNumber?: string;
+  returnReason?: string;
+  refundMethod?: 'cash' | 'customer_credit';
 }
 
 export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale: Sale) => void) {
@@ -146,6 +150,10 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
         note: note || '',
         paidAmount: effectivePaidAmount,
         items: enrichedCart,
+        originalSaleId: params.originalSaleId,
+        originalSaleNumber: params.originalSaleNumber,
+        returnReason: params.returnReason,
+        refundMethod: params.refundMethod,
       };
 
       // تحضير سجلات عناصر البيع المنفردة لـ sale_items
@@ -351,17 +359,25 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
             }
 
             // 3. تحديث رصيد العميل في حال الدفع بالآجل (الديون) أو الإرجاع
-            if (selectedCustomer && matchedCustomer) {
+            if (selectedCustomer) {
+              const freshCustomer = await db.customers.get(selectedCustomer);
+              const currentBalance = Number(freshCustomer?.balance ?? matchedCustomer?.balance ?? 0);
+
               if (saleType === 'return') {
-                // الإرجاع ينقص من دين العميل
-                await db.customers.update(selectedCustomer, {
-                  balance: (matchedCustomer.balance || 0) - saleSummary.total,
-                });
+                // إذا كان استرداد الإرجاع كـ رصيد للعميل (أو بيع آجل ولم يُطلب استرداد نقدي من الخزينة)
+                const isCustomerCreditRefund = params.refundMethod === 'customer_credit' || (paymentMethod === 'credit' && params.refundMethod !== 'cash');
+                if (isCustomerCreditRefund) {
+                  await db.customers.update(selectedCustomer, {
+                    balance: currentBalance - saleSummary.total,
+                    updatedAt: new Date().toISOString(),
+                  });
+                }
               } else if (paymentMethod === 'credit') {
-                // البيع بالآجل: الدين المتبقي = الإجمالي - المبلغ المدفوع حالياً
+                // البيع بالآجل: الدين المضاف = الإجمالي - المبلغ المدفوع حالياً
                 const unpaidPart = Math.max(0, saleSummary.total - effectivePaidAmount);
                 await db.customers.update(selectedCustomer, {
-                  balance: (matchedCustomer.balance || 0) + unpaidPart,
+                  balance: currentBalance + unpaidPart,
+                  updatedAt: new Date().toISOString(),
                 });
               }
             }
@@ -377,11 +393,14 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
               const freshSession = await db.cash_sessions.get(targetSessionId);
               if (freshSession) {
                 if (saleType === 'return') {
-                  const newReturns = (freshSession.totalReturns || 0) + saleSummary.total;
-                  await db.cash_sessions.update(targetSessionId, {
-                    totalReturns: newReturns,
-                    updatedAt: new Date().toISOString(),
-                  });
+                  const isCashRefund = params.refundMethod === 'cash' || (!params.refundMethod && paymentMethod === 'cash');
+                  if (isCashRefund) {
+                    const newReturns = (freshSession.totalReturns || 0) + saleSummary.total;
+                    await db.cash_sessions.update(targetSessionId, {
+                      totalReturns: newReturns,
+                      updatedAt: new Date().toISOString(),
+                    });
+                  }
                 } else {
                   const cashInflow = effectivePaidAmount;
                   const newSales = (freshSession.totalSales || 0) + cashInflow;

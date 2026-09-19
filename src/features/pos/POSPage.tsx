@@ -1,29 +1,27 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useCallback, useMemo } from 'react';
 import { useCartStore } from '@/store/cartStore';
 import { useAuthStore } from '@/store/authStore';
 import { useSidebarStore } from '@/store/sidebarStore';
 import { useThemeStore } from '@/store/themeStore';
 import { useNotificationStore } from '@/store/notificationStore';
-import type { Product, CartItem, Sale, DocType } from '@/types';
-import { calculateSaleTotal, resolveUnitPrice, getProductTierPrice } from '@/services';
 import { useBarcodeScanner } from '@/features/barcode/useBarcodeScanner';
-import { parseAndAddScannedCode, playAdded, playErrorBeep, unlockAudio } from '@/services/barcode';
-import { useSaleCompletion } from './hooks/useSaleCompletion';
 import { usePOSCartActions } from './hooks/usePOSCartActions';
 import { usePOSKeyboardShortcuts } from './hooks/usePOSKeyboardShortcuts';
 import { useMobileScanner } from './hooks/useMobileScanner';
 import { usePOSData } from './hooks/usePOSData';
 import { usePOSCatalogFilter } from './hooks/usePOSCatalogFilter';
 import { usePOSModalsState } from './hooks/usePOSModalsState';
+import { usePOSPageState } from './hooks/usePOSPageState';
+import { usePOSNavigation } from './hooks/usePOSNavigation';
+import { usePOSPagePaymentFlow } from './hooks/usePOSPagePaymentFlow';
+import { usePOSPageReturnFlow } from './hooks/usePOSPageReturnFlow';
 import { POSTopBar } from './components/POSTopBar';
 import { POSLayoutDispatcher } from './components/POSLayoutDispatcher';
 import { POSModalsContainer } from './components/POSModalsContainer';
 import { usePOSSessionStore } from './store/usePOSSessionStore';
 import { getTrialState } from '@/services/trialService';
 import { isLicensed } from '@/services/licenseService';
-import { v4 as createId } from 'uuid';
-import { db } from '@/infrastructure/database/dexie/db';
 
 const formatMoney = (val: number | null | undefined, decimals = 2) => {
   const num = typeof val === 'number' && !isNaN(val) ? val : 0;
@@ -109,7 +107,7 @@ export default function POSPage() {
   // 3. Centralized Modals State
   const modals = usePOSModalsState();
 
-  // 4. Centralized Catalog Filtering & Packs Resolution Hook
+  // 4. Centralized Catalog Filtering Hook
   const {
     searchQuery,
     setSearchQuery,
@@ -138,167 +136,35 @@ export default function POSPage() {
     onNotify: addNotification,
   });
 
-  // Local UI & Editing States
-  const [editingPriceFor, setEditingPriceFor] = useState<string | null>(null);
-  const [priceInput, setPriceInput] = useState('');
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [mobileTab, setMobileTab] = useState<'products' | 'cart'>('products');
-  const [barcodeHeaderInput, setBarcodeHeaderInput] = useState('');
-  const [priceTier, setPriceTier] = useState<'1' | '2' | '3' | '4'>('1');
-
-  const barcodeInputRef = useRef<HTMLInputElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const scanInputRef = useRef<HTMLInputElement>(null);
-
-  // Auto-reset payment method to cash if currently selected method is disabled in settings
-  useEffect(() => {
-    if (paymentMethod === 'card' && !posSettings.allowCardPayment) {
-      setPaymentMethod('cash');
-    } else if (paymentMethod === 'transfer' && !posSettings.allowTransferPayment) {
-      setPaymentMethod('cash');
-    }
-  }, [paymentMethod, posSettings.allowCardPayment, posSettings.allowTransferPayment, setPaymentMethod]);
-
-  const handleSelectPriceTier = useCallback(
-    (tier: '1' | '2' | '3' | '4') => {
-      setPriceTier(tier);
-      if (tier === '3') {
-        if (!wholesaleMode) toggleWholesaleMode();
-      } else {
-        if (wholesaleMode) toggleWholesaleMode();
-      }
-      const productList = products || [];
-      if (cart.length > 0) {
-        cart.forEach((item) => {
-          const prod = productList.find(
-            (p) => p.id === item.productId || (item.barcode && p.barcode === item.barcode)
-          );
-          const pkgSize = prod?.packageSize ? parseInt(prod.packageSize, 10) : 0;
-          const isPackagingItem = Boolean(item.isPack || pkgSize > 1 || (item.packPiecesCount && item.packPiecesCount > 1));
-
-          if (isPackagingItem) {
-            if (posLayout === 'terminal' || posLayout === 'advanced' || posLayout === 'design7') {
-              const pieces = Number(item.packPiecesCount || pkgSize || item.packQty || 1);
-              if (tier === '3' && (item.packMode === 'retail_pieces' || !item.packMode)) {
-                const packCount = Math.max(1, Math.round(item.qty / pieces));
-                const tierPrice = prod ? getProductTierPrice(prod, '3') : 0;
-                const packPrice = tierPrice > 0 ? (item.isPack ? tierPrice : tierPrice * pieces) : (item.unitPrice || 0) * pieces;
-                item.isPack = true;
-                item.packPiecesCount = pieces;
-                item.packMode = 'wholesale_packs';
-                item.pricingType = 'wholesale';
-                item.packQty = packCount;
-                updateQty(item.productId, packCount, packPrice);
-              } else if (tier !== '3' && item.packMode === 'wholesale_packs') {
-                const pieceQty = item.qty * pieces;
-                const tierPrice = prod ? getProductTierPrice(prod, tier) : 0;
-                const piecePrice = tierPrice > 0 ? tierPrice : (pieces > 0 ? (item.unitPrice || 0) / pieces : item.unitPrice);
-                item.isPack = true;
-                item.packPiecesCount = pieces;
-                item.packMode = 'retail_pieces';
-                item.pricingType = 'retail';
-                item.packQty = Math.max(1, Math.round(pieceQty / pieces));
-                updateQty(item.productId, pieceQty, piecePrice);
-              }
-            }
-            return;
-          }
-          if (prod) {
-            const newPrice = getProductTierPrice(prod, tier);
-            if (newPrice > 0) {
-              updatePrice(item.productId, newPrice);
-            }
-          }
-        });
-      }
-    },
-    [wholesaleMode, toggleWholesaleMode, products, cart, updatePrice, updateQty, posLayout]
-  );
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
-      setIsFullscreen(true);
-    } else {
-      document.exitFullscreen().catch(() => {});
-      setIsFullscreen(false);
-    }
-  };
-
-  const settingsOrDefault = useMemo(
-    () => ({
-      tvaRate: Number(settings?.tvaRate ?? (settings as any)?.tva_rate ?? 0),
-      invoicePrefix: settings?.invoicePrefix ?? 'INV-',
-      baseCurrency: settings?.baseCurrency ?? 'دج',
-      shopName: settings?.shopName ?? 'AN POS',
-      phone: settings?.phone ?? '',
-      receiptFooter: settings?.receiptFooter ?? 'شكراً لزيارتكم',
-      allowNegativeStock: settings?.allowNegativeStock ?? true,
-    }),
-    [settings]
-  );
-
-  const saleSummary = useMemo(
-    () => calculateSaleTotal(cart, discount, discountType, settingsOrDefault.tvaRate),
-    [cart, discount, discountType, settingsOrDefault.tvaRate]
-  );
-
-  const selectedCustomerObj = useMemo(() => {
-    return customers.find((c) => c.id === selectedCustomer) || undefined;
-  }, [customers, selectedCustomer]);
-
-  const isWholesaleActive = wholesaleMode || selectedCustomerObj?.customerType === 'wholesale';
-
-  // Auto-activate wholesale mode when a wholesale customer is selected
-  useEffect(() => {
-    if (selectedCustomerObj?.customerType === 'wholesale' && !wholesaleMode) {
-      setWholesaleMode(true);
-      addNotification({
-        title: 'وضع بيع الجملة مفعّل تلقائياً',
-        message: `تم اختيار تاجر الجملة "${selectedCustomerObj.name}" وتطبيق تسعيرة الجملة.`,
-        type: 'info',
-      });
-    }
-  }, [selectedCustomerObj, wholesaleMode, setWholesaleMode, addNotification]);
-
-  // Recalculate cart item prices when wholesale mode toggles
-  const prevWholesaleRef = useRef(isWholesaleActive);
-  useEffect(() => {
-    if (prevWholesaleRef.current !== isWholesaleActive) {
-      prevWholesaleRef.current = isWholesaleActive;
-      if (cart.length > 0) {
-        cart.forEach((item) => {
-          if (!item.isPack && !item.isCustom) {
-            const prod = products.find((p) => p.id === item.productId);
-            if (prod) {
-              const newPrice = resolveUnitPrice(prod, item.qty, promotions, isWholesaleActive);
-              if (newPrice !== item.unitPrice) {
-                updatePrice(item.productId, newPrice);
-              }
-            }
-          }
-        });
-      }
-    }
-  }, [isWholesaleActive, cart, products, promotions, updatePrice]);
+  // 5. Extracted UI & Screen State Hook
+  const pageState = usePOSPageState({
+    products: products as any[],
+    cart,
+    updatePrice,
+    updateQty,
+    customers,
+    selectedCustomer,
+    promotions: promotions as any[],
+    settings,
+    posSettings,
+    discount,
+    discountType,
+    paymentMethod,
+    setPaymentMethod,
+    posLayout,
+    uiZoom,
+    screenResolution,
+    customResolution,
+    resolutionScaleMode,
+    wholesaleMode,
+    setWholesaleMode,
+    toggleWholesaleMode,
+    addNotification,
+  });
 
   const isSessionOpen = currentSession !== null;
 
-  // Sale Completion Hook
-  const { completeSale, isPending: isSalePending } = useSaleCompletion(
-    settingsOrDefault,
-    (sale: Sale) => {
-      modals.setCompletedSale(sale);
-      modals.setShowPaymentModal(false);
-      modals.setShowSuccessModal(true);
-      setReturnMode(false);
-      setSelectedCustomer('');
-      setDiscount(0);
-      setPaidAmount(0);
-    }
-  );
-
-  // استدعاء خطاف أفعال السلة الموحد (usePOSCartActions)
+  // 6. Centralized Cart Actions Hook
   const {
     handleAddProduct,
     handleUpdateQty,
@@ -310,220 +176,92 @@ export default function POSPage() {
     products: products as any[],
     packs: packs as any,
     promotions: promotions as any,
-    isWholesaleActive,
-    priceTier,
+    isWholesaleActive: pageState.isWholesaleActive,
+    priceTier: pageState.priceTier,
     posSettings,
     posLayout,
     addNotification,
     quickMode,
-    scanInputRef,
+    scanInputRef: pageState.scanInputRef,
     setSearchQuery,
   });
 
-  useBarcodeScanner({
-    onScan: handleExternalScan,
-    enabled: true,
-    respectInputFocus: false,
-    beepOnSuccess: false,
-    beepOnFailure: false,
-  });
-
-  useMobileScanner({
-    onScan: handleExternalScan,
-    enabled: true,
-  });
-
-  const handleSuspend = () => {
-    if (cart.length === 0) return;
-    const subtotal = cart.reduce((acc, it) => acc + (it.lineTotal || it.unitPrice * it.qty || 0), 0);
-    const discountAmount = discountType === 'percent' ? (subtotal * (discount || 0)) / 100 : discount || 0;
-    const total = Math.max(0, subtotal - discountAmount);
-    const custObj = customers.find((c) => c.id === selectedCustomer);
-
-    const newOrder = {
-      id: createId(),
-      items: cart.map((it) => ({
-        productId: it.productId,
-        name: it.name,
-        qty: Number(it.qty || 1),
-        unitPrice: Number(it.unitPrice || 0),
-        lineTotal: Number(it.lineTotal || Number(it.qty || 1) * Number(it.unitPrice || 0)),
-        isCustom: it.isCustom,
-        isPack: it.isPack,
-        packId: it.packId,
-        batchNumber: it.batchNumber,
-      })),
-      total,
-      subtotal,
-      customerId: selectedCustomer || '',
-      customerName: custObj?.name || '',
-      discount: discount || 0,
-      discountType: discountType || 'percent',
-      createdAt: new Date().toISOString(),
-      note: '',
-      createdBy: currentUser?.name || '',
-    };
-    db.suspended_orders.add(newOrder).then(() => {
-      refetchSuspended?.();
-      setSelectedCustomer('');
-      setDiscount(0);
-      clearCart();
-      addNotification({
-        title: 'تم تعليق الفاتورة',
-        message: `تم حفظ ${cart.length} أصناف بقيمة ${total.toLocaleString('ar-DZ')} د.ج في الفواتير المعلقة`,
-        type: 'info',
-      });
-    });
-  };
-
-  const handleResumeOrder = (orderOrId: any) => {
-    const order = typeof orderOrId === 'string'
-      ? suspendedOrders.find((o: any) => o.id === orderOrId)
-      : orderOrId;
-
-    if (!order) {
-      console.warn('[POSPage] Order not found for resume:', orderOrId);
-      return;
-    }
-
-    clearCart();
-    const rawItems = order.items;
-    const items = Array.isArray(rawItems)
-      ? rawItems
-      : typeof rawItems === 'string'
-      ? (() => {
-          try {
-            return JSON.parse(rawItems);
-          } catch {
-            return [];
-          }
-        })()
-      : [];
-
-    for (const item of items) {
-      addItem({
-        productId: item.productId,
-        name: item.name,
-        qty: Number(item.qty || 1),
-        unitPrice: Number(item.unitPrice || 0),
-        lineTotal: Number(item.lineTotal || Number(item.qty || 1) * Number(item.unitPrice || 0)),
-        barcode: item.barcode || '',
-        unit: item.unit,
-        isCustom: item.isCustom,
-        isPack: item.isPack,
-        packId: item.packId,
-        batchNumber: item.batchNumber,
-      });
-    }
-    setSelectedCustomer(order.customerId || '');
-    setDiscount(order.discount || 0);
-    setDiscountType(order.discountType || 'percent');
-    const targetId = order.id || (typeof orderOrId === 'string' ? orderOrId : undefined);
-    if (targetId) {
-      db.suspended_orders.delete(targetId).then(() => {
-        refetchSuspended?.();
-      });
-    }
-    modals.setShowSuspended(false);
-    addNotification({ title: 'تم استرجاع الفاتورة', message: 'تم تحميل الأصناف للسلة بنجاح', type: 'success' });
-  };
-
-  const handleDeleteSuspendedOrder = (orderOrId: any) => {
-    const targetId = typeof orderOrId === 'object' && orderOrId !== null
-      ? (orderOrId.id as string)
-      : String(orderOrId);
-    if (!targetId || targetId === 'undefined' || targetId === 'null') return;
-    db.suspended_orders.delete(targetId).then(() => {
-      refetchSuspended?.();
-      addNotification({ title: 'تم الحذف', message: 'تم حذف الفاتورة المعلقة بنجاح', type: 'info' });
-    });
-  };
-
-  const handleExecutePayment = async () => {
-    if (cart.length === 0) return;
-    if (!isSessionOpen) {
-      modals.setShowSessionWarning(true);
-      return;
-    }
-
-    const dbPaymentMethod = paymentMethod === 'credit' ? 'credit' : 'cash';
-    const isWholesaleTier = priceTier === '3' || (!['1', '2', '4'].includes(priceTier) && isWholesaleActive);
-    const saleDocType: DocType = isWholesaleTier ? 'wholesale' : 'facture';
-
-    await completeSale({
-      cart,
-      discount,
-      discountType,
-      selectedCustomer,
-      paymentMethod: dbPaymentMethod,
-      isReturn: returnMode,
-      currentSession,
-      settings: settingsOrDefault,
-      products: products as any[],
-      packs: packs as any[],
-      customers: customers as any[],
-      docType: saleDocType,
-      priceTier,
-    });
-  };
-
-  const handleKeypadPress = (val: string) => {
-    if (val === 'clear') {
-      modals.setKeypadInput('');
-      if (modals.keypadTarget === 'paid') setPaidAmount(0);
-      return;
-    }
-    if (val === 'backspace') {
-      const next = modals.keypadInput.slice(0, -1);
-      modals.setKeypadInput(next);
-      if (modals.keypadTarget === 'paid') setPaidAmount(Number(next) || 0);
-      return;
-    }
-    const next = modals.keypadInput + val;
-    modals.setKeypadInput(next);
-    const num = Number(next);
-    if (modals.keypadTarget === 'paid') {
-      setPaidAmount(num || 0);
-    } else if (modals.keypadTarget === 'qty') {
-      const targetId = selectedItemId ?? cart[cart.length - 1]?.productId;
-      if (targetId) {
-        const it = cart.find((c) => c.productId === targetId);
-        if (it && num > 0) handleUpdateQty(it, num);
-      }
-    } else if (modals.keypadTarget === 'discount') {
-      setDiscount(num || 0);
-    }
-  };
-
-  const handleSelectReturnSale = (sale: Sale) => {
-    for (const item of sale.items) {
-      addItem({
-        productId: item.productId,
-        name: item.name,
-        qty: item.qty,
-        unitPrice: item.unitPrice,
-        lineTotal: item.lineTotal,
-        barcode: (item as any).barcode || '',
-        unit: item.unit,
-      });
-    }
-    modals.setShowReturnSaleModal(false);
-    setReturnMode(true);
-    addNotification({
-      title: 'وضع الإرجاع مفعّل',
-      message: `تم استيراد ${sale.items.length} أصناف من الفاتورة #${sale.number}`,
-      type: 'warning',
-    });
-  };
-
-  // Keyboard Shortcuts Hook
-  usePOSKeyboardShortcuts({
-    enabled: posLayout !== 'advanced' && posLayout !== 'design7',
+  // 7. Extracted Payment Flow Hook
+  const paymentFlow = usePOSPagePaymentFlow({
     cart,
+    discount,
+    setDiscount,
+    discountType,
+    setDiscountType,
+    selectedCustomer,
+    setSelectedCustomer,
+    paymentMethod,
+    paidAmount,
+    setPaidAmount,
+    returnMode,
+    setReturnMode,
     selectedItemId,
+    priceTier: pageState.priceTier,
+    isWholesaleActive: pageState.isWholesaleActive,
+    currentSession,
     isSessionOpen,
-    total: saleSummary.total,
-    isAnyModalOpen:
+    settingsOrDefault: pageState.settingsOrDefault,
+    products: products as any[],
+    packs: packs as any[],
+    customers: customers as any[],
+    currentUser,
+    suspendedOrders,
+    refetchSuspended,
+    clearCart,
+    addItem,
+    handleUpdateQty,
+    modals,
+    addNotification,
+  });
+
+  // 8. Extracted Return Flow Hook
+  const returnFlow = usePOSPageReturnFlow({
+    isSessionOpen,
+    completeSale: paymentFlow.completeSale,
+    currentSession,
+    settingsOrDefault: pageState.settingsOrDefault,
+    products: products as any[],
+    packs: packs as any[],
+    customers: customers as any[],
+    clearCart,
+    addItem,
+    setReturnMode,
+    setSelectedCustomer,
+    modals,
+    addNotification,
+  });
+
+  // Shared robust navigation (exit fullscreen, navigate, hash fallback for Electron)
+  const { goHome: handleNavigateBack, goSalesHistory: handleOpenSalesHistory } = usePOSNavigation();
+
+  // Shared modal-close + modal-open state (keyboard shortcuts + layouts Esc handling)
+  const handleCloseAllModals = useCallback(() => {
+    modals.setShowPaymentModal(false);
+    modals.setShowSuccessModal(false);
+    modals.setShowShortcutsModal(false);
+    modals.setShowSuspended(false);
+    modals.setShowReturnSaleModal(false);
+    modals.setShowAddProduct(false);
+    modals.setShowAddCustomer(false);
+    modals.setShowFreeProductModal(false);
+    modals.setShowOpenSession(false);
+    modals.setShowSessionWarning(false);
+    modals.setShowCustomizeModal(false);
+    modals.setShowDiscountModal(false);
+    modals.setShowSaveAsProformaModal(false);
+    modals.setShowSaveAsOrderModal(false);
+    modals.setShowFiltersModal(false);
+    modals.setShowKeypad(false);
+    pageState.setEditingPriceFor(null);
+  }, [modals, pageState]);
+
+  const isAnyModalOpen = useMemo(
+    () =>
       modals.showPaymentModal ||
       modals.showSuccessModal ||
       modals.showShortcutsModal ||
@@ -540,35 +278,60 @@ export default function POSPage() {
       modals.showSaveAsOrderModal ||
       modals.showFiltersModal ||
       modals.showKeypad ||
-      editingPriceFor !== null,
+      pageState.editingPriceFor !== null,
+    [
+      modals.showPaymentModal,
+      modals.showSuccessModal,
+      modals.showShortcutsModal,
+      modals.showSuspended,
+      modals.showReturnSaleModal,
+      modals.showAddProduct,
+      modals.showAddCustomer,
+      modals.showFreeProductModal,
+      modals.showOpenSession,
+      modals.showSessionWarning,
+      modals.showCustomizeModal,
+      modals.showDiscountModal,
+      modals.showSaveAsProformaModal,
+      modals.showSaveAsOrderModal,
+      modals.showFiltersModal,
+      modals.showKeypad,
+      pageState.editingPriceFor,
+    ]
+  );
+
+  // Barcode & Mobile Scanners
+  useBarcodeScanner({
+    onScan: handleExternalScan,
+    enabled: true,
+    respectInputFocus: false,
+    beepOnSuccess: false,
+    beepOnFailure: false,
+  });
+
+  useMobileScanner({
+    onScan: handleExternalScan,
+    enabled: true,
+  });
+
+  // Keyboard Shortcuts Hook
+  usePOSKeyboardShortcuts({
+    enabled: posLayout !== 'advanced' && posLayout !== 'design7',
+    cart,
+    selectedItemId,
+    isSessionOpen,
+    total: pageState.saleSummary.total,
+    isAnyModalOpen,
     isPaymentModalOpen: modals.showPaymentModal,
     isSuccessModalOpen: modals.showSuccessModal,
-    onCloseAllModals: () => {
-      modals.setShowPaymentModal(false);
-      modals.setShowSuccessModal(false);
-      modals.setShowShortcutsModal(false);
-      modals.setShowSuspended(false);
-      modals.setShowReturnSaleModal(false);
-      modals.setShowAddProduct(false);
-      modals.setShowAddCustomer(false);
-      modals.setShowFreeProductModal(false);
-      modals.setShowOpenSession(false);
-      modals.setShowSessionWarning(false);
-      modals.setShowCustomizeModal(false);
-      modals.setShowDiscountModal(false);
-      modals.setShowSaveAsProformaModal(false);
-      modals.setShowSaveAsOrderModal(false);
-      modals.setShowFiltersModal(false);
-      modals.setShowKeypad(false);
-      setEditingPriceFor(null);
-    },
-    onExecutePayment: handleExecutePayment,
+    onCloseAllModals: handleCloseAllModals,
+    onExecutePayment: paymentFlow.handleExecutePayment,
     onCloseSuccessModal: () => modals.setShowSuccessModal(false),
     onOpenPayment: () => {
-      setPaidAmount(saleSummary.total);
+      setPaidAmount(pageState.saleSummary.total);
       modals.setShowPaymentModal(true);
     },
-    onSuspendSale: handleSuspend,
+    onSuspendSale: paymentFlow.handleSuspend,
     onOpenSuspended: () => modals.setShowSuspended(true),
     onClearCart: () => {
       clearCart();
@@ -592,8 +355,8 @@ export default function POSPage() {
       });
     },
     onFocusSearch: () => {
-      barcodeInputRef.current?.focus();
-      barcodeInputRef.current?.select();
+      pageState.barcodeInputRef.current?.focus();
+      pageState.barcodeInputRef.current?.select();
     },
     onOpenOpenSession: () => modals.setShowOpenSession(true),
     onOpenSessionWarning: () => modals.setShowSessionWarning(true),
@@ -602,94 +365,34 @@ export default function POSPage() {
     onToggleWholesale: () => {
       const next = !wholesaleMode;
       toggleWholesaleMode();
-      handleSelectPriceTier(next ? '3' : '1');
+      pageState.handleSelectPriceTier(next ? '3' : '1');
     },
     onUpdateQty: handleUpdateQty,
     onRemoveItem: removeItem,
+    onNavigateBack: handleNavigateBack,
+    onOpenSalesHistory: handleOpenSalesHistory,
     addNotification,
   });
-
-  // Window size tracking for dynamic resolution matching
-  const [windowSize, setWindowSize] = useState(() => ({
-    width: typeof window !== 'undefined' ? window.innerWidth : 1920,
-    height: typeof window !== 'undefined' ? window.innerHeight : 1080,
-  }));
-
-  useEffect(() => {
-    const handleResize = () => {
-      setWindowSize({
-        width: window.innerWidth,
-        height: window.innerHeight,
-      });
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  const targetDims = useMemo(() => {
-    if (!screenResolution || screenResolution === 'auto') return null;
-    if (screenResolution === 'custom') {
-      return {
-        width: Math.max(600, customResolution?.width || 1920),
-        height: Math.max(400, customResolution?.height || 1080),
-      };
-    }
-    const [w, h] = screenResolution.split('x').map(Number);
-    return {
-      width: w || 1920,
-      height: h || 1080,
-    };
-  }, [screenResolution, customResolution]);
-
-  const canvasStyle = useMemo<React.CSSProperties>(() => {
-    if (!targetDims) {
-      return {
-        zoom: `${uiZoom}%`,
-        width: `${10000 / uiZoom}vw`,
-        height: `${10000 / uiZoom}vh`,
-      };
-    }
-
-    if (resolutionScaleMode === 'fixed_canvas') {
-      const scale =
-        Math.min(windowSize.width / targetDims.width, windowSize.height / targetDims.height) * (uiZoom / 100);
-
-      return {
-        width: `${targetDims.width}px`,
-        height: `${targetDims.height}px`,
-        zoom: `${scale * 100}%`,
-      };
-    }
-
-    const scaleFactor = windowSize.width / targetDims.width;
-    const effectiveZoom = scaleFactor * (uiZoom / 100) * 100;
-
-    return {
-      zoom: `${effectiveZoom}%`,
-      width: `${10000 / effectiveZoom}vw`,
-      height: `${10000 / effectiveZoom}vh`,
-    };
-  }, [targetDims, resolutionScaleMode, windowSize, uiZoom]);
 
   return (
     <div
       className={
-        resolutionScaleMode === 'fixed_canvas' && targetDims
+        resolutionScaleMode === 'fixed_canvas' && pageState.targetDims
           ? 'w-screen h-screen overflow-hidden bg-slate-950 flex items-center justify-center select-none p-2'
           : 'contents'
       }
     >
       <div
         className={`flex flex-col overflow-hidden bg-background dark:bg-slate-950 select-none font-cairo text-on-surface dark:text-slate-100 ${
-          resolutionScaleMode === 'fixed_canvas' && targetDims
+          resolutionScaleMode === 'fixed_canvas' && pageState.targetDims
             ? 'shadow-2xl border border-slate-800 rounded-2xl shrink-0'
             : ''
         }`}
         dir="rtl"
-        style={canvasStyle}
+        style={pageState.canvasStyle}
       >
-        {/* TOP BAR & SUBHEADER ACTIONS (Rendered in non-fullscreen layouts) */}
-        {posLayout !== 'modern' && posLayout !== 'sidebar' && posLayout !== 'terminal' && posLayout !== 'advanced' && posLayout !== 'design7' && (
+        {/* TOP BAR (Rendered in non-fullscreen layouts) */}
+        {posLayout !== 'classic' && posLayout !== 'modern' && posLayout !== 'sidebar' && posLayout !== 'terminal' && posLayout !== 'advanced' && posLayout !== 'design7' && (
           <POSTopBar
             currentUser={currentUser}
             trial={trial}
@@ -700,15 +403,15 @@ export default function POSPage() {
             openSidebar={openSidebar}
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
-            barcodeHeaderInput={barcodeHeaderInput}
-            setBarcodeHeaderInput={setBarcodeHeaderInput}
+            barcodeHeaderInput={pageState.barcodeHeaderInput}
+            setBarcodeHeaderInput={pageState.setBarcodeHeaderInput}
             onExternalScan={handleExternalScan}
-            searchInputRef={searchInputRef}
-            barcodeInputRef={barcodeInputRef}
+            searchInputRef={pageState.searchInputRef}
+            barcodeInputRef={pageState.barcodeInputRef}
             products={products}
             onAddProduct={handleAddProduct}
-            isFullscreen={isFullscreen}
-            toggleFullscreen={toggleFullscreen}
+            isFullscreen={pageState.isFullscreen}
+            toggleFullscreen={pageState.toggleFullscreen}
             currentSession={currentSession}
             onOpenSession={() => modals.setShowOpenSession(true)}
             wholesaleMode={wholesaleMode}
@@ -722,9 +425,9 @@ export default function POSPage() {
                 type: !wholesaleMode ? 'success' : 'info',
               });
             }}
-            onSelectPriceTier={handleSelectPriceTier}
-            isWholesaleActive={isWholesaleActive}
-            currentPriceTier={priceTier}
+            onSelectPriceTier={pageState.handleSelectPriceTier}
+            isWholesaleActive={pageState.isWholesaleActive}
+            currentPriceTier={pageState.priceTier}
             onOpenShortcuts={() => modals.setShowShortcutsModal(true)}
             onOpenFilters={() => modals.setShowFiltersModal(true)}
             activeFiltersCount={activeFiltersCount}
@@ -737,6 +440,8 @@ export default function POSPage() {
             onOpenReturnSale={() => modals.setShowReturnSaleModal(true)}
             onOpenFreeProduct={() => modals.setShowFreeProductModal(true)}
             onOpenCustomize={() => modals.setShowCustomizeModal(true)}
+            onNavigateBack={handleNavigateBack}
+            onOpenSalesHistory={handleOpenSalesHistory}
             onNotify={addNotification}
           />
         )}
@@ -756,21 +461,21 @@ export default function POSPage() {
           onEditPrice={(productId, newPrice) => {
             updatePrice(productId, newPrice);
           }}
-          priceTier={priceTier}
-          onSelectPriceTier={handleSelectPriceTier}
-          saleSummary={saleSummary}
+          priceTier={pageState.priceTier}
+          onSelectPriceTier={pageState.handleSelectPriceTier}
+          saleSummary={pageState.saleSummary}
           products={filteredProducts as any}
           allProducts={products as any}
           categories={availableCategories}
           selectedCategory={filterCategory}
           onSelectCategory={(catId) => setFilterCategory(catId === 'ALL' ? '' : catId)}
-          barcodeInput={barcodeHeaderInput}
-          setBarcodeInput={setBarcodeHeaderInput}
+          barcodeInput={pageState.barcodeHeaderInput}
+          setBarcodeInput={pageState.setBarcodeHeaderInput}
           onBarcodeSubmit={(e) => {
             e?.preventDefault();
-            if (barcodeHeaderInput.trim()) {
-              handleExternalScan(barcodeHeaderInput.trim());
-              setBarcodeHeaderInput('');
+            if (pageState.barcodeHeaderInput.trim()) {
+              handleExternalScan(pageState.barcodeHeaderInput.trim());
+              pageState.setBarcodeHeaderInput('');
             }
           }}
           searchQuery={searchQuery}
@@ -781,10 +486,10 @@ export default function POSPage() {
               return;
             }
             if (cart.length === 0) return;
-            setPaidAmount(saleSummary.total);
+            setPaidAmount(pageState.saleSummary.total);
             modals.setShowPaymentModal(true);
           }}
-          onSuspendSale={handleSuspend}
+          onSuspendSale={paymentFlow.handleSuspend}
           onOpenSuspended={() => modals.setShowSuspended(true)}
           suspendedCount={suspendedOrders.length}
           onSelectCustomer={() => modals.setShowCustomerSelect(true)}
@@ -835,20 +540,20 @@ export default function POSPage() {
               setDiscount(0);
             }
           }}
-          onOpenSalesHistory={() => navigate('/sales')}
+          onOpenSalesHistory={handleOpenSalesHistory}
           formatMoney={formatMoney}
           currency="دج"
-          storeName={settingsOrDefault?.shopName || 'AN POS'}
+          storeName={pageState.settingsOrDefault?.shopName || 'AN POS'}
           userName={currentUser?.name || 'Admin'}
           isSessionOpen={isSessionOpen}
-          isSalePending={isSalePending}
-          onToggleFullscreen={toggleFullscreen}
-          isFullscreen={isFullscreen}
-          onNavigateBack={() => navigate('/')}
+          isSalePending={paymentFlow.isSalePending}
+          onToggleFullscreen={pageState.toggleFullscreen}
+          isFullscreen={pageState.isFullscreen}
+          onNavigateBack={handleNavigateBack}
           onOpenFavoritesManagement={() => navigate('/favorites')}
           onOpenKeypad={() => {
             modals.setKeypadTarget('paid');
-            modals.setKeypadInput(String(saleSummary.total || ''));
+            modals.setKeypadInput(String(pageState.saleSummary.total || ''));
             modals.setShowKeypad(true);
           }}
           onOpenKeypadForQty={(item) => {
@@ -865,31 +570,33 @@ export default function POSPage() {
           currentPage={currentPage}
           totalPages={totalPages}
           setCurrentPage={setCurrentPage}
-          mobileTab={mobileTab}
-          setMobileTab={setMobileTab}
+          mobileTab={pageState.mobileTab}
+          setMobileTab={pageState.setMobileTab}
           selectedCustomer={selectedCustomer}
           setSelectedCustomer={setSelectedCustomer}
           customers={customers}
-          selectedCustomerObj={selectedCustomerObj}
+          selectedCustomerObj={pageState.selectedCustomerObj}
           onOpenCustomerSelect={() => modals.setShowCustomerSelect(true)}
           onOpenAddCustomer={() => modals.setShowAddCustomer(true)}
-          isWholesaleActive={isWholesaleActive}
+          isWholesaleActive={pageState.isWholesaleActive}
           selectedItemId={selectedItemId}
           setSelectedItemId={setSelectedItemId}
-          editingPriceFor={editingPriceFor}
-          setEditingPriceFor={setEditingPriceFor}
-          priceInput={priceInput}
-          setPriceInput={setPriceInput}
+          editingPriceFor={pageState.editingPriceFor}
+          setEditingPriceFor={pageState.setEditingPriceFor}
+          priceInput={pageState.priceInput}
+          setPriceInput={pageState.setPriceInput}
           onUpdatePrice={updatePrice}
           onRemoveItem={removeItem}
           formatNumber={formatNumber}
+          isAnyModalOpen={isAnyModalOpen}
+          onCloseAllModals={handleCloseAllModals}
         />
 
         {/* CONSOLIDATED POS MODALS CONTAINER */}
         <POSModalsContainer
           modals={modals}
           cart={cart}
-          saleSummary={saleSummary}
+          saleSummary={pageState.saleSummary}
           paymentMethod={paymentMethod}
           setPaymentMethod={setPaymentMethod}
           paidAmount={paidAmount}
@@ -939,14 +646,16 @@ export default function POSPage() {
             }
             if (custId) setSelectedCustomer(custId);
             if (method) setPaymentMethod(method);
-            await handleExecutePayment();
+            await paymentFlow.handleExecutePayment();
           }}
-          isSalePending={isSalePending}
+          isSalePending={paymentFlow.isSalePending}
           onAddProduct={handleAddProduct}
-          onResumeOrder={handleResumeOrder}
-          onDeleteSuspendedOrder={handleDeleteSuspendedOrder}
-          onSelectReturnSale={handleSelectReturnSale}
-          onKeypadPress={handleKeypadPress}
+          onResumeOrder={paymentFlow.handleResumeOrder}
+          onDeleteSuspendedOrder={paymentFlow.handleDeleteSuspendedOrder}
+          onSelectReturnSale={returnFlow.handleSelectReturnSale}
+          onConfirmPartialReturn={returnFlow.handleConfirmPartialReturn}
+          onLoadReturnToCart={returnFlow.handleLoadReturnToCart}
+          onKeypadPress={paymentFlow.handleKeypadPress}
           selectedItemId={selectedItemId}
           setSelectedItemId={setSelectedItemId}
           onUpdateQty={(productId, qty) => {

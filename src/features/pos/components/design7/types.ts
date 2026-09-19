@@ -66,4 +66,7 @@ export interface Design7POSLayoutProps {
   onOpenAddProduct?: () => void;
   selectedCustomer?: string;
   customers?: Customer[];
+  /** Global (POSPage-level) modal state — Esc closes those before navigating back */
+  isAnyModalOpen?: boolean;
+  onCloseAllModals?: () => void;
 }

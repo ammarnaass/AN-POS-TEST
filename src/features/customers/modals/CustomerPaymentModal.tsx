@@ -43,7 +43,8 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
   if (!isOpen || !customer) return null;
 
   const currentBalance = customer.balance;
-  const remainingAfter = Math.max(0, currentBalance - (paymentAmount || 0));
+  const rawRemaining = currentBalance - (paymentAmount || 0);
+  const isOverpayment = rawRemaining < 0;
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -72,18 +73,42 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
         {/* Debt Status Card */}
         <div className="bg-surface-container p-4 rounded-2xl border border-outline-variant/20 grid grid-cols-2 gap-3 text-center">
           <div>
-            <span className="text-[11px] font-bold text-on-surface-variant">الدين الحالي المستحق:</span>
-            <p className="text-xl font-black font-mono text-red-600 mt-0.5">
-              {formatCustomerMoney(currentBalance)} <span className="text-xs font-cairo">{currencySymbol}</span>
+            <span className="text-[11px] font-bold text-on-surface-variant">
+              {currentBalance < 0 ? 'الرصيد الدائن الحالي:' : 'الدين الحالي المستحق:'}
+            </span>
+            <p className={`text-xl font-black font-mono mt-0.5 ${currentBalance < 0 ? 'text-teal-600' : 'text-red-600'}`}>
+              {currentBalance < 0 ? `+${formatCustomerMoney(Math.abs(currentBalance))}` : formatCustomerMoney(currentBalance)}{' '}
+              <span className="text-xs font-cairo">{currencySymbol}</span>
             </p>
           </div>
           <div className="border-r border-outline-variant/20 pr-3">
             <span className="text-[11px] font-bold text-on-surface-variant">الرصيد بعد التسديد:</span>
-            <p className={`text-xl font-black font-mono mt-0.5 ${remainingAfter === 0 ? 'text-emerald-600' : 'text-on-surface'}`}>
-              {formatCustomerMoney(remainingAfter)} <span className="text-xs font-cairo">{currencySymbol}</span>
+            <p
+              className={`text-xl font-black font-mono mt-0.5 ${
+                isOverpayment
+                  ? 'text-teal-600'
+                  : rawRemaining === 0
+                  ? 'text-emerald-600'
+                  : 'text-on-surface'
+              }`}
+            >
+              {isOverpayment ? `+${formatCustomerMoney(Math.abs(rawRemaining))}` : formatCustomerMoney(rawRemaining)}{' '}
+              <span className="text-xs font-cairo">
+                {isOverpayment ? `(دائن) ${currencySymbol}` : currencySymbol}
+              </span>
             </p>
           </div>
         </div>
+
+        {/* Overpayment Notice */}
+        {isOverpayment && (
+          <div className="p-3 rounded-2xl bg-teal-500/10 border border-teal-500/30 text-teal-700 dark:text-teal-300 text-xs flex items-center gap-2.5">
+            <span className="text-lg shrink-0">💡</span>
+            <p className="leading-relaxed">
+              المبلغ المدفوع يتجاوز الدين المستحق بمقدار <strong>{formatCustomerMoney(Math.abs(rawRemaining))} {currencySymbol}</strong>. سيتم تسجيل هذا الفائض تلقائياً كرصيد دائن في حساب العميل ليُخصم من مشترياته القادمة.
+            </p>
+          </div>
+        )}
 
         {/* Quick Presets */}
         <div>

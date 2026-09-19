@@ -23,6 +23,8 @@ import {
   Sparkles,
   Sliders,
   ArrowRight,
+  LogOut,
+  History,
 } from 'lucide-react';
 import NotificationDropdown from '@/components/notifications/NotificationDropdown';
 import type { Product, CashSession, User } from '@/types';
@@ -65,6 +67,8 @@ export interface POSTopBarProps {
   onOpenReturnSale: () => void;
   onOpenFreeProduct: () => void;
   onOpenCustomize: () => void;
+  onNavigateBack?: () => void;
+  onOpenSalesHistory?: () => void;
   onNotify?: (n: { title: string; message: string; type: 'info' | 'success' | 'warning' | 'error' }) => void;
 }
 
@@ -106,6 +110,8 @@ export const POSTopBar: React.FC<POSTopBarProps> = ({
   onOpenReturnSale,
   onOpenFreeProduct,
   onOpenCustomize,
+  onNavigateBack,
+  onOpenSalesHistory,
   onNotify,
 }) => {
   const navigate = useNavigate();
@@ -118,14 +124,26 @@ export const POSTopBar: React.FC<POSTopBarProps> = ({
       <header className="h-16 px-3 sm:px-4 bg-surface-container-lowest/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-outline-variant/20 dark:border-slate-800 flex items-center justify-between gap-2 sm:gap-3 shrink-0 z-20 shadow-xs">
         {/* Right Side (RTL): Menu Toggle + Search + Barcode + Trial Badge */}
         <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 max-w-3xl">
-          {/* Back Button */}
+          {/* Exit Button */}
           <button
-            onClick={() => navigate('/')}
-            className="group flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-2 rounded-xl bg-gradient-to-r from-primary/10 via-primary/15 to-blue-500/10 hover:from-primary/20 hover:to-blue-500/20 text-primary border border-primary/30 hover:border-primary/50 text-xs font-black transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 cursor-pointer shrink-0"
-            title="الرجوع إلى لوحة التحكم الرئيسية"
+            type="button"
+            onClick={onNavigateBack || (() => navigate('/'))}
+            className="group flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/30 hover:border-red-500/50 text-xs font-black transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 cursor-pointer shrink-0"
+            title="الخروج إلى لوحة التحكم الرئيسية (Esc)"
           >
-            <ArrowRight className="w-4 h-4 text-primary transition-transform duration-200 group-hover:translate-x-1" />
-            <span className="font-cairo font-black text-xs hidden sm:inline">الرجوع</span>
+            <LogOut className="w-4 h-4 text-red-500 transition-transform duration-200 group-hover:-translate-x-0.5" />
+            <span className="font-cairo font-black text-xs hidden sm:inline">خروج</span>
+          </button>
+
+          {/* Sales History Button */}
+          <button
+            type="button"
+            onClick={onOpenSalesHistory || (() => navigate('/sales'))}
+            className="group flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/30 hover:border-blue-500/50 text-xs font-bold transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 cursor-pointer shrink-0"
+            title="سجل المبيعات والفواتير (Alt+S)"
+          >
+            <History className="w-4 h-4 text-blue-500 transition-transform duration-200 group-hover:rotate-[-20deg]" />
+            <span className="font-cairo font-bold text-xs hidden sm:inline">سجل المبيعات</span>
           </button>
 
           {/* Sidebar Menu Button */}
@@ -449,6 +467,17 @@ export const POSTopBar: React.FC<POSTopBarProps> = ({
             <RotateCcw className="w-4 h-4 text-red-500" />
             <span>الإرجاع</span>
             <span className="hidden sm:inline text-[10px] font-mono px-1.5 py-0.2 rounded bg-surface-container-high/90 border border-outline-variant/30 text-on-surface-variant font-bold shadow-2xs">F9</span>
+          </button>
+
+          {/* Sales History */}
+          <button
+            type="button"
+            onClick={onOpenSalesHistory || (() => navigate('/sales'))}
+            className="h-9 sm:h-10 px-2.5 sm:px-3.5 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 hover:border-blue-500/40 text-xs font-bold text-on-surface flex items-center gap-1.5 transition-all shadow-xs hover:-translate-y-0.5 active:translate-y-0 shrink-0 cursor-pointer"
+            title="سجل المبيعات (Alt+S)"
+          >
+            <History className="w-4 h-4 text-blue-500" />
+            <span>سجل المبيعات</span>
           </button>
 
           {/* Free Product (F8) */}

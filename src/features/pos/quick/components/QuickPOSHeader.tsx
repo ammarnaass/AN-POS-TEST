@@ -7,7 +7,8 @@ import {
   Volume2,
   VolumeX,
   Layers,
-  ArrowRight,
+  Sliders,
+  LogOut,
 } from 'lucide-react';
 import { QuickPOSClock } from './QuickPOSClock';
 import { formatMoney } from '../../utils/format';
@@ -26,6 +27,7 @@ interface QuickPOSHeaderProps {
   onNavigateHome: () => void;
   onNavigateAdvancedPOS: () => void;
   onOpenSidebar: () => void;
+  onOpenCustomize?: () => void;
   theme: string;
   onToggleTheme: () => void;
   cashierName?: string;
@@ -46,6 +48,7 @@ export const QuickPOSHeader: React.FC<QuickPOSHeaderProps> = React.memo(({
   onNavigateHome,
   onNavigateAdvancedPOS,
   onOpenSidebar,
+  onOpenCustomize,
   theme,
   onToggleTheme,
   cashierName = 'محمد العربي',
@@ -202,6 +205,17 @@ export const QuickPOSHeader: React.FC<QuickPOSHeaderProps> = React.memo(({
 
         {/* Quick Action Operations */}
         <div className="flex items-center gap-2">
+          {onOpenCustomize && (
+            <button
+              onClick={onOpenCustomize}
+              className="px-3.5 py-2 bg-purple-50 dark:bg-purple-950/40 hover:bg-purple-100 dark:hover:bg-purple-900/50 text-purple-600 dark:text-purple-300 border border-purple-200 dark:border-purple-800 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-xs transition active:scale-95 cursor-pointer"
+              title="تخصيص الواجهة ودقة الشاشة"
+              type="button"
+            >
+              <Sliders className="w-4 h-4" />
+              <span>تخصيص</span>
+            </button>
+          )}
           <button
             onClick={onNavigateAdvancedPOS}
             className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold text-xs flex items-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer"
@@ -209,16 +223,17 @@ export const QuickPOSHeader: React.FC<QuickPOSHeaderProps> = React.memo(({
             type="button"
           >
             <Layers className="w-4 h-4" />
-            <span>نقطة البيع المتقدمة PRO</span>
+            <span className="hidden sm:inline">نقطة البيع المتقدمة</span>
+            <span className="sm:hidden">متقدمة</span>
           </button>
           <button
             onClick={onNavigateHome}
-            className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-medium text-xs flex items-center gap-1 border border-slate-200 dark:border-slate-700 transition active:scale-95 cursor-pointer"
-            title="الرجوع إلى الرئيسية"
+            className="px-3.5 py-2 bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-xl font-black text-xs flex items-center gap-1.5 border border-red-200 dark:border-red-900 shadow-xs transition active:scale-95 cursor-pointer"
+            title="الخروج إلى لوحة التحكم الرئيسية (Esc)"
             type="button"
           >
-            <ArrowRight className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-            <span>الرجوع</span>
+            <LogOut className="w-4 h-4 text-red-500" />
+            <span>خروج</span>
           </button>
         </div>
       </div>

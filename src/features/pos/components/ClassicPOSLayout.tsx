@@ -51,11 +51,17 @@ interface ClassicPOSLayoutProps {
   onOpenKeypadForQty?: (item: CartItem) => void;
   onSaveAsProforma?: () => void;
   onSaveAsOrder?: () => void;
+  onNavigateBack?: () => void;
+  onOpenSalesHistory?: () => void;
+  onOpenCustomize?: () => void;
 }
 
 const MAX_QUICK_PRODUCTS = 60;
 
 export const ClassicPOSLayout: React.FC<ClassicPOSLayoutProps> = ({
+  onNavigateBack,
+  onOpenSalesHistory,
+  onOpenCustomize,
   cart,
   onAddToCart,
   onUpdateQty,
@@ -169,6 +175,8 @@ export const ClassicPOSLayout: React.FC<ClassicPOSLayoutProps> = ({
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-100 dark:bg-slate-950 select-none text-slate-800 dark:text-slate-100">
       {/* 1. TOP SECTION: ACTION BUTTONS TOOLBAR + LED DIGITAL DISPLAY */}
       <ClassicPOSTopBar
+        onNavigateBack={onNavigateBack}
+        onOpenCustomize={onOpenCustomize}
         onSettleSale={onSettleSale}
         isSalePending={isSalePending}
         cartLength={cart.length}
@@ -184,6 +192,7 @@ export const ClassicPOSLayout: React.FC<ClassicPOSLayoutProps> = ({
         autoPrintReceipt={autoPrintReceipt}
         onToggleAutoPrint={onToggleAutoPrint}
         onOpenReturns={onOpenReturns}
+        onOpenSalesHistory={onOpenSalesHistory}
         totalAmount={saleSummary.total}
         totalItemsCount={totalItemsCount}
         totalUnitsCount={totalUnitsCount}

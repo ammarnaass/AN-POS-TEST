@@ -11,6 +11,8 @@ export function usePOSModalsState() {
   const [keypadInput, setKeypadInput] = useState('');
   const [keypadTarget, setKeypadTarget] = useState<'qty' | 'price' | 'paid' | 'discount'>('paid');
   const [showReturnSaleModal, setShowReturnSaleModal] = useState(false);
+  const [showPartialReturnModal, setShowPartialReturnModal] = useState(false);
+  const [selectedSaleForReturn, setSelectedSaleForReturn] = useState<Sale | null>(null);
   const [showSessionWarning, setShowSessionWarning] = useState(false);
   const [showOpenSession, setShowOpenSession] = useState(false);
   const [showCustomizeModal, setShowCustomizeModal] = useState(false);
@@ -42,6 +44,10 @@ export function usePOSModalsState() {
     setKeypadTarget,
     showReturnSaleModal,
     setShowReturnSaleModal,
+    showPartialReturnModal,
+    setShowPartialReturnModal,
+    selectedSaleForReturn,
+    setSelectedSaleForReturn,
     showSessionWarning,
     setShowSessionWarning,
     showOpenSession,

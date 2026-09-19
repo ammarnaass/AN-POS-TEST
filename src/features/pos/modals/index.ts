@@ -5,6 +5,7 @@ export { FreeProductModal } from './FreeProductModal';
 export { QuickCustomerModal } from './QuickCustomerModal';
 export { SuspendedOrdersModal } from './SuspendedOrdersModal';
 export { ReturnSaleModal } from './ReturnSaleModal';
+export { PartialReturnModal } from './PartialReturnModal';
 export { SessionWarningModal, OpenSessionModal } from './CashSessionModals';
 export { DiscountModal } from './DiscountModal';
 export { AdvancedFiltersModal } from './AdvancedFiltersModal';

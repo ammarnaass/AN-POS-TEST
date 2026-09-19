@@ -8,6 +8,9 @@ import {
   ChevronDown,
   X,
   ChevronRight,
+  LogOut,
+  History,
+  Sliders,
 } from 'lucide-react';
 import type { CartItem, Product, Customer } from '@/types';
 import type { POSSettings } from '../hooks/usePOSData';
@@ -16,6 +19,8 @@ import { POSActionBar } from './POSActionBar';
 import { POSCartContainer } from './common/POSCartContainer';
 
 export interface DefaultGridPOSLayoutProps {
+  standalone?: boolean;
+  onOpenCustomize?: () => void;
   paginatedProducts: Product[];
   showProductImages: boolean;
   posSettings: POSSettings;
@@ -65,9 +70,15 @@ export interface DefaultGridPOSLayoutProps {
   onRemoveItem: (productId: string) => void;
   formatNumber: (val: number | null | undefined) => string;
   formatMoney: (val: number | null | undefined) => string;
+  onNavigateBack?: () => void;
+  onOpenSalesHistory?: () => void;
 }
 
 export const DefaultGridPOSLayout: React.FC<DefaultGridPOSLayoutProps> = ({
+  standalone,
+  onNavigateBack,
+  onOpenSalesHistory,
+  onOpenCustomize,
   paginatedProducts,
   showProductImages,
   posSettings,
@@ -115,6 +126,48 @@ export const DefaultGridPOSLayout: React.FC<DefaultGridPOSLayoutProps> = ({
   };
 
   return (
+    <>
+      {/* Navigation strip: only rendered when standalone or not already provided by outer POSTopBar */}
+      {(standalone || posLayout !== 'bottom') && (onNavigateBack || onOpenSalesHistory || onOpenCustomize) && (
+        <div
+          className="flex items-center gap-2 px-3 py-2 bg-surface-container-low/90 dark:bg-slate-900/90 border-b border-outline-variant/15 dark:border-slate-800 shrink-0"
+          dir="rtl"
+        >
+          {onNavigateBack && (
+            <button
+              type="button"
+              onClick={onNavigateBack}
+              className="h-9 px-3 rounded-xl bg-red-500/15 hover:bg-red-500/25 border border-red-500/40 text-red-600 dark:text-red-400 text-xs font-black flex items-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0 shadow-2xs"
+              title="الخروج إلى لوحة التحكم الرئيسية (Esc)"
+            >
+              <LogOut className="w-3.5 h-3.5 text-red-500" />
+              <span>خروج</span>
+            </button>
+          )}
+          {onOpenCustomize && (
+            <button
+              type="button"
+              onClick={onOpenCustomize}
+              className="h-9 px-3 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 hover:border-purple-500/40 text-xs font-bold text-on-surface flex items-center gap-1.5 transition-all shadow-2xs active:scale-95 cursor-pointer shrink-0"
+              title="تخصيص الواجهة"
+            >
+              <Sliders className="w-3.5 h-3.5 text-purple-500" />
+              <span>تخصيص</span>
+            </button>
+          )}
+          {onOpenSalesHistory && (
+            <button
+              type="button"
+              onClick={onOpenSalesHistory}
+              className="h-9 px-3 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 hover:border-blue-500/40 text-xs font-bold text-on-surface flex items-center gap-1.5 transition-all shadow-2xs active:scale-95 cursor-pointer shrink-0"
+              title="سجل المبيعات (Alt+S)"
+            >
+              <History className="w-3.5 h-3.5 text-blue-500" />
+              <span>سجل المبيعات</span>
+            </button>
+          )}
+        </div>
+      )}
     <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative" dir="rtl">
       {/* ───────────────────────────────────────────────────────────── */}
       {/* 1. PRODUCT DISCOVERY AREA (ZONE 2)                           */}
@@ -427,6 +480,7 @@ export const DefaultGridPOSLayout: React.FC<DefaultGridPOSLayoutProps> = ({
         )}
       </aside>
     </div>
+    </>
   );
 };
 

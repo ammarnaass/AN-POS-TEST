@@ -10,7 +10,7 @@ import {
   Keyboard,
   Coins,
   Printer,
-  Home,
+  LogOut,
 } from 'lucide-react';
 
 export interface Design6LeftToolsSidebarProps {
@@ -159,16 +159,16 @@ export const Design6LeftToolsSidebar: React.FC<Design6LeftToolsSidebarProps> = (
           </button>
         </div>
 
-        {/* Home navigate button — always visible */}
+        {/* Exit navigate button — always visible */}
         {onNavigateBack && (
           <button
             type="button"
             onClick={onNavigateBack}
-            className="w-full h-9 bg-white hover:bg-rose-50 text-rose-600 dark:bg-[#0f172a] dark:hover:bg-rose-950/40 dark:text-rose-400 dark:hover:text-rose-300 rounded-lg border border-slate-200 dark:border-slate-700/70 hover:border-rose-300 dark:hover:border-rose-800/60 flex items-center justify-center gap-1.5 transition-all cursor-pointer text-xs font-bold shadow-xs dark:shadow-none"
-            title="الرجوع إلى الصفحة الرئيسية (Esc)"
+            className="w-full h-9 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 dark:text-rose-300 rounded-lg border border-rose-200 dark:border-rose-800/60 flex items-center justify-center gap-1.5 transition-all cursor-pointer text-xs font-black shadow-xs dark:shadow-none"
+            title="الخروج إلى لوحة التحكم الرئيسية (Esc)"
           >
-            <Home className="w-3.5 h-3.5" />
-            <span>الرئيسية (Esc)</span>
+            <LogOut className="w-3.5 h-3.5" />
+            <span>خروج (Esc)</span>
           </button>
         )}
       </div>

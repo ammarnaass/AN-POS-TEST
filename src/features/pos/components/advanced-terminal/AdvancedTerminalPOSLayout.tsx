@@ -11,6 +11,8 @@ import {
   Zap,
   Sun,
   Moon,
+  History,
+  LogOut,
 } from 'lucide-react';
 import type { Product } from '@/types';
 import type { AdvancedTerminalPOSLayoutProps } from './types';
@@ -74,6 +76,9 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
   setSearchQuery,
   onOpenAddProduct,
   onOpenFavoritesManagement,
+  onOpenSalesHistory,
+  isAnyModalOpen: isAnyGlobalModalOpen = false,
+  onCloseAllModals,
 }) => {
   // Local state
   const [selectedCartRowId, setSelectedCartRowId] = useState<string | null>(
@@ -163,14 +168,15 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
     }
   }, [selectedCartRowId, cart, onUpdateQty]);
 
-  const isAnyModalOpen = isProductSearchOpen || isLocked || isFlexyOpen || editingPriceItemId !== null;
+  const isAnyModalOpen = isProductSearchOpen || isLocked || isFlexyOpen || editingPriceItemId !== null || isAnyGlobalModalOpen;
 
   const handleCloseModals = useCallback(() => {
     setIsProductSearchOpen(false);
     setEditingPriceItemId(null);
     setIsFlexyOpen(false);
     setIsLocked(false);
-  }, []);
+    onCloseAllModals?.();
+  }, [onCloseAllModals]);
 
   // Register all F1-F12 and arrow shortcuts
   useDesign6Shortcuts({
@@ -190,6 +196,7 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
     onLockTerminal: () => setIsLocked(true),
     onToggleFullscreen,
     onNavigateBack,
+    onOpenSalesHistory,
     onDeleteSelectedRow: handleDeleteSelectedRow,
     onArrowUp: handleArrowUp,
     onArrowDown: handleArrowDown,
@@ -353,6 +360,7 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
         <Design6TopActionsBar
           onNewOrder={onNewOrder}
           onOpenReturns={onOpenReturns}
+          onOpenSalesHistory={onOpenSalesHistory}
           onSettleSale={onSettleSale}
           onQuickSettle={handleQuickSettle}
           onClearCart={onClearCart}
@@ -460,6 +468,30 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
                 )}
               </button>
             )}
+            {onOpenSalesHistory && (
+              <button
+                type="button"
+                onClick={onOpenSalesHistory}
+                className="flex items-center gap-1 text-blue-600 dark:text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 px-2 py-1 rounded-lg border border-blue-500/30 text-xs font-bold active:scale-95 transition-colors cursor-pointer"
+                title="سجل المبيعات (Alt+S)"
+              >
+                <History className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">سجل</span>
+              </button>
+            )}
+
+            {onNavigateBack && (
+              <button
+                type="button"
+                onClick={onNavigateBack}
+                className="flex items-center gap-1 text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 px-2 py-1 rounded-lg border border-rose-500/30 text-xs font-black active:scale-95 transition-colors cursor-pointer"
+                title="الخروج إلى لوحة التحكم الرئيسية (Esc)"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>خروج</span>
+              </button>
+            )}
+
             <div className="text-[10px] font-mono text-slate-500 hidden sm:flex items-center gap-1 bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 px-2 py-1 rounded-lg">
               <span className="text-slate-400 dark:text-slate-600">وصل</span>
               <span className="text-slate-700 dark:text-slate-400 font-bold">{invoiceNumber}</span>

@@ -7,8 +7,8 @@ import {
   Minimize,
   Sliders,
   LogOut,
-  User,
   Sparkles,
+  History,
 } from 'lucide-react';
 import NotificationDropdown from '@/components/notifications/NotificationDropdown';
 import { useNotificationStore } from '@/store/notificationStore';
@@ -128,6 +128,7 @@ export const ModernPOSLayout: React.FC<ModernPOSLayoutProps> = ({
   onToggleFullscreen,
   isFullscreen,
   onNavigateBack,
+  onOpenSalesHistory,
   onOpenKeypadForQty,
   viewMode = 'grid',
   showProductImages = true,
@@ -253,14 +254,27 @@ export const ModernPOSLayout: React.FC<ModernPOSLayoutProps> = ({
             <button
               type="button"
               onClick={onOpenCustomize}
-              className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition text-slate-600 dark:text-slate-300 cursor-pointer"
-              title="تخصيص الواجهة"
+              className="bg-purple-50 dark:bg-purple-950/40 hover:bg-purple-100 dark:hover:bg-purple-900/50 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-900 px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+              title="تخصيص الواجهة (Alt+C)"
             >
               <Sliders className="w-4 h-4" />
+              <span className="hidden sm:inline">تخصيص</span>
             </button>
+            {onOpenSalesHistory && (
+              <button
+                type="button"
+                onClick={onOpenSalesHistory}
+                title="سجل المبيعات (Alt+S)"
+                className="bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900 px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <History className="w-4 h-4" />
+                <span className="hidden sm:inline">سجل المبيعات</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={onNavigateBack}
+              title="الخروج إلى لوحة التحكم الرئيسية (Esc)"
               className="bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900 px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
             >
               <LogOut className="w-4 h-4" />

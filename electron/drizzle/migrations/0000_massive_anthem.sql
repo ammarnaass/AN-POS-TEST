@@ -504,7 +504,7 @@ CREATE INDEX `idx_sale_items_product` ON `sale_items` (`product_id`);--> stateme
 CREATE TABLE `sales` (
 	`id` text PRIMARY KEY NOT NULL,
 	`number` text NOT NULL,
-	`date` text NOT NULL,
+	`date` text DEFAULT (datetime('now')) NOT NULL,
 	`doc_type` text DEFAULT 'facture' NOT NULL,
 	`type` text DEFAULT 'sale' NOT NULL,
 	`items` text DEFAULT '[]' NOT NULL,

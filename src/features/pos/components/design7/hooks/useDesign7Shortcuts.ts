@@ -25,6 +25,9 @@ interface UseDesign7ShortcutsProps {
   onRemoveFromCart: (productId: string) => void;
   onSelectPriceTier?: (tier: '1' | '2' | '3' | '4') => void;
   enabled?: boolean;
+  /** Global (POSPage-level) modal state — Esc closes those before navigating back */
+  isAnyModalOpen?: boolean;
+  onCloseModals?: () => void;
 }
 
 export function useDesign7Shortcuts({
@@ -50,6 +53,8 @@ export function useDesign7Shortcuts({
   onRemoveFromCart,
   onSelectPriceTier,
   enabled = true,
+  isAnyModalOpen = false,
+  onCloseModals,
 }: UseDesign7ShortcutsProps) {
   useEffect(() => {
     if (!enabled) return;
@@ -66,6 +71,13 @@ export function useDesign7Shortcuts({
       // Don't intercept if typing inside an input or textarea
       const target = e.target as HTMLElement;
       const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
+
+      // Alt + S: فتح سجل المبيعات (مطابق للاختصار العام في usePOSKeyboardShortcuts)
+      if (e.altKey && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+        onOpenSalesHistory?.();
+        return;
+      }
 
       // Function Keys (F1 - F12)
       if (e.key === 'F1') {
@@ -107,8 +119,10 @@ export function useDesign7Shortcuts({
         e.preventDefault();
         onOpenCustomize();
       } else if (e.key === 'Escape') {
-        if (!isInput) {
-          e.preventDefault();
+        e.preventDefault();
+        if (isAnyModalOpen) {
+          onCloseModals?.();
+        } else {
           onNavigateBack?.();
         }
       } else if (!isInput) {
@@ -210,6 +224,8 @@ export function useDesign7Shortcuts({
     onOpenFreeProduct,
     onToggleAutoPrint,
     onNavigateBack,
+    isAnyModalOpen,
+    onCloseModals,
     cart,
     selectedCartRowId,
     setSelectedCartRowId,

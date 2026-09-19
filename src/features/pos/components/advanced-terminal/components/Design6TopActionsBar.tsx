@@ -8,6 +8,7 @@ import {
   Lock,
   Tag,
   Home,
+  LogOut,
   Maximize,
   Minimize,
   Palette,
@@ -15,6 +16,7 @@ import {
   XCircle,
   FilePlus2,
   RotateCcw,
+  History,
   Sun,
   Moon,
 } from 'lucide-react';
@@ -24,6 +26,7 @@ import { useNotificationStore } from '@/store/notificationStore';
 export interface Design6TopActionsBarProps {
   onNewOrder?: () => void;
   onOpenReturns: () => void;
+  onOpenSalesHistory?: () => void;
   onSettleSale: () => void;
   onQuickSettle: () => void;
   onClearCart?: () => void;
@@ -52,6 +55,7 @@ export interface Design6TopActionsBarProps {
 export const Design6TopActionsBar: React.FC<Design6TopActionsBarProps> = ({
   onNewOrder,
   onOpenReturns,
+  onOpenSalesHistory,
   onSettleSale,
   onQuickSettle,
   onClearCart,
@@ -118,12 +122,15 @@ export const Design6TopActionsBar: React.FC<Design6TopActionsBarProps> = ({
         {/* 2. سجل المبيعات / مرتجع F2 */}
         <button
           type="button"
-          onClick={onOpenReturns}
+          onClick={() => {
+            if (onOpenSalesHistory) onOpenSalesHistory();
+            else onOpenReturns();
+          }}
           className="bg-[#ea580c] hover:bg-[#c2410c] active:scale-95 text-white h-[48px] min-w-[82px] px-2 rounded-lg font-bold flex flex-col items-center justify-center transition-all shadow-sm cursor-pointer border border-orange-400/30"
-          title="سجل المبيعات وإجراء مرتجع بضاعة (F2)"
+          title="سجل المبيعات وإجراء مرتجع بضاعة (F2 / Alt+S)"
         >
           <div className="flex items-center gap-1 text-[11px] font-black tracking-wider leading-tight">
-            <RotateCcw className="w-3 h-3" />
+            <History className="w-3.5 h-3.5" />
             <span>سجل / مرتجع</span>
           </div>
           <span className="text-[9px] font-mono bg-black/30 px-1.5 py-0.2 rounded mt-0.5 opacity-90">
@@ -313,16 +320,17 @@ export const Design6TopActionsBar: React.FC<Design6TopActionsBarProps> = ({
           </button>
         )}
 
-        {/* زر الرجوع إلى الصفحة الرئيسية */}
+        {/* زر الخروج إلى لوحة التحكم الرئيسية */}
         {onNavigateBack && (
           <button
             type="button"
             onClick={onNavigateBack}
-            className="h-[42px] bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800/90 dark:hover:bg-slate-700 dark:text-slate-200 active:scale-95 px-3 rounded-lg border border-slate-300 dark:border-slate-700/80 flex items-center gap-1.5 transition-all text-xs font-bold cursor-pointer"
-            title="الرجوع إلى الصفحة الرئيسية (Esc)"
+            className="h-[42px] bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 hover:border-rose-500/50 active:scale-95 px-3 rounded-lg flex items-center gap-1.5 transition-all text-xs font-black cursor-pointer shadow-2xs"
+            title="الخروج إلى لوحة التحكم الرئيسية (Esc)"
           >
-            <Home className="w-4 h-4 text-rose-500 dark:text-rose-400" />
-            <span className="hidden sm:inline">الرئيسية</span>
+            <LogOut className="w-4 h-4 text-rose-500 dark:text-rose-400" />
+            <span className="hidden sm:inline">خروج</span>
+            <span className="bg-rose-500/20 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold">Esc</span>
           </button>
         )}
 
@@ -376,7 +384,7 @@ export const Design6TopActionsBar: React.FC<Design6TopActionsBarProps> = ({
             title="تخصيص الواجهة واختيار القوالب"
           >
             <Palette className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-            <span className="hidden md:inline">تخصيص</span>
+            <span className="hidden sm:inline">تخصيص</span>
           </button>
         )}
 

@@ -168,6 +168,64 @@ function normalizePayloadForTable(
     if (data.note !== undefined && data.note !== null) normalized.note = String(data.note || '');
   }
 
+  if (tableName === 'sales') {
+    const now = new Date().toISOString();
+    normalized.date = String(data.date || data.createdAt || data.created_at || now);
+    normalized.number = String(data.number || `INV-${Date.now().toString().slice(-6)}`);
+    if (data.items !== undefined) {
+      normalized.items = Array.isArray(data.items)
+        ? JSON.stringify(data.items)
+        : (typeof data.items === 'string' ? data.items : '[]');
+    } else {
+      normalized.items = '[]';
+    }
+    if (data.docType !== undefined || data.doc_type !== undefined) {
+      normalized.doc_type = String(data.docType ?? data.doc_type ?? 'facture');
+    }
+    if (data.type !== undefined) {
+      normalized.type = String(data.type || 'sale');
+    }
+    if (data.discountType !== undefined || data.discount_type !== undefined) {
+      normalized.discount_type = String(data.discountType ?? data.discount_type ?? 'percent');
+    }
+    if (data.paymentMethod !== undefined || data.payment_method !== undefined) {
+      normalized.payment_method = String(data.paymentMethod ?? data.payment_method ?? 'cash');
+    }
+    if (data.customerId !== undefined || data.customer_id !== undefined) {
+      normalized.customer_id = String(data.customerId ?? data.customer_id ?? '');
+    }
+    if (data.customerName !== undefined || data.customer_name !== undefined) {
+      normalized.customer_name = String(data.customerName ?? data.customer_name ?? '');
+    }
+    if (data.amountPaid !== undefined || data.amount_paid !== undefined || data.paidAmount !== undefined || data.paid_amount !== undefined) {
+      normalized.amount_paid = Number(data.amountPaid ?? data.amount_paid ?? data.paidAmount ?? data.paid_amount ?? 0);
+    }
+    if (data.tvaAmount !== undefined || data.tva_amount !== undefined || data.tva !== undefined) {
+      normalized.tva_amount = Number(data.tvaAmount ?? data.tva_amount ?? data.tva ?? 0);
+    }
+    if (data.subtotal !== undefined) {
+      normalized.subtotal = Number(data.subtotal) || 0;
+    }
+    if (data.discount !== undefined) {
+      normalized.discount = Number(data.discount) || 0;
+    }
+    if (data.total !== undefined) {
+      normalized.total = Number(data.total) || 0;
+    }
+    if (data.status !== undefined) {
+      normalized.status = String(data.status || 'paid');
+    }
+    if (data.soldBy !== undefined || data.sold_by !== undefined || data.cashierName !== undefined) {
+      normalized.sold_by = String(data.soldBy ?? data.sold_by ?? data.cashierName ?? '');
+    }
+    if (data.cashSessionId !== undefined || data.cash_session_id !== undefined || data.sessionId !== undefined || data.session_id !== undefined) {
+      normalized.cash_session_id = String(data.cashSessionId ?? data.cash_session_id ?? data.sessionId ?? data.session_id ?? '');
+    }
+    if (data.note !== undefined || data.notes !== undefined) {
+      normalized.note = String(data.note ?? data.notes ?? '');
+    }
+  }
+
   // تمرير الحقول المطابقة لأعمدة SQLite
   for (const [key, val] of Object.entries(data)) {
     const snake = toSnakeKey(key);

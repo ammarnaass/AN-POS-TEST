@@ -75,6 +75,8 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
   onOpenKeypadForQty,
   onOpenKeyboard,
   onOpenAddProduct,
+  isAnyModalOpen: isAnyGlobalModalOpen = false,
+  onCloseAllModals,
 }) => {
   // Selected cart row state (tracks unique rowKey to prevent multi-selection)
   const [selectedCartRowId, setSelectedCartRowId] = useState<string | null>(() => {
@@ -92,6 +94,17 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
   });
   const [paidAmount, setPaidAmount] = useState<number>(0);
   const [isVirtualKeyboardOpen, setIsVirtualKeyboardOpen] = useState(false);
+
+  // Combined modal state (local design7 modals + global POSPage modals) for Esc handling
+  const isAnyModalOpen =
+    isProductSearchOpen || itemEditState.isOpen || isVirtualKeyboardOpen || isAnyGlobalModalOpen;
+
+  const handleCloseModals = useCallback(() => {
+    setIsProductSearchOpen(false);
+    setItemEditState((prev) => ({ ...prev, isOpen: false }));
+    setIsVirtualKeyboardOpen(false);
+    onCloseAllModals?.();
+  }, [onCloseAllModals]);
 
   // Favorites Store & Categories for Favorite Packs (عبوات وتصنيفات المفضلة)
   const {
@@ -411,6 +424,8 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
     onOpenFreeProduct,
     onToggleAutoPrint,
     onNavigateBack,
+    isAnyModalOpen,
+    onCloseModals: handleCloseModals,
     cart,
     selectedCartRowId,
     setSelectedCartRowId,
