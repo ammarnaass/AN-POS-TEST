@@ -119,10 +119,10 @@ export const POSTopBar: React.FC<POSTopBarProps> = ({
   return (
     <>
       {/* ========================================================= */}
-      {/* ZONE 1: TOP HEADER                                        */}
+      {/* ZONE 1: TOP HEADER (النظام، التنقل، والبحث)                */}
       {/* ========================================================= */}
       <header className="h-16 px-3 sm:px-4 bg-surface-container-lowest/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-outline-variant/20 dark:border-slate-800 flex items-center justify-between gap-2 sm:gap-3 shrink-0 z-20 shadow-xs">
-        {/* Right Side (RTL): Menu Toggle + Search + Barcode + Trial Badge */}
+        {/* Right Side (RTL): Navigation + Quick POS + Search + Barcode */}
         <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 max-w-3xl">
           {/* Exit Button */}
           <button
@@ -133,17 +133,6 @@ export const POSTopBar: React.FC<POSTopBarProps> = ({
           >
             <LogOut className="w-4 h-4 text-red-500 transition-transform duration-200 group-hover:-translate-x-0.5" />
             <span className="font-cairo font-black text-xs hidden sm:inline">خروج</span>
-          </button>
-
-          {/* Sales History Button */}
-          <button
-            type="button"
-            onClick={onOpenSalesHistory || (() => navigate('/sales'))}
-            className="group flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/30 hover:border-blue-500/50 text-xs font-bold transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 cursor-pointer shrink-0"
-            title="سجل المبيعات والفواتير (Alt+S)"
-          >
-            <History className="w-4 h-4 text-blue-500 transition-transform duration-200 group-hover:rotate-[-20deg]" />
-            <span className="font-cairo font-bold text-xs hidden sm:inline">سجل المبيعات</span>
           </button>
 
           {/* Sidebar Menu Button */}
@@ -162,61 +151,9 @@ export const POSTopBar: React.FC<POSTopBarProps> = ({
             title="الانتقال إلى نقطة البيع السريعة"
           >
             <Zap className="w-4 h-4 fill-amber-500 text-amber-500" />
-            <span className="font-cairo font-extrabold hidden md:inline">نقطة البيع السريع</span>
+            <span className="font-cairo font-black hidden md:inline">نقطة البيع السريع</span>
             <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-500 text-white shadow-2xs">⚡ FAST</span>
           </button>
-
-          {/* Price Tier Selector - 4 buttons */}
-          {([
-            { tier: '1' as const, label: 'تجزئة',    badge: 'P1', color: 'emerald' },
-            { tier: '2' as const, label: 'نصف جملة', badge: 'P2', color: 'sky'     },
-            { tier: '3' as const, label: 'جملة',     badge: 'P3', color: 'blue'    },
-            { tier: '4' as const, label: 'فاتورة',   badge: 'P4', color: 'violet'  },
-          ] as const).map(({ tier, label, badge, color }) => {
-            const isActive = currentPriceTier === tier;
-            const colorMap: Record<string, { active: string; idle: string }> = {
-              emerald: {
-                active: 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white border-emerald-500 shadow-md ring-2 ring-emerald-500/30',
-                idle: 'bg-surface-container/70 hover:bg-emerald-500/10 text-on-surface-variant hover:text-emerald-700 dark:hover:text-emerald-300 border-outline-variant/30 hover:border-emerald-500/50',
-              },
-              sky: {
-                active: 'bg-gradient-to-r from-sky-500 to-cyan-600 text-white border-sky-400 shadow-md ring-2 ring-sky-400/30',
-                idle: 'bg-surface-container/70 hover:bg-sky-500/10 text-on-surface-variant hover:text-sky-700 dark:hover:text-sky-300 border-outline-variant/30 hover:border-sky-500/50',
-              },
-              blue: {
-                active: 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-blue-500 shadow-md ring-2 ring-blue-500/30',
-                idle: 'bg-surface-container/70 hover:bg-blue-500/10 text-on-surface-variant hover:text-blue-700 dark:hover:text-blue-300 border-outline-variant/30 hover:border-blue-500/50',
-              },
-              violet: {
-                active: 'bg-gradient-to-r from-violet-600 to-purple-600 text-white border-violet-500 shadow-md ring-2 ring-violet-500/30',
-                idle: 'bg-surface-container/70 hover:bg-violet-500/10 text-on-surface-variant hover:text-violet-700 dark:hover:text-violet-300 border-outline-variant/30 hover:border-violet-500/50',
-              },
-            };
-            return (
-              <button
-                key={tier}
-                onClick={() => {
-                  onSelectPriceTier(tier);
-                  if (tier === '3' && !wholesaleMode) toggleWholesaleMode();
-                  if (tier !== '3' && wholesaleMode) toggleWholesaleMode();
-                  if (onNotify) {
-                    const titles = { '1': 'سعر التجزئة', '2': 'سعر نصف الجملة', '3': 'سعر الجملة', '4': 'سعر الفاتورة' };
-                    onNotify({ title: `${titles[tier]} مفعّل`, message: `تم تطبيق ${titles[tier]} على جميع المنتجات`, type: 'success' });
-                  }
-                }}
-                className={`flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-2xs hover:shadow-xs active:scale-95 cursor-pointer shrink-0 ${
-                  isActive ? colorMap[color].active : colorMap[color].idle
-                }`}
-                title={`تطبيق ${label} على جميع المنتجات`}
-              >
-                <Layers className="w-3.5 h-3.5" />
-                <span className="font-cairo font-extrabold hidden lg:inline">{label}</span>
-                <span className={`px-1 py-0.5 rounded text-[9px] font-black ${isActive ? 'bg-white/20 text-white' : 'bg-surface-container-highest text-on-surface-variant'}`}>
-                  {badge}
-                </span>
-              </button>
-            );
-          })}
 
           {/* Search by Name */}
           <div className="relative flex-1 min-w-[110px] max-w-xs group">
@@ -290,7 +227,7 @@ export const POSTopBar: React.FC<POSTopBarProps> = ({
           {/* Fullscreen */}
           <button
             onClick={toggleFullscreen}
-            className="group relative w-8.5 h-8.5 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-xl bg-surface-container/70 hover:bg-primary/10 border border-outline-variant/20 hover:border-primary/40 flex items-center justify-center text-on-surface-variant hover:text-primary hover:scale-105 active:scale-95 transition-all duration-200 shadow-2xs"
+            className="group relative w-8.5 h-8.5 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-xl bg-surface-container/70 hover:bg-primary/10 border border-outline-variant/20 hover:border-primary/40 flex items-center justify-center text-on-surface-variant hover:text-primary hover:scale-105 active:scale-95 transition-all duration-200 shadow-2xs cursor-pointer"
             title={isFullscreen ? 'تصغير الشاشة' : 'ملء الشاشة'}
           >
             {isFullscreen ? (
@@ -298,15 +235,6 @@ export const POSTopBar: React.FC<POSTopBarProps> = ({
             ) : (
               <Maximize className="w-4 h-4 transition-transform duration-300 group-hover:rotate-45" />
             )}
-          </button>
-
-          {/* Help */}
-          <button
-            onClick={onOpenShortcuts}
-            className="group relative w-8.5 h-8.5 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-xl bg-surface-container/70 hover:bg-cyan-500/10 border border-outline-variant/20 hover:border-cyan-500/40 flex items-center justify-center text-on-surface-variant hover:text-cyan-600 dark:hover:text-cyan-400 hover:scale-105 active:scale-95 transition-all duration-200 shadow-2xs"
-            title="المساعدة والاختصارات"
-          >
-            <HelpCircle className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />
           </button>
 
           {/* Active Sessions / Shifts */}
@@ -333,19 +261,10 @@ export const POSTopBar: React.FC<POSTopBarProps> = ({
             )}
           </button>
 
-          {/* Keyboard Shortcuts Guide */}
-          <button
-            onClick={onOpenShortcuts}
-            className="hidden sm:flex group relative w-8.5 h-8.5 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-xl bg-surface-container/70 hover:bg-purple-500/10 border border-outline-variant/20 hover:border-purple-500/40 items-center justify-center text-on-surface-variant hover:text-purple-600 dark:hover:text-purple-400 hover:scale-105 active:scale-95 transition-all duration-200 shadow-2xs"
-            title="اختصارات لوحة المفاتيح"
-          >
-            <Keyboard className="w-4 h-4" />
-          </button>
-
           {/* Notifications */}
           <NotificationDropdown hideBadge>
             <button
-              className="group relative w-8.5 h-8.5 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-xl bg-surface-container/70 hover:bg-amber-500/10 border border-outline-variant/20 hover:border-amber-500/40 flex items-center justify-center text-on-surface-variant hover:text-amber-500 hover:scale-105 active:scale-95 transition-all duration-200 shadow-2xs"
+              className="group relative w-8.5 h-8.5 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-xl bg-surface-container/70 hover:bg-amber-500/10 border border-outline-variant/20 hover:border-amber-500/40 flex items-center justify-center text-on-surface-variant hover:text-amber-500 hover:scale-105 active:scale-95 transition-all duration-200 shadow-2xs cursor-pointer"
               title="الإشعارات والتنبيهات"
             >
               <Bell className="w-4 h-4" />
@@ -362,7 +281,7 @@ export const POSTopBar: React.FC<POSTopBarProps> = ({
           {/* Connected Devices */}
           <button
             onClick={() => navigate('/settings')}
-            className="hidden md:flex group relative w-8.5 h-8.5 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 hover:border-emerald-500/50 text-emerald-600 dark:text-emerald-400 items-center justify-center hover:scale-105 active:scale-95 transition-all duration-200 shadow-2xs"
+            className="hidden md:flex group relative w-8.5 h-8.5 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 hover:border-emerald-500/50 text-emerald-600 dark:text-emerald-400 items-center justify-center hover:scale-105 active:scale-95 transition-all duration-200 shadow-2xs cursor-pointer"
             title="الأجهزة المتصلة"
           >
             <Smartphone className="w-4 h-4" />
@@ -379,7 +298,7 @@ export const POSTopBar: React.FC<POSTopBarProps> = ({
           {/* Theme Toggle */}
           <button
             onClick={toggleTheme}
-            className={`group relative w-8.5 h-8.5 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-xl border flex items-center justify-center hover:scale-105 active:scale-95 transition-all duration-300 shadow-2xs ${
+            className={`group relative w-8.5 h-8.5 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-xl border flex items-center justify-center hover:scale-105 active:scale-95 transition-all duration-300 shadow-2xs cursor-pointer ${
               theme === 'dark'
                 ? 'bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/25 text-amber-400'
                 : 'bg-indigo-500/10 hover:bg-indigo-500/20 border-indigo-500/25 text-indigo-600'
@@ -396,108 +315,206 @@ export const POSTopBar: React.FC<POSTopBarProps> = ({
       </header>
 
       {/* ========================================================= */}
-      {/* SUBHEADER: CATEGORY & ACTION TOOLBAR                      */}
+      {/* SUBHEADER: CATEGORY & ACTION TOOLBAR (شريط العمليات والأدوات) */}
       {/* ========================================================= */}
-      <div className="px-3 sm:px-4 py-2 bg-surface-container-low/90 dark:bg-slate-900/90 backdrop-blur-xs border-b border-outline-variant/15 dark:border-slate-800 flex items-center justify-between gap-2 shrink-0 shadow-2xs relative z-30 overflow-x-auto no-scrollbar touch-scroll">
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-nowrap sm:flex-wrap shrink-0">
-          {/* Advanced Filters Modal Trigger */}
-          <button
-            type="button"
-            onClick={onOpenFilters}
-            className={`h-9 sm:h-10 px-2.5 sm:px-3.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs hover:-translate-y-0.5 active:translate-y-0 shrink-0 cursor-pointer ${
-              activeFiltersCount > 0
-                ? 'bg-primary/15 text-primary border-primary/40 shadow-primary/10'
-                : 'bg-surface-container hover:bg-surface-container-high border-outline-variant/20 hover:border-primary/40 text-on-surface'
-            }`}
-            title="الفلاتر المتقدمة (العائلة، المورد، حالة المخزون)"
-          >
-            <SlidersHorizontal className={`w-4 h-4 ${activeFiltersCount > 0 ? 'text-primary' : 'text-on-surface-variant'}`} />
-            <span>الفلاتر</span>
-            {activeFiltersCount > 0 && (
-              <span className="w-5 h-5 rounded-full bg-primary text-on-primary text-[10px] font-black flex items-center justify-center font-mono shadow-xs">
-                {activeFiltersCount}
-              </span>
-            )}
-          </button>
+      <div className="px-3 sm:px-4 py-2 bg-surface-container-low/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-outline-variant/20 dark:border-slate-800 flex items-center justify-between gap-2 shrink-0 shadow-xs relative z-30 overflow-x-auto no-scrollbar touch-scroll">
+        <div className="flex items-center gap-2 flex-nowrap shrink-0">
+          {/* ────────────────────────────────────────────────────────── */}
+          {/* GROUP 1: Price Tier Selector (مستويات الأسعار س1 - س4)     */}
+          {/* ────────────────────────────────────────────────────────── */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {([
+              { tier: '1' as const, label: 'تجزئة',    badge: 'س1', color: 'emerald' },
+              { tier: '2' as const, label: 'نصف جملة', badge: 'س2', color: 'sky'     },
+              { tier: '3' as const, label: 'جملة',     badge: 'س3', color: 'blue'    },
+              { tier: '4' as const, label: 'فاتورة',   badge: 'س4', color: 'violet'  },
+            ] as const).map(({ tier, label, badge, color }) => {
+              const isActive = currentPriceTier === tier;
+              const colorMap: Record<string, { active: string; idle: string }> = {
+                emerald: {
+                  active: 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white border-emerald-500 shadow-md ring-2 ring-emerald-500/30',
+                  idle: 'bg-surface-container/80 hover:bg-emerald-500/10 text-slate-800 dark:text-slate-200 hover:text-emerald-700 dark:hover:text-emerald-300 border-outline-variant/30 hover:border-emerald-500/50',
+                },
+                sky: {
+                  active: 'bg-gradient-to-r from-sky-500 to-cyan-600 text-white border-sky-400 shadow-md ring-2 ring-sky-400/30',
+                  idle: 'bg-surface-container/80 hover:bg-sky-500/10 text-slate-800 dark:text-slate-200 hover:text-sky-700 dark:hover:text-sky-300 border-outline-variant/30 hover:border-sky-500/50',
+                },
+                blue: {
+                  active: 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-blue-500 shadow-md ring-2 ring-blue-500/30',
+                  idle: 'bg-surface-container/80 hover:bg-blue-500/10 text-slate-800 dark:text-slate-200 hover:text-blue-700 dark:hover:text-blue-300 border-outline-variant/30 hover:border-blue-500/50',
+                },
+                violet: {
+                  active: 'bg-gradient-to-r from-violet-600 to-purple-600 text-white border-violet-500 shadow-md ring-2 ring-violet-500/30',
+                  idle: 'bg-surface-container/80 hover:bg-violet-500/10 text-slate-800 dark:text-slate-200 hover:text-violet-700 dark:hover:text-violet-300 border-outline-variant/30 hover:border-violet-500/50',
+                },
+              };
+              return (
+                <button
+                  key={tier}
+                  onClick={() => {
+                    onSelectPriceTier(tier);
+                    if (tier === '3' && !wholesaleMode) toggleWholesaleMode();
+                    if (tier !== '3' && wholesaleMode) toggleWholesaleMode();
+                    if (onNotify) {
+                      const titles = { '1': 'سعر التجزئة', '2': 'سعر نصف الجملة', '3': 'سعر الجملة', '4': 'سعر الفاتورة' };
+                      onNotify({ title: `${titles[tier]} مفعّل`, message: `تم تطبيق ${titles[tier]} على جميع المنتجات`, type: 'success' });
+                    }
+                  }}
+                  className={`h-9 sm:h-10 flex items-center gap-1.5 px-2.5 sm:px-3 rounded-xl border text-xs font-black transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 cursor-pointer shrink-0 ${
+                    isActive ? colorMap[color].active : colorMap[color].idle
+                  }`}
+                  title={`تطبيق سعر ${label} (${badge}) على جميع المنتجات`}
+                >
+                  <Layers className="w-3.5 h-3.5 shrink-0" />
+                  <span className="font-cairo font-black text-xs hidden lg:inline">{label}</span>
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-black ${isActive ? 'bg-white/25 text-white' : 'bg-surface-container-highest text-slate-900 dark:text-slate-100'}`}>
+                    {badge}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
 
-          {/* Quick Clear Filters if active */}
-          {activeFiltersCount > 0 && (
+          {/* Group Divider */}
+          <div className="w-px h-6 bg-outline-variant/30 shrink-0 mx-1" />
+
+          {/* ────────────────────────────────────────────────────────── */}
+          {/* GROUP 2: Product Filters & Free Product                    */}
+          {/* ────────────────────────────────────────────────────────── */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Advanced Filters Modal Trigger */}
             <button
               type="button"
-              onClick={onClearAllFilters}
-              className="h-9 px-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-600 border border-red-500/25 text-xs font-bold flex items-center gap-1 transition-all shadow-2xs active:scale-95 cursor-pointer"
-              title="إلغاء جميع الفلاتر النشطة"
+              onClick={onOpenFilters}
+              className={`h-9 sm:h-10 px-2.5 sm:px-3.5 rounded-xl border text-xs font-black transition-all flex items-center gap-1.5 shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 shrink-0 cursor-pointer ${
+                activeFiltersCount > 0
+                  ? 'bg-primary/15 text-primary border-primary/40 shadow-primary/10'
+                  : 'bg-surface-container/80 hover:bg-surface-container-high border-outline-variant/25 hover:border-primary/40 text-slate-900 dark:text-white'
+              }`}
+              title="الفلاتر المتقدمة (العائلة، المورد، حالة المخزون)"
             >
-              <RotateCcw className="w-3.5 h-3.5 text-red-500" />
-              <span className="hidden sm:inline">مسح الفلاتر</span>
+              <SlidersHorizontal className={`w-4 h-4 ${activeFiltersCount > 0 ? 'text-primary' : 'text-on-surface-variant'}`} />
+              <span className="font-cairo font-black">الفلاتر</span>
+              {activeFiltersCount > 0 && (
+                <span className="w-5 h-5 rounded-full bg-primary text-on-primary text-[10px] font-black flex items-center justify-center font-mono shadow-xs">
+                  {activeFiltersCount}
+                </span>
+              )}
             </button>
-          )}
 
-          {/* Star / Featured Filter */}
-          <button
-            type="button"
-            onClick={() => setIsFeaturedOnly(!isFeaturedOnly)}
-            className={`h-9 sm:h-10 px-2.5 sm:px-3.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border shadow-xs hover:-translate-y-0.5 active:translate-y-0 shrink-0 cursor-pointer ${
-              isFeaturedOnly
-                ? 'bg-amber-500 text-white border-amber-500 shadow-amber-500/25'
-                : 'bg-surface-container hover:bg-surface-container-high text-on-surface border-outline-variant/20 hover:border-amber-500/40'
-            }`}
-            title="عرض المنتجات المميزة فقط"
-          >
-            <Star className={`w-4 h-4 ${isFeaturedOnly ? 'fill-current' : 'text-amber-500'}`} />
-            <span>مميزة</span>
-          </button>
+            {/* Quick Clear Filters if active */}
+            {activeFiltersCount > 0 && (
+              <button
+                type="button"
+                onClick={onClearAllFilters}
+                className="h-9 sm:h-10 px-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/25 text-xs font-black flex items-center gap-1 transition-all shadow-xs hover:shadow-md active:scale-95 cursor-pointer shrink-0"
+                title="إلغاء جميع الفلاتر النشطة"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-red-500" />
+                <span className="font-cairo font-black hidden sm:inline">مسح الفلاتر</span>
+              </button>
+            )}
 
-          {/* Return Mode (F9) */}
-          <button
-            onClick={() => {
-              if (returnMode) {
-                setReturnMode(false);
-                clearCart();
-              } else {
-                onOpenReturnSale();
-              }
-            }}
-            className={`h-9 sm:h-10 px-2.5 sm:px-3.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border shadow-xs hover:-translate-y-0.5 active:translate-y-0 shrink-0 ${
-              returnMode
-                ? 'bg-red-500/15 text-red-600 border-red-500/35 shadow-red-500/10'
-                : 'bg-surface-container hover:bg-surface-container-high text-on-surface border-outline-variant/20 hover:border-red-500/30'
-            }`}
-          >
-            <RotateCcw className="w-4 h-4 text-red-500" />
-            <span>الإرجاع</span>
-            <span className="hidden sm:inline text-[10px] font-mono px-1.5 py-0.2 rounded bg-surface-container-high/90 border border-outline-variant/30 text-on-surface-variant font-bold shadow-2xs">F9</span>
-          </button>
+            {/* Star / Featured Filter */}
+            <button
+              type="button"
+              onClick={() => setIsFeaturedOnly(!isFeaturedOnly)}
+              className={`h-9 sm:h-10 px-2.5 sm:px-3.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 border shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 shrink-0 cursor-pointer ${
+                isFeaturedOnly
+                  ? 'bg-amber-500 text-white border-amber-500 shadow-amber-500/25'
+                  : 'bg-surface-container/80 hover:bg-surface-container-high text-slate-900 dark:text-white border-outline-variant/25 hover:border-amber-500/40'
+              }`}
+              title="عرض المنتجات المميزة فقط"
+            >
+              <Star className={`w-4 h-4 ${isFeaturedOnly ? 'fill-current text-white' : 'text-amber-500'}`} />
+              <span className="font-cairo font-black">مميزة</span>
+            </button>
 
-          {/* Sales History */}
-          <button
-            type="button"
-            onClick={onOpenSalesHistory || (() => navigate('/sales'))}
-            className="h-9 sm:h-10 px-2.5 sm:px-3.5 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 hover:border-blue-500/40 text-xs font-bold text-on-surface flex items-center gap-1.5 transition-all shadow-xs hover:-translate-y-0.5 active:translate-y-0 shrink-0 cursor-pointer"
-            title="سجل المبيعات (Alt+S)"
-          >
-            <History className="w-4 h-4 text-blue-500" />
-            <span>سجل المبيعات</span>
-          </button>
+            {/* Free Product (F8) */}
+            <button
+              type="button"
+              onClick={onOpenFreeProduct}
+              className="h-9 sm:h-10 px-2.5 sm:px-3.5 rounded-xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 hover:from-amber-500/20 hover:to-orange-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-xs font-black flex items-center gap-1.5 transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 shrink-0 cursor-pointer"
+              title="إضافة منتج حر غير مسجل في المخزون (F8)"
+            >
+              <Sparkles className="w-4 h-4 text-amber-500" />
+              <span className="font-cairo font-black text-slate-900 dark:text-white">منتج حر</span>
+              <span className="hidden sm:inline text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/25 text-amber-800 dark:text-amber-200 font-black shadow-2xs">F8</span>
+            </button>
+          </div>
 
-          {/* Free Product (F8) */}
-          <button
-            onClick={onOpenFreeProduct}
-            className="h-9 sm:h-10 px-2.5 sm:px-3.5 rounded-xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 hover:from-amber-500/20 hover:to-orange-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs hover:-translate-y-0.5 active:translate-y-0 shrink-0"
-          >
-            <Sparkles className="w-4 h-4 text-amber-500" />
-            <span>منتج حر</span>
-            <span className="hidden sm:inline text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-500/25 text-amber-800 dark:text-amber-200 font-extrabold shadow-2xs">F8</span>
-          </button>
+          {/* Group Divider */}
+          <div className="w-px h-6 bg-outline-variant/30 shrink-0 mx-1" />
 
-          {/* Customize Layout */}
-          <button
-            onClick={onOpenCustomize}
-            className="h-9 sm:h-10 px-2.5 sm:px-3.5 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 hover:border-primary/40 text-xs font-bold text-on-surface flex items-center gap-1.5 transition-all shadow-xs hover:-translate-y-0.5 active:translate-y-0 shrink-0"
-          >
-            <Sliders className="w-4 h-4 text-on-surface-variant" />
-            <span>تخصيص</span>
-          </button>
+          {/* ────────────────────────────────────────────────────────── */}
+          {/* GROUP 3: Sales Operations & Records (العمليات والسجلات)     */}
+          {/* ────────────────────────────────────────────────────────── */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Authoritative Sales History Button (Single Source) */}
+            <button
+              type="button"
+              onClick={onOpenSalesHistory || (() => navigate('/sales'))}
+              className="h-9 sm:h-10 px-2.5 sm:px-3.5 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/30 hover:border-blue-500/50 text-xs font-black flex items-center gap-1.5 transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 shrink-0 cursor-pointer"
+              title="سجل المبيعات (Alt+S)"
+            >
+              <History className="w-4 h-4 text-blue-500" />
+              <span className="font-cairo font-black text-slate-900 dark:text-white">سجل المبيعات</span>
+              <span className="hidden sm:inline text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-700 dark:text-blue-300 font-black shadow-2xs">Alt+S</span>
+            </button>
+
+            {/* Return Mode (F9) */}
+            <button
+              type="button"
+              onClick={() => {
+                if (returnMode) {
+                  setReturnMode(false);
+                  clearCart();
+                } else {
+                  onOpenReturnSale();
+                }
+              }}
+              className={`h-9 sm:h-10 px-2.5 sm:px-3.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 border shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 shrink-0 cursor-pointer ${
+                returnMode
+                  ? 'bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/40 shadow-red-500/20'
+                  : 'bg-surface-container/80 hover:bg-surface-container-high text-slate-900 dark:text-white border-outline-variant/25 hover:border-red-500/40'
+              }`}
+              title="وضع الإرجاع ومرتجع المبيعات (F9)"
+            >
+              <RotateCcw className="w-4 h-4 text-red-500" />
+              <span className="font-cairo font-black">الإرجاع</span>
+              <span className="hidden sm:inline text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-container-high border border-outline-variant/30 text-on-surface-variant font-bold shadow-2xs">F9</span>
+            </button>
+          </div>
+
+          {/* Group Divider */}
+          <div className="w-px h-6 bg-outline-variant/30 shrink-0 mx-1" />
+
+          {/* ────────────────────────────────────────────────────────── */}
+          {/* GROUP 4: Configuration & Help (تخصيص الواجهة والمساعدة)    */}
+          {/* ────────────────────────────────────────────────────────── */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Customize Layout */}
+            <button
+              type="button"
+              onClick={onOpenCustomize}
+              className="h-9 sm:h-10 px-2.5 sm:px-3.5 rounded-xl bg-surface-container/80 hover:bg-surface-container-high border border-outline-variant/25 hover:border-purple-500/40 text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5 transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 shrink-0 cursor-pointer"
+              title="تخصيص الواجهة"
+            >
+              <Sliders className="w-4 h-4 text-purple-500" />
+              <span className="font-cairo font-black">تخصيص</span>
+            </button>
+
+            {/* Help & Shortcuts Guide */}
+            <button
+              type="button"
+              onClick={onOpenShortcuts}
+              className="h-9 sm:h-10 px-2.5 sm:px-3.5 rounded-xl bg-surface-container/80 hover:bg-surface-container-high border border-outline-variant/25 hover:border-cyan-500/40 text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5 transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 shrink-0 cursor-pointer"
+              title="المساعدة واختصارات لوحة المفاتيح"
+            >
+              <Keyboard className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+              <span className="font-cairo font-black hidden sm:inline">الاختصارات</span>
+            </button>
+          </div>
         </div>
       </div>
     </>
