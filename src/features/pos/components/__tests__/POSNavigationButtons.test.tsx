@@ -325,7 +325,7 @@ describe('TerminalPOSTopBar: أزرار الخروج والتخصيص', () => {
 });
 
 describe('QuickPOSHeader: أزرار الخروج والتخصيص', () => {
-  it('QuickPOSHeader: زر الخروج وزر التخصيص يستدعيان الـ callbacks المقابلة', async () => {
+  it('QuickPOSHeader: زر الخروج يعمل وزر التخصيص محذوف من الواجهة', async () => {
     const { QuickPOSHeader } = await import('../../quick/components/QuickPOSHeader');
     const onNavigateHome = vi.fn();
     const onOpenCustomize = vi.fn();
@@ -356,10 +356,8 @@ describe('QuickPOSHeader: أزرار الخروج والتخصيص', () => {
     fireEvent.click(exitBtn);
     expect(onNavigateHome).toHaveBeenCalledTimes(1);
 
-    const customizeBtn = screen.getByTitle('تخصيص الواجهة ودقة الشاشة');
-    expect(customizeBtn).toBeInTheDocument();
-    fireEvent.click(customizeBtn);
-    expect(onOpenCustomize).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTitle('تخصيص الواجهة ودقة الشاشة')).not.toBeInTheDocument();
+    expect(screen.queryByText('تخصيص')).not.toBeInTheDocument();
   });
 });
 

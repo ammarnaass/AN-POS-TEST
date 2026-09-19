@@ -7,7 +7,6 @@ import {
   Volume2,
   VolumeX,
   Layers,
-  Sliders,
   LogOut,
 } from 'lucide-react';
 import { QuickPOSClock } from './QuickPOSClock';
@@ -205,17 +204,6 @@ export const QuickPOSHeader: React.FC<QuickPOSHeaderProps> = React.memo(({
 
         {/* Quick Action Operations */}
         <div className="flex items-center gap-2">
-          {onOpenCustomize && (
-            <button
-              onClick={onOpenCustomize}
-              className="px-3.5 py-2 bg-purple-50 dark:bg-purple-950/40 hover:bg-purple-100 dark:hover:bg-purple-900/50 text-purple-600 dark:text-purple-300 border border-purple-200 dark:border-purple-800 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-xs transition active:scale-95 cursor-pointer"
-              title="تخصيص الواجهة ودقة الشاشة"
-              type="button"
-            >
-              <Sliders className="w-4 h-4" />
-              <span>تخصيص</span>
-            </button>
-          )}
           <button
             onClick={onNavigateAdvancedPOS}
             className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold text-xs flex items-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer"
