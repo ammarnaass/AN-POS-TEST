@@ -919,7 +919,13 @@ export interface TranslationSchema {
     fiscalTab: string;
     invoicingTab: string;
     systemTab: string;
+    backupTab: string;
     diagnosticsTab: string;
+    systemAndData: string;
+    allTablesBackup: string;
+    imagesSaved100: string;
+    backupCenter: string;
+    navHint: string;
     fetchFromDesktop: string;
     saveAndSync: string;
     shopName: string;

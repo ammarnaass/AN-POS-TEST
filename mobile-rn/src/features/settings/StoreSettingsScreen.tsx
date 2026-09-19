@@ -12,6 +12,7 @@ import {
   RefreshControl,
   Image,
   Modal,
+  Share,
 } from 'react-native';
 import {
   Store,
@@ -46,6 +47,11 @@ import {
   Globe,
   Radio,
   AlertCircle,
+  Package,
+  Layers,
+  Download,
+  Upload,
+  Users,
 } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { useI18n } from '@/store/i18nStore';
@@ -60,8 +66,14 @@ import {
   type StoreSettings,
 } from '@/lib/settingService';
 import { AnposCamera } from '@/modules/AnposCamera';
+import {
+  getMobileLiveStats,
+  generateMobileBackup,
+  fetchBackupFromDesktop,
+  type MobileLiveStats,
+} from '@/services/backup/backupService';
 
-type SettingsTab = 'identity' | 'fiscal' | 'invoicing' | 'system' | 'diagnostics';
+type SettingsTab = 'identity' | 'fiscal' | 'invoicing' | 'system' | 'backup' | 'diagnostics';
 
 export const StoreSettingsScreen = ({ navigation }: any) => {
   const { isDark, colors } = useTheme();
@@ -81,10 +93,76 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
   const [settings, setSettings] = useState<StoreSettings | null>(null);
   const [form, setForm] = useState<Record<string, any>>({});
 
+  // Backup & Restore Tab state
+  const [backupStats, setBackupStats] = useState<MobileLiveStats | null>(null);
+  const [loadingBackupStats, setLoadingBackupStats] = useState(false);
+  const [exportingBackup, setExportingBackup] = useState(false);
+  const [fetchingLanBackup, setFetchingLanBackup] = useState(false);
+
   // Store Logo Modal state
   const [logoPickerVisible, setLogoPickerVisible] = useState(false);
   const [logoUrlModalVisible, setLogoUrlModalVisible] = useState(false);
   const [customLogoUrl, setCustomLogoUrl] = useState('');
+
+  const loadBackupStats = useCallback(async () => {
+    setLoadingBackupStats(true);
+    try {
+      const data = await getMobileLiveStats();
+      setBackupStats(data);
+    } catch (err) {
+      console.warn('Failed to load backup stats:', err);
+    } finally {
+      setLoadingBackupStats(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'backup') {
+      loadBackupStats();
+    }
+  }, [activeTab, loadBackupStats]);
+
+  const handleExportBackupFast = async () => {
+    setExportingBackup(true);
+    try {
+      const backup = await generateMobileBackup();
+      const dateStr = new Date().toISOString().slice(0, 10);
+      await Share.share({
+        title: `an-pos-backup-${dateStr}.anpos.json`,
+        message: JSON.stringify(backup, null, 2),
+      });
+    } catch (err: any) {
+      Alert.alert(t('common.error'), err?.message || 'تعذر تصدير النسخة الاحتياطية');
+    } finally {
+      setExportingBackup(false);
+    }
+  };
+
+  const handleFetchDesktopBackup = async () => {
+    setFetchingLanBackup(true);
+    try {
+      const res = await fetchBackupFromDesktop();
+      if (res.success && res.backup) {
+        Alert.alert(
+          'تم جلب النسخة بنجاح',
+          'تم تنزيل النسخة الكاملة من الحاسوب بنجاح. هل ترغب في الانتقال إلى شاشة المعاينة والتأكيد لتطبيقها؟',
+          [
+            { text: t('common.cancel'), style: 'cancel' },
+            {
+              text: 'متابعة الاسترجاع',
+              onPress: () => navigation.navigate('BackupRestore', { initialBackup: res.backup }),
+            },
+          ]
+        );
+      } else {
+        Alert.alert(t('common.error'), res.error || 'تعذر جلب النسخة من الحاسوب');
+      }
+    } catch (err: any) {
+      Alert.alert(t('common.error'), err?.message || 'خطأ في الاتصال بالشبكة');
+    } finally {
+      setFetchingLanBackup(false);
+    }
+  };
 
   const loadData = useCallback(async (forceRemote = false) => {
     try {
@@ -503,9 +581,16 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
             colors={colors}
           />
           <TabButton
+            active={activeTab === 'backup'}
+            title={t('storeSettings.backupTab')}
+            icon={<HardDrive size={15} color={activeTab === 'backup' ? '#fff' : colors.text.secondary} />}
+            onPress={() => setActiveTab('backup')}
+            colors={colors}
+          />
+          <TabButton
             active={activeTab === 'diagnostics'}
             title={t('storeSettings.diagnosticsTab')}
-            icon={<HardDrive size={15} color={activeTab === 'diagnostics' ? '#fff' : colors.text.secondary} />}
+            icon={<ShieldCheck size={15} color={activeTab === 'diagnostics' ? '#fff' : colors.text.secondary} />}
             onPress={() => setActiveTab('diagnostics')}
             colors={colors}
           />
@@ -900,7 +985,241 @@ export const StoreSettingsScreen = ({ navigation }: any) => {
           </Card>
         )}
 
-        {/* ── Tab 5: Technical Diagnostics ─────────────────────── */}
+        {/* ── Tab 5: Backup & Restore Center (مركز النسخ الاحتياطي والاستعادة) ── */}
+        {activeTab === 'backup' && (
+          <View style={{ gap: 14 }}>
+            {/* Breadcrumbs Navigation (النظام والبيانات ← النسخ الاحتياطي والبيانات) */}
+            <Card style={styles.tabCard}>
+              <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: colors.primary[600], fontFamily: 'Cairo' }}>
+                  {t('storeSettings.systemAndData')}
+                </Text>
+                <Text style={{ fontSize: 13, color: colors.text.tertiary }}>←</Text>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: colors.text.primary, fontFamily: 'Cairo' }}>
+                  {t('storeSettings.backupTab')}
+                </Text>
+              </View>
+              <Text style={{ fontSize: 11, color: colors.text.tertiary, textAlign, marginTop: 4 }}>
+                {t('storeSettings.navHint')}
+              </Text>
+            </Card>
+
+            {/* Hero Card: Backup Center */}
+            <Card
+              variant="elevated"
+              style={{
+                backgroundColor: isDark ? 'rgba(59, 130, 246, 0.08)' : '#eff6ff',
+                borderColor: colors.primary[200] || '#bfdbfe',
+                borderWidth: 1,
+                padding: 16,
+              }}
+            >
+              <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: 12 }}>
+                <View
+                  style={{
+                    width: 46,
+                    height: 46,
+                    borderRadius: 14,
+                    backgroundColor: colors.primary[600],
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <HardDrive size={24} color="#ffffff" />
+                </View>
+
+                <View style={{ flex: 1, alignItems }}>
+                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <Text style={{ fontSize: 16, fontWeight: '800', color: colors.text.primary, fontFamily: 'Cairo' }}>
+                      {t('storeSettings.backupCenter')}
+                    </Text>
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 4,
+                        backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                        borderColor: 'rgba(16, 185, 129, 0.25)',
+                        borderWidth: 1,
+                        paddingHorizontal: 8,
+                        paddingVertical: 2,
+                        borderRadius: 8,
+                      }}
+                    >
+                      <ShieldCheck size={12} color="#10b981" />
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: '#10b981', fontFamily: 'Cairo' }}>
+                        {t('storeSettings.imagesSaved100')}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Text style={{ fontSize: 12, color: colors.text.secondary, textAlign, marginTop: 4, lineHeight: 18 }}>
+                    {t('storeSettings.allTablesBackup')}
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  onPress={loadBackupStats}
+                  disabled={loadingBackupStats}
+                  style={{
+                    padding: 8,
+                    borderRadius: 10,
+                    backgroundColor: colors.surface,
+                    borderWidth: 1,
+                    borderColor: colors.border.default,
+                  }}
+                  title="تحديث الإحصائيات"
+                >
+                  <RefreshCw size={16} color={colors.primary[600]} />
+                </TouchableOpacity>
+              </View>
+
+              {/* 6 Metrics Grid */}
+              <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
+                {/* 1. Products */}
+                <View style={{ flex: 1, minWidth: '30%', backgroundColor: colors.surface, borderRadius: 10, padding: 8, alignItems: 'center' }}>
+                  <Package size={14} color={colors.primary[600]} />
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: colors.text.primary, marginTop: 2 }}>
+                    {loadingBackupStats ? '...' : (backupStats?.productsCount ?? 0)}
+                  </Text>
+                  <Text style={{ fontSize: 10, color: colors.text.tertiary }}>صنف مسجل</Text>
+                </View>
+
+                {/* 2. Product Images */}
+                <View style={{ flex: 1, minWidth: '30%', backgroundColor: colors.surface, borderRadius: 10, padding: 8, alignItems: 'center' }}>
+                  <ImageIcon size={14} color="#10b981" />
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: '#10b981', marginTop: 2 }}>
+                    {loadingBackupStats ? '...' : (backupStats?.imagesCount ?? 0)}
+                  </Text>
+                  <Text style={{ fontSize: 10, color: '#10b981' }}>محفوظة بالكامل</Text>
+                </View>
+
+                {/* 3. Packs */}
+                <View style={{ flex: 1, minWidth: '30%', backgroundColor: colors.surface, borderRadius: 10, padding: 8, alignItems: 'center' }}>
+                  <Layers size={14} color="#6366f1" />
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: colors.text.primary, marginTop: 2 }}>
+                    {loadingBackupStats ? '...' : (backupStats?.packsCount ?? 0)}
+                  </Text>
+                  <Text style={{ fontSize: 10, color: colors.text.tertiary }}>عبوة جملة</Text>
+                </View>
+
+                {/* 4. Sales */}
+                <View style={{ flex: 1, minWidth: '30%', backgroundColor: colors.surface, borderRadius: 10, padding: 8, alignItems: 'center' }}>
+                  <Receipt size={14} color="#f43f5e" />
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: colors.text.primary, marginTop: 2 }}>
+                    {loadingBackupStats ? '...' : (backupStats?.salesCount ?? 0)}
+                  </Text>
+                  <Text style={{ fontSize: 10, color: colors.text.tertiary }}>فاتورة بيع</Text>
+                </View>
+
+                {/* 5. Customers & Suppliers */}
+                <View style={{ flex: 1, minWidth: '30%', backgroundColor: colors.surface, borderRadius: 10, padding: 8, alignItems: 'center' }}>
+                  <Users size={14} color="#0284c7" />
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: colors.text.primary, marginTop: 2 }}>
+                    {loadingBackupStats ? '...' : ((backupStats?.customersCount ?? 0) + (backupStats?.suppliersCount ?? 0))}
+                  </Text>
+                  <Text style={{ fontSize: 10, color: colors.text.tertiary }}>حساب مسجل</Text>
+                </View>
+
+                {/* 6. Estimated Size */}
+                <View style={{ flex: 1, minWidth: '30%', backgroundColor: colors.surface, borderRadius: 10, padding: 8, alignItems: 'center' }}>
+                  <HardDrive size={14} color="#d97706" />
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: colors.text.primary, marginTop: 2 }}>
+                    {loadingBackupStats ? '...' : (backupStats?.sizeEstMB ?? 0)}
+                  </Text>
+                  <Text style={{ fontSize: 10, color: colors.text.tertiary }}>ميغابايت</Text>
+                </View>
+              </View>
+            </Card>
+
+            {/* Actions Card */}
+            <Card style={{ gap: 10, padding: 14 }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: colors.text.primary, textAlign }}>
+                عمليات النسخ الاحتياطي السريعة
+              </Text>
+
+              {/* Action 1: Export Full Backup */}
+              <TouchableOpacity
+                style={{
+                  flexDirection: isRTL ? 'row-reverse' : 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  backgroundColor: colors.primary[600],
+                  paddingVertical: 12,
+                  borderRadius: 12,
+                }}
+                onPress={handleExportBackupFast}
+                disabled={exportingBackup}
+                activeOpacity={0.85}
+              >
+                {exportingBackup ? (
+                  <ActivityIndicator color="#ffffff" size="small" />
+                ) : (
+                  <>
+                    <Download size={16} color="#ffffff" />
+                    <Text style={{ color: '#ffffff', fontWeight: '700', fontSize: 13, fontFamily: 'Cairo' }}>
+                      تصدير وحفظ نسخة شاملة الآن (JSON)
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              {/* Action 2: LAN Direct Fetch */}
+              <TouchableOpacity
+                style={{
+                  flexDirection: isRTL ? 'row-reverse' : 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  backgroundColor: isDark ? 'rgba(99, 102, 241, 0.12)' : '#eef2ff',
+                  borderColor: '#6366f1',
+                  borderWidth: 1,
+                  paddingVertical: 12,
+                  borderRadius: 12,
+                }}
+                onPress={handleFetchDesktopBackup}
+                disabled={fetchingLanBackup}
+                activeOpacity={0.85}
+              >
+                {fetchingLanBackup ? (
+                  <ActivityIndicator color="#6366f1" size="small" />
+                ) : (
+                  <>
+                    <Wifi size={16} color="#6366f1" />
+                    <Text style={{ color: '#6366f1', fontWeight: '700', fontSize: 13, fontFamily: 'Cairo' }}>
+                      جلب نسخة احتياطية من الحاسوب (LAN)
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              {/* Action 3: Open Full Restore & Inspection Center */}
+              <TouchableOpacity
+                style={{
+                  flexDirection: isRTL ? 'row-reverse' : 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  backgroundColor: isDark ? 'rgba(16, 185, 129, 0.12)' : '#ecfdf5',
+                  borderColor: '#10b981',
+                  borderWidth: 1,
+                  paddingVertical: 12,
+                  borderRadius: 12,
+                }}
+                onPress={() => navigation.navigate('BackupRestore')}
+                activeOpacity={0.85}
+              >
+                <Upload size={16} color="#10b981" />
+                <Text style={{ color: '#10b981', fontWeight: '700', fontSize: 13, fontFamily: 'Cairo' }}>
+                  فتح مركز الاسترجاع والمعاينة المتقدم
+                </Text>
+              </TouchableOpacity>
+            </Card>
+          </View>
+        )}
+
+        {/* ── Tab 6: Technical Diagnostics ─────────────────────── */}
         {activeTab === 'diagnostics' && (
           <Card style={styles.tabCard}>
             <View style={[styles.tabHeaderRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>

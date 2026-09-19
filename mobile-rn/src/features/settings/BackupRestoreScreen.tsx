@@ -31,6 +31,7 @@ import {
   X,
   Database,
   Clock,
+  Users,
 } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { useI18n } from '@/store/i18nStore';
@@ -44,7 +45,7 @@ import {
   type MobileBackupInspection,
 } from '@/services/backup/backupService';
 
-export const BackupRestoreScreen = ({ navigation }: any) => {
+export const BackupRestoreScreen = ({ navigation, route }: any) => {
   const { isDark, colors } = useTheme();
   const { t, isRTL, textAlign, alignItems } = useI18n();
 
@@ -79,6 +80,23 @@ export const BackupRestoreScreen = ({ navigation }: any) => {
   useEffect(() => {
     loadStats();
   }, [loadStats]);
+
+  // فحص مباشر إذا تم تمرير نسخة من الشاشة السابقة
+  useEffect(() => {
+    if (route?.params?.initialBackup) {
+      try {
+        const backupObj = route.params.initialBackup;
+        const jsonStr = typeof backupObj === 'string' ? backupObj : JSON.stringify(backupObj);
+        const inspection = inspectBackupContent(jsonStr);
+        if (inspection.valid) {
+          setInspectionResult(inspection);
+          setShowModal(true);
+        }
+      } catch (e) {
+        console.warn('Failed to parse initial backup:', e);
+      }
+    }
+  }, [route?.params?.initialBackup]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -233,50 +251,88 @@ export const BackupRestoreScreen = ({ navigation }: any) => {
         contentContainerStyle={{ paddingBottom: 40 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
+        {/* Breadcrumbs Navigation (النظام والبيانات ← النسخ الاحتياطي والبيانات) */}
+        <View style={styles.breadcrumbCard}>
+          <View style={[styles.breadcrumbRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+            <Text style={[styles.breadcrumbMain, { color: colors.primary[600] }]}>
+              {t('storeSettings.systemAndData')}
+            </Text>
+            <Text style={[styles.breadcrumbSep, { color: colors.text.tertiary }]}>←</Text>
+            <Text style={[styles.breadcrumbSub, { color: colors.text.primary }]}>
+              {t('storeSettings.backupTab')}
+            </Text>
+          </View>
+          <Text style={[styles.breadcrumbHint, { color: colors.text.tertiary, textAlign }]}>
+            {t('storeSettings.navHint')}
+          </Text>
+        </View>
+
         {/* Banner with stats */}
         <View style={[styles.banner, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#eff6ff', borderColor: colors.primary[200] || '#bfdbfe' }]}>
           <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
             <View style={[styles.iconWrap, { backgroundColor: colors.primary[600] }]}>
-              <HardDrive size={22} color="#fff" />
+              <HardDrive size={24} color="#fff" />
             </View>
             <View style={{ flex: 1, alignItems }}>
-              <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={[styles.bannerTitle, { color: colors.text.primary }]}>مركز البيانات والنسخ الاحتياطي</Text>
+              <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <Text style={[styles.bannerTitle, { color: colors.text.primary }]}>
+                  {t('storeSettings.backupCenter')}
+                </Text>
                 <View style={styles.badgeImages}>
-                  <ShieldCheck size={12} color="#10b981" />
-                  <Text style={styles.badgeImagesText}>الصور محفوظة 100%</Text>
+                  <ShieldCheck size={13} color="#10b981" />
+                  <Text style={styles.badgeImagesText}>{t('storeSettings.imagesSaved100')}</Text>
                 </View>
               </View>
               <Text style={[styles.bannerSub, { color: colors.text.secondary, textAlign }]}>
-                حفظ شامل لكافة الجداول الـ 25 وصور المنتجات وشعار المتجر وعبوات الجملة.
+                {t('storeSettings.allTablesBackup')}
               </Text>
             </View>
           </View>
 
-          {/* Quick Metrics Grid */}
-          <View style={[styles.metricsGrid, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+          {/* Quick Metrics Grid (6 items) */}
+          <View style={[styles.metricsGrid, { flexDirection: isRTL ? 'row-reverse' : 'row', flexWrap: 'wrap' }]}>
+            {/* 1. Products */}
             <View style={[styles.metricItem, { backgroundColor: colors.surface }]}>
               <Package size={14} color={colors.primary[600]} />
               <Text style={[styles.metricVal, { color: colors.text.primary }]}>{stats?.productsCount ?? 0}</Text>
-              <Text style={[styles.metricLbl, { color: colors.text.tertiary }]}>منتج</Text>
+              <Text style={[styles.metricLbl, { color: colors.text.tertiary }]}>صنف مسجل</Text>
             </View>
 
+            {/* 2. Product Images */}
             <View style={[styles.metricItem, { backgroundColor: colors.surface }]}>
               <ImageIcon size={14} color="#10b981" />
               <Text style={[styles.metricVal, { color: '#10b981' }]}>{stats?.imagesCount ?? 0}</Text>
-              <Text style={[styles.metricLbl, { color: colors.text.tertiary }]}>صورة</Text>
+              <Text style={[styles.metricLbl, { color: '#10b981' }]}>صور محفوظة</Text>
             </View>
 
+            {/* 3. Packs */}
             <View style={[styles.metricItem, { backgroundColor: colors.surface }]}>
               <Layers size={14} color="#6366f1" />
               <Text style={[styles.metricVal, { color: colors.text.primary }]}>{stats?.packsCount ?? 0}</Text>
-              <Text style={[styles.metricLbl, { color: colors.text.tertiary }]}>عبوة</Text>
+              <Text style={[styles.metricLbl, { color: colors.text.tertiary }]}>عبوة جملة</Text>
             </View>
 
+            {/* 4. Sales */}
             <View style={[styles.metricItem, { backgroundColor: colors.surface }]}>
               <Receipt size={14} color="#f43f5e" />
               <Text style={[styles.metricVal, { color: colors.text.primary }]}>{stats?.salesCount ?? 0}</Text>
-              <Text style={[styles.metricLbl, { color: colors.text.tertiary }]}>فاتورة</Text>
+              <Text style={[styles.metricLbl, { color: colors.text.tertiary }]}>فاتورة بيع</Text>
+            </View>
+
+            {/* 5. Customers & Suppliers */}
+            <View style={[styles.metricItem, { backgroundColor: colors.surface }]}>
+              <Users size={14} color="#0284c7" />
+              <Text style={[styles.metricVal, { color: colors.text.primary }]}>
+                {(stats?.customersCount ?? 0) + (stats?.suppliersCount ?? 0)}
+              </Text>
+              <Text style={[styles.metricLbl, { color: colors.text.tertiary }]}>حساب مسجل</Text>
+            </View>
+
+            {/* 6. Estimated Size */}
+            <View style={[styles.metricItem, { backgroundColor: colors.surface }]}>
+              <Database size={14} color="#d97706" />
+              <Text style={[styles.metricVal, { color: colors.text.primary }]}>{stats?.sizeEstMB ?? 0}</Text>
+              <Text style={[styles.metricLbl, { color: colors.text.tertiary }]}>ميغابايت</Text>
             </View>
           </View>
         </View>
@@ -590,6 +646,31 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 17, fontWeight: 'bold' },
 
   scroll: { flex: 1, paddingVertical: 12 },
+  breadcrumbCard: {
+    marginHorizontal: 16,
+    marginBottom: 10,
+    paddingHorizontal: 4,
+  },
+  breadcrumbRow: {
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 2,
+  },
+  breadcrumbMain: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  breadcrumbSep: {
+    fontSize: 12,
+  },
+  breadcrumbSub: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  breadcrumbHint: {
+    fontSize: 10,
+    lineHeight: 14,
+  },
   banner: {
     marginHorizontal: 16,
     marginBottom: 16,
