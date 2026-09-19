@@ -91,12 +91,12 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
       {/* 1. TOP ROW: GIANT PRICE DISPLAY (85%) + SETTLE BUTTON (15%) */}
       <div className="w-full flex items-stretch gap-2">
         {/* The Classic LED Digital Total Display (شاشة عرض السعر الكبرى - 85%) */}
-        <div className="w-[85%] flex-1 bg-black/95 dark:bg-black rounded-2xl border-2 border-emerald-500/40 px-3.5 sm:px-5 py-2 shadow-2xl flex items-center justify-between gap-3 overflow-hidden relative">
+        <div className="w-[85%] flex-1 bg-black/95 dark:bg-black rounded-2xl border-2 border-emerald-500/40 px-3.5 sm:px-6 py-3 sm:py-3.5 min-h-[74px] sm:min-h-[82px] shadow-2xl flex items-center justify-between gap-2 sm:gap-4 overflow-hidden relative">
           {/* Subtle glowing ambient effect */}
           <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 via-teal-500/10 to-transparent pointer-events-none" />
 
-          {/* Right side in RTL: Cart metadata & indicators */}
-          <div className="flex items-center gap-2 sm:gap-3 relative z-10 min-w-0">
+          {/* Right wing in RTL: Cart metadata & indicators (flex-1) */}
+          <div className="flex items-center gap-2 sm:gap-2.5 relative z-10 min-w-0 flex-1 justify-start">
             <div className="px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-700/80 shrink-0">
               <span className="text-[10px] font-mono font-bold text-slate-400 block leading-tight">الإجمالي الكلي:</span>
               <span className="text-xs font-mono font-bold text-emerald-400 block leading-tight">
@@ -110,21 +110,28 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
                 <span className="truncate max-w-[120px]">{selectedCustomerName}</span>
               </div>
             )}
+          </div>
 
+          {/* Exact Center: Giant glowing LED total amount (+15% larger & centered) */}
+          <div className="flex items-baseline justify-center gap-2 relative z-10 shrink-0 px-2 text-center" dir="ltr">
+            <span className="text-3xl sm:text-4xl md:text-5xl font-black font-mono text-emerald-400 tracking-wider drop-shadow-[0_0_20px_rgba(52,211,153,0.7)]">
+              {formatMoney(totalAmount)}
+            </span>
+            <span className="text-sm sm:text-lg font-black text-emerald-500">{currency}</span>
+          </div>
+
+          {/* Left wing in RTL: Discount & LED status pill (flex-1) */}
+          <div className="flex items-center gap-2 relative z-10 min-w-0 flex-1 justify-end">
             {discountAmount > 0 && (
-              <div className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[11px] font-bold shrink-0">
+              <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 text-xs font-bold shrink-0">
                 <span>تخفيض:</span>
                 <span className="font-mono">-{formatMoney(discountAmount)}</span>
               </div>
             )}
-          </div>
-
-          {/* Left side in RTL: Giant glowing LED total amount */}
-          <div className="text-left flex items-baseline gap-1.5 sm:gap-2 relative z-10 shrink-0" dir="ltr">
-            <span className="text-2xl sm:text-3xl md:text-4xl font-black font-mono text-emerald-400 tracking-wider drop-shadow-[0_0_16px_rgba(52,211,153,0.6)]">
-              {formatMoney(totalAmount)}
-            </span>
-            <span className="text-xs sm:text-base font-black text-emerald-500">{currency}</span>
+            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-700/80 text-[11px] font-mono font-bold text-slate-400 shrink-0">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>LED POS</span>
+            </div>
           </div>
         </div>
 
@@ -133,13 +140,13 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
           type="button"
           onClick={onSettleSale}
           disabled={cartLength === 0 || isSalePending}
-          className="w-[15%] min-w-[120px] rounded-2xl bg-gradient-to-br from-emerald-600 via-emerald-500 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs sm:text-sm flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 shadow-lg shadow-emerald-600/30 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all shrink-0 p-2"
+          className="w-[15%] min-w-[120px] min-h-[74px] sm:min-h-[82px] rounded-2xl bg-gradient-to-br from-emerald-600 via-emerald-500 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs sm:text-sm flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2 shadow-lg shadow-emerald-600/30 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all shrink-0 p-2"
           title="تأكيد البيع وتسوية الفاتورة (F1)"
         >
           <Receipt className="w-5 h-5 sm:w-6 sm:h-6 shrink-0 drop-shadow-xs" />
           <div className="flex flex-col items-center sm:items-start leading-tight">
-            <span className="font-extrabold text-xs sm:text-sm">تأكيد بيع</span>
-            <span className="bg-black/30 px-1.5 py-0.2 rounded text-[10px] font-mono font-bold">F1</span>
+            <span className="font-extrabold text-xs sm:text-base">تأكيد بيع</span>
+            <span className="bg-black/30 px-2 py-0.5 rounded text-[10px] font-mono font-bold mt-0.5">F1</span>
           </div>
         </button>
       </div>
