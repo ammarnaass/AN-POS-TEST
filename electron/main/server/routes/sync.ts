@@ -547,9 +547,9 @@ export async function registerSyncRoutes(server: FastifyInstance): Promise<void>
     }
   });
 
-  // تنظيف السجلات المحذوفة القديمة الأقدم من 90 يوماً
+  // تنظيف السجلات المحذوفة القديمة الأقدم من 30 يوماً لمنع تضخم قاعدة البيانات
   try {
-    execute("DELETE FROM sync_tombstones WHERE deleted_at < datetime('now', '-90 days')");
+    execute("DELETE FROM sync_tombstones WHERE deleted_at < datetime('now', '-30 days')");
   } catch {
     /* non-blocking */
   }

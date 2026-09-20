@@ -7,7 +7,6 @@ import {
   type ParsedSupplierInvoice,
 } from '@/services/pdf/supplierInvoicePdfParser';
 import { parseExcelSupplierInvoice } from '@/services/pdf/excelInvoiceParser';
-import { parseScannedSupplierInvoice } from '@/services/pdf/ocrInvoiceEngine';
 import { db } from '@/infrastructure/database/dexie/db';
 import { generateId } from '@/utils';
 import { syncProductCreate, syncProductUpdate } from '@/lib/products-sync';
@@ -86,9 +85,7 @@ export default function SupplierInvoicePdfModal({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  if (!open) return null;
-
-  // الحسابات المالية
+  // الحسابات المالية — تم وضعها قبل أي شرط خروج لضمان الالتزام بقواعد React Hooks
   const invoiceTotal = useMemo(() => {
     return items.reduce((sum, it) => sum + (Number(it.lineTotal) || 0), 0);
   }, [items]);
@@ -100,6 +97,8 @@ export default function SupplierInvoicePdfModal({
   const existingProductsCount = useMemo(() => {
     return items.filter((it) => !it.isNewProduct).length;
   }, [items]);
+
+  if (!open) return null;
 
   // معالجة ملف الفاتورة (PDF / صور / Excel)
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -138,6 +137,7 @@ export default function SupplierInvoicePdfModal({
           defaultMargin
         );
       } else if (isImage) {
+        const { parseScannedSupplierInvoice } = await import('@/services/pdf/ocrInvoiceEngine');
         result = await parseScannedSupplierInvoice(
           file,
           file.name,
@@ -668,6 +668,7 @@ export default function SupplierInvoicePdfModal({
                       setErrorMsg(null);
                       try {
                         const dummyBuf = new Uint8Array(10);
+                        const { parseScannedSupplierInvoice } = await import('@/services/pdf/ocrInvoiceEngine');
                         const result = await parseScannedSupplierInvoice(
                           dummyBuf,
                           'saadine_invoice.pdf',

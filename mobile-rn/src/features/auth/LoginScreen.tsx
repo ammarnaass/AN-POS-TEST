@@ -12,6 +12,7 @@ import {
   Platform,
   Image,
   useWindowDimensions,
+  BackHandler,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -31,12 +32,17 @@ import {
   Sparkles,
   CheckCircle2,
   Layers,
+  RotateCcw,
+  Crown,
+  Zap,
+  Check,
 } from 'lucide-react-native';
 import { useAuthStore } from '@/store/authStore';
 import { useI18n } from '@/store/i18nStore';
 import { AppImages } from '@/assets';
 import { db, ensureInit } from '@/lib/db';
-import { getStoredMode } from '@/infrastructure/database/UnifiedDB';
+import { getStoredMode, db as unifiedDB } from '@/infrastructure/database/UnifiedDB';
+import { TIER_QUOTAS, type SubscriptionTier } from '@/lib/subscriptionService';
 import { session } from '@/lib/apiClient';
 import { useTheme } from '@/theme';
 import { radii, spacing, typography, shadows } from '@/theme/tokens';
@@ -62,6 +68,7 @@ export const LoginScreen = ({ navigation }: any) => {
   const [activeServerUrl, setActiveServerUrl] = useState<string | null>(null);
   const [modeChecked, setModeChecked] = useState(false);
   const [view, setView] = useState<ViewMode>('login');
+  const [isFirstRun, setIsFirstRun] = useState(false);
   const [showPin, setShowPin] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -76,6 +83,53 @@ export const LoginScreen = ({ navigation }: any) => {
   const [regPhone, setRegPhone] = useState('');
   const [regPin, setRegPin] = useState('');
   const [regPinConfirm, setRegPinConfirm] = useState('');
+  const [selectedTier, setSelectedTier] = useState<SubscriptionTier>('free');
+
+  // Android hardware back button handler
+  useEffect(() => {
+    const onBackPress = () => {
+      if (view === 'register') {
+        if (isFirstRun) {
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+            return true;
+          }
+          navigation.replace('ModeSelect');
+          return true;
+        }
+        setView('login');
+        setSubmitError(null);
+        return true;
+      }
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+        return true;
+      }
+      return false;
+    };
+
+    const backSub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => backSub.remove();
+  }, [view, isFirstRun, navigation]);
+
+  const handleSwitchToStandalone = async () => {
+    try {
+      await unifiedDB.switchToStandalone();
+      setMode('standalone');
+      setActiveServerUrl(null);
+      setSubmitError(null);
+      const count = await db.users.count().catch(() => 0);
+      if (count === 0) {
+        setIsFirstRun(true);
+        setView('register');
+      } else {
+        setIsFirstRun(false);
+        setView('login');
+      }
+    } catch (e) {
+      console.warn('Switch to standalone error:', e);
+    }
+  };
 
   useEffect(() => {
     const detectMode = async () => {
@@ -90,6 +144,19 @@ export const LoginScreen = ({ navigation }: any) => {
           useAuthStore.setState({ serverUrl: null });
         }
         await ensureInit();
+
+        // Check if first-run in standalone mode (no users registered yet)
+        if (stored === 'standalone') {
+          const count = await db.users.count().catch(() => 0);
+          if (count === 0) {
+            setIsFirstRun(true);
+            setView('register');
+          } else {
+            setIsFirstRun(false);
+          }
+        } else {
+          setIsFirstRun(false);
+        }
       } catch (e) {
         console.warn('Initial DB init error:', e);
       } finally {
@@ -225,11 +292,27 @@ export const LoginScreen = ({ navigation }: any) => {
         phone: regPhone.trim(),
         role: 'admin',
         status: 'active',
+        subscription_tier: selectedTier,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
 
       await db.users.add(newUser);
+
+      // Save initial subscription tier & quota in settings
+      const settingsList = await db.settings.toArray().catch(() => []);
+      const baseQuota = TIER_QUOTAS[selectedTier] || 300;
+      if (settingsList.length > 0) {
+        await db.settings.update(settingsList[0].id, {
+          subscription_tier: selectedTier,
+          subscription_base_quota: baseQuota,
+          subscription_bonus_sales: 0,
+          subscription_used_sales: 0,
+          subscription_ads_watched: 0,
+          updated_at: new Date().toISOString(),
+        });
+      }
+
       useAuthStore.setState({ user: newUser as any, isAuthenticated: true, loading: false });
       Alert.alert(t('common.success'), `${t('auth.loginSuccess')} (${cleanName})`);
       navigation.replace('Home', { screen: 'Dashboard' });
@@ -335,37 +418,64 @@ export const LoginScreen = ({ navigation }: any) => {
     <View style={[styles.formWrapper, isLargeTabletLandscape && styles.tabletFormWrapper]}>
       {/* Top Bar inside card: Language button + Mode indicator */}
       <View style={[styles.cardTopRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-        {/* Compact Mode Pill */}
-        <TouchableOpacity
-          style={[
-            styles.modeHeaderTag,
-            {
-              backgroundColor: mode === 'connected'
-                ? (isDark ? 'rgba(34, 197, 94, 0.15)' : '#f0fdf4')
-                : (isDark ? 'rgba(59, 130, 246, 0.15)' : '#eff6ff'),
-              borderColor: mode === 'connected'
-                ? (isDark ? '#15803d' : '#86efac')
-                : (isDark ? '#1d4ed8' : '#bfdbfe'),
-              flexDirection: isRTL ? 'row-reverse' : 'row',
-            },
-          ]}
-          onPress={() => navigation.navigate('ModeSelect')}
-          activeOpacity={0.8}
-        >
-          {mode === 'connected' ? (
-            <View style={styles.connectedGreenDot} />
-          ) : (
-            <Store size={12} color={isDark ? '#60a5fa' : '#2563eb'} />
-          )}
-          <Text
+        {view === 'register' ? (
+          <TouchableOpacity
             style={[
-              styles.modeHeaderTagText,
-              { color: mode === 'connected' ? (isDark ? '#4ade80' : '#15803d') : (isDark ? '#93c5fd' : '#1d4ed8') },
+              styles.headerBackBtn,
+              {
+                backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#eff6ff',
+                borderColor: isDark ? '#1d4ed8' : '#bfdbfe',
+                flexDirection: isRTL ? 'row' : 'row-reverse',
+              },
             ]}
+            onPress={() => {
+              if (isFirstRun) {
+                if (navigation.canGoBack()) navigation.goBack();
+                else navigation.replace('ModeSelect');
+              } else {
+                setView('login');
+                setSubmitError(null);
+              }
+            }}
+            activeOpacity={0.8}
           >
-            {mode === 'connected' ? t('modeSelect.connectedTitle') : t('modeSelect.standaloneTitle')}
-          </Text>
-        </TouchableOpacity>
+            <SubmitArrow size={16} color={isDark ? '#60a5fa' : '#2563eb'} />
+            <Text style={[styles.headerBackBtnText, { color: isDark ? '#60a5fa' : '#2563eb' }]}>
+              {isFirstRun ? (t('common.back') || 'رجوع') : t('auth.backToLogin')}
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[
+              styles.modeHeaderTag,
+              {
+                backgroundColor: mode === 'connected'
+                  ? (isDark ? 'rgba(34, 197, 94, 0.15)' : '#f0fdf4')
+                  : (isDark ? 'rgba(59, 130, 246, 0.15)' : '#eff6ff'),
+                borderColor: mode === 'connected'
+                  ? (isDark ? '#15803d' : '#86efac')
+                  : (isDark ? '#1d4ed8' : '#bfdbfe'),
+                flexDirection: isRTL ? 'row-reverse' : 'row',
+              },
+            ]}
+            onPress={() => navigation.navigate('ModeSelect')}
+            activeOpacity={0.8}
+          >
+            {mode === 'connected' ? (
+              <View style={styles.connectedGreenDot} />
+            ) : (
+              <Store size={12} color={isDark ? '#60a5fa' : '#2563eb'} />
+            )}
+            <Text
+              style={[
+                styles.modeHeaderTagText,
+                { color: mode === 'connected' ? (isDark ? '#4ade80' : '#15803d') : (isDark ? '#93c5fd' : '#1d4ed8') },
+              ]}
+            >
+              {mode === 'connected' ? t('modeSelect.connectedTitle') : t('modeSelect.standaloneTitle')}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {/* Language quick switcher */}
         <LanguageQuickButton />
@@ -517,6 +627,65 @@ export const LoginScreen = ({ navigation }: any) => {
             </View>
           ) : null}
 
+          {/* Connected Mode Server Offline Recovery Options */}
+          {submitError && mode === 'connected' && (
+            <View style={styles.offlineRecoveryActions}>
+              <TouchableOpacity
+                style={[
+                  styles.offlineRecoveryBtn,
+                  {
+                    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#eff6ff',
+                    borderColor: isDark ? '#1d4ed8' : '#bfdbfe',
+                    flexDirection: isRTL ? 'row-reverse' : 'row',
+                  },
+                ]}
+                onPress={handleLogin}
+                activeOpacity={0.8}
+              >
+                <RotateCcw size={14} color={isDark ? '#60a5fa' : '#2563eb'} />
+                <Text style={[styles.offlineRecoveryBtnText, { color: isDark ? '#93c5fd' : '#1d4ed8' }]}>
+                  {t('auth.retryConnection')}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.offlineRecoveryBtn,
+                  {
+                    backgroundColor: isDark ? '#1e293b' : '#f8fafc',
+                    borderColor: borderColor,
+                    flexDirection: isRTL ? 'row-reverse' : 'row',
+                  },
+                ]}
+                onPress={handleSwitchToStandalone}
+                activeOpacity={0.8}
+              >
+                <Store size={14} color={colors.text.primary} />
+                <Text style={[styles.offlineRecoveryBtnText, { color: colors.text.primary }]}>
+                  {t('auth.switchToStandalone')}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.offlineRecoveryBtn,
+                  {
+                    backgroundColor: isDark ? '#1e293b' : '#f8fafc',
+                    borderColor: borderColor,
+                    flexDirection: isRTL ? 'row-reverse' : 'row',
+                  },
+                ]}
+                onPress={() => navigation.navigate('Pair', { initialTab: 'discover' })}
+                activeOpacity={0.8}
+              >
+                <Wifi size={14} color={colors.text.secondary} />
+                <Text style={[styles.offlineRecoveryBtnText, { color: colors.text.secondary }]}>
+                  {t('auth.checkServerSettings')}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           {/* Primary Submit Button */}
           <TouchableOpacity
             style={[
@@ -587,6 +756,23 @@ export const LoginScreen = ({ navigation }: any) => {
       ) : (
         /* Register View */
         <View style={styles.formSection}>
+          {isFirstRun && (
+            <View
+              style={[
+                styles.firstRunCard,
+                {
+                  backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#eff6ff',
+                  borderColor: isDark ? '#1d4ed8' : '#bfdbfe',
+                  flexDirection: isRTL ? 'row-reverse' : 'row',
+                },
+              ]}
+            >
+              <Sparkles size={18} color={isDark ? '#60a5fa' : '#2563eb'} />
+              <Text style={[styles.firstRunText, { color: isDark ? '#93c5fd' : '#1d4ed8', textAlign: isRTL ? 'right' : 'left' }]}>
+                {t('auth.firstRunWelcome')}
+              </Text>
+            </View>
+          )}
           <View style={styles.inputGroup}>
             <Text style={[styles.fieldLabel, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
               {t('auth.fullName')}
@@ -672,6 +858,137 @@ export const LoginScreen = ({ navigation }: any) => {
             </View>
           </View>
 
+          {/* Subscription Tier Selection */}
+          <View style={styles.inputGroup}>
+            <Text style={[styles.fieldLabel, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
+              {t('subscription.selectPlan')}
+            </Text>
+            <View style={styles.planSelectorCol}>
+              {/* Free Plan */}
+              <TouchableOpacity
+                style={[
+                  styles.planOptionRow,
+                  {
+                    backgroundColor: inputBg,
+                    borderColor: selectedTier === 'free' ? colors.primary[500] : borderColor,
+                    flexDirection: isRTL ? 'row-reverse' : 'row',
+                  },
+                  selectedTier === 'free' && {
+                    backgroundColor: isDark ? 'rgba(37, 99, 235, 0.1)' : '#eff6ff',
+                    borderWidth: 2,
+                  },
+                ]}
+                onPress={() => setSelectedTier('free')}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.planOptionIconBox, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.2)' : '#dcfce7' }]}>
+                  <Sparkles size={18} color={colors.emerald[600]} />
+                </View>
+                <View style={{ flex: 1, alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
+                  <Text style={[styles.planOptionTitle, { color: colors.text.primary }]}>
+                    {t('subscription.free')} (300 {t('subscription.salesUnit')})
+                  </Text>
+                  <Text style={[styles.planOptionSub, { color: colors.text.secondary }]}>
+                    {t('subscription.freeDesc')}
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.radioCircle,
+                    {
+                      borderColor: selectedTier === 'free' ? colors.primary[600] : colors.border.default,
+                    },
+                    selectedTier === 'free' && { backgroundColor: colors.primary[600] },
+                  ]}
+                >
+                  {selectedTier === 'free' && <Check size={11} color="#fff" />}
+                </View>
+              </TouchableOpacity>
+
+              {/* Lite Plan */}
+              <TouchableOpacity
+                style={[
+                  styles.planOptionRow,
+                  {
+                    backgroundColor: inputBg,
+                    borderColor: selectedTier === 'lite' ? '#3b82f6' : borderColor,
+                    flexDirection: isRTL ? 'row-reverse' : 'row',
+                  },
+                  selectedTier === 'lite' && {
+                    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#eff6ff',
+                    borderWidth: 2,
+                  },
+                ]}
+                onPress={() => setSelectedTier('lite')}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.planOptionIconBox, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#dbeafe' }]}>
+                  <Zap size={18} color="#2563eb" />
+                </View>
+                <View style={{ flex: 1, alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
+                  <Text style={[styles.planOptionTitle, { color: colors.text.primary }]}>
+                    {t('subscription.lite')} (5,000 {t('subscription.salesUnit')})
+                  </Text>
+                  <Text style={[styles.planOptionSub, { color: colors.text.secondary }]}>
+                    {t('subscription.liteDesc')}
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.radioCircle,
+                    {
+                      borderColor: selectedTier === 'lite' ? '#2563eb' : colors.border.default,
+                    },
+                    selectedTier === 'lite' && { backgroundColor: '#2563eb' },
+                  ]}
+                >
+                  {selectedTier === 'lite' && <Check size={11} color="#fff" />}
+                </View>
+              </TouchableOpacity>
+
+              {/* Pro Plan */}
+              <TouchableOpacity
+                style={[
+                  styles.planOptionRow,
+                  {
+                    backgroundColor: inputBg,
+                    borderColor: selectedTier === 'pro' ? '#f59e0b' : borderColor,
+                    flexDirection: isRTL ? 'row-reverse' : 'row',
+                  },
+                  selectedTier === 'pro' && {
+                    backgroundColor: isDark ? 'rgba(245, 158, 11, 0.1)' : '#fef3c7',
+                    borderWidth: 2,
+                  },
+                ]}
+                onPress={() => setSelectedTier('pro')}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.planOptionIconBox, { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.2)' : '#fde68a' }]}>
+                  <Crown size={18} color="#d97706" />
+                </View>
+                <View style={{ flex: 1, alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
+                  <Text style={[styles.planOptionTitle, { color: colors.text.primary }]}>
+                    {t('subscription.pro')} (100,000 {t('subscription.salesUnit')})
+                  </Text>
+                  <Text style={[styles.planOptionSub, { color: colors.text.secondary }]}>
+                    {t('subscription.proDesc')}
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.radioCircle,
+                    {
+                      borderColor: selectedTier === 'pro' ? '#d97706' : colors.border.default,
+                    },
+                    selectedTier === 'pro' && { backgroundColor: '#d97706' },
+                  ]}
+                >
+                  {selectedTier === 'pro' && <Check size={11} color="#fff" />}
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+
           {submitError ? (
             <View style={[styles.errorBanner, { backgroundColor: colors.danger.light, borderColor: colors.danger.border, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <AlertCircle size={16} color={colors.danger.main} />
@@ -699,21 +1016,38 @@ export const LoginScreen = ({ navigation }: any) => {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.switchViewBtn}
-            onPress={() => {
-              setView('login');
-              setSubmitError(null);
-            }}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.switchViewText, { color: colors.text.secondary, fontSize: isSmallPhone ? 12 : 13 }]}>
-              {t('auth.haveAccount')}{' '}
-              <Text style={{ color: isDark ? '#60a5fa' : '#2563eb', fontWeight: '700' }}>
-                {t('auth.loginButton')}
+          {!isFirstRun ? (
+            <TouchableOpacity
+              style={styles.switchViewBtn}
+              onPress={() => {
+                setView('login');
+                setSubmitError(null);
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.switchViewText, { color: colors.text.secondary, fontSize: isSmallPhone ? 12 : 13 }]}>
+                {t('auth.haveAccount')}{' '}
+                <Text style={{ color: isDark ? '#60a5fa' : '#2563eb', fontWeight: '700' }}>
+                  {t('auth.loginButton')}
+                </Text>
               </Text>
-            </Text>
-          </TouchableOpacity>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.switchViewBtn}
+              onPress={() => {
+                if (navigation.canGoBack()) navigation.goBack();
+                else navigation.replace('ModeSelect');
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.switchViewText, { color: colors.text.secondary, fontSize: isSmallPhone ? 12 : 13 }]}>
+                <Text style={{ color: isDark ? '#60a5fa' : '#2563eb', fontWeight: '700' }}>
+                  {t('modeSelect.welcomeTitle') || 'الرجوع لاختيار الوضع'}
+                </Text>
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
     </View>
@@ -1035,6 +1369,91 @@ const styles = StyleSheet.create({
   switchViewText: {
     fontSize: 12.5,
     fontFamily: 'Cairo',
+  },
+  headerBackBtn: {
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: radii.full,
+    borderWidth: 1,
+  },
+  headerBackBtnText: {
+    fontSize: 12,
+    fontFamily: 'Cairo',
+    fontWeight: '700',
+  },
+  firstRunCard: {
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 8,
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  firstRunText: {
+    flex: 1,
+    fontSize: 12.5,
+    fontFamily: 'Cairo',
+    fontWeight: '600',
+    lineHeight: 18,
+  },
+  offlineRecoveryActions: {
+    gap: 8,
+    marginTop: 4,
+    width: '100%',
+  },
+  offlineRecoveryBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  offlineRecoveryBtnText: {
+    fontSize: 12.5,
+    fontFamily: 'Cairo',
+    fontWeight: '700',
+  },
+  planSelectorCol: {
+    gap: 8,
+    marginTop: 4,
+    width: '100%',
+  },
+  planOptionRow: {
+    padding: 10,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    alignItems: 'center',
+    gap: 10,
+  },
+  planOptionIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: radii.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  planOptionTitle: {
+    fontSize: 13.5,
+    fontFamily: 'Cairo',
+    fontWeight: '700',
+  },
+  planOptionSub: {
+    fontSize: 11,
+    fontFamily: 'Cairo',
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  radioCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: radii.full,
+    borderWidth: 1.5,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

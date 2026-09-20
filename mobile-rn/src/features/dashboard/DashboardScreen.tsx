@@ -15,71 +15,75 @@ import {
   AlertCircle,
   TrendingUp,
   Wallet,
-  Calculator,
   Receipt,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Truck,
   ArrowDownLeft,
   ArrowUpRight,
   Clock,
   ScanBarcode,
-  FileText,
   Coins,
   Store,
   Users,
-  Sparkles,
-  ArrowLeft,
-  ArrowRight,
-  FlaskConical,
-  BarChart3,
-  Barcode,
-  Printer,
   Plus,
   RefreshCw,
   Warehouse,
   ClipboardCheck,
   History,
-  Tag,
-  Layers,
-  CheckCircle2,
+  BarChart3,
+  Barcode,
+  Calculator,
   Lock,
-  Unlock,
-  Sliders,
   MonitorSmartphone,
+  ShoppingBag,
+  Sparkles,
+  Crown,
+  Zap,
+  Tv,
 } from 'lucide-react-native';
 import { db, ensureInit } from '@/lib/db';
+import { db as unifiedDB } from '@/infrastructure/database/UnifiedDB';
+import { useSyncEngine } from '@/lib/syncEngine';
 import CameraScanner from '@/features/barcode/CameraScanner';
 import type { Product, Sale, Customer, Supplier, CashSession } from '@shared/types';
 import { useAuthStore } from '@/store/authStore';
 import { useTheme } from '@/theme';
 import { useI18n } from '@/store/i18nStore';
-import { radii, spacing, typography, shadows } from '@/theme/tokens';
-import { Card, CardHeader, CardTitle, CardContent, Badge, Button, Skeleton } from '@/components/ui';
+import { radii, spacing, shadows } from '@/theme/tokens';
+import { Card, Badge, Skeleton } from '@/components/ui';
 import { getStoreSettings, type StoreSettings } from '@/lib/settingService';
+import { useSubscriptionStore } from '@/store/subscriptionStore';
+import RewardAdModal from '@/components/subscription/RewardAdModal';
 
 export const DashboardScreen = ({ navigation }: any) => {
   const { user } = useAuthStore();
   const { isDark, colors } = useTheme();
   const { t, isRTL, textAlign, currency, language } = useI18n();
+  const { connectionMode } = useSyncEngine();
+  const isConnectedMode = connectionMode === 'connected' || unifiedDB.getMode() === 'connected';
   const localeStr = language === 'ar' ? 'ar-DZ' : language === 'fr' ? 'fr-FR' : 'en-US';
   const ChevronIcon = isRTL ? ChevronLeft : ChevronRight;
-  const UpgradeArrow = isRTL ? ArrowLeft : ArrowRight;
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
+  const [showAdvancedTools, setShowAdvancedTools] = useState(false);
 
   const [products, setProducts] = useState<Product[]>([]);
   const [todaySales, setTodaySales] = useState<Sale[]>([]);
-  const [allSalesCount, setAllSalesCount] = useState(0);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [currentSession, setCurrentSession] = useState<CashSession | null>(null);
   const [storeSettings, setStoreSettings] = useState<StoreSettings | null>(null);
+  const [showRewardAdModal, setShowRewardAdModal] = useState(false);
+  const { status: subscriptionStatus, refreshStatus: refreshSubscriptionStatus } = useSubscriptionStore();
 
   useEffect(() => {
     loadDashboardData();
+    refreshSubscriptionStatus().catch(() => {});
   }, []);
 
   async function loadDashboardData() {
@@ -104,7 +108,6 @@ export const DashboardScreen = ({ navigation }: any) => {
 
       setProducts(allProducts);
       setTodaySales(todayFiltered);
-      setAllSalesCount(allSales.length);
       setCustomers(allCustomers);
       setSuppliers(allSuppliers);
       setCurrentSession(openSession);
@@ -117,7 +120,10 @@ export const DashboardScreen = ({ navigation }: any) => {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadDashboardData();
+    await Promise.all([
+      loadDashboardData(),
+      refreshSubscriptionStatus().catch(() => {}),
+    ]);
     setRefreshing(false);
   };
 
@@ -237,11 +243,8 @@ export const DashboardScreen = ({ navigation }: any) => {
 
       const foundCount = codes.filter((c) => {
         const norm = c.trim().toLowerCase();
-        // check primary or sku
         if (allProds.some((p: any) => (p.barcode && String(p.barcode).toLowerCase() === norm) || (p.sku && String(p.sku).toLowerCase() === norm))) return true;
-        // check secondary
         if (allSec.some((b: any) => b.barcode && String(b.barcode).toLowerCase() === norm)) return true;
-        // check custom price barcodes
         return allProds.some((p: any) => {
           const rawCP = (p as any).custom_prices ?? (p as any).customPrices;
           if (!rawCP) return false;
@@ -319,9 +322,20 @@ export const DashboardScreen = ({ navigation }: any) => {
 
   const netFinancialPosition = totalCustomerDebt - totalSupplierDebt;
 
-  // Dynamic greeting based on current hour
   const currentHour = new Date().getHours();
   const greetingText = currentHour < 12 ? t('dashboard.greetingMorning') : t('dashboard.greetingEvening');
+
+  const todayFormattedDate = useMemo(() => {
+    try {
+      return new Date().toLocaleDateString(localeStr, {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+      });
+    } catch {
+      return '';
+    }
+  }, [localeStr]);
 
   if (loading && !refreshing) {
     return (
@@ -329,13 +343,10 @@ export const DashboardScreen = ({ navigation }: any) => {
         style={[styles.container, { backgroundColor: colors.background }]}
         contentContainerStyle={styles.content}
       >
-        <Skeleton height={80} borderRadius={radii.xxl} />
-        <Skeleton height={70} borderRadius={radii.xl} />
-        <View style={[styles.hubGrid, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-          <Skeleton height={110} borderRadius={radii.xl} style={{ flex: 1 }} />
-          <Skeleton height={110} borderRadius={radii.xl} style={{ flex: 1 }} />
-        </View>
-        <Skeleton height={140} borderRadius={radii.xxl} />
+        <Skeleton height={68} borderRadius={radii.xl} />
+        <Skeleton height={170} borderRadius={radii.xxl} />
+        <Skeleton height={110} borderRadius={radii.xl} />
+        <Skeleton height={180} borderRadius={radii.xl} />
       </ScrollView>
     );
   }
@@ -347,184 +358,371 @@ export const DashboardScreen = ({ navigation }: any) => {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       showsVerticalScrollIndicator={false}
     >
-      {/* ── 1. Store Header & Greeting Hero Bento ── */}
+      {/* ── 1. Header Pulse & Integrated Shift Banner ── */}
       <View
         style={[
-          styles.headerHeroCard,
+          styles.pulseCard,
           {
             backgroundColor: colors.surface,
             borderColor: colors.border.default,
-            flexDirection: isRTL ? 'row-reverse' : 'row',
           },
         ]}
       >
-        <View style={[styles.headerStoreIdentity, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-          {/* Store Logo Avatar */}
-          <TouchableOpacity
-            style={[
-              styles.headerLogoAvatar,
-              {
-                backgroundColor: isDark ? colors.surfaceElevated : colors.primary[50],
-                borderColor: storeSettings?.logo ? colors.primary[400] : colors.border.default,
-              },
-            ]}
-            onPress={() => navigation.navigate('More')}
-            activeOpacity={0.75}
-          >
-            {storeSettings?.logo ? (
-              <Image source={{ uri: storeSettings.logo }} style={styles.headerLogoImg} resizeMode="cover" />
-            ) : (
-              <Store size={22} color={colors.primary[600]} />
-            )}
-          </TouchableOpacity>
-
-          <View style={[styles.headerGreetingCol, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
-            <Text style={[styles.headerGreetingText, { color: colors.text.tertiary }]}>
+        {/* Top Greeting & Date Row */}
+        <View style={[styles.pulseTopRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+          <View style={[styles.pulseGreetingCol, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+            <Text style={[styles.pulseGreetingText, { color: colors.text.primary }]}>
               {greetingText}
             </Text>
-            <Text style={[styles.headerStoreName, { color: colors.text.primary }]}>
-              {storeSettings?.shop_name || storeSettings?.store_name || user?.name || 'AN POS'}
+            <Text style={[styles.pulseDateText, { color: colors.text.tertiary }]}>
+              {todayFormattedDate} {storeSettings?.shop_name ? `• ${storeSettings.shop_name}` : ''}
             </Text>
           </View>
-        </View>
-
-        {/* Header Action Buttons (Quick Scan & Reload) */}
-        <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 8 }}>
-          <TouchableOpacity
-            style={[styles.headerIconBtn, { backgroundColor: isDark ? colors.surfaceElevated : colors.primary[50] }]}
-            onPress={() => setShowScanner(true)}
-            activeOpacity={0.75}
-          >
-            <ScanBarcode size={19} color={colors.primary[600]} />
-          </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.headerIconBtn, { backgroundColor: isDark ? colors.surfaceElevated : colors.slate[100] }]}
+            style={[styles.pulseRefreshBtn, { backgroundColor: isDark ? colors.surfaceElevated : colors.slate[100] }]}
             onPress={onRefresh}
             activeOpacity={0.75}
           >
-            <RefreshCw size={17} color={colors.text.secondary} />
+            <RefreshCw size={15} color={colors.text.secondary} />
           </TouchableOpacity>
         </View>
+
+        {/* Live Cash Shift Strip */}
+        <TouchableOpacity
+          activeOpacity={0.82}
+          style={[
+            styles.shiftStrip,
+            {
+              backgroundColor: currentSession
+                ? (isDark ? 'rgba(16, 185, 129, 0.08)' : '#f0fdf4')
+                : (isDark ? colors.surfaceElevated : colors.surfaceSubtle),
+              borderColor: currentSession
+                ? (isDark ? colors.emerald[800] : colors.emerald[200])
+                : (isDark ? colors.border.default : colors.slate[200]),
+              flexDirection: isRTL ? 'row-reverse' : 'row',
+            },
+          ]}
+          onPress={() => navigation.navigate('Cash')}
+        >
+          <View style={[styles.shiftStripLeft, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+            <View
+              style={[
+                styles.shiftStripIconBox,
+                {
+                  backgroundColor: currentSession
+                    ? (isDark ? 'rgba(16, 185, 129, 0.2)' : colors.emerald[100])
+                    : (isDark ? 'rgba(239, 68, 68, 0.15)' : colors.danger.light),
+                },
+              ]}
+            >
+              {currentSession ? (
+                <Wallet size={16} color={colors.emerald[700]} />
+              ) : (
+                <Lock size={15} color={colors.danger.main} />
+              )}
+            </View>
+
+            <View style={[styles.shiftStripInfo, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+              <Text style={[styles.shiftStripTitle, { color: colors.text.primary }]}>
+                {currentSession
+                  ? `${t('cash.currentShift')} #${currentSession.sessionNumber || (currentSession as any).number || 1}`
+                  : t('dashboard.closedShift')}
+              </Text>
+              <Text style={[styles.shiftStripSub, { color: colors.text.secondary }]}>
+                {currentSession
+                  ? `${t('pos.cashierDefault')}: ${currentSession.openedBy || (currentSession as any).opened_by || '—'}`
+                  : t('dashboard.openShiftSub')}
+              </Text>
+            </View>
+          </View>
+
+          <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 4 }}>
+            <Badge
+              variant={currentSession ? 'emerald' : 'danger'}
+              size="xs"
+              dot={Boolean(currentSession)}
+            >
+              {currentSession ? t('pos.openShiftActive') : t('dashboard.openShiftCta')}
+            </Badge>
+            <ChevronIcon size={15} color={colors.text.tertiary} />
+          </View>
+        </TouchableOpacity>
       </View>
 
-      {/* ── 2. Active Cash Shift Live Status Banner ── */}
-      <TouchableOpacity
-        activeOpacity={0.85}
-        style={[
-          styles.shiftHeroBanner,
-          {
-            backgroundColor: currentSession
-              ? (isDark ? 'rgba(16, 185, 129, 0.08)' : '#f0fdf4')
-              : (isDark ? colors.surfaceElevated : colors.surface),
-            borderColor: currentSession
-              ? (isDark ? colors.emerald[800] : colors.emerald[300])
-              : (isDark ? colors.border.default : colors.slate[200]),
-            flexDirection: isRTL ? 'row-reverse' : 'row',
-          },
-        ]}
-        onPress={() => navigation.navigate('Cash')}
-      >
-        <View style={[styles.shiftHeroRight, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-          <View
-            style={[
-              styles.shiftHeroIconBox,
-              {
-                backgroundColor: currentSession
-                  ? (isDark ? 'rgba(16, 185, 129, 0.2)' : colors.emerald[100])
-                  : (isDark ? 'rgba(239, 68, 68, 0.15)' : colors.danger.light),
-                borderColor: currentSession
-                  ? (isDark ? 'rgba(16, 185, 129, 0.3)' : colors.emerald[200])
-                  : colors.danger.border,
-              },
-            ]}
-          >
-            {currentSession ? (
-              <Wallet size={20} color={colors.emerald[700]} />
-            ) : (
-              <Lock size={19} color={colors.danger.main} />
-            )}
-          </View>
-
-          <View style={[styles.shiftHeroInfo, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
-            <Text style={[styles.shiftHeroTitle, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
-              {currentSession
-                ? `${t('cash.currentShift')} #${currentSession.sessionNumber || (currentSession as any).number || 1}`
-                : t('dashboard.closedShift')}
-            </Text>
-            <Text
-              style={[styles.shiftHeroSub, { color: colors.text.secondary, textAlign: isRTL ? 'right' : 'left' }]}
+      {/* ── Standalone Subscription Quota Banner ── */}
+      {!isConnectedMode && (
+        <View
+          style={[
+            styles.subBannerCard,
+            {
+              backgroundColor: colors.surface,
+              borderColor:
+                (subscriptionStatus?.remainingSales ?? 300) < 20
+                  ? colors.danger.main
+                  : subscriptionStatus?.tier === 'pro'
+                  ? '#f59e0b'
+                  : subscriptionStatus?.tier === 'lite'
+                  ? '#3b82f6'
+                  : colors.border.default,
+            },
+          ]}
+        >
+          <View style={[styles.subBannerTop, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+            <TouchableOpacity
+              style={[styles.subBannerLeft, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
+              onPress={() => navigation.navigate('Subscription')}
+              activeOpacity={0.8}
             >
-              {currentSession
-                ? `${t('pos.cashierDefault')}: ${currentSession.openedBy || (currentSession as any).opened_by || '—'}`
-                : t('dashboard.openShiftSub')}
-            </Text>
-          </View>
-        </View>
+              <View
+                style={[
+                  styles.subIconBox,
+                  {
+                    backgroundColor:
+                      subscriptionStatus?.tier === 'pro'
+                        ? (isDark ? 'rgba(245, 158, 11, 0.2)' : '#fef3c7')
+                        : subscriptionStatus?.tier === 'lite'
+                        ? (isDark ? 'rgba(59, 130, 246, 0.2)' : '#dbeafe')
+                        : (isDark ? 'rgba(16, 185, 129, 0.2)' : '#dcfce7'),
+                  },
+                ]}
+              >
+                {subscriptionStatus?.tier === 'pro' ? (
+                  <Crown size={17} color="#d97706" />
+                ) : subscriptionStatus?.tier === 'lite' ? (
+                  <Zap size={17} color="#2563eb" />
+                ) : (
+                  <Sparkles size={17} color={colors.emerald[600]} />
+                )}
+              </View>
 
-        <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }}>
-          <Badge
-            variant={currentSession ? 'emerald' : 'danger'}
-            size="xs"
-            dot={Boolean(currentSession)}
-          >
-            {currentSession ? t('pos.openShiftActive') : t('dashboard.openShiftCta')}
-          </Badge>
-          <ChevronIcon size={16} color={colors.text.tertiary} />
-        </View>
-      </TouchableOpacity>
+              <View style={{ alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
+                <Text style={[styles.subTierTitle, { color: colors.text.primary }]}>
+                  {subscriptionStatus?.tier === 'pro'
+                    ? t('subscription.pro')
+                    : subscriptionStatus?.tier === 'lite'
+                    ? t('subscription.lite')
+                    : t('subscription.free')}
+                </Text>
+                <Text style={[styles.subQuotaSubtitle, { color: colors.text.secondary }]}>
+                  {t('subscription.salesRemaining')}:{' '}
+                  <Text
+                    style={{
+                      fontWeight: '800',
+                      color:
+                        (subscriptionStatus?.remainingSales ?? 300) < 20
+                          ? colors.danger.main
+                          : colors.emerald[600],
+                    }}
+                  >
+                    {subscriptionStatus?.remainingSales ?? 300}
+                  </Text>{' '}
+                  / {subscriptionStatus?.totalQuota ?? 300} {t('subscription.salesUnit')}
+                </Text>
+              </View>
+            </TouchableOpacity>
 
-      {/* ── 3. Today's Financial Summary Hero Bento ── */}
-      <Card variant="elevated" style={styles.todayFinancialHeroCard}>
-        <View style={[styles.todayFinancialHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-          <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }}>
-            <View style={[styles.todayIconPill, { backgroundColor: colors.emerald[50] }]}>
-              <TrendingUp size={16} color={colors.emerald[700]} />
+            <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }}>
+              {subscriptionStatus?.tier === 'free' ? (
+                <TouchableOpacity
+                  style={[
+                    styles.subAdActionBtn,
+                    { backgroundColor: colors.primary[600], flexDirection: isRTL ? 'row-reverse' : 'row' },
+                  ]}
+                  onPress={() => setShowRewardAdModal(true)}
+                  activeOpacity={0.85}
+                >
+                  <Tv size={13} color="#ffffff" />
+                  <Text style={styles.subAdActionBtnText}>+20 مبيعة</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.subUpgradeMiniBtn, { backgroundColor: colors.primary[50], borderColor: colors.primary[200] }]}
+                  onPress={() => navigation.navigate('Subscription')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.subUpgradeMiniBtnText, { color: colors.primary[700] }]}>
+                    {t('subscription.upgradePlan')}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity onPress={() => navigation.navigate('Subscription')}>
+                <ChevronIcon size={16} color={colors.text.tertiary} />
+              </TouchableOpacity>
             </View>
-            <Text style={[styles.todayHeroLabel, { color: colors.text.secondary }]}>
-              {t('dashboard.todaySales')}
-            </Text>
           </View>
 
-          <Badge variant="emerald" size="sm">
+          {/* Mini progress bar */}
+          <View style={[styles.subMiniProgressTrack, { backgroundColor: isDark ? colors.surfaceElevated : colors.slate[200] }]}>
+            <View
+              style={[
+                styles.subMiniProgressFill,
+                {
+                  width: `${Math.max(
+                    3,
+                    100 -
+                      (subscriptionStatus && subscriptionStatus.totalQuota > 0
+                        ? Math.min(100, Math.round((subscriptionStatus.usedSales / subscriptionStatus.totalQuota) * 100))
+                        : 0)
+                  )}%`,
+                  backgroundColor:
+                    (subscriptionStatus?.remainingSales ?? 300) < 20 ? colors.danger.main : colors.primary[500],
+                },
+              ]}
+            />
+          </View>
+        </View>
+      )}
+
+      {/* ── 2. Unified Financial Bento Board ── */}
+      <Card variant="elevated" style={styles.financialBentoCard}>
+        {/* Main Revenue Hero Display */}
+        <View style={[styles.bentoHeroRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+          <View style={{ flex: 1, alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
+            <View style={[styles.bentoTagRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <View style={[styles.bentoIconBadge, { backgroundColor: colors.emerald[50] }]}>
+                <TrendingUp size={15} color={colors.emerald[700]} />
+              </View>
+              <Text style={[styles.bentoHeroLabel, { color: colors.text.secondary }]}>
+                {t('dashboard.todaySales')}
+              </Text>
+            </View>
+
+            <View style={[styles.bentoAmountRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <Text style={[styles.bentoAmountValue, { color: colors.text.primary }]}>
+                {todayRevenue.toLocaleString(localeStr)}
+              </Text>
+              <Text style={[styles.bentoAmountCurrency, { color: colors.primary[600] }]}>
+                {currency}
+              </Text>
+            </View>
+          </View>
+
+          <Badge variant="emerald" size="sm" style={styles.salesCountBadge}>
             {todaySales.length} {t('sales.sales')}
           </Badge>
         </View>
 
-        <View style={[styles.todayRevenueRow, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
-          <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'baseline', gap: 6 }}>
-            <Text style={[styles.todayRevenueValue, { color: colors.text.primary }]}>
-              {todayRevenue.toLocaleString(localeStr)}
-            </Text>
-            <Text style={[styles.todayRevenueCurrency, { color: colors.primary[600] }]}>
-              {currency}
+        {/* 4-Chip Metrics Sub-Grid */}
+        <View style={styles.metricsGrid}>
+          {/* Items Sold */}
+          <View
+            style={[
+              styles.metricChip,
+              {
+                backgroundColor: isDark ? colors.surfaceSubtle : colors.slate[50],
+                alignItems: isRTL ? 'flex-end' : 'flex-start',
+              },
+            ]}
+          >
+            <View style={[styles.chipHeaderRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <ShoppingCart size={13} color={colors.emerald[600]} />
+              <Text style={[styles.metricChipLabel, { color: colors.text.tertiary }]}>
+                {t('dashboard.itemsSoldToday')}
+              </Text>
+            </View>
+            <Text style={[styles.metricChipValue, { color: colors.emerald[600] }]}>
+              {todayItemsSold} <Text style={styles.metricChipUnit}>{t('sales.itemsCount')}</Text>
             </Text>
           </View>
+
+          {/* Products Count */}
+          <View
+            style={[
+              styles.metricChip,
+              {
+                backgroundColor: isDark ? colors.surfaceSubtle : colors.slate[50],
+                alignItems: isRTL ? 'flex-end' : 'flex-start',
+              },
+            ]}
+          >
+            <View style={[styles.chipHeaderRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <Package size={13} color={colors.primary[600]} />
+              <Text style={[styles.metricChipLabel, { color: colors.text.tertiary }]}>
+                {t('inventory.products')}
+              </Text>
+            </View>
+            <Text style={[styles.metricChipValue, { color: colors.primary[600] }]}>
+              {products.length} <Text style={styles.metricChipUnit}>{t('common.total')}</Text>
+            </Text>
+          </View>
+
+          {/* Customer Debts */}
+          <TouchableOpacity
+            activeOpacity={0.75}
+            onPress={() => navigation.navigate('Customers')}
+            style={[
+              styles.metricChip,
+              {
+                backgroundColor: isDark ? colors.surfaceSubtle : colors.slate[50],
+                alignItems: isRTL ? 'flex-end' : 'flex-start',
+              },
+            ]}
+          >
+            <View style={[styles.chipHeaderRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <ArrowDownLeft size={13} color={colors.emerald[600]} />
+              <Text style={[styles.metricChipLabel, { color: colors.text.tertiary }]}>
+                {t('dashboard.customerDebts')}
+              </Text>
+            </View>
+            <Text style={[styles.metricChipValue, { color: colors.emerald[600] }]}>
+              +{totalCustomerDebt.toLocaleString(localeStr)}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Supplier Debts */}
+          <TouchableOpacity
+            activeOpacity={0.75}
+            onPress={() => navigation.navigate('Suppliers')}
+            style={[
+              styles.metricChip,
+              {
+                backgroundColor: isDark ? colors.surfaceSubtle : colors.slate[50],
+                alignItems: isRTL ? 'flex-end' : 'flex-start',
+              },
+            ]}
+          >
+            <View style={[styles.chipHeaderRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <ArrowUpRight size={13} color={colors.danger.main} />
+              <Text style={[styles.metricChipLabel, { color: colors.text.tertiary }]}>
+                {t('dashboard.supplierDebts')}
+              </Text>
+            </View>
+            <Text style={[styles.metricChipValue, { color: colors.danger.main }]}>
+              -{totalSupplierDebt.toLocaleString(localeStr)}
+            </Text>
+          </TouchableOpacity>
         </View>
 
-        {/* 2-Mini Metric Grid inside Hero */}
-        <View style={[styles.todayMiniMetricsGrid, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-          <View style={[styles.todayMiniMetricItem, { backgroundColor: isDark ? colors.surfaceSubtle : colors.slate[50] }]}>
-            <Text style={[styles.todayMiniMetricLabel, { color: colors.text.tertiary }]}>
-              {t('dashboard.itemsSoldToday')}
-            </Text>
-            <Text style={[styles.todayMiniMetricVal, { color: colors.emerald[600] }]}>
-              {todayItemsSold} <Text style={{ fontSize: 11, fontWeight: '600' }}>{t('sales.itemsCount')}</Text>
-            </Text>
-          </View>
-
-          <View style={[styles.todayMiniMetricItem, { backgroundColor: isDark ? colors.surfaceSubtle : colors.slate[50] }]}>
-            <Text style={[styles.todayMiniMetricLabel, { color: colors.text.tertiary }]}>
-              {t('inventory.products')}
-            </Text>
-            <Text style={[styles.todayMiniMetricVal, { color: colors.primary[600] }]}>
-              {products.length} <Text style={{ fontSize: 11, fontWeight: '600' }}>{t('common.total')}</Text>
+        {/* Net Cumulative Position Footnote */}
+        <View
+          style={[
+            styles.netPositionStrip,
+            {
+              borderTopColor: colors.border.subtle,
+              flexDirection: isRTL ? 'row-reverse' : 'row',
+            },
+          ]}
+        >
+          <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 5 }}>
+            <Coins size={14} color={colors.text.tertiary} />
+            <Text style={[styles.netPositionLabel, { color: colors.text.secondary }]}>
+              {t('dashboard.netCumulative')}
             </Text>
           </View>
+          <Text
+            style={[
+              styles.netPositionValue,
+              netFinancialPosition >= 0 ? { color: colors.emerald[600] } : { color: colors.danger.main },
+            ]}
+          >
+            {netFinancialPosition >= 0 ? '+' : ''}
+            {netFinancialPosition.toLocaleString(localeStr)} {currency}
+          </Text>
         </View>
       </Card>
 
-      {/* ── 4. Low Stock Alert Banner (If items need reordering) ── */}
+      {/* ── 3. Actionable Alert: Low Stock Warning (Conditional) ── */}
       {lowStockCount > 0 && (
         <TouchableOpacity
           activeOpacity={0.85}
@@ -539,7 +737,7 @@ export const DashboardScreen = ({ navigation }: any) => {
           onPress={() => navigation.navigate('Inventory')}
         >
           <View style={[styles.lowStockIconBox, { backgroundColor: colors.danger.light }]}>
-            <AlertCircle size={20} color={colors.danger.main} />
+            <AlertCircle size={18} color={colors.danger.main} />
           </View>
 
           <View style={[styles.lowStockTextBox, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
@@ -557,327 +755,238 @@ export const DashboardScreen = ({ navigation }: any) => {
         </TouchableOpacity>
       )}
 
-      {/* ── 5. Financial Liquidity & Commercial Balance Bento ── */}
-      <Card variant="elevated" style={styles.financeCard}>
-        <View style={[styles.financeHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-          <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }}>
-            <Coins size={16} color={colors.primary[600]} />
-            <Text style={[styles.financeTitle, { color: colors.text.primary }]}>
-              {t('dashboard.netFinancialPosition')}
-            </Text>
-          </View>
-          <Badge variant={netFinancialPosition >= 0 ? 'emerald' : 'danger'} size="xs">
-            {netFinancialPosition >= 0 ? '+ متوازن' : '- التزام'}
-          </Badge>
-        </View>
-
-        <View style={[styles.financialMetricsRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-          {/* Customer Debts (أنا أطلب) */}
-          <TouchableOpacity
-            style={styles.financialMetricBox}
-            onPress={() => navigation.navigate('Customers')}
-            activeOpacity={0.75}
-          >
-            <View style={[styles.metricLabelRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-              <ArrowDownLeft size={14} color={colors.emerald[600]} />
-              <Text style={[styles.metricLabel, { color: colors.text.secondary }]}>
-                {t('dashboard.customerDebts')}
-              </Text>
-            </View>
-            <Text style={[styles.metricValue, { color: colors.emerald[600] }]}>
-              +{totalCustomerDebt.toLocaleString(localeStr)}
-            </Text>
-            <Text style={[styles.metricSub, { color: colors.text.tertiary }]}>
-              {customers.filter((c) => (c.balance || 0) > 0).length} {t('customers.title')}
-            </Text>
-          </TouchableOpacity>
-
-          <View style={[styles.metricDivider, { backgroundColor: colors.border.default }]} />
-
-          {/* Supplier Debts (الموردين يطلبونا) */}
-          <TouchableOpacity
-            style={styles.financialMetricBox}
-            onPress={() => navigation.navigate('Suppliers')}
-            activeOpacity={0.75}
-          >
-            <View style={[styles.metricLabelRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-              <ArrowUpRight size={14} color={colors.danger.main} />
-              <Text style={[styles.metricLabel, { color: colors.text.secondary }]}>
-                {t('dashboard.supplierDebts')}
-              </Text>
-            </View>
-            <Text style={[styles.metricValue, { color: colors.danger.main }]}>
-              -{totalSupplierDebt.toLocaleString(localeStr)}
-            </Text>
-            <Text style={[styles.metricSub, { color: colors.text.tertiary }]}>
-              {suppliers.filter((s) => (s.balance || 0) > 0).length} {t('suppliers.title')}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={[styles.netSummaryBox, { borderTopColor: colors.border.subtle, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-          <Text style={[styles.netLabel, { color: colors.text.secondary }]}>
-            {t('dashboard.netCumulative')}
-          </Text>
-          <Text
-            style={[
-              styles.netValue,
-              netFinancialPosition >= 0 ? { color: colors.emerald[600] } : { color: colors.danger.main },
-            ]}
-          >
-            {netFinancialPosition >= 0 ? '+' : ''}
-            {netFinancialPosition.toLocaleString(localeStr)} {currency}
-          </Text>
-        </View>
-      </Card>
-
-      {/* ── 6. Categorized Operational Hub Sections ── */}
-      <View style={styles.hubContainer}>
-        {/* Hub Category 1: العمليات الأساسية والبيع */}
-        <Text style={[styles.hubSectionTitle, { color: colors.text.primary, textAlign }]}>
-          {t('dashboard.quickAccess')}
+      {/* ── 4. Core Operational Actions (Zero Redundancy) ── */}
+      <View style={styles.actionsSection}>
+        <Text style={[styles.sectionTitle, { color: colors.text.primary, textAlign }]}>
+          {t('dashboard.quickActions')}
         </Text>
 
-        <View style={[styles.hubGrid, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-          {/* POS */}
-          <TouchableOpacity
-            style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
-            onPress={() => navigation.navigate('POS')}
-            activeOpacity={0.75}
-          >
-            <View style={[styles.hubIconBox, { backgroundColor: isDark ? 'rgba(99, 102, 241, 0.2)' : colors.indigo[50] }]}>
-              <Store size={22} color={colors.primary[600]} />
-            </View>
-            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('pos.posTitle')}</Text>
-            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('dashboard.posSub')}</Text>
-          </TouchableOpacity>
-
-          {/* Quick Scan */}
-          <TouchableOpacity
-            style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
-            onPress={() => setShowScanner(true)}
-            activeOpacity={0.75}
-          >
-            <View style={[styles.hubIconBox, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.2)' : colors.emerald[50] }]}>
-              <ScanBarcode size={22} color={colors.emerald[700]} />
-            </View>
-            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('dashboard.quickSale')}</Text>
-            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('dashboard.quickSaleSub')}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* ── بطاقة قارئ POS عن بُعد (عريضة ومميزة) ── */}
+        {/* A. Hero Emphasized Action: Start New POS Sale */}
         <TouchableOpacity
+          activeOpacity={0.85}
           style={[
-            styles.remoteScannerCard,
+            styles.posHeroBtn,
             {
-              backgroundColor: isDark ? 'rgba(37, 99, 235, 0.15)' : '#eff6ff',
-              borderColor: isDark ? 'rgba(37, 99, 235, 0.4)' : colors.primary[200],
+              backgroundColor: colors.primary[600],
               flexDirection: isRTL ? 'row-reverse' : 'row',
             },
           ]}
-          onPress={() => navigation.navigate('RemoteScanner')}
-          activeOpacity={0.82}
+          onPress={() => navigation.navigate('POS')}
         >
-          <View
-            style={[
-              styles.remoteScannerIconWrap,
-              { backgroundColor: isDark ? 'rgba(37, 99, 235, 0.25)' : colors.primary[100] },
-            ]}
-          >
-            <ScanBarcode size={28} color={colors.primary[600]} />
+          <View style={styles.posHeroIconCircle}>
+            <Store size={22} color="#ffffff" />
           </View>
-          <View style={[styles.remoteScannerTextCol, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
-            <Text style={[styles.remoteScannerTitle, { color: colors.primary[700] }]}>
-              قارئ POS عن بُعد
-            </Text>
-            <Text style={[styles.remoteScannerSub, { color: colors.primary[500] }]}>
-              امسح الباركود بالهاتف → يُضاف مباشرة لسلة الكمبيوتر
-            </Text>
+
+          <View style={[styles.posHeroTextCol, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+            <Text style={styles.posHeroTitle}>{t('pos.posTitle')} — {t('dashboard.newSaleBtn')}</Text>
+            <Text style={styles.posHeroSubtitle}>{t('dashboard.posSub')}</Text>
           </View>
-          <MonitorSmartphone size={20} color={colors.primary[400]} style={{ marginStart: 'auto' }} />
+
+          <ChevronIcon size={20} color="#ffffff" style={{ opacity: 0.85 }} />
         </TouchableOpacity>
 
-        <View style={[styles.hubGrid, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-          {/* Sales History */}
+        {/* B. Secondary Quick Actions Row (Barcode & Remote Scanner) */}
+        <View style={[styles.dualActionRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+          {/* Quick Camera Barcode Scanner */}
           <TouchableOpacity
-            style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
-            onPress={() => navigation.navigate('Sales')}
-            activeOpacity={0.75}
+            style={[
+              styles.actionTile,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border.default,
+              },
+            ]}
+            onPress={() => setShowScanner(true)}
+            activeOpacity={0.78}
           >
-            <View style={[styles.hubIconBox, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : colors.primary[50] }]}>
-              <Receipt size={22} color={colors.primary[600]} />
+            <View style={[styles.actionIconBox, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : colors.emerald[50] }]}>
+              <ScanBarcode size={20} color={colors.emerald[700]} />
             </View>
-            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('sales.sales')}</Text>
-            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('dashboard.salesSub')}</Text>
+            <Text style={[styles.actionTileTitle, { color: colors.text.primary }]}>
+              {t('dashboard.quickSale')}
+            </Text>
+            <Text style={[styles.actionTileSub, { color: colors.text.tertiary }]}>
+              {t('dashboard.quickSaleSub')}
+            </Text>
           </TouchableOpacity>
 
-          {/* Purchases */}
+          {/* Remote POS Scanner (Appears strictly in connected mode) */}
+          {isConnectedMode ? (
+            <TouchableOpacity
+              style={[
+                styles.actionTile,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: isDark ? 'rgba(37, 99, 235, 0.4)' : colors.primary[200],
+                },
+              ]}
+              onPress={() => navigation.navigate('RemoteScanner')}
+              activeOpacity={0.78}
+            >
+              <View style={[styles.actionIconBox, { backgroundColor: isDark ? 'rgba(37, 99, 235, 0.2)' : colors.primary[50] }]}>
+                <MonitorSmartphone size={20} color={colors.primary[600]} />
+              </View>
+              <Text style={[styles.actionTileTitle, { color: colors.primary[700] }]}>
+                قارئ عن بُعد
+              </Text>
+              <Text style={[styles.actionTileSub, { color: colors.primary[500] }]}>
+                لكمبيوتر المحل
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            /* In standalone mode: Add Product shortcut replaces remote scanner */
+            <TouchableOpacity
+              style={[
+                styles.actionTile,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border.default,
+                },
+              ]}
+              onPress={() => navigation.navigate('ProductForm')}
+              activeOpacity={0.78}
+            >
+              <View style={[styles.actionIconBox, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : colors.primary[50] }]}>
+                <Plus size={20} color={colors.primary[600]} />
+              </View>
+              <Text style={[styles.actionTileTitle, { color: colors.text.primary }]}>
+                {t('inventory.addProduct')}
+              </Text>
+              <Text style={[styles.actionTileSub, { color: colors.text.tertiary }]}>
+                {t('inventory.products')}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* C. Operational Triplet: Purchase, Expense, Add Product */}
+        <View style={[styles.tripletActionRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+          {/* New Purchase */}
           <TouchableOpacity
-            style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+            style={[styles.tripletTile, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
             onPress={() => navigation.navigate('PurchaseForm')}
             activeOpacity={0.75}
           >
-            <View style={[styles.hubIconBox, { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.2)' : colors.amber[50] }]}>
-              <ShoppingCart size={22} color={colors.amber[700]} />
+            <View style={[styles.tripletIconBox, { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : colors.amber[50] }]}>
+              <ShoppingBag size={18} color={colors.amber[700]} />
             </View>
-            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('suppliers.purchases')}</Text>
-            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('dashboard.purchasesSub')}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Hub Category 2: المخزون والمستودعات */}
-        <Text style={[styles.hubSectionTitle, { color: colors.text.primary, textAlign, marginTop: spacing.md }]}>
-          {t('dashboard.inventoryHub')}
-        </Text>
-
-        <View style={[styles.hubGrid, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-          {/* Add Product */}
-          <TouchableOpacity
-            style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
-            onPress={() => navigation.navigate('ProductForm')}
-            activeOpacity={0.75}
-          >
-            <View style={[styles.hubIconBox, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.2)' : colors.emerald[50] }]}>
-              <Plus size={22} color={colors.emerald[700]} />
-            </View>
-            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('inventory.addProduct')}</Text>
-            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('inventory.products')}</Text>
+            <Text style={[styles.tripletTitle, { color: colors.text.primary }]} numberOfLines={1}>
+              {t('suppliers.purchases')}
+            </Text>
           </TouchableOpacity>
 
-          {/* Inventory Count */}
+          {/* New Expense */}
           <TouchableOpacity
-            style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
-            onPress={() => navigation.navigate('InventoryCount')}
-            activeOpacity={0.75}
-          >
-            <View style={[styles.hubIconBox, { backgroundColor: isDark ? 'rgba(168, 85, 247, 0.2)' : colors.purple[50] }]}>
-              <ClipboardCheck size={22} color={colors.purple[700]} />
-            </View>
-            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('nav.inventoryCount')}</Text>
-            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('inventoryCount.title')}</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={[styles.hubGrid, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-          {/* Stock Movements */}
-          <TouchableOpacity
-            style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
-            onPress={() => navigation.navigate('StockMovements')}
-            activeOpacity={0.75}
-          >
-            <View style={[styles.hubIconBox, { backgroundColor: isDark ? 'rgba(14, 165, 233, 0.2)' : colors.cyan[50] }]}>
-              <History size={22} color={colors.cyan[700]} />
-            </View>
-            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('nav.stockMovements')}</Text>
-            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('stockMovements.title')}</Text>
-          </TouchableOpacity>
-
-          {/* Warehouses */}
-          <TouchableOpacity
-            style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
-            onPress={() => navigation.navigate('Warehouses')}
-            activeOpacity={0.75}
-          >
-            <View style={[styles.hubIconBox, { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.2)' : colors.amber[50] }]}>
-              <Warehouse size={22} color={colors.amber[700]} />
-            </View>
-            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('nav.warehouses')}</Text>
-            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('warehouses.title')}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Hub Category 3: المالية والشركاء والأدوات الذكية */}
-        <Text style={[styles.hubSectionTitle, { color: colors.text.primary, textAlign, marginTop: spacing.md }]}>
-          {t('dashboard.financeHub')}
-        </Text>
-
-        <View style={[styles.hubGrid, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-          {/* Customers */}
-          <TouchableOpacity
-            style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
-            onPress={() => navigation.navigate('Customers')}
-            activeOpacity={0.75}
-          >
-            <View style={[styles.hubIconBox, { backgroundColor: colors.primary[50] }]}>
-              <Users size={22} color={colors.primary[600]} />
-            </View>
-            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('customers.title')}</Text>
-            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('dashboard.customersSub')}</Text>
-          </TouchableOpacity>
-
-          {/* Suppliers */}
-          <TouchableOpacity
-            style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
-            onPress={() => navigation.navigate('Suppliers')}
-            activeOpacity={0.75}
-          >
-            <View style={[styles.hubIconBox, { backgroundColor: colors.warning.light }]}>
-              <Truck size={22} color={colors.warning.dark} />
-            </View>
-            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('suppliers.title')}</Text>
-            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('dashboard.suppliersSub')}</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={[styles.hubGrid, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-          {/* Operating Expenses */}
-          <TouchableOpacity
-            style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+            style={[styles.tripletTile, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
             onPress={() => navigation.navigate('Expenses')}
             activeOpacity={0.75}
           >
-            <View style={[styles.hubIconBox, { backgroundColor: colors.danger.light }]}>
-              <Receipt size={22} color={colors.danger.main} />
+            <View style={[styles.tripletIconBox, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : colors.danger.light }]}>
+              <Receipt size={18} color={colors.danger.main} />
             </View>
-            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('dashboard.operatingExpenses')}</Text>
-            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('dashboard.operatingExpensesSub')}</Text>
+            <Text style={[styles.tripletTitle, { color: colors.text.primary }]} numberOfLines={1}>
+              {t('dashboard.operatingExpenses')}
+            </Text>
           </TouchableOpacity>
 
-          {/* Profit Center */}
+          {/* Add Product (if not already shown above in standalone mode) or Customers shortcut */}
           <TouchableOpacity
-            style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
-            onPress={() => navigation.navigate('ProfitCenter')}
+            style={[styles.tripletTile, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+            onPress={() => isConnectedMode ? navigation.navigate('ProductForm') : navigation.navigate('Suppliers')}
             activeOpacity={0.75}
           >
-            <View style={[styles.hubIconBox, { backgroundColor: colors.emerald[50] }]}>
-              <BarChart3 size={22} color={colors.emerald[700]} />
+            <View style={[styles.tripletIconBox, { backgroundColor: isDark ? 'rgba(14, 165, 233, 0.15)' : colors.cyan[50] }]}>
+              {isConnectedMode ? (
+                <Plus size={18} color={colors.cyan[700]} />
+              ) : (
+                <Truck size={18} color={colors.cyan[700]} />
+              )}
             </View>
-            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('profitCenter.title')}</Text>
-            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('dashboard.profitCenterSub')}</Text>
+            <Text style={[styles.tripletTitle, { color: colors.text.primary }]} numberOfLines={1}>
+              {isConnectedMode ? t('inventory.addProduct') : t('suppliers.title')}
+            </Text>
           </TouchableOpacity>
         </View>
 
-        <View style={[styles.hubGrid, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-          {/* Zakat Calculator */}
-          <TouchableOpacity
-            style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
-            onPress={() => navigation.navigate('ZakatCalculator')}
-            activeOpacity={0.75}
-          >
-            <View style={[styles.hubIconBox, { backgroundColor: colors.amber[50] }]}>
-              <Calculator size={22} color={colors.amber[700]} />
-            </View>
-            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('zakatCalculator.title')}</Text>
-            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('dashboard.zakatSub')}</Text>
-          </TouchableOpacity>
+        {/* D. Collapsible Secondary Utilities Tray */}
+        <TouchableOpacity
+          style={[styles.advancedToolsToggle, { borderColor: colors.border.subtle, flexDirection: isRTL ? 'row-reverse' : 'row' }]}
+          onPress={() => setShowAdvancedTools((prev) => !prev)}
+          activeOpacity={0.7}
+        >
+          <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }}>
+            <Sparkles size={14} color={colors.primary[600]} />
+            <Text style={[styles.advancedToolsToggleText, { color: colors.text.secondary }]}>
+              {showAdvancedTools ? 'إخفاء أدوات المتجر الإضافية' : 'أدوات المتجر الإضافية (جرد، أرباح، مستودعات...)'}
+            </Text>
+          </View>
+          {showAdvancedTools ? (
+            <ChevronUp size={16} color={colors.text.tertiary} />
+          ) : (
+            <ChevronDown size={16} color={colors.text.tertiary} />
+          )}
+        </TouchableOpacity>
 
-          {/* Barcode Labels */}
-          <TouchableOpacity
-            style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
-            onPress={() => navigation.navigate('BarcodeLabels')}
-            activeOpacity={0.75}
-          >
-            <View style={[styles.hubIconBox, { backgroundColor: colors.purple[50] }]}>
-              <Barcode size={22} color={colors.purple[700]} />
+        {showAdvancedTools && (
+          <View style={styles.advancedToolsGrid}>
+            <View style={[styles.toolsGridRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <TouchableOpacity
+                style={[styles.toolCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+                onPress={() => navigation.navigate('InventoryCount')}
+              >
+                <ClipboardCheck size={18} color={colors.purple[700]} />
+                <Text style={[styles.toolCardTitle, { color: colors.text.primary }]}>{t('nav.inventoryCount')}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.toolCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+                onPress={() => navigation.navigate('StockMovements')}
+              >
+                <History size={18} color={colors.cyan[700]} />
+                <Text style={[styles.toolCardTitle, { color: colors.text.primary }]}>{t('nav.stockMovements')}</Text>
+              </TouchableOpacity>
             </View>
-            <Text style={[styles.hubCardTitle, { color: colors.text.primary }]}>{t('barcodeLabels.title')}</Text>
-            <Text style={[styles.hubCardSub, { color: colors.text.tertiary }]}>{t('dashboard.barcodeLabelsSub')}</Text>
-          </TouchableOpacity>
-        </View>
+
+            <View style={[styles.toolsGridRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <TouchableOpacity
+                style={[styles.toolCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+                onPress={() => navigation.navigate('Warehouses')}
+              >
+                <Warehouse size={18} color={colors.amber[700]} />
+                <Text style={[styles.toolCardTitle, { color: colors.text.primary }]}>{t('nav.warehouses')}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.toolCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+                onPress={() => navigation.navigate('ProfitCenter')}
+              >
+                <BarChart3 size={18} color={colors.emerald[700]} />
+                <Text style={[styles.toolCardTitle, { color: colors.text.primary }]}>{t('profitCenter.title')}</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={[styles.toolsGridRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <TouchableOpacity
+                style={[styles.toolCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+                onPress={() => navigation.navigate('ZakatCalculator')}
+              >
+                <Calculator size={18} color={colors.amber[700]} />
+                <Text style={[styles.toolCardTitle, { color: colors.text.primary }]}>{t('zakatCalculator.title')}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.toolCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
+                onPress={() => navigation.navigate('BarcodeLabels')}
+              >
+                <Barcode size={18} color={colors.purple[700]} />
+                <Text style={[styles.toolCardTitle, { color: colors.text.primary }]}>{t('barcodeLabels.title')}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
 
-      {/* ── 7. Today's Recent Sales Activity Feed ── */}
+      {/* ── 5. Live Today Sales Feed (Elevated Prominence) ── */}
       <View style={styles.sectionContainer}>
         <View style={[styles.sectionHeaderRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
           <Text style={[styles.sectionHeading, { color: colors.text.primary }]}>
@@ -903,7 +1012,7 @@ export const DashboardScreen = ({ navigation }: any) => {
               { backgroundColor: colors.surface, borderColor: colors.border.default },
             ]}
           >
-            <Receipt size={36} color={colors.text.tertiary} />
+            <Receipt size={32} color={colors.text.tertiary} />
             <Text style={[styles.emptySalesTitle, { color: colors.text.secondary }]}>
               {t('dashboard.noTodaySales')}
             </Text>
@@ -1001,6 +1110,16 @@ export const DashboardScreen = ({ navigation }: any) => {
           onClose={() => setShowScanner(false)}
         />
       )}
+
+      {/* ── Rewarded Ad Modal ── */}
+      <RewardAdModal
+        visible={showRewardAdModal}
+        onClose={() => setShowRewardAdModal(false)}
+        onRewardClaimed={() => {
+          refreshSubscriptionStatus();
+        }}
+        onUpgradePress={() => navigation.navigate('Subscription')}
+      />
     </ScrollView>
   );
 };
@@ -1015,154 +1134,166 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxxl + spacing.xl,
   },
 
-  // 1. Header Hero Card
-  headerHeroCard: {
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderRadius: radii.xxl,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 4,
+  // 1. Store Pulse & Integrated Shift Banner
+  pulseCard: {
+    borderRadius: radii.xl,
+    padding: spacing.md,
     borderWidth: 1,
-    ...shadows.xs,
-  },
-  headerStoreIdentity: {
-    alignItems: 'center',
-    gap: spacing.sm + 2,
-    flex: 1,
-  },
-  headerLogoAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: radii.xl,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  headerLogoImg: {
-    width: '100%',
-    height: '100%',
-  },
-  headerGreetingCol: {
-    gap: 1,
-  },
-  headerGreetingText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    fontFamily: 'Cairo',
-  },
-  headerStoreName: {
-    fontSize: 15.5,
-    fontWeight: '900',
-    fontFamily: 'Cairo',
-    letterSpacing: -0.2,
-  },
-  headerIconBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: radii.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  // 2. Active Shift Live Status Banner
-  shiftHeroBanner: {
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 4,
-    borderRadius: radii.xl,
-    borderWidth: 1.5,
     gap: spacing.sm,
     ...shadows.xs,
   },
-  shiftHeroRight: {
+  pulseTopRow: {
     alignItems: 'center',
-    gap: spacing.sm + 2,
-    flex: 1,
+    justifyContent: 'space-between',
   },
-  shiftHeroIconBox: {
-    width: 42,
-    height: 42,
-    borderRadius: radii.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-  },
-  shiftHeroInfo: {
+  pulseGreetingCol: {
     flex: 1,
     gap: 2,
-    justifyContent: 'center',
   },
-  shiftHeroTitle: {
-    fontSize: 13.5,
+  pulseGreetingText: {
+    fontSize: 15,
     fontWeight: '800',
     fontFamily: 'Cairo',
     letterSpacing: -0.2,
   },
-  shiftHeroSub: {
+  pulseDateText: {
     fontSize: 11.5,
     fontFamily: 'Cairo',
   },
-
-  // 3. Today's Financial Summary Hero Card
-  todayFinancialHeroCard: {
-    padding: spacing.lg,
-    borderRadius: radii.xxl,
-    gap: spacing.md,
-  },
-  todayFinancialHeader: {
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  todayIconPill: {
-    width: 28,
-    height: 28,
+  pulseRefreshBtn: {
+    width: 32,
+    height: 32,
     borderRadius: radii.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  todayHeroLabel: {
-    fontSize: 13,
-    fontWeight: '800',
-    fontFamily: 'Cairo',
-  },
-  todayRevenueRow: {
-    paddingVertical: spacing.xs,
-  },
-  todayRevenueValue: {
-    fontSize: 34,
-    fontWeight: '900',
-    fontFamily: 'Cairo',
-    letterSpacing: -0.8,
-  },
-  todayRevenueCurrency: {
-    fontSize: 16,
-    fontWeight: '800',
-    fontFamily: 'Cairo',
-  },
-  todayMiniMetricsGrid: {
-    gap: spacing.sm,
-  },
-  todayMiniMetricItem: {
-    flex: 1,
-    padding: spacing.md,
-    borderRadius: radii.xl,
+  shiftStrip: {
     alignItems: 'center',
-    gap: 2,
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs + 3,
+    borderRadius: radii.lg,
+    borderWidth: 1,
   },
-  todayMiniMetricLabel: {
-    fontSize: 11,
+  shiftStripLeft: {
+    alignItems: 'center',
+    gap: spacing.sm,
+    flex: 1,
+  },
+  shiftStripIconBox: {
+    width: 30,
+    height: 30,
+    borderRadius: radii.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shiftStripInfo: {
+    flex: 1,
+    gap: 1,
+  },
+  shiftStripTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    fontFamily: 'Cairo',
+  },
+  shiftStripSub: {
+    fontSize: 10.5,
+    fontFamily: 'Cairo',
+  },
+
+  // 2. Financial Bento Card
+  financialBentoCard: {
+    padding: spacing.lg,
+    borderRadius: radii.xxl,
+    gap: spacing.md,
+  },
+  bentoHeroRow: {
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  bentoTagRow: {
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  bentoIconBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: radii.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bentoHeroLabel: {
+    fontSize: 12.5,
     fontWeight: '700',
     fontFamily: 'Cairo',
   },
-  todayMiniMetricVal: {
+  bentoAmountRow: {
+    alignItems: 'baseline',
+    gap: 6,
+  },
+  bentoAmountValue: {
+    fontSize: 32,
+    fontWeight: '900',
+    fontFamily: 'Cairo',
+    letterSpacing: -0.6,
+  },
+  bentoAmountCurrency: {
     fontSize: 15,
+    fontWeight: '800',
+    fontFamily: 'Cairo',
+  },
+  salesCountBadge: {
+    marginTop: 4,
+  },
+  metricsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs + 2,
+  },
+  metricChip: {
+    width: '48.5%',
+    padding: spacing.sm + 2,
+    borderRadius: radii.lg,
+    gap: 2,
+  },
+  chipHeaderRow: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  metricChipLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    fontFamily: 'Cairo',
+  },
+  metricChipValue: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    fontFamily: 'Cairo',
+    marginTop: 1,
+  },
+  metricChipUnit: {
+    fontSize: 10.5,
+    fontWeight: '600',
+  },
+  netPositionStrip: {
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    paddingTop: spacing.sm,
+  },
+  netPositionLabel: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    fontFamily: 'Cairo',
+  },
+  netPositionValue: {
+    fontSize: 14,
     fontWeight: '900',
     fontFamily: 'Cairo',
   },
 
-  // 4. Low Stock Alert Banner
+  // 3. Low Stock Alert Banner
   lowStockBanner: {
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -1172,8 +1303,8 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   lowStockIconBox: {
-    width: 36,
-    height: 36,
+    width: 34,
+    height: 34,
     borderRadius: radii.lg,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1188,127 +1319,145 @@ const styles = StyleSheet.create({
     fontFamily: 'Cairo',
   },
   lowStockDesc: {
-    fontSize: 11.5,
+    fontSize: 11,
     fontFamily: 'Cairo',
   },
 
-  // 5. Financial Liquidity & Commercial Balance
-  financeCard: {
-    padding: spacing.md,
-    borderRadius: radii.xxl,
+  // 4. Core Operational Actions
+  actionsSection: {
     gap: spacing.sm,
   },
-  financeHeader: {
+  sectionTitle: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    fontFamily: 'Cairo',
+    paddingHorizontal: 4,
+  },
+  posHeroBtn: {
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingBottom: spacing.xs,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.xl,
+    ...shadows.sm,
   },
-  financeTitle: {
+  posHeroIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  posHeroTextCol: {
+    flex: 1,
+    marginHorizontal: spacing.sm + 2,
+    gap: 2,
+  },
+  posHeroTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    fontFamily: 'Cairo',
+    color: '#ffffff',
+    letterSpacing: -0.2,
+  },
+  posHeroSubtitle: {
+    fontSize: 11.5,
+    fontFamily: 'Cairo',
+    color: 'rgba(255, 255, 255, 0.85)',
+  },
+  dualActionRow: {
+    gap: spacing.sm,
+  },
+  actionTile: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm + 2,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    ...shadows.xs,
+  },
+  actionIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: radii.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  actionTileTitle: {
     fontSize: 13.5,
     fontWeight: '800',
     fontFamily: 'Cairo',
   },
-  financialMetricsRow: {
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.xs,
+  actionTileSub: {
+    fontSize: 10.5,
+    fontFamily: 'Cairo',
   },
-  financialMetricBox: {
+  tripletActionRow: {
+    gap: spacing.xs + 2,
+  },
+  tripletTile: {
     flex: 1,
+    paddingVertical: spacing.sm + 4,
+    paddingHorizontal: spacing.xs,
+    borderRadius: radii.lg,
+    borderWidth: 1,
     alignItems: 'center',
-    gap: 2,
+    justifyContent: 'center',
+    gap: 3,
   },
-  metricLabelRow: {
+  tripletIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: radii.md,
     alignItems: 'center',
-    gap: 4,
+    justifyContent: 'center',
   },
-  metricLabel: {
+  tripletTitle: {
     fontSize: 11.5,
     fontWeight: '700',
     fontFamily: 'Cairo',
   },
-  metricValue: {
-    fontSize: 15,
-    fontWeight: '900',
-    fontFamily: 'Cairo',
-    marginVertical: 1,
-  },
-  metricSub: {
-    fontSize: 10.5,
-    fontFamily: 'Cairo',
-  },
-  metricDivider: {
-    width: 1,
-    height: 40,
-  },
-  netSummaryBox: {
+  advancedToolsToggle: {
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
     borderTopWidth: 1,
-    paddingTop: spacing.sm,
     marginTop: spacing.xs,
   },
-  netLabel: {
+  advancedToolsToggleText: {
     fontSize: 12,
     fontWeight: '700',
     fontFamily: 'Cairo',
   },
-  netValue: {
-    fontSize: 14.5,
-    fontWeight: '900',
-    fontFamily: 'Cairo',
-  },
-
-  // 6. Hub Categories & Cards
-  hubContainer: {
+  advancedToolsGrid: {
     gap: spacing.xs + 2,
-    marginTop: spacing.xs,
   },
-  hubSectionTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    fontFamily: 'Cairo',
-    paddingHorizontal: 4,
-    marginBottom: spacing.xs,
+  toolsGridRow: {
+    gap: spacing.xs + 2,
   },
-  hubGrid: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginBottom: spacing.xs,
-  },
-  hubCard: {
+  toolCard: {
     flex: 1,
-    borderRadius: radii.xxl,
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.sm,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.md,
     borderWidth: 1,
-    minHeight: 110,
-    ...shadows.xs,
   },
-  hubIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.xs + 2,
-  },
-  hubCardTitle: {
-    fontSize: 14.5,
-    fontWeight: '800',
+  toolCardTitle: {
+    fontSize: 12,
+    fontWeight: '700',
     fontFamily: 'Cairo',
-    textAlign: 'center',
-    marginBottom: 2,
-  },
-  hubCardSub: {
-    fontSize: 11,
-    fontFamily: 'Cairo',
-    textAlign: 'center',
   },
 
-  // 7. Recent Sales Feed
+  // 5. Recent Sales Feed
   sectionContainer: {
     gap: spacing.sm,
     marginTop: spacing.xs,
@@ -1335,19 +1484,19 @@ const styles = StyleSheet.create({
   emptySalesCard: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: spacing.xxl,
+    paddingVertical: spacing.xl,
     gap: spacing.xs,
     borderRadius: radii.xl,
     borderWidth: 1,
   },
   emptySalesTitle: {
-    fontSize: 13.5,
+    fontSize: 13,
     fontWeight: '800',
     fontFamily: 'Cairo',
     marginTop: spacing.xs,
   },
   emptySalesSub: {
-    fontSize: 11.5,
+    fontSize: 11,
     fontFamily: 'Cairo',
   },
   salesList: {
@@ -1400,39 +1549,72 @@ const styles = StyleSheet.create({
   chevron: {
     marginLeft: 4,
   },
-
-  // Remote POS Scanner Card
-  remoteScannerCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingVertical: spacing.md + 4,
-    paddingHorizontal: spacing.md,
+  subBannerCard: {
     borderRadius: radii.xl,
     borderWidth: 1.5,
-    marginBottom: spacing.xs,
-    ...shadows.xs,
+    padding: spacing.md,
+    ...shadows.sm,
   },
-  remoteScannerIconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: radii.xl,
+  subBannerTop: {
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
   },
-  remoteScannerTextCol: {
+  subBannerLeft: {
+    alignItems: 'center',
+    gap: spacing.sm,
     flex: 1,
-    gap: 3,
   },
-  remoteScannerTitle: {
-    fontSize: 15,
+  subIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: radii.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  subTierTitle: {
+    fontSize: 14,
+    fontFamily: 'Cairo',
     fontWeight: '800',
-    fontFamily: 'Cairo',
   },
-  remoteScannerSub: {
-    fontSize: 12,
+  subQuotaSubtitle: {
+    fontSize: 11.5,
     fontFamily: 'Cairo',
-    lineHeight: 18,
+    marginTop: 2,
+  },
+  subAdActionBtn: {
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: radii.full,
+    alignItems: 'center',
+    gap: 4,
+  },
+  subAdActionBtnText: {
+    color: '#ffffff',
+    fontSize: 11.5,
+    fontFamily: 'Cairo',
+    fontWeight: '700',
+  },
+  subUpgradeMiniBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 9,
+    borderRadius: radii.full,
+    borderWidth: 1,
+  },
+  subUpgradeMiniBtnText: {
+    fontSize: 11,
+    fontFamily: 'Cairo',
+    fontWeight: '700',
+  },
+  subMiniProgressTrack: {
+    width: '100%',
+    height: 5,
+    borderRadius: radii.full,
+    marginTop: 10,
+    overflow: 'hidden',
+  },
+  subMiniProgressFill: {
+    height: '100%',
+    borderRadius: radii.full,
   },
 });
 

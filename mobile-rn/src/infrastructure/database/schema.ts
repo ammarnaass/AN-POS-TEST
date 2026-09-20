@@ -15,6 +15,7 @@ export const CREATE_TABLES_SQL: string[] = [
     pin TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'seller',
     status TEXT NOT NULL DEFAULT 'active',
+    subscription_tier TEXT NOT NULL DEFAULT 'free',
     permissions TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
@@ -84,6 +85,12 @@ export const CREATE_TABLES_SQL: string[] = [
     connection_check_interval INTEGER NOT NULL DEFAULT 5,
     key TEXT DEFAULT NULL,
     value TEXT DEFAULT NULL,
+    subscription_tier TEXT NOT NULL DEFAULT 'free',
+    subscription_base_quota INTEGER NOT NULL DEFAULT 300,
+    subscription_bonus_sales INTEGER NOT NULL DEFAULT 0,
+    subscription_used_sales INTEGER NOT NULL DEFAULT 0,
+    subscription_ads_watched INTEGER NOT NULL DEFAULT 0,
+    subscription_license_key TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`,

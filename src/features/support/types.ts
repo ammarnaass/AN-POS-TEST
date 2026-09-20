@@ -87,10 +87,13 @@ export interface SupportTicketForm {
 export interface SupportContactInfo {
   phone1: string;
   phone2: string;
+  phone3?: string;
   phone1Raw: string;
   phone2Raw: string;
+  phone3Raw?: string;
   whatsappUrl1: string;
   whatsappUrl2: string;
+  whatsappUrl3?: string;
   supportEmail: string;
   facebookUrl: string;
   instagramUrl: string;

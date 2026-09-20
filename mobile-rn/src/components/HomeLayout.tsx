@@ -30,14 +30,9 @@ const HomeLayout = ({ navigation }: any) => {
   const [darkMode, setDarkMode] = React.useState(false);
 
   const handleLogout = async () => {
-    const mode = await getStoredMode().catch(() => 'standalone');
-    const isConnected = mode === 'connected';
-
     Alert.alert(
       'تأكيد تسجيل الخروج',
-      isConnected
-        ? 'هل أنت متأكد من رغبتك في تسجيل الخروج؟ سيتم إلغاء الربط مع الحاسوب مباشرة والعودة للوضع المستقل.'
-        : 'هل أنت متأكد من رغبتك في تسجيل الخروج؟',
+      'هل أنت متأكد من رغبتك في تسجيل الخروج؟',
       [
         { text: 'إلغاء', style: 'cancel' },
         {

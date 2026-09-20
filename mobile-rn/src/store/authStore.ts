@@ -57,20 +57,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     try {
-      const currentMode = await getStoredMode();
-      const isConnected = currentMode === 'connected' || session.isConnectedSync();
-
-      if (isConnected) {
-        await session.unpair();
-      } else {
-        await AnposSecureStore.remove(STORAGE_KEYS.USER_ID);
-      }
+      await AnposSecureStore.remove(STORAGE_KEYS.USER_ID);
     } catch (err) {
-      console.warn('[authStore] Error unpairing during logout:', err);
-      await AnposSecureStore.remove(STORAGE_KEYS.USER_ID).catch(() => {});
+      console.warn('[authStore] Error clearing user session during logout:', err);
     }
 
-    set({ user: null, isAuthenticated: false, serverUrl: null });
+    set({ user: null, isAuthenticated: false });
   },
 
   restoreSession: async () => {

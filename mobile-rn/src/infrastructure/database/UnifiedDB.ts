@@ -17,8 +17,8 @@ export async function setStoredMode(mode: AppMode): Promise<void> {
   await AnposSecureStore.set(STORAGE_KEYS.APP_MODE, mode);
 }
 
-/** Run CREATE TABLE + INDEX statements, then seed default data */
-export async function initSQLiteSchema(driver: AnposSQLiteDriver): Promise<void> {
+/** Run CREATE TABLE + INDEX statements, then optionally seed default data */
+export async function initSQLiteSchema(driver: AnposSQLiteDriver, shouldSeed = true): Promise<void> {
   for (const sql of CREATE_TABLES_SQL) {
     try {
       await driver.execute(sql);
@@ -153,6 +153,14 @@ export async function initSQLiteSchema(driver: AnposSQLiteDriver): Promise<void>
     "ALTER TABLE settings ADD COLUMN company_nif TEXT DEFAULT ''",
     "ALTER TABLE settings ADD COLUMN allow_negative_stock INTEGER DEFAULT 0",
     "ALTER TABLE settings ADD COLUMN operating_mode TEXT DEFAULT 'online'",
+    // subscriptions — standalone quota & tier management
+    "ALTER TABLE users ADD COLUMN subscription_tier TEXT DEFAULT 'free'",
+    "ALTER TABLE settings ADD COLUMN subscription_tier TEXT DEFAULT 'free'",
+    "ALTER TABLE settings ADD COLUMN subscription_base_quota INTEGER DEFAULT 300",
+    "ALTER TABLE settings ADD COLUMN subscription_bonus_sales INTEGER DEFAULT 0",
+    "ALTER TABLE settings ADD COLUMN subscription_used_sales INTEGER DEFAULT 0",
+    "ALTER TABLE settings ADD COLUMN subscription_ads_watched INTEGER DEFAULT 0",
+    "ALTER TABLE settings ADD COLUMN subscription_license_key TEXT DEFAULT ''",
   ];
 
   for (const sql of MIGRATIONS) {
@@ -172,19 +180,80 @@ export async function initSQLiteSchema(driver: AnposSQLiteDriver): Promise<void>
   // Refresh introspection cache after migrations
   driver.clearTableColumnsCache?.();
 
-  try {
-    await seedDatabase(driver);
-  } catch (err) {
-    console.warn('[UnifiedDB] Seed database error:', err);
+  if (shouldSeed) {
+    try {
+      await seedDatabase(driver);
+    } catch (err) {
+      console.warn('[UnifiedDB] Seed database error:', err);
+    }
   }
 }
 
 class UnifiedDB {
   private driver: DataDriver | null = null;
   private mode: AppMode = 'standalone';
-  private sqliteDriver: AnposSQLiteDriver | null = null;
+  private standaloneDriver: AnposSQLiteDriver | null = null;
+  private connectedDriver: AnposSQLiteDriver | null = null;
   private restDriver: RESTDriver | null = null;
   private initialized = false;
+
+  /**
+   * ترحيل آمن لبيانات الوضع المستقل السابقة من قاعدة البيانات القديمة (anpos) إلى (anpos_standalone)
+   */
+  private async migrateLegacyData(targetDriver: AnposSQLiteDriver): Promise<void> {
+    try {
+      const isMigrated = await AnposSecureStore.get('anpos_legacy_migrated_v2');
+      if (isMigrated) return;
+
+      const legacyDriver = new AnposSQLiteDriver({ databaseName: 'anpos' });
+      await legacyDriver.initialize();
+
+      const legacyProducts = await legacyDriver.list('products', { limit: 1 }).catch(() => ({ data: [], total: 0 }));
+      const currentProducts = await targetDriver.list('products', { limit: 1 }).catch(() => ({ data: [], total: 0 }));
+
+      if (legacyProducts.total > 0 && currentProducts.total === 0) {
+        const TABLES_TO_MIGRATE = [
+          'categories',
+          'products',
+          'product_barcodes',
+          'customers',
+          'suppliers',
+          'sales',
+          'sale_items',
+          'expenses',
+          'purchases',
+          'purchase_items',
+          'cash_sessions',
+          'settings',
+          'users',
+          'roles',
+          'packs',
+          'warehouses',
+          'print_templates',
+          'printers',
+        ];
+
+        for (const table of TABLES_TO_MIGRATE) {
+          try {
+            const rows = await legacyDriver.list(table, { limit: 5000 }).catch(() => ({ data: [], total: 0 }));
+            if (rows.data && rows.data.length > 0) {
+              for (const row of rows.data) {
+                await targetDriver.create(table, row).catch(() => {});
+              }
+            }
+          } catch (err) {
+            console.warn(`[UnifiedDB] Failed to migrate table ${table}:`, err);
+          }
+        }
+        console.log('[UnifiedDB] Legacy data migration to anpos_standalone completed successfully');
+      }
+
+      await legacyDriver.close().catch(() => {});
+      await AnposSecureStore.set('anpos_legacy_migrated_v2', 'true');
+    } catch (err) {
+      console.warn('[UnifiedDB] Legacy migration check error:', err);
+    }
+  }
 
   async init(): Promise<void> {
     if (this.initialized) return;
@@ -192,6 +261,30 @@ class UnifiedDB {
     const storedMode = await getStoredMode();
     this.mode = storedMode;
 
+    // 1. تهيئة قاعدة بيانات الوضع المستقل (anpos_standalone.db) وتجهيز بنيتها
+    try {
+      if (!this.standaloneDriver) {
+        this.standaloneDriver = new AnposSQLiteDriver({ databaseName: 'anpos_standalone' });
+        await this.standaloneDriver.initialize();
+      }
+      await initSQLiteSchema(this.standaloneDriver, true);
+      await this.migrateLegacyData(this.standaloneDriver);
+    } catch (err) {
+      console.warn('[UnifiedDB] Standalone SQLite init failed:', err);
+    }
+
+    // 2. تهيئة قاعدة بيانات الوضع المتصل (anpos_connected.db) الخاصة بسطح المكتب ومزامنتها (بدون بيانات تجريبية)
+    try {
+      if (!this.connectedDriver) {
+        this.connectedDriver = new AnposSQLiteDriver({ databaseName: 'anpos_connected' });
+        await this.connectedDriver.initialize();
+      }
+      await initSQLiteSchema(this.connectedDriver, false);
+    } catch (err) {
+      console.warn('[UnifiedDB] Connected SQLite init failed:', err);
+    }
+
+    // 3. تحديد المشغل الفعال حسب الوضع الحالي
     if (this.mode === 'connected') {
       const [serverUrl, token, deviceId] = await Promise.all([
         AnposSecureStore.get(STORAGE_KEYS.SERVER_URL),
@@ -211,22 +304,10 @@ class UnifiedDB {
         console.warn('[UnifiedDB] Missing connection credentials in connected mode — falling back to standalone');
         this.mode = 'standalone';
         await setStoredMode('standalone');
+        this.driver = this.standaloneDriver;
       }
-    }
-
-    // تهيئة SQLite دائماً ليكون متاحاً للمزامنة والتخزين المؤقت المحلي
-    try {
-      if (!this.sqliteDriver) {
-        this.sqliteDriver = new AnposSQLiteDriver({ databaseName: 'anpos' });
-        await this.sqliteDriver.initialize();
-      }
-      await initSQLiteSchema(this.sqliteDriver);
-      if (this.mode === 'standalone' || !this.driver) {
-        this.driver = this.sqliteDriver;
-        this.mode = 'standalone';
-      }
-    } catch (err) {
-      console.warn('[UnifiedDB] SQLite init failed:', err);
+    } else {
+      this.driver = this.standaloneDriver;
     }
 
     this.initialized = true;
@@ -236,12 +317,30 @@ class UnifiedDB {
     return this.mode;
   }
 
+  /**
+   * إرجاع مشغل SQLite النشط المتوافق مع الوضع الحالي (مستقل أو متصل)
+   */
   getSqliteDriver(): AnposSQLiteDriver {
-    if (!this.sqliteDriver) {
-      this.sqliteDriver = new AnposSQLiteDriver({ databaseName: 'anpos' });
-      this.sqliteDriver.initialize().catch(() => {});
+    if (this.mode === 'connected') {
+      return this.getConnectedSqliteDriver();
     }
-    return this.sqliteDriver;
+    return this.getStandaloneSqliteDriver();
+  }
+
+  getStandaloneSqliteDriver(): AnposSQLiteDriver {
+    if (!this.standaloneDriver) {
+      this.standaloneDriver = new AnposSQLiteDriver({ databaseName: 'anpos_standalone' });
+      this.standaloneDriver.initialize().catch(() => {});
+    }
+    return this.standaloneDriver;
+  }
+
+  getConnectedSqliteDriver(): AnposSQLiteDriver {
+    if (!this.connectedDriver) {
+      this.connectedDriver = new AnposSQLiteDriver({ databaseName: 'anpos_connected' });
+      this.connectedDriver.initialize().catch(() => {});
+    }
+    return this.connectedDriver;
   }
 
   async switchToConnected(serverUrl: string, token?: string, deviceId?: string): Promise<void> {
@@ -264,15 +363,15 @@ class UnifiedDB {
 
   async switchToStandalone(): Promise<void> {
     if (this.restDriver) {
-      await this.restDriver.close();
+      await this.restDriver.close().catch(() => {});
       this.restDriver = null;
     }
-    if (!this.sqliteDriver) {
-      this.sqliteDriver = new AnposSQLiteDriver({ databaseName: 'anpos' });
-      await this.sqliteDriver.initialize();
+    if (!this.standaloneDriver) {
+      this.standaloneDriver = new AnposSQLiteDriver({ databaseName: 'anpos_standalone' });
+      await this.standaloneDriver.initialize();
+      await initSQLiteSchema(this.standaloneDriver, true);
     }
-    await initSQLiteSchema(this.sqliteDriver);
-    this.driver = this.sqliteDriver;
+    this.driver = this.standaloneDriver;
     this.mode = 'standalone';
     await setStoredMode('standalone');
     this.initialized = true;
@@ -284,6 +383,8 @@ class UnifiedDB {
 
   getDriver(): DataDriver {
     if (!this.driver) {
+      if (this.mode === 'connected' && this.restDriver) return this.restDriver;
+      if (this.mode === 'standalone' && this.standaloneDriver) return this.standaloneDriver;
       throw new Error('DB not initialized. Call await db.init() first');
     }
     return this.driver;
@@ -291,106 +392,127 @@ class UnifiedDB {
 
   async list<T>(table: string, opts?: ListOptions): Promise<ListResult<T>> {
     await this.init();
-    const sqlite = this.getSqliteDriver();
-    const localResult = await sqlite.list<T>(table, opts).catch(() => ({ data: [] as T[], total: 0 }));
 
-    if (this.mode === 'connected' && this.restDriver) {
+    // ── 1. الوضع المستقل: قراءة معزولة تماماً من anpos_standalone فقط ────────
+    if (this.mode === 'standalone') {
+      const standalone = this.getStandaloneSqliteDriver();
+      return standalone.list<T>(table, opts).catch(() => ({ data: [] as T[], total: 0 }));
+    }
+
+    // ── 2. الوضع المتصل: قراءة من سيرفر سطح المكتب مع تخزين مؤقت في anpos_connected ──
+    const connectedSqlite = this.getConnectedSqliteDriver();
+
+    if (this.restDriver) {
       try {
         const restResult = await this.restDriver.list<T>(table, opts);
         if (restResult && Array.isArray(restResult.data)) {
-          // Merge local & remote (remote takes precedence, local unique items are preserved)
-          const remoteMap = new Map<string, T>();
-          for (const item of restResult.data) {
-            const id = (item as any)?.id || (item as any)?._id;
-            if (id) remoteMap.set(String(id), item);
-          }
-
-          // Cache remote items to SQLite in background
-          if (this.sqliteDriver && restResult.data.length > 0) {
+          // حفظ العناصر الواردة من سطح المكتب في قاعدة anpos_connected الخلفية (دون مساس بالوضع المستقل)
+          if (restResult.data.length > 0) {
             Promise.resolve().then(async () => {
               try {
                 for (const item of restResult.data.slice(0, 100)) {
                   if (item && typeof item === 'object') {
-                    await this.sqliteDriver?.create(table, item).catch(() => {});
+                    await connectedSqlite.create(table, item).catch(() => {});
                   }
                 }
               } catch {}
             });
           }
 
-          // Include local items not yet in remote (so mobile created products are immediately visible!)
-          const mergedList = [...restResult.data];
-          for (const localItem of localResult.data) {
-            const localId = (localItem as any)?.id || (localItem as any)?._id;
-            if (localId && !remoteMap.has(String(localId))) {
-              mergedList.unshift(localItem);
-            }
-          }
+          let resultList = [...restResult.data];
 
-          // Filter out any items that have a pending delete operation in sync_queue
-          let filteredList = mergedList;
+          // إدراج العناصر التي أُنشئت في الوضع المتصل محلياً ولم تُرفع بعد للسيرفر
           try {
-            const pendingDeletes: any = await sqlite.execute(
+            const pendingCreates: any = await connectedSqlite.execute(
+              `SELECT payload FROM sync_queue WHERE table_name = ? AND type = 'create' AND (status = 'pending' OR status = 'processing')`,
+              [table]
+            );
+            if (Array.isArray(pendingCreates) && pendingCreates.length > 0) {
+              const remoteIds = new Set(resultList.map((item: any) => String(item.id || item._id)));
+              for (const row of pendingCreates) {
+                try {
+                  const pendingItem = typeof row.payload === 'string' ? JSON.parse(row.payload) : row.payload;
+                  const pId = String(pendingItem?.id || pendingItem?._id || '');
+                  if (pId && !remoteIds.has(pId)) {
+                    resultList.unshift(pendingItem);
+                    remoteIds.add(pId);
+                  }
+                } catch {}
+              }
+            }
+          } catch {}
+
+          // استبعاد العناصر التي تم حذفها محلياً وما زالت قيد الحذف في طابور المزامنة
+          try {
+            const pendingDeletes: any = await connectedSqlite.execute(
               `SELECT record_id FROM sync_queue WHERE table_name = ? AND type = 'delete' AND (status = 'pending' OR status = 'processing')`,
               [table]
             );
             if (Array.isArray(pendingDeletes) && pendingDeletes.length > 0) {
               const delIds = new Set(pendingDeletes.map((r: any) => String(r.record_id)));
-              filteredList = mergedList.filter((item: any) => !delIds.has(String(item.id || item._id)));
+              resultList = resultList.filter((item: any) => !delIds.has(String(item.id || item._id)));
             }
           } catch {}
 
           return {
-            data: filteredList,
-            total: filteredList.length,
+            data: resultList,
+            total: resultList.length,
           };
         }
       } catch (err) {
-        console.warn(`[UnifiedDB] REST list failed for ${table}, falling back to SQLite:`, err);
+        console.warn(`[UnifiedDB] REST list failed for ${table}, falling back to connected SQLite:`, err);
       }
     }
 
-    return localResult;
+    // احتياطي الوضع المتصل عند انقطاع الشبكة: القراءة من anpos_connected المعزولة
+    return connectedSqlite.list<T>(table, opts).catch(() => ({ data: [] as T[], total: 0 }));
   }
 
   async get<T>(table: string, id: string): Promise<T | null> {
     await this.init();
-    if (this.mode === 'connected' && this.restDriver) {
+    if (this.mode === 'standalone') {
+      return this.getStandaloneSqliteDriver().get<T>(table, id);
+    }
+
+    const connectedSqlite = this.getConnectedSqliteDriver();
+    if (this.restDriver) {
       try {
         const restItem = await this.restDriver.get<T>(table, id);
         if (restItem) {
-          this.sqliteDriver?.create(table, restItem).catch(() => {});
+          connectedSqlite.create(table, restItem).catch(() => {});
           return restItem;
         }
       } catch {
-        // fallback to sqlite
+        // fallback to connected sqlite
       }
     }
-    const sqlite = this.getSqliteDriver();
-    return sqlite.get<T>(table, id);
+    return connectedSqlite.get<T>(table, id);
   }
 
   async create<T, R = T>(table: string, data: T): Promise<R> {
     await this.init();
-    const sqlite = this.getSqliteDriver();
-    // 1. Always save locally to SQLite
-    const localResult = await sqlite.create<T, R>(table, data);
 
-    // 2. If in connected mode, push to server (or queue)
-    if (this.mode === 'connected' && this.restDriver) {
+    if (this.mode === 'standalone') {
+      return this.getStandaloneSqliteDriver().create<T, R>(table, data);
+    }
+
+    const connectedSqlite = this.getConnectedSqliteDriver();
+    const localResult = await connectedSqlite.create<T, R>(table, data);
+
+    if (this.restDriver) {
       try {
         const remoteResult = await this.restDriver.create<T, R>(table, data);
         if (remoteResult && typeof remoteResult === 'object') {
-          await sqlite.create(table, remoteResult).catch(() => {});
+          await connectedSqlite.create(table, remoteResult).catch(() => {});
           return remoteResult;
         }
       } catch (err) {
-        console.warn(`[UnifiedDB] REST create failed for ${table}, enqueued locally:`, err);
+        console.warn(`[UnifiedDB] REST create failed for ${table}, enqueued in connected sync_queue:`, err);
         const recordId = (data as any)?.id || (localResult as any)?.id || '';
         if (recordId) {
           const nowIso = new Date().toISOString();
           const payload = JSON.stringify(data);
-          await sqlite.execute(
+          await connectedSqlite.execute(
             `INSERT INTO sync_queue (id, type, table_name, record_id, payload, created_at, retries, max_retries, status, error_message)
              VALUES (?, 'create', ?, ?, ?, ?, 0, 5, 'pending', ?)`,
             [`sq_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, table, recordId, payload, nowIso, String(err)]
@@ -404,17 +526,22 @@ class UnifiedDB {
 
   async update<T>(table: string, id: string, data: T): Promise<boolean> {
     await this.init();
-    const sqlite = this.getSqliteDriver();
-    const localOk = await sqlite.update<T>(table, id, data);
 
-    if (this.mode === 'connected' && this.restDriver) {
+    if (this.mode === 'standalone') {
+      return this.getStandaloneSqliteDriver().update<T>(table, id, data);
+    }
+
+    const connectedSqlite = this.getConnectedSqliteDriver();
+    const localOk = await connectedSqlite.update<T>(table, id, data);
+
+    if (this.restDriver) {
       try {
         await this.restDriver.update<T>(table, id, data);
       } catch (err) {
-        console.warn(`[UnifiedDB] REST update failed for ${table}, enqueued locally:`, err);
+        console.warn(`[UnifiedDB] REST update failed for ${table}, enqueued in connected sync_queue:`, err);
         const nowIso = new Date().toISOString();
         const payload = JSON.stringify(data);
-        await sqlite.execute(
+        await connectedSqlite.execute(
           `INSERT INTO sync_queue (id, type, table_name, record_id, payload, created_at, retries, max_retries, status, error_message)
            VALUES (?, 'update', ?, ?, ?, ?, 0, 5, 'pending', ?)`,
           [`sq_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, table, id, payload, nowIso, String(err)]
@@ -427,16 +554,21 @@ class UnifiedDB {
 
   async remove(table: string, id: string): Promise<boolean> {
     await this.init();
-    const sqlite = this.getSqliteDriver();
-    const localOk = await sqlite.remove(table, id);
 
-    if (this.mode === 'connected' && this.restDriver) {
+    if (this.mode === 'standalone') {
+      return this.getStandaloneSqliteDriver().remove(table, id);
+    }
+
+    const connectedSqlite = this.getConnectedSqliteDriver();
+    const localOk = await connectedSqlite.remove(table, id);
+
+    if (this.restDriver) {
       try {
         await this.restDriver.remove(table, id);
       } catch (err) {
-        console.warn(`[UnifiedDB] REST remove failed for ${table}, enqueued locally:`, err);
+        console.warn(`[UnifiedDB] REST remove failed for ${table}, enqueued in connected sync_queue:`, err);
         const nowIso = new Date().toISOString();
-        await sqlite.execute(
+        await connectedSqlite.execute(
           `INSERT INTO sync_queue (id, type, table_name, record_id, payload, created_at, retries, max_retries, status, error_message)
            VALUES (?, 'delete', ?, ?, '{}', ?, 0, 5, 'pending', ?)`,
           [`sq_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, table, id, nowIso, String(err)]
@@ -448,35 +580,74 @@ class UnifiedDB {
   }
 
   async batchCreate<T, R = T>(table: string, records: T[]): Promise<R[]> {
-    return this.getDriver().batchCreate(table, records);
+    await this.init();
+    if (this.mode === 'standalone') {
+      return this.getStandaloneSqliteDriver().batchCreate(table, records);
+    }
+    if (this.restDriver) {
+      try {
+        return await this.restDriver.batchCreate(table, records);
+      } catch {
+        // fallback
+      }
+    }
+    return this.getConnectedSqliteDriver().batchCreate(table, records);
   }
 
   async batchUpdate<T>(table: string, records: T[]): Promise<number> {
-    return this.getDriver().batchUpdate(table, records);
+    await this.init();
+    if (this.mode === 'standalone') {
+      return this.getStandaloneSqliteDriver().batchUpdate(table, records);
+    }
+    if (this.restDriver) {
+      try {
+        return await this.restDriver.batchUpdate(table, records);
+      } catch {
+        // fallback
+      }
+    }
+    return this.getConnectedSqliteDriver().batchUpdate(table, records);
   }
 
   async execute(sql: string, params?: unknown[]): Promise<void> {
-    await this.getDriver().execute?.(sql, params);
+    await this.init();
+    const driver = this.mode === 'standalone' ? this.getStandaloneSqliteDriver() : this.getConnectedSqliteDriver();
+    await driver.execute(sql, params);
   }
 
   async beginTransaction(): Promise<void> {
-    await this.getDriver().beginTransaction?.();
+    await this.init();
+    const driver = this.mode === 'standalone' ? this.getStandaloneSqliteDriver() : this.getConnectedSqliteDriver();
+    await driver.beginTransaction();
   }
 
   async commit(): Promise<void> {
-    await this.getDriver().commit?.();
+    await this.init();
+    const driver = this.mode === 'standalone' ? this.getStandaloneSqliteDriver() : this.getConnectedSqliteDriver();
+    await driver.commit();
   }
 
   async rollback(): Promise<void> {
-    await this.getDriver().rollback?.();
+    await this.init();
+    const driver = this.mode === 'standalone' ? this.getStandaloneSqliteDriver() : this.getConnectedSqliteDriver();
+    await driver.rollback();
   }
 
   async close(): Promise<void> {
-    if (this.driver) {
-      await this.driver.close?.();
-      this.driver = null;
-      this.initialized = false;
+    if (this.restDriver) {
+      await this.restDriver.close().catch(() => {});
+      this.restDriver = null;
     }
+    if (this.standaloneDriver) {
+      await this.standaloneDriver.close().catch(() => {});
+      this.standaloneDriver = null;
+    }
+    if (this.connectedDriver) {
+      await this.connectedDriver.close().catch(() => {});
+      this.connectedDriver = null;
+    }
+    this.driver = null;
+    this.initialized = false;
   }
 }
 

@@ -34,8 +34,6 @@ export const SupplierInvoiceModal: React.FC<SupplierInvoiceModalProps> = ({
   isPending = false,
   currencySymbol = 'دج',
 }) => {
-  if (!isOpen || !supplier) return null;
-
   const invoiceTotal = useMemo(
     () => (Array.isArray(invoiceItems) ? invoiceItems : []).reduce((sum, item) => sum + (Number(item?.lineTotal) || 0), 0),
     [invoiceItems]
@@ -44,10 +42,12 @@ export const SupplierInvoiceModal: React.FC<SupplierInvoiceModalProps> = ({
   const filteredProducts = useMemo(() => {
     if (!productSearchQuery.trim()) return [];
     const q = productSearchQuery.toLowerCase().trim();
-    return products.filter(
+    return (products || []).filter(
       (p) => p.status === 'active' && (p.name.toLowerCase().includes(q) || p.barcode.includes(q))
     );
   }, [products, productSearchQuery]);
+
+  if (!isOpen || !supplier) return null;
 
   const addProductToInvoice = (product: Product) => {
     const existing = invoiceItems.find((item) => item.productId === product.id);

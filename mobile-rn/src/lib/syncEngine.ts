@@ -137,7 +137,7 @@ class SyncEngine {
       if (stored) {
         const legacyItems: any[] = JSON.parse(stored);
         if (Array.isArray(legacyItems) && legacyItems.length > 0) {
-          const sqlite = unifiedDB.getSqliteDriver();
+          const sqlite = unifiedDB.getConnectedSqliteDriver();
           for (const item of legacyItems) {
             const id = item.id || generateId();
             const type = item.type || 'create';
@@ -179,7 +179,7 @@ class SyncEngine {
   async refreshQueueCounts(): Promise<void> {
     try {
       await ensureInit();
-      const sqlite = unifiedDB.getSqliteDriver();
+      const sqlite = unifiedDB.getConnectedSqliteDriver();
       const pendingRes = await sqlite.execute(
         `SELECT COUNT(*) as count FROM sync_queue WHERE status = 'pending' OR status = 'processing'`
       );
@@ -340,7 +340,7 @@ class SyncEngine {
     const payload = JSON.stringify(data);
 
     try {
-      const sqlite = unifiedDB.getSqliteDriver();
+      const sqlite = unifiedDB.getConnectedSqliteDriver();
       await sqlite.execute(
         `INSERT INTO sync_queue (id, type, table_name, record_id, payload, created_at, retries, max_retries, status)
          VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'pending')`,
@@ -351,7 +351,7 @@ class SyncEngine {
       this.notifyListeners();
 
       // إذا كان الاتصال متاحاً، ادفع العملية فوراً
-      if (this.isOnline && session.isConnectedSync()) {
+      if (this.isOnline && session.isConnectedSync() && unifiedDB.getMode() === 'connected') {
         this.processQueue().catch(() => {});
       }
 
@@ -368,7 +368,7 @@ class SyncEngine {
   async getPendingOperations(limit = 50): Promise<SyncOperation[]> {
     await ensureInit();
     try {
-      const sqlite = unifiedDB.getSqliteDriver();
+      const sqlite = unifiedDB.getConnectedSqliteDriver();
       const rows: any = await sqlite.execute(
         `SELECT * FROM sync_queue 
          WHERE status = 'pending' 
@@ -401,7 +401,7 @@ class SyncEngine {
    * معالجة ودفع العمليات المعلقة في الطابور إلى سطح المكتب
    */
   async processQueue(): Promise<number> {
-    if (this.isSyncing || !this.isOnline || !session.isConnectedSync()) return 0;
+    if (this.isSyncing || !this.isOnline || !session.isConnectedSync() || unifiedDB.getMode() !== 'connected') return 0;
     this.isSyncing = true;
     this.notifyListeners();
 
@@ -409,7 +409,7 @@ class SyncEngine {
 
     try {
       await ensureInit();
-      const sqlite = unifiedDB.getSqliteDriver();
+      const sqlite = unifiedDB.getConnectedSqliteDriver();
       const pendingOps = await this.getPendingOperations(50);
 
       if (pendingOps.length === 0) {
@@ -518,7 +518,7 @@ class SyncEngine {
       this.isOnline = false;
       const errMsg = error instanceof Error ? error.message : 'Network error';
       try {
-        const sqlite = unifiedDB.getSqliteDriver();
+        const sqlite = unifiedDB.getConnectedSqliteDriver();
         await sqlite.execute(
           `UPDATE sync_queue 
            SET retries = retries + 1, 
@@ -559,7 +559,7 @@ class SyncEngine {
    * سحب التعديلات الحديثة من خادم سطح المكتب وتطبيقها محلياً
    */
   async pullUpdates(): Promise<number> {
-    if (!this.isOnline || !session.isConnectedSync()) return 0;
+    if (!this.isOnline || !session.isConnectedSync() || unifiedDB.getMode() !== 'connected') return 0;
 
     try {
       const serverUrl = await session.getServerUrl();
@@ -580,8 +580,8 @@ class SyncEngine {
 
       let appliedCount = 0;
 
-      // تطبيق التغييرات بالترتيب المنطقي للجداول مباشرة في SQLite المحلي
-      const sqlite = unifiedDB.getSqliteDriver();
+      // تطبيق التغييرات بالترتيب المنطقي للجداول مباشرة في SQLite المتصل حصراً (anpos_connected.db)
+      const sqlite = unifiedDB.getConnectedSqliteDriver();
 
       for (const table of TABLE_PULL_ORDER) {
         const changes = result.changes[table];
@@ -620,7 +620,7 @@ class SyncEngine {
    * سحب المستخدمين والأدوار بصيغة آمنة للقراءة فقط دون كلمات المرور
    */
   async pullUsersReadOnly(): Promise<void> {
-    if (!this.isOnline || !session.isConnectedSync()) return;
+    if (!this.isOnline || !session.isConnectedSync() || unifiedDB.getMode() !== 'connected') return;
     try {
       const serverUrl = await session.getServerUrl();
       const headers = session.getHeaders();
@@ -631,7 +631,7 @@ class SyncEngine {
       if (!response.ok) return;
       const data = await response.json();
       if (data.success && Array.isArray(data.users)) {
-        const sqlite = unifiedDB.getSqliteDriver();
+        const sqlite = unifiedDB.getConnectedSqliteDriver();
         for (const u of data.users) {
           try {
             await sqlite.create('users', u);
@@ -639,7 +639,7 @@ class SyncEngine {
         }
       }
       if (data.success && Array.isArray(data.roles)) {
-        const sqlite = unifiedDB.getSqliteDriver();
+        const sqlite = unifiedDB.getConnectedSqliteDriver();
         for (const r of data.roles) {
           try {
             await sqlite.create('roles', r);
@@ -655,7 +655,7 @@ class SyncEngine {
    * تنفيذ دورة مزامنة كاملة (Push ثم Pull) مع تقرير إحصائي
    */
   async fullSync(): Promise<FullSyncResult> {
-    if (!session.isConnectedSync()) {
+    if (!session.isConnectedSync() || unifiedDB.getMode() !== 'connected') {
       return { success: false, pushed: 0, pulled: 0, failed: 0, error: 'غير متصل بسطح المكتب' };
     }
 
@@ -692,7 +692,7 @@ class SyncEngine {
    * سحب نسخة كاملة لتهيئة قاعدة البيانات في أول تشغيل
    */
   async bulkSync(): Promise<boolean> {
-    if (!this.isOnline || !session.isConnectedSync()) return false;
+    if (!this.isOnline || !session.isConnectedSync() || unifiedDB.getMode() !== 'connected') return false;
 
     try {
       this.isSyncing = true;
@@ -711,7 +711,7 @@ class SyncEngine {
       const result = await response.json();
       if (!result.success || !result.data) return false;
 
-      const sqlite = unifiedDB.getSqliteDriver();
+      const sqlite = unifiedDB.getConnectedSqliteDriver();
 
       for (const table of TABLE_PULL_ORDER) {
         const records = result.data[table];
@@ -745,7 +745,7 @@ class SyncEngine {
   async retryFailed(): Promise<void> {
     try {
       await ensureInit();
-      const sqlite = unifiedDB.getSqliteDriver();
+      const sqlite = unifiedDB.getConnectedSqliteDriver();
       await sqlite.execute(
         `UPDATE sync_queue 
          SET status = 'pending', retries = 0, error_message = NULL 
@@ -755,7 +755,7 @@ class SyncEngine {
       await this.refreshQueueCounts();
       this.notifyListeners();
 
-      if (this.isOnline && session.isConnectedSync()) {
+      if (this.isOnline && session.isConnectedSync() && unifiedDB.getMode() === 'connected') {
         this.processQueue().catch(() => {});
       }
     } catch (err) {
@@ -769,7 +769,7 @@ class SyncEngine {
   async clearQueue(): Promise<void> {
     try {
       await ensureInit();
-      const sqlite = unifiedDB.getSqliteDriver();
+      const sqlite = unifiedDB.getConnectedSqliteDriver();
       await sqlite.execute(`DELETE FROM sync_queue`);
       this.cachedPendingCount = 0;
       this.cachedFailedCount = 0;

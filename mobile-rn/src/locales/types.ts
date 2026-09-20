@@ -144,6 +144,11 @@ export interface TranslationSchema {
     serverOffline: string;
     loginFailed: string;
     switchMode: string;
+    firstRunWelcome: string;
+    backToLogin: string;
+    retryConnection: string;
+    switchToStandalone: string;
+    checkServerSettings: string;
   };
   modeSelect: {
     welcomeTitle: string;
@@ -1039,6 +1044,48 @@ export interface TranslationSchema {
     connectedModeDesc: string;
     syncOnlyConnected: string;
     versionDesc: string;
+  };
+  subscription: {
+    title: string;
+    subtitle: string;
+    currentPlan: string;
+    tier: string;
+    free: string;
+    lite: string;
+    pro: string;
+    freeBadge: string;
+    liteBadge: string;
+    proBadge: string;
+    freeDesc: string;
+    liteDesc: string;
+    proDesc: string;
+    salesLimit: string;
+    salesRemaining: string;
+    salesUsed: string;
+    totalQuota: string;
+    bonusSales: string;
+    salesUnit: string;
+    limitReached: string;
+    limitReachedDesc: string;
+    watchAdToEarn: string;
+    watchAdBtn: string;
+    watchingAd: string;
+    adCompletedTitle: string;
+    adCompletedMsg: string;
+    upgradePlan: string;
+    upgradeNow: string;
+    upgradeSuccess: string;
+    upgradeSuccessMsg: string;
+    enterLicenseKey: string;
+    licenseKeyPlaceholder: string;
+    activateLicense: string;
+    invalidLicense: string;
+    featuresIncluded: string;
+    selectPlan: string;
+    quotaProgress: string;
+    standaloneFeature: string;
+    featureLocked: string;
+    featureLockedDesc: string;
   };
 }
 

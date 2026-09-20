@@ -24,7 +24,8 @@ import SyncIndicator from '@/components/SyncIndicator';
 import { useAuthStore } from '@/store/authStore';
 import { useTheme } from '@/theme';
 import { useI18n } from '@/store/i18nStore';
-import { getStoredMode } from '@/infrastructure/database/UnifiedDB';
+import { db as unifiedDB } from '@/infrastructure/database/UnifiedDB';
+import { useSyncEngine } from '@/lib/syncEngine';
 import { radii, spacing, shadows } from '@/theme/tokens';
 import { Badge } from '@/components/ui';
 
@@ -88,16 +89,13 @@ export const HomeTabs = ({ navigation }: any) => {
   const { user, logout } = useAuthStore();
   const { isDark, colors, toggleTheme } = useTheme();
   const { t } = useI18n();
+  const { connectionMode } = useSyncEngine();
+  const isConnectedMode = connectionMode === 'connected' || unifiedDB.getMode() === 'connected';
 
   const handleLogout = async () => {
-    const mode = await getStoredMode().catch(() => 'standalone');
-    const isConnected = mode === 'connected';
-
     Alert.alert(
       t('auth.logoutConfirmTitle') || 'تأكيد تسجيل الخروج',
-      isConnected
-        ? (t('auth.logoutConfirmConnectedMsg') || 'هل أنت متأكد من رغبتك في تسجيل الخروج؟ سيتم إلغاء الربط مع الحاسوب مباشرة والعودة للوضع المستقل.')
-        : (t('auth.logoutConfirmMsg') || 'هل أنت متأكد من رغبتك في تسجيل الخروج؟'),
+      t('auth.logoutConfirmMsg') || 'هل أنت متأكد من رغبتك في تسجيل الخروج؟',
       [
         { text: t('common.cancel') || 'إلغاء', style: 'cancel' },
         {
@@ -162,19 +160,21 @@ export const HomeTabs = ({ navigation }: any) => {
         </View>
 
         <View style={styles.headerRight}>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('RemoteScanner')}
-            style={[
-              styles.iconBtn,
-              {
-                backgroundColor: isDark ? 'rgba(37, 99, 235, 0.2)' : colors.primary[50],
-                borderColor: isDark ? 'rgba(37, 99, 235, 0.4)' : colors.primary[200],
-              },
-            ]}
-            activeOpacity={0.7}
-          >
-            <ScanBarcode size={17} color={colors.primary[600]} />
-          </TouchableOpacity>
+          {isConnectedMode && (
+            <TouchableOpacity
+              onPress={() => navigation.navigate('RemoteScanner')}
+              style={[
+                styles.iconBtn,
+                {
+                  backgroundColor: isDark ? 'rgba(37, 99, 235, 0.2)' : colors.primary[50],
+                  borderColor: isDark ? 'rgba(37, 99, 235, 0.4)' : colors.primary[200],
+                },
+              ]}
+              activeOpacity={0.7}
+            >
+              <ScanBarcode size={17} color={colors.primary[600]} />
+            </TouchableOpacity>
+          )}
           <SyncIndicator />
           <TouchableOpacity
             onPress={toggleTheme}

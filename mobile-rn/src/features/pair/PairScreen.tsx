@@ -49,6 +49,7 @@ import { AnposSecureStore } from '@/modules/AnposSecureStore';
 import { AnposNetwork } from '@/modules/AnposNetwork';
 import { STORAGE_KEYS } from '@/lib/storageKeys';
 import { getPairedDevice, type PairedDevice } from '@/lib/pairedDeviceStore';
+import { db } from '@/infrastructure/database/UnifiedDB';
 import { AppImages } from '@/assets';
 import {
   detectLocalServer,
@@ -288,8 +289,12 @@ export const PairScreen = ({ navigation, route }: any) => {
     // Dismiss modal if open so modals don't overlap in Android
     if (fromModal) {
       setPairModalVisible(false);
+      setTimeout(() => {
+        setShowScanner(true);
+      }, 250);
+    } else {
+      setShowScanner(true);
     }
-    setShowScanner(true);
   };
 
   // Execute Confirmation / Pairing (PRD §5.4)
@@ -630,6 +635,7 @@ export const PairScreen = ({ navigation, route }: any) => {
   const inputBg = isDark ? '#131b2e' : '#f1f5f9';
   const cardBg = isDark ? '#0f172a' : '#ffffff';
   const borderColor = isDark ? '#1e293b' : '#e2e8f0';
+  const HeaderArrow = isRTL ? ArrowRight : ArrowLeft;
 
   return (
     <ScrollView
@@ -638,8 +644,32 @@ export const PairScreen = ({ navigation, route }: any) => {
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
     >
-      {/* Top Header & Language Picker */}
-      <View style={[styles.langRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+      {/* Top Header & Language Picker with Back Button */}
+      <View style={[styles.langRow, { flexDirection: isRTL ? 'row' : 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }]}>
+        <TouchableOpacity
+          style={[
+            styles.headerBackBtn,
+            {
+              backgroundColor: isDark ? 'rgba(59, 130, 246, 0.12)' : '#eff6ff',
+              borderColor: isDark ? '#1e3a8a' : '#bfdbfe',
+              flexDirection: isRTL ? 'row' : 'row-reverse',
+            },
+          ]}
+          onPress={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.replace('Login');
+            }
+          }}
+          activeOpacity={0.8}
+        >
+          <HeaderArrow size={16} color={isDark ? '#60a5fa' : '#2563eb'} />
+          <Text style={[styles.headerBackBtnText, { color: isDark ? '#60a5fa' : '#2563eb' }]}>
+            {t('common.back') || 'رجوع'}
+          </Text>
+        </TouchableOpacity>
+
         <LanguageQuickButton />
       </View>
 
@@ -1383,7 +1413,12 @@ export const PairScreen = ({ navigation, route }: any) => {
       {/* Switch to Standalone / Offline CTA Button */}
       <TouchableOpacity
         style={[styles.viewAllOptionsBtn, { borderColor, backgroundColor: cardBg, flexDirection: isRTL ? 'row-reverse' : 'row' }]}
-        onPress={() => navigation.replace('Login')}
+        onPress={async () => {
+          try {
+            await db.switchToStandalone();
+          } catch {}
+          navigation.replace('Login');
+        }}
         activeOpacity={0.7}
       >
         <Grid size={18} color={isDark ? '#60a5fa' : '#2563eb'} />
@@ -1533,7 +1568,9 @@ export const PairScreen = ({ navigation, route }: any) => {
           onConnect={(scannedUrl, scannedKey) => {
             setShowScanner(false);
             setPairModalVisible(false);
-            handleConnect(scannedUrl, scannedKey);
+            setTimeout(() => {
+              handleConnect(scannedUrl, scannedKey);
+            }, 300);
           }}
           onManualInput={() => {
             setShowScanner(false);
@@ -1544,7 +1581,9 @@ export const PairScreen = ({ navigation, route }: any) => {
             setShowScanner(false);
             if (targetDevice) {
               setPairingMethod('code');
-              setPairModalVisible(true);
+              setTimeout(() => {
+                setPairModalVisible(true);
+              }, 250);
             }
           }}
         />
@@ -1667,6 +1706,20 @@ const styles = StyleSheet.create({
   langRow: {
     alignItems: 'center',
     marginBottom: 2,
+    width: '100%',
+  },
+  headerBackBtn: {
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radii.full,
+    borderWidth: 1,
+  },
+  headerBackBtnText: {
+    fontSize: 12.5,
+    fontFamily: 'Cairo',
+    fontWeight: '700',
   },
 
   // Branding

@@ -49,6 +49,7 @@ import {
   Globe,
   Sparkles,
   Star,
+  Crown,
 } from 'lucide-react-native';
 import { useAuthStore } from '@/store/authStore';
 import { session } from '@/lib/apiClient';
@@ -803,6 +804,18 @@ export const MoreScreen = ({ navigation }: any) => {
       {/* 7. System Management & Users */}
       <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>{t('settings.systemConfig')}</Text>
       <Card style={styles.sectionMenu}>
+        {appMode === 'standalone' && (
+          <>
+            <MenuItem
+              icon={<Crown size={18} color="#f59e0b" />}
+              title={t('subscription.title')}
+              subtitle={t('subscription.subtitle')}
+              onPress={() => navigation.navigate('Subscription')}
+              colors={colors}
+            />
+            <View style={[styles.menuDivider, { backgroundColor: colors.border.subtle }]} />
+          </>
+        )}
         <MenuItem
           icon={<Users size={18} color={colors.purple[600]} />}
           title={t('nav.users')}

@@ -22,10 +22,11 @@ export function useSupportData(): {
   const contactInfo = useMemo<SupportContactInfo>(() => {
     const settingsMap = new Map((settingsList || []).map((s) => [s.key, s.value]));
 
-    const phone1Raw = (settingsMap.get('store_phone') as string) || '0666526021';
-    const phone2Raw = (settingsMap.get('store_phone2') as string) || '0674488843';
+    const phone1Raw = (settingsMap.get('store_phone') as string) || '0555220620';
+    const phone2Raw = (settingsMap.get('store_phone2') as string) || '0674784859';
+    const phone3Raw = '0674488843';
 
-    // Format phone numbers: e.g. 0666 52 60 21
+    // Format phone numbers: e.g. 0555 22 06 20
     const formatPhone = (p: string) => {
       const clean = p.replace(/\D/g, '');
       if (clean.length === 10) {
@@ -42,13 +43,15 @@ export function useSupportData(): {
 
     const phone1 = formatPhone(phone1Raw);
     const phone2 = formatPhone(phone2Raw);
+    const phone3 = formatPhone(phone3Raw);
 
-    const whatsappUrl1 = `https://wa.me/${toWaPhone(phone1Raw)}?text=${encodeURIComponent(
+    const waMsg = encodeURIComponent(
       'السلام عليكم، أحتاج مساعدة أو استفسار بخصوص برنامج AN POS'
-    )}`;
-    const whatsappUrl2 = `https://wa.me/${toWaPhone(phone2Raw)}?text=${encodeURIComponent(
-      'السلام عليكم، أحتاج مساعدة أو استفسار بخصوص برنامج AN POS'
-    )}`;
+    );
+
+    const whatsappUrl1 = `https://wa.me/${toWaPhone(phone1Raw)}?text=${waMsg}`;
+    const whatsappUrl2 = `https://wa.me/${toWaPhone(phone2Raw)}?text=${waMsg}`;
+    const whatsappUrl3 = `https://wa.me/${toWaPhone(phone3Raw)}?text=${waMsg}`;
 
     const supportEmail = (settingsMap.get('store_email') as string) || 'andev2000@gmail.com';
     const facebookUrl = (settingsMap.get('store_facebook') as string) || 'https://facebook.com';
@@ -58,10 +61,13 @@ export function useSupportData(): {
     return {
       phone1,
       phone2,
+      phone3,
       phone1Raw,
       phone2Raw,
+      phone3Raw,
       whatsappUrl1,
       whatsappUrl2,
+      whatsappUrl3,
       supportEmail,
       facebookUrl,
       instagramUrl,

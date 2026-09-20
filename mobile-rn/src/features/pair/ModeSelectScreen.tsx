@@ -72,8 +72,28 @@ export const ModeSelectScreen = ({ navigation }: Props) => {
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
-      {/* Language Switcher Row */}
-      <View style={[styles.langRow, { justifyContent: isRTL ? 'flex-start' : 'flex-end' }]}>
+      {/* Language Switcher Row & Back Button */}
+      <View style={[styles.langRow, { flexDirection: isRTL ? 'row' : 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }]}>
+        {navigation.canGoBack() ? (
+          <TouchableOpacity
+            style={[
+              styles.headerBackBtn,
+              {
+                backgroundColor: isDark ? 'rgba(59, 130, 246, 0.12)' : '#eff6ff',
+                borderColor: isDark ? '#1e3a8a' : '#bfdbfe',
+                flexDirection: isRTL ? 'row' : 'row-reverse',
+              },
+            ]}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.8}
+          >
+            <ActionArrow size={16} color={isDark ? '#60a5fa' : '#2563eb'} />
+            <Text style={[styles.headerBackBtnText, { color: isDark ? '#60a5fa' : '#2563eb' }]}>
+              {t('common.back') || 'رجوع'}
+            </Text>
+          </TouchableOpacity>
+        ) : <View />}
+
         <LanguageQuickButton />
       </View>
 
@@ -273,6 +293,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 4,
+    width: '100%',
+  },
+  headerBackBtn: {
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radii.full,
+    borderWidth: 1,
+  },
+  headerBackBtnText: {
+    fontSize: 12.5,
+    fontFamily: 'Cairo',
+    fontWeight: '700',
   },
 
   // Header

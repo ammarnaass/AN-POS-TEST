@@ -58,6 +58,7 @@ import UsersScreen from '@/features/settings/UsersScreen';
 import BackupRestoreScreen from '@/features/settings/BackupRestoreScreen';
 import StoreSettingsScreen from '@/features/settings/StoreSettingsScreen';
 import RemoteScannerScreen from '@/features/pos/RemoteScannerScreen';
+import SubscriptionScreen from '@/features/subscription/SubscriptionScreen';
 
 import { ToastContainer } from '@/components/ui';
 
@@ -176,6 +177,9 @@ export default function App() {
 
             {/* قارئ الباركود عن بُعد → نقطة البيع */}
             <Stack.Screen name="RemoteScanner" component={RemoteScannerScreen} />
+
+            {/* باقات الاشتراك ورصيد المبيعات (الوضع المستقل) */}
+            <Stack.Screen name="Subscription" component={SubscriptionScreen} />
           </Stack.Navigator>
           <ToastContainer />
         </NavigationContainer>

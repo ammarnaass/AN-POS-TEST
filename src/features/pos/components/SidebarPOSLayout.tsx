@@ -185,7 +185,7 @@ export const SidebarPOSLayout: React.FC<SidebarPOSLayoutProps> = ({
             </span>
             <div>
               <h1 className="font-black text-sm tracking-wide leading-none">{storeName}</h1>
-              <span className="text-[10px] text-blue-200 font-medium leading-none">نظام الكاشير الذكي v2.4</span>
+              <span className="text-[10px] text-blue-200 font-medium leading-none">نظام الكاشير الذكي v2.4.1</span>
             </div>
           </div>
 

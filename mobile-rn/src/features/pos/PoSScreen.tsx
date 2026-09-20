@@ -48,6 +48,9 @@ import {
   Sparkles,
   Boxes,
   ShoppingBag,
+  Tv,
+  Crown,
+  Zap,
 } from 'lucide-react-native';
 import { db, ensureInit } from '@/lib/db';
 import { generateId } from '@shared/utils';
@@ -56,6 +59,9 @@ import { getOpenSession, addToSessionSales } from '@/lib/cashSessionService';
 import { suspendOrder, type SuspendedOrder, parseSuspendedItems } from '@/lib/suspendedOrderService';
 import { notify } from '@/lib/notify';
 import { getStoredMode } from '@/infrastructure/database/UnifiedDB';
+import { useSubscriptionStore } from '@/store/subscriptionStore';
+import { checkCanMakeSale } from '@/lib/subscriptionService';
+import RewardAdModal from '@/components/subscription/RewardAdModal';
 import { syncEngine } from '@/lib/syncEngine';
 import { getStoreSettings, fetchStoreSettingsFromDesktop, StoreSettings, DEFAULT_STORE_SETTINGS } from '@/lib/settingService';
 import CameraScanner from '@/features/barcode/CameraScanner';
@@ -157,6 +163,10 @@ export const POSScreen = ({ route, navigation }: any) => {
   const [hasOpenSession, setHasOpenSession] = useState(false);
   const [showSuspendedModal, setShowSuspendedModal] = useState(false);
   const [suspendedOrders, setSuspendedOrders] = useState<SuspendedOrder[]>([]);
+
+  // Subscription Quota & Reward Ad Modal
+  const [showSubscriptionAdModal, setShowSubscriptionAdModal] = useState(false);
+  const { status: subscriptionStatus, refreshStatus: refreshSubscriptionStatus, consumeSale } = useSubscriptionStore();
 
   // Real-time / Instant Data Loading
   const loadData = useCallback(async (showLoader = false) => {
@@ -280,7 +290,8 @@ export const POSScreen = ({ route, navigation }: any) => {
   useFocusEffect(
     useCallback(() => {
       loadData(products.length === 0);
-    }, [loadData, products.length])
+      refreshSubscriptionStatus().catch(() => {});
+    }, [loadData, products.length, refreshSubscriptionStatus])
   );
 
   // 2. Real-time background sync listener and periodic heartbeat
@@ -1116,6 +1127,16 @@ export const POSScreen = ({ route, navigation }: any) => {
     setCheckoutLoading(true);
     try {
       await ensureInit();
+
+      // 0. Standalone Subscription Quota Check
+      const canSale = await checkCanMakeSale();
+      if (!canSale.allowed) {
+        setCheckoutLoading(false);
+        setShowCheckoutModal(false);
+        setShowSubscriptionAdModal(true);
+        return;
+      }
+
       const nowIso = new Date().toISOString();
       const invoiceNumber = await generateMobileInvoiceNumber(saleMode === 'wholesale');
       const saleId = generateId();
@@ -1256,6 +1277,7 @@ export const POSScreen = ({ route, navigation }: any) => {
       };
       await db.sales.add(saleRecord);
       await syncEngine.enqueue('create', 'sales', saleId, saleRecord);
+      await consumeSale();
 
       // 2. Insert individual sale_items and deduct stock for products / pack items
       for (const item of cart) {
@@ -1663,6 +1685,53 @@ export const POSScreen = ({ route, navigation }: any) => {
             {hasOpenSession ? t('pos.openShiftActive') : t('pos.openShiftBtn')}
           </Text>
         </TouchableOpacity>
+
+        {/* Subscription Quota Pill (Standalone Mode) */}
+        {!subscriptionStatus?.isUnlimitedOrConnected && (
+          <TouchableOpacity
+            style={[
+              styles.topActionPill,
+              {
+                backgroundColor: (subscriptionStatus?.remainingSales ?? 300) < 20
+                  ? (isDark ? 'rgba(239, 68, 68, 0.15)' : '#fee2e2')
+                  : (isDark ? 'rgba(16, 185, 129, 0.12)' : '#ecfdf5'),
+                borderColor: (subscriptionStatus?.remainingSales ?? 300) < 20
+                  ? colors.danger.main
+                  : colors.emerald[400],
+                flexDirection: isRTL ? 'row-reverse' : 'row',
+              },
+            ]}
+            onPress={() => {
+              if ((subscriptionStatus?.remainingSales ?? 300) <= 0) {
+                setShowSubscriptionAdModal(true);
+              } else {
+                navigation.navigate('Subscription');
+              }
+            }}
+            activeOpacity={0.75}
+          >
+            {subscriptionStatus?.tier === 'pro' ? (
+              <Crown size={14} color="#f59e0b" />
+            ) : subscriptionStatus?.tier === 'lite' ? (
+              <Zap size={14} color="#3b82f6" />
+            ) : (
+              <Sparkles size={14} color={colors.emerald[600]} />
+            )}
+            <Text
+              style={[
+                styles.topActionPillText,
+                {
+                  color: (subscriptionStatus?.remainingSales ?? 300) < 20
+                    ? colors.danger.main
+                    : colors.emerald[700],
+                  fontWeight: '700',
+                },
+              ]}
+            >
+              {subscriptionStatus?.remainingSales ?? 300} {t('subscription.salesUnit')}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Top Search & Toolbar */}
@@ -2921,6 +2990,17 @@ export const POSScreen = ({ route, navigation }: any) => {
           sampleDocType={lastInvoiceData?.docType || (saleMode === 'wholesale' ? 'wholesale-invoice' : 'sale-invoice')}
         />
       )}
+
+      {/* Subscription Quota & Reward Ad Modal */}
+      <RewardAdModal
+        visible={showSubscriptionAdModal}
+        onClose={() => setShowSubscriptionAdModal(false)}
+        onRewardClaimed={() => {
+          refreshSubscriptionStatus();
+          notify({ type: 'success', message: t('subscription.adCompletedMsg') });
+        }}
+        onUpgradePress={() => navigation.navigate('Subscription')}
+      />
     </View>
   );
 };
