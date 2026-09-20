@@ -3,6 +3,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import os from 'node:os';
+import { app } from 'electron';
 import { queryOne, execute } from '../../handlers/db-utils';
 
 /**
@@ -39,7 +40,7 @@ export async function registerDiscoveryRoutes(server: FastifyInstance): Promise<
       shopName: (settings.shop_name as string) || 'AN POS',
       port: Number(netSettings?.server_port) || 3000,
       ips,
-      version: '1.0.0',
+      version: app?.getVersion ? app.getVersion() : '2.4.1',
       platform: os.platform(),
       arch: os.arch(),
     });

@@ -5,6 +5,7 @@ import { db } from '@/infrastructure/database/dexie/db';
 import { useAuthStore } from '@/store/authStore';
 import { useSidebarStore } from '@/store/sidebarStore';
 import type { UserRole } from '@/types';
+import { APP_FULL_NAME } from '@/constants/app';
 import {
   X,
   Store,
@@ -456,6 +457,14 @@ export default function Sidebar({ isOpen, onClose, isPosMode = false, isExpiredA
               <LogOut className="w-4 h-4" />
             </button>
           </div>
+
+          {(!isCollapsed || isPosMode) && (
+            <div className="mt-2 text-center select-none">
+              <span className="text-[10px] font-mono font-bold text-on-surface-variant/50 tracking-wider">
+                {APP_FULL_NAME}
+              </span>
+            </div>
+          )}
         </div>
       </aside>
     </>

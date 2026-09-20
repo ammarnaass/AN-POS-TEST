@@ -1,5 +1,6 @@
 import React from 'react';
-import { Settings, ShieldCheck } from 'lucide-react';
+import { Settings, ShieldCheck, Tag } from 'lucide-react';
+import { APP_DISPLAY_VERSION } from '@/constants/app';
 
 interface SettingsHeaderProps {
   serverStatus: { running: boolean; port: number } | null;
@@ -27,6 +28,11 @@ export default function SettingsHeader({
       </div>
 
       <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+        <div className="px-3 py-1.5 rounded-xl bg-surface-container-highest border border-outline-variant/20 flex items-center gap-1.5 text-xs font-semibold text-on-surface font-mono">
+          <Tag className="w-3.5 h-3.5 text-primary" />
+          <span>{APP_DISPLAY_VERSION}</span>
+        </div>
+
         <div className="px-3 py-1.5 rounded-xl bg-surface-container-highest border border-outline-variant/20 flex items-center gap-2 text-xs font-semibold text-on-surface">
           <div className={`w-2.5 h-2.5 rounded-full ${serverStatus?.running ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
           <span>خادم الشبكة: {serverStatus?.running ? `يعمل (منفذ ${serverStatus.port})` : 'متوقف'}</span>

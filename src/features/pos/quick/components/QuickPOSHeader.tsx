@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { QuickPOSClock } from './QuickPOSClock';
 import { formatMoney } from '../../utils/format';
+import { APP_DISPLAY_VERSION } from '@/constants/app';
 
 interface QuickPOSHeaderProps {
   shopName: string;
@@ -61,7 +62,7 @@ export const QuickPOSHeader: React.FC<QuickPOSHeaderProps> = React.memo(({
         <div className="flex items-center gap-2 sm:gap-4 overflow-x-auto no-scrollbar">
           <span className="flex items-center gap-1.5 font-bold text-emerald-400 whitespace-nowrap">
             <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            نظام نقاط البيع - AN POS v4.2
+            نظام نقاط البيع - AN POS {APP_DISPLAY_VERSION}
           </span>
           <span className="text-slate-600 hidden sm:inline">|</span>
           <span className="text-slate-300 hidden md:inline whitespace-nowrap">

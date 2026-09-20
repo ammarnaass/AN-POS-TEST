@@ -34,6 +34,7 @@ import { useDesign6CashCalculator } from './hooks/useDesign6CashCalculator';
 import { useFavoritesStore } from '@/features/favorites/store/useFavoritesStore';
 import { usePOSSessionStore } from '@/features/pos/store/usePOSSessionStore';
 import { readWeightFromSerial } from '@/services/hardware/scaleService';
+import { APP_DISPLAY_VERSION } from '@/constants/app';
 
 export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps> = ({
   cart,
@@ -607,7 +608,7 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
         isPrinterReady={true}
         isDbConnected={true}
         screenModel="SAMSUNG S19C150"
-        appVersion="V 4.8.2 PRO"
+        appVersion={`${APP_DISPLAY_VERSION} PRO`}
       />
 
       {/* 6. Sub-modals: Flexy & Lock */}

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Printer, Database, Monitor } from 'lucide-react';
+import { APP_DISPLAY_VERSION } from '@/constants/app';
 
 export interface Design6SystemStatusBarProps {
   printerName?: string;
@@ -14,7 +15,7 @@ export const Design6SystemStatusBar: React.FC<Design6SystemStatusBarProps> = ({
   isPrinterReady = true,
   isDbConnected = true,
   screenModel = 'SAMSUNG S19C150',
-  appVersion = 'V 4.8.2 PRO',
+  appVersion = `${APP_DISPLAY_VERSION} PRO`,
 }) => {
   return (
     <footer className="w-full bg-slate-200/90 dark:bg-[#050811] border-t border-slate-300 dark:border-slate-900 px-3 py-1 flex items-center justify-between text-[11px] font-medium text-slate-600 dark:text-slate-400 select-none shrink-0 transition-colors">

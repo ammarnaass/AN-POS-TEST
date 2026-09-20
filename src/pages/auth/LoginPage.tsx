@@ -22,6 +22,7 @@ import {
 import { db } from '@/infrastructure/database/dexie/db';
 import { generateId } from '@/utils';
 import { validatePasswordStrength, PasswordStrengthBar } from '@/utils/passwordStrength';
+import { APP_DISPLAY_VERSION } from '@/constants/app';
 
 type View = 'login' | 'register' | 'success';
 
@@ -200,7 +201,7 @@ export default function LoginPage() {
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-black text-on-surface font-cairo tracking-tight">AN POS</h1>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/25">
-                V3.0 Pro
+                {APP_DISPLAY_VERSION} Pro
               </span>
             </div>
             <p className="text-xs text-on-surface-variant font-tajawal mt-0.5">منظومة إدارة المبيعات ونقاط البيع الذكية</p>
@@ -261,7 +262,7 @@ export default function LoginPage() {
           <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
           النظام متصل
         </span>
-        <span className="font-mono text-[11px] text-on-surface-variant/80">AN-POS V3.0</span>
+        <span className="font-mono text-[11px] text-on-surface-variant/80">AN-POS {APP_DISPLAY_VERSION}</span>
       </div>
     </div>
   );
@@ -580,7 +581,7 @@ export default function LoginPage() {
 
             {/* Mobile Footer Meta */}
             <div className="pt-3 mt-3 border-t border-outline-variant/15 flex items-center justify-between text-[11px] text-on-surface-variant font-tajawal">
-              <span>AN POS V3.0</span>
+              <span>AN POS {APP_DISPLAY_VERSION}</span>
               <span className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-success" />
                 {isElectronAvailable ? 'النظام متصل' : 'الوضع المحلي'}

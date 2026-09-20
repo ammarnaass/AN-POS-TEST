@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNotificationStore } from '@/store/notificationStore';
+import { APP_FULL_NAME } from '@/constants/app';
 import {
   Download,
   Upload,
@@ -659,7 +660,7 @@ export default function ExportBackupTab({ handleExportExcel: propExportExcel }: 
                 <div className="flex items-center gap-2 text-on-surface-variant">
                   <span>الإصدار:</span>
                   <span className="font-semibold text-on-surface">
-                    {inspectionResult.summary.appVersion || 'AN POS 3.5'}
+                    {inspectionResult.summary.appVersion || APP_FULL_NAME}
                   </span>
                 </div>
               </div>

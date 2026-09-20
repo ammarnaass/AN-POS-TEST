@@ -1,6 +1,7 @@
 import React from 'react';
 import { Lock } from 'lucide-react';
 import type { TabItem } from './CategoryGroupsNav';
+import { APP_DISPLAY_VERSION } from '@/constants/app';
 
 interface SubTabsRibbonProps {
   displayedTabs: TabItem[];
@@ -75,7 +76,9 @@ export default function SubTabsRibbon({
       <div className="flex items-center gap-2 sm:gap-3 px-3.5 py-2 min-h-[44px] rounded-xl sm:rounded-2xl bg-surface-container/70 border border-outline-variant/20 text-xs text-on-surface-variant shrink-0 justify-between md:justify-start">
         <div className="flex items-center gap-1.5 font-mono font-bold text-on-surface">
           <span className="text-[11px] text-on-surface-variant/70">الإصدار</span>
-          <span className="px-1.5 py-0.5 rounded-md bg-surface-container-highest border border-outline-variant/30 text-[11px] font-bold">v1.0.0</span>
+          <span className="px-1.5 py-0.5 rounded-md bg-surface-container-highest border border-outline-variant/30 text-[11px] font-bold text-primary">
+            {APP_DISPLAY_VERSION}
+          </span>
         </div>
         <span className="w-1.5 h-1.5 rounded-full bg-outline-variant/50" />
         <span className="flex items-center gap-2 text-emerald-500 font-bold font-cairo">

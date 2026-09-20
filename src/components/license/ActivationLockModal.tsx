@@ -5,6 +5,7 @@ import { clearTrial, getTrialState, formatTrialDate } from '@/services/trialServ
 import { useAuthStore } from '@/store/authStore';
 import { useNavigate } from 'react-router-dom';
 import SupportChannelsModal from '@/components/license/SupportChannelsModal';
+import { APP_FULL_NAME } from '@/constants/app';
 
 interface Props {
   onActivated?: () => void;
@@ -234,7 +235,7 @@ export default function ActivationLockModal({ onActivated }: Props) {
           </button>
 
           <span className="text-[11px] text-on-surface-variant font-tajawal">
-            AN POS V3.0 Pro
+            {APP_FULL_NAME}
           </span>
         </div>
       </div>

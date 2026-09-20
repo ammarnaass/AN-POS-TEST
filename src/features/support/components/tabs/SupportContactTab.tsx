@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import type { SupportContactInfo } from '../../types';
 import { FacebookIcon, InstagramIcon, YoutubeIcon } from '../SupportSocialIcons';
+import { APP_DISPLAY_VERSION } from '@/constants/app';
 
 interface SupportContactTabProps {
   contactInfo?: SupportContactInfo;
@@ -83,7 +84,17 @@ export const SupportContactTab: React.FC<SupportContactTabProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-3 shrink-0 flex-wrap">
+          <div className="text-right bg-surface-container-high/60 px-4 py-2.5 rounded-2xl border border-outline-variant/20">
+            <div className="flex items-center gap-1.5 text-[11px] font-bold text-on-surface-variant">
+              <Sparkles className="w-3.5 h-3.5 text-primary" />
+              <span>إصدار النظام</span>
+            </div>
+            <p className="text-xs font-black text-primary mt-0.5 font-mono">
+              {APP_DISPLAY_VERSION}
+            </p>
+          </div>
+
           <div className="text-left bg-surface-container-high/60 px-4 py-2.5 rounded-2xl border border-outline-variant/20">
             <div className="flex items-center gap-1.5 text-[11px] font-bold text-on-surface-variant">
               <Clock className="w-3.5 h-3.5 text-amber-500" />
