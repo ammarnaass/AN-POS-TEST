@@ -234,10 +234,10 @@ export const Design7BottomFavoritesPad: React.FC<Design7BottomFavoritesPadProps>
                 key={tab.id}
                 type="button"
                 onClick={() => handleCategoryClick(tab.id)}
-                className={`font-bold rounded flex items-center justify-center text-[10.5px] sm:text-xs shadow-xs cursor-pointer p-1 text-center transition-all leading-tight ${
+                className={`font-black rounded flex items-center justify-center text-[10.5px] sm:text-xs shadow-xs cursor-pointer p-1 text-center transition-all leading-tight ${
                   isActive
-                    ? 'd7-pill-gloss-red text-white font-black'
-                    : 'd7-glossy-fav-btn text-slate-800 hover:text-slate-950'
+                    ? 'd7-pill-gloss-red text-white font-black ring-2 ring-red-400'
+                    : 'd7-glossy-fav-btn text-white font-black hover:text-white'
                 }`}
                 title={tab.name}
               >
@@ -294,27 +294,27 @@ export const Design7BottomFavoritesPad: React.FC<Design7BottomFavoritesPadProps>
                     }
                   }}
                   title={`${pack.name} - ${formatMoney(displayPrice)} (${pack.isPack === false ? 'سلعة' : 'عبوة'})`}
-                  className="d7-glossy-product-tile rounded p-1 flex flex-col justify-between items-center text-center cursor-pointer overflow-hidden group active:scale-95 transition-all shadow-2xs hover:shadow-xs min-h-[38px]"
+                  className="d7-glossy-product-tile rounded p-1 flex flex-col justify-between items-center text-center cursor-pointer overflow-hidden group active:scale-95 transition-all shadow-sm hover:shadow-md min-h-[38px]"
                 >
-                  {/* Pack Name: 2 lines with clear bold typography */}
+                  {/* Pack Name: 2 lines with clear bold typography on dark background */}
                   <div className="w-full flex-1 flex items-center justify-center overflow-hidden">
-                    <span className="font-extrabold text-black text-[10.5px] sm:text-xs md:text-[12.5px] tracking-tight line-clamp-2 group-hover:text-blue-950 leading-snug break-words">
+                    <span className="font-black text-white text-[11px] sm:text-xs md:text-[13px] tracking-tight line-clamp-2 group-hover:text-cyan-200 leading-snug break-words drop-shadow-xs">
                       {pack.name}
                     </span>
                   </div>
 
                   {/* Pack Price & Unit Row: Dedicated row ensuring both are 100% visible */}
-                  <div className="w-full flex items-center justify-between gap-1 mt-0.5 pt-0.5 border-t border-slate-300/60 shrink-0">
+                  <div className="w-full flex items-center justify-between gap-1 mt-0.5 pt-0.5 border-t border-slate-700/80 shrink-0">
                     {pack.packQty && pack.packQty > 1 ? (
-                      <span className="text-[9px] font-black px-1 py-0.2 rounded bg-amber-100 text-amber-950 border border-amber-300 font-mono truncate max-w-[65px]">
+                      <span className="text-[9.5px] sm:text-[10px] font-black px-1.5 py-0.2 rounded bg-amber-400 text-slate-950 border border-amber-300 font-mono truncate max-w-[65px] shadow-2xs">
                         ×{pack.packQty} {pack.packUnit || 'عبوة'}
                       </span>
                     ) : (
-                      <span className="text-[9px] font-bold text-slate-700 font-mono">
+                      <span className="text-[9.5px] sm:text-[10px] font-bold text-slate-300 font-mono">
                         {pack.packUnit || 'عبوة'}
                       </span>
                     )}
-                    <span className="text-[10px] sm:text-[11px] font-black text-black font-mono bg-amber-200/90 px-1.5 py-0.2 rounded border border-amber-400 shadow-2xs shrink-0">
+                    <span className="text-[10.5px] sm:text-[11.5px] font-black text-black font-mono bg-amber-300 px-1.5 py-0.2 rounded border border-amber-400 shadow-2xs shrink-0">
                       {formatMoney(displayPrice)}
                     </span>
                   </div>
@@ -327,7 +327,7 @@ export const Design7BottomFavoritesPad: React.FC<Design7BottomFavoritesPadProps>
               <button
                 key={`empty-${slotIdx}`}
                 type="button"
-                className="d7-glossy-product-tile rounded cursor-default pointer-events-none opacity-80"
+                className="d7-glossy-product-tile rounded cursor-default pointer-events-none opacity-25 border-dashed border-slate-600"
                 tabIndex={-1}
               />
             );
@@ -369,10 +369,10 @@ export const Design7BottomFavoritesPad: React.FC<Design7BottomFavoritesPadProps>
                 key={tab.id}
                 type="button"
                 onClick={() => handleCategoryClick(tab.id)}
-                className={`font-bold rounded flex items-center justify-center text-[10.5px] sm:text-xs shadow-xs cursor-pointer p-1 text-center transition-all leading-tight ${
+                className={`font-black rounded flex items-center justify-center text-[10.5px] sm:text-xs shadow-xs cursor-pointer p-1 text-center transition-all leading-tight ${
                   isActive
-                    ? 'd7-pill-gloss-red text-white font-black'
-                    : 'd7-glossy-fav-btn text-slate-800'
+                    ? 'd7-pill-gloss-red text-white font-black ring-2 ring-red-400'
+                    : 'd7-glossy-fav-btn text-white font-black hover:text-white'
                 }`}
                 title={tab.name}
               >
