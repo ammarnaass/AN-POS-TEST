@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db, type SettingsEntity } from '@/infrastructure/database/dexie/db';
+import { usePOSSessionStore } from '@/features/pos/store/usePOSSessionStore';
 import type { Currency } from '@/types';
 
 export type SyncMode = 'single' | 'lan' | 'cloud' | 'hybrid';
