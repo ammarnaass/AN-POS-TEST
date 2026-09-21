@@ -68,7 +68,7 @@ export function useDesign7Favorites({
     if (systemPacks.length > 0) {
       return systemPacks.map((p: any, idx: number) => ({
         id: `sys-pack-${p.id}`,
-        categoryId: p.categoryId || (idx % 3 === 0 ? 'fav-cat-wholesale' : idx % 3 === 1 ? 'fav-cat-drinks' : 'fav-cat-quick'),
+        categoryId: p.categoryId,
         type: 'pack' as const,
         itemId: String(p.id).replace('pack-', ''),
         name: p.name,
@@ -92,17 +92,13 @@ export function useDesign7Favorites({
         );
         if (byName) prodCatId = byName.id;
       }
-      if (!prodCatId || (!byId && !activeFavoriteCategories.some((c) => c.id === prodCatId))) {
-        if (activeFavoriteCategories.length > 0) {
-          prodCatId = activeFavoriteCategories[idx % activeFavoriteCategories.length].id;
-        } else {
-          prodCatId = idx % 3 === 0 ? 'fav-cat-drinks' : idx % 3 === 1 ? 'fav-cat-wholesale' : 'fav-cat-quick';
-        }
-      }
+      const finalCatId = byId || (p.category && activeFavoriteCategories.some((c) => c.name.trim().toLowerCase() === p.category.trim().toLowerCase()))
+        ? prodCatId
+        : undefined;
 
       return {
         id: `fav-pack-${p.id || idx}`,
-        categoryId: prodCatId,
+        categoryId: finalCatId,
         category: p.category,
         type: 'pack' as const,
         itemId: String(p.id),

@@ -131,31 +131,36 @@ export const Design7BottomFavoritesPad: React.FC<Design7BottomFavoritesPadProps>
 
   // Resolve packs or products to display (up to 16 slots)
   const activePacksList = useMemo(() => {
-    // 1. If we have favorite packs directly passed, display them
-    if (favoritePacks && favoritePacks.length > 0) {
-      return favoritePacks.slice(0, 16);
+    const activeFilter = (selectedFavoriteCatId && selectedFavoriteCatId !== 'ALL' && selectedFavoriteCatId !== 'all')
+      ? selectedFavoriteCatId
+      : (selectedCategory && selectedCategory !== 'ALL' && selectedCategory !== 'all')
+      ? selectedCategory
+      : null;
+
+    // 1. If favorite packs are directly passed as an array
+    if (Array.isArray(favoritePacks)) {
+      // If filtering by a specific category, strictly return the favoritePacks list for that category (even if empty)
+      if (activeFilter) {
+        return favoritePacks.slice(0, 16);
+      }
+      // If viewing all, return favoritePacks if not empty
+      if (favoritePacks.length > 0) {
+        return favoritePacks.slice(0, 16);
+      }
     }
 
-    // 2. Fallback to products if favorite packs are absent
+    // 2. Fallback to products only when favorite packs are absent
     const productSource = products && products.length > 0 ? products : [];
     if (productSource.length > 0) {
-      let filtered = productSource;
-      const activeFilter = (selectedFavoriteCatId && selectedFavoriteCatId !== 'ALL' && selectedFavoriteCatId !== 'all')
-        ? selectedFavoriteCatId
-        : (selectedCategory && selectedCategory !== 'ALL' && selectedCategory !== 'all')
-        ? selectedCategory
-        : null;
+      let filtered: any[] = productSource;
 
       if (activeFilter) {
-        const matching = productSource.filter(
+        filtered = productSource.filter(
           (p) =>
             p.categoryId === activeFilter ||
             p.category === activeFilter ||
             (p as any).category_id === activeFilter
         );
-        if (matching.length > 0) {
-          filtered = matching;
-        }
       }
 
       return filtered.slice(0, 16).map((p) => ({

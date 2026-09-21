@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import React from 'react';
 import { Design7POSLayout } from '../design7';
 import type { CartItem, Product } from '@/types';
@@ -243,6 +243,44 @@ describe('Design7POSLayout (تصميم 7 - كاشير اللمس الكلاسي�
     fireEvent.click(screen.getByText('كراتين مياه معدنية'));
     expect(screen.getByText('كرتونة ماء لالة 12 قارورة')).toBeInTheDocument();
     expect(screen.queryByText('باكيت بيمبو 24 قطعة')).not.toBeInTheDocument();
+  });
+
+  it('keeps empty pack categories strictly empty without displaying products from catalog', () => {
+    const customFavoriteCategories = [
+      { id: 'custom-cat-1', name: 'كراتين مياه معدنية' },
+      { id: 'empty-cat', name: 'تصنيف فارغ تماماً' },
+    ];
+    const customFavoritePacks = [
+      {
+        id: 'pack-water-1',
+        categoryId: 'custom-cat-1',
+        name: 'كرتونة ماء لالة 12 قارورة',
+        price: 360,
+        packQty: 12,
+        packUnit: 'قارورة',
+      },
+    ];
+
+    render(
+      <Design7POSLayout
+        {...defaultProps}
+        favoriteCategories={customFavoriteCategories}
+        favoritePacks={customFavoritePacks}
+      />
+    );
+
+    // Click on empty category
+    fireEvent.click(screen.getByText('تصنيف فارغ تماماً'));
+
+    const favoritesGrid = screen.getByText('تصنيفات العبوات').closest('footer')?.querySelector('[data-purpose="product-speed-dial"]');
+    expect(favoritesGrid).toBeTruthy();
+
+    // Must show empty state message inside favorites grid
+    expect(within(favoritesGrid as HTMLElement).getByText('لا توجد عبوات في هذا التصنيف المفضل')).toBeInTheDocument();
+
+    // Must NOT display any pack or catalog products inside favorites grid
+    expect(within(favoritesGrid as HTMLElement).queryByText('عدس فراد')).not.toBeInTheDocument();
+    expect(within(favoritesGrid as HTMLElement).queryByText('كرتونة ماء لالة 12 قارورة')).not.toBeInTheDocument();
   });
 
   it('handles side keypad delete button to remove selected item', () => {
