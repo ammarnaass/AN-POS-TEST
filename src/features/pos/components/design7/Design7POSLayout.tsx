@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useCallback } from 'react';
 import type { Design7POSLayoutProps } from './types';
 import './design7.css';
 
@@ -12,10 +12,15 @@ import { Design7BottomFavoritesPad } from './components/Design7BottomFavoritesPa
 import { Design7ProductSearchModal } from './modals/Design7ProductSearchModal';
 import { Design7ItemEditModal } from './modals/Design7ItemEditModal';
 import { Design7VirtualKeyboardModal } from './modals/Design7VirtualKeyboardModal';
-import { useDesign7Shortcuts } from './hooks/useDesign7Shortcuts';
-import { useFavoritesStore } from '@/features/favorites/store/useFavoritesStore';
+import {
+  useDesign7CartSelection,
+  useDesign7Favorites,
+  useDesign7Modals,
+  useDesign7BarcodeAndScale,
+  useDesign7Payment,
+  useDesign7Shortcuts,
+} from './hooks';
 import { getCartRowKey } from './utils/cartRow';
-import { readWeightFromSerial } from '@/services/hardware/scaleService';
 
 export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
   cart,
@@ -78,358 +83,99 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
   isAnyModalOpen: isAnyGlobalModalOpen = false,
   onCloseAllModals,
 }) => {
-  // Selected cart row state (tracks unique rowKey to prevent multi-selection)
-  const [selectedCartRowId, setSelectedCartRowId] = useState<string | null>(() => {
-    return cart.length > 0 ? getCartRowKey(cart[cart.length - 1], cart.length - 1) : null;
-  });
-
-  // Modal states for Product Search and Item Editing (Touch Numpad / Calculator)
-  const [isProductSearchOpen, setIsProductSearchOpen] = useState(false);
-  const [itemEditState, setItemEditState] = useState<{
-    isOpen: boolean;
-    mode: 'qty' | 'price' | 'paid' | 'discount';
-  }>({
-    isOpen: false,
-    mode: 'qty',
-  });
-  const [paidAmount, setPaidAmount] = useState<number>(0);
-  const [isVirtualKeyboardOpen, setIsVirtualKeyboardOpen] = useState(false);
-
-  // تصفير المبلغ المدفوع تلقائياً عند خلو السلة (إتمام الفاتورة، تفريغها أو بدء بيع جديد)
-  useEffect(() => {
-    if (cart.length === 0) {
-      setPaidAmount(0);
-    }
-  }, [cart.length]);
-
-  // Combined modal state (local design7 modals + global POSPage modals) for Esc handling
-  const isAnyModalOpen =
-    isProductSearchOpen || itemEditState.isOpen || isVirtualKeyboardOpen || isAnyGlobalModalOpen;
-
-  const handleCloseModals = useCallback(() => {
-    setIsProductSearchOpen(false);
-    setItemEditState((prev) => ({ ...prev, isOpen: false }));
-    setIsVirtualKeyboardOpen(false);
-    onCloseAllModals?.();
-    setTimeout(() => {
-      barcodeInputRef.current?.focus();
-    }, 40);
-  }, [onCloseAllModals]);
-
-  // Favorites Store & Categories for Favorite Packs (عبوات وتصنيفات المفضلة)
+  // 1. Cart Row Selection & Item Navigation Hook
   const {
-    categories: storeFavoriteCategories,
-    items: storeFavoriteItems,
-    purgeProductItems,
-  } = useFavoritesStore();
+    selectedCartRowId,
+    setSelectedCartRowId,
+    activeItem,
+    handleArrowUp,
+    handleArrowDown,
+    handleArrowRight,
+    handleArrowLeft,
+    handleDeleteSelectedRow,
+  } = useDesign7CartSelection({
+    cart,
+    onUpdateQty,
+    onRemoveFromCart,
+  });
 
-  useEffect(() => {
-    purgeProductItems();
-  }, [purgeProductItems]);
+  // 2. Financial Accounting, Paid Amount & Settlement Hook
+  const {
+    paidAmount,
+    setPaidAmount,
+    itemCount,
+    totalQuantity,
+    handleConfirm,
+  } = useDesign7Payment({
+    cart,
+    onSettleSale,
+  });
 
-  const [selectedFavoriteCatId, setSelectedFavoriteCatId] = useState<string>('ALL');
+  // 3. Barcode Scanner, Focus Ref & Electronic Scale Hook
+  const {
+    barcodeInputRef,
+    handleBarcodeSubmit,
+    handleReadScale,
+  } = useDesign7BarcodeAndScale({
+    onBarcodeSubmit,
+    activeItem,
+    onUpdateQty,
+  });
 
-  // Categories dedicated exclusively to favorite packages
-  const activeFavoriteCategories = useMemo(() => {
-    if (customFavoriteCategories && customFavoriteCategories.length > 0) {
-      return customFavoriteCategories;
-    }
-    if (storeFavoriteCategories && storeFavoriteCategories.length > 0) {
-      return storeFavoriteCategories;
-    }
-    // الربط التلقائي بأقسام وعائلات المتجر الفعلية
-    return (categories || []).map((c: any) => ({
-      id: typeof c === 'string' ? c : c.id || c.name,
-      name: typeof c === 'string' ? c : c.name,
-      color: typeof c === 'string' ? '#2563eb' : c.color || '#2563eb',
-      icon: typeof c === 'string' ? 'FolderTree' : c.icon || 'FolderTree',
-    }));
-  }, [customFavoriteCategories, storeFavoriteCategories, categories]);
+  // 4. Modals Lifecycle & Dialog Management Hook
+  const {
+    isProductSearchOpen,
+    openProductSearch,
+    closeProductSearch,
+    itemEditState,
+    openItemEdit,
+    closeItemEdit,
+    isVirtualKeyboardOpen,
+    openVirtualKeyboard,
+    closeVirtualKeyboard,
+    isAnyModalOpen,
+    handleCloseModals,
+    refocusBarcode,
+  } = useDesign7Modals({
+    isAnyGlobalModalOpen,
+    onCloseAllModals,
+    barcodeInputRef,
+  });
 
-  // Packs only from favorites store
-  const packOnlyFavorites = useMemo(() => {
-    return (storeFavoriteItems || []).filter((it) => it.type === 'pack');
-  }, [storeFavoriteItems]);
+  // 5. Favorites Packs & Categories Hook
+  const {
+    selectedFavoriteCatId,
+    setSelectedFavoriteCatId,
+    activeFavoriteCategories,
+    activeFavoritesList,
+    displayedFavoriteItems,
+    handleSelectFavoritePack,
+  } = useDesign7Favorites({
+    customFavoriteCategories,
+    customFavoritePacks,
+    categories,
+    products,
+    allProducts,
+    priceTier,
+    onAddToCart,
+  });
 
-  // System packs from catalog (isPack: true or bundle items)
-  const systemPacks = useMemo(() => {
-    const list = (allProducts && allProducts.length > 0 ? allProducts : products) || [];
-    return list.filter((p: any) => Boolean(p.isPack) || 'items' in p);
-  }, [allProducts, products]);
-
-  // Fallback favorite packs when store items haven't been created yet
-  const fallbackFavoriteItems = useMemo(() => {
-    if (systemPacks.length > 0) {
-      return systemPacks.map((p: any, idx: number) => ({
-        id: `sys-pack-${p.id}`,
-        categoryId: p.categoryId || (idx % 3 === 0 ? 'fav-cat-wholesale' : idx % 3 === 1 ? 'fav-cat-drinks' : 'fav-cat-quick'),
-        type: 'pack' as const,
-        itemId: String(p.id).replace('pack-', ''),
-        name: p.name,
-        barcode: p.barcode,
-        price: Number(p.retailPrice ?? p.price ?? p.packPrice ?? 0),
-        packQty: Number(p.packPiecesCount ?? p.piecesCount ?? 1),
-        packUnit: p.unitName || p.unit || 'عبوة',
-        order: idx,
-        isPack: true,
-      }));
-    }
-
-    // Smart fallback: map available products into favorite packs and link directly to real departments
-    const available = (allProducts && allProducts.length > 0 ? allProducts : products) || [];
-    return available.map((p: any, idx: number) => {
-      let prodCatId = p.categoryId || (p as any).category_id;
-      const byId = activeFavoriteCategories.find((c) => c.id === prodCatId);
-      if (!byId && p.category) {
-        const byName = activeFavoriteCategories.find(
-          (c) => c.name.trim().toLowerCase() === p.category.trim().toLowerCase()
-        );
-        if (byName) prodCatId = byName.id;
-      }
-      if (!prodCatId || (!byId && !activeFavoriteCategories.some((c) => c.id === prodCatId))) {
-        if (activeFavoriteCategories.length > 0) {
-          prodCatId = activeFavoriteCategories[idx % activeFavoriteCategories.length].id;
-        } else {
-          prodCatId = idx % 3 === 0 ? 'fav-cat-drinks' : idx % 3 === 1 ? 'fav-cat-wholesale' : 'fav-cat-quick';
-        }
-      }
-
-      return {
-        id: `fav-pack-${p.id || idx}`,
-        categoryId: prodCatId,
-        category: p.category,
-        type: 'pack' as const,
-        itemId: String(p.id),
-        name: p.name || (p as any).productName || 'سلعة',
-        barcode: p.barcode,
-        price: Number(p.retailPrice ?? p.price ?? 0),
-        packQty: (p as any).packPiecesCount || (p as any).piecesCount || 1,
-        packUnit: (p as any).unit || (p as any).unitName || 'عبوة',
-        order: idx,
-        isPack: true,
-      };
-    });
-  }, [systemPacks, allProducts, products]);
-
-  // Active full list of favorite packs
-  const activeFavoritesList = useMemo(() => {
-    if (customFavoritePacks && customFavoritePacks.length > 0) {
-      return customFavoritePacks;
-    }
-    return packOnlyFavorites.length > 0 ? packOnlyFavorites : fallbackFavoriteItems;
-  }, [customFavoritePacks, packOnlyFavorites, fallbackFavoriteItems]);
-
-  // Filtered favorite packs based on selected favorite category
-  const displayedFavoriteItems = useMemo(() => {
-    if (selectedFavoriteCatId === 'ALL') {
-      return activeFavoritesList;
-    }
-    const catObj = activeFavoriteCategories.find((c) => c.id === selectedFavoriteCatId);
-    const catName = catObj ? catObj.name.trim().toLowerCase() : '';
-    return activeFavoritesList.filter((it: any) => {
-      if (it.categoryId === selectedFavoriteCatId) return true;
-      if (catName && (it.category?.trim().toLowerCase() === catName || it.name?.trim().toLowerCase().includes(catName))) {
-        return true;
-      }
-      return false;
-    });
-  }, [activeFavoritesList, activeFavoriteCategories, selectedFavoriteCatId]);
-
-  // Handle selecting / adding a favorite pack to the basket
-  const handleSelectFavoritePack = useCallback(
-    (pack: any) => {
-      const isPackItem = pack.isPack !== false;
-      if (isPackItem) {
-        onAddToCart(
-          {
-            id: `pack-${pack.itemId || pack.id}`,
-            name: pack.name,
-            barcode: pack.barcode,
-            retailPrice: pack.price,
-            price: pack.price,
-            isPack: true,
-            packId: pack.itemId || pack.id,
-            packPiecesCount: pack.packQty || 1,
-            packUnit: pack.packUnit || 'عبوة',
-            packMode: priceTier === '3' ? 'wholesale_packs' : 'retail_pieces',
-          } as any,
-          pack.price
-        );
-      } else {
-        const pool = (allProducts && allProducts.length > 0 ? allProducts : products) || [];
-        const originalProduct = pool.find((p) => String(p.id) === String(pack.itemId || pack.id));
-        if (originalProduct) {
-          // للمنتج الفردي: نعتمد على فئة السعر النشطة priceTier في السلة بدلاً من فرض سعر المفضلة الثابت
-          onAddToCart(originalProduct);
-        } else {
-          onAddToCart(
-            {
-              id: pack.itemId || pack.id,
-              name: pack.name,
-              barcode: pack.barcode,
-              retailPrice: pack.price,
-              price: pack.price,
-              isPack: false,
-            } as any,
-            pack.price
-          );
-        }
-      }
-    },
-    [onAddToCart, allProducts, products, priceTier]
-  );
-
-  // Keep selection synchronized with cart changes
-  useEffect(() => {
-    if (cart.length === 0) {
-      setSelectedCartRowId(null);
-    } else {
-      const isCurrentSelectedValid = cart.some(
-        (i, idx) =>
-          getCartRowKey(i, idx) === selectedCartRowId ||
-          (Boolean(selectedCartRowId) && (i.productId === selectedCartRowId || (i as any).id === selectedCartRowId))
-      );
-      if (!selectedCartRowId || !isCurrentSelectedValid) {
-        setSelectedCartRowId(getCartRowKey(cart[cart.length - 1], cart.length - 1));
-      }
-    }
-  }, [cart, selectedCartRowId]);
-
-  // Active item in the scan notification strip and edit modals
-  const activeItem = useMemo(() => {
-    if (selectedCartRowId && cart.length > 0) {
-      const foundByRowKey = cart.find((i, idx) => getCartRowKey(i, idx) === selectedCartRowId);
-      if (foundByRowKey) return foundByRowKey;
-      const foundById = cart.find((i) => i.productId === selectedCartRowId || (i as any).id === selectedCartRowId);
-      if (foundById) return foundById;
-    }
-    return cart.length > 0 ? cart[cart.length - 1] : null;
-  }, [cart, selectedCartRowId]);
-
-  // Cart summary calculations for accounting sidebar
-  const itemCount = cart.length;
-  const totalQuantity = useMemo(() => {
-    return cart.reduce((sum, item) => {
-      const q = item.qty ?? (item as any).quantity ?? 1;
-      return sum + q;
-    }, 0);
-  }, [cart]);
-
-  // Navigation handlers for keypad
-  const handleArrowUp = useCallback(() => {
-    if (cart.length === 0) return;
-    const currentIdx = cart.findIndex(
-      (i, idx) =>
-        getCartRowKey(i, idx) === selectedCartRowId ||
-        (Boolean(selectedCartRowId) && (i.productId === selectedCartRowId || (i as any).id === selectedCartRowId))
-    );
-    const prevIdx = currentIdx > 0 ? currentIdx - 1 : cart.length - 1;
-    setSelectedCartRowId(getCartRowKey(cart[prevIdx], prevIdx));
-  }, [cart, selectedCartRowId]);
-
-  const handleArrowDown = useCallback(() => {
-    if (cart.length === 0) return;
-    const currentIdx = cart.findIndex(
-      (i, idx) =>
-        getCartRowKey(i, idx) === selectedCartRowId ||
-        (Boolean(selectedCartRowId) && (i.productId === selectedCartRowId || (i as any).id === selectedCartRowId))
-    );
-    const nextIdx = currentIdx >= 0 && currentIdx < cart.length - 1 ? currentIdx + 1 : 0;
-    setSelectedCartRowId(getCartRowKey(cart[nextIdx], nextIdx));
-  }, [cart, selectedCartRowId]);
-
-  const handleArrowRight = useCallback(() => {
-    if (!activeItem) return;
-    const targetId = activeItem.productId || (activeItem as any).id;
-    if (targetId) {
-      const currentQty = activeItem.qty ?? (activeItem as any).quantity ?? 1;
-      onUpdateQty(targetId, currentQty + 1);
-    }
-  }, [activeItem, onUpdateQty]);
-
-  const handleArrowLeft = useCallback(() => {
-    if (!activeItem) return;
-    const targetId = activeItem.productId || (activeItem as any).id;
-    if (targetId) {
-      const currentQty = activeItem.qty ?? (activeItem as any).quantity ?? 1;
-      if (currentQty > 1) {
-        onUpdateQty(targetId, currentQty - 1);
-      } else {
-        onRemoveFromCart(targetId);
-      }
-    }
-  }, [activeItem, onUpdateQty, onRemoveFromCart]);
-
-  const handleConfirm = useCallback(() => {
-    if (cart.length > 0) {
-      onSettleSale(paidAmount);
-    }
-  }, [cart.length, onSettleSale, paidAmount]);
-
-  const handleDeleteSelectedRow = useCallback(() => {
-    if (activeItem) {
-      const targetId = activeItem.productId || (activeItem as any).id;
-      if (targetId) {
-        onRemoveFromCart(targetId);
-      }
-    }
-  }, [activeItem, onRemoveFromCart]);
-
-  // Handle opening touch calculator for active item quantity or free product
+  // 6. Action Handlers for Item Details and Price Editing
   const handleItemDetails = useCallback(() => {
     if (activeItem) {
-      setItemEditState({ isOpen: true, mode: 'qty' });
+      openItemEdit('qty');
     } else if (onOpenFreeProduct) {
       onOpenFreeProduct();
     }
-  }, [activeItem, onOpenFreeProduct]);
+  }, [activeItem, openItemEdit, onOpenFreeProduct]);
 
-  // Handle opening touch calculator for active item price
   const handleEditPrice = useCallback(() => {
     if (activeItem) {
-      setItemEditState({ isOpen: true, mode: 'price' });
+      openItemEdit('price');
     }
-  }, [activeItem]);
+  }, [activeItem, openItemEdit]);
 
-  const barcodeInputRef = React.useRef<HTMLInputElement>(null);
-
-  // تسليم معالجة الباركود مع الحفاظ الفوري على التركيز داخل الحقل ومنع فقدانه
-  const handleBarcodeSubmit = useCallback(
-    (e?: React.FormEvent) => {
-      onBarcodeSubmit(e);
-      barcodeInputRef.current?.focus();
-      setTimeout(() => {
-        barcodeInputRef.current?.focus();
-      }, 40);
-    },
-    [onBarcodeSubmit]
-  );
-
-  // قراءة الوزن الحي من الميزان الذكي المتصل (RS232 / USB Serial)
-  const handleReadScale = useCallback(async () => {
-    try {
-      const reading = await readWeightFromSerial();
-      if (reading && reading.weight > 0) {
-        const targetId = activeItem?.productId || (activeItem as any)?.id;
-        if (targetId) {
-          onUpdateQty(targetId, reading.weight);
-        }
-      }
-    } catch {
-      // في حال فشل الاتصال بالميزان: إعادة التركيز إلى حقل الباركود
-      barcodeInputRef.current?.focus();
-    }
-  }, [activeItem, onUpdateQty]);
-
-  // Auto-focus barcode input on layout mount
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      barcodeInputRef.current?.focus();
-    }, 150);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Connect keyboard shortcuts (F1-F12, Arrows, Del, Enter, Esc, Alt+1..4)
+  // 7. Connect Keyboard Shortcuts (F1-F12, Arrows, Del, Enter, Esc, Alt+1..4)
   useDesign7Shortcuts({
     onSettleSale: (pAmount) => onSettleSale(pAmount ?? paidAmount),
     onOpenSalesHistory,
@@ -443,7 +189,7 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
     onOpenCustomize,
     onToggleFullscreen,
     onBarcodeFocus: () => barcodeInputRef.current?.focus(),
-    onOpenSearch: () => setIsProductSearchOpen(true),
+    onOpenSearch: openProductSearch,
     onOpenFreeProduct,
     onToggleAutoPrint,
     onNavigateBack,
@@ -525,13 +271,11 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
               totalQuantity={totalQuantity}
               paidAmount={paidAmount}
               onUpdatePaid={setPaidAmount}
-              onOpenPaidCalculator={() => {
-                setItemEditState({ isOpen: true, mode: 'paid' });
-              }}
+              onOpenPaidCalculator={() => openItemEdit('paid')}
               formatMoney={formatMoney}
               onOpenDiscount={() => {
                 if (onOpenDiscount) onOpenDiscount();
-                else setItemEditState({ isOpen: true, mode: 'discount' });
+                else openItemEdit('discount');
               }}
               onSettleSale={(pAmount) => onSettleSale(pAmount ?? paidAmount)}
               userName={userName}
@@ -554,14 +298,14 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
                 const idx = cart.indexOf(item);
                 const rowKey = getCartRowKey(item, idx >= 0 ? idx : 0);
                 setSelectedCartRowId(rowKey);
-                setItemEditState({ isOpen: true, mode });
+                openItemEdit(mode);
               }}
             />
 
             {/* Right/Left Action Keypad Matrix (Left in RTL) */}
             <Design7ActionKeypad
               onSelectCustomer={onSelectCustomer}
-              onOpenSearch={() => setIsProductSearchOpen(true)}
+              onOpenSearch={openProductSearch}
               onItemDetails={handleItemDetails}
               onDeleteSelectedRow={handleDeleteSelectedRow}
               onArrowUp={handleArrowUp}
@@ -571,11 +315,11 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
               onConfirm={handleConfirm}
               onSettleSale={() => onSettleSale(paidAmount)}
               onOpenKeypad={() => {
-                setItemEditState({ isOpen: true, mode: activeItem ? 'qty' : 'paid' });
+                openItemEdit(activeItem ? 'qty' : 'paid');
               }}
               onOpenKeyboard={() => {
                 if (onOpenKeyboard) onOpenKeyboard();
-                setIsVirtualKeyboardOpen(true);
+                openVirtualKeyboard();
               }}
               onOpenSalesHistory={onOpenSalesHistory}
               onSuspendSale={onSuspendSale}
@@ -608,14 +352,11 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
       {/* Product Search & Catalog Modal (F10 / Search Icon) */}
       <Design7ProductSearchModal
         isOpen={isProductSearchOpen}
-        onClose={() => {
-          setIsProductSearchOpen(false);
-          setTimeout(() => barcodeInputRef.current?.focus(), 40);
-        }}
+        onClose={closeProductSearch}
         products={products}
         onSelectProduct={(p) => {
           onAddToCart(p);
-          setTimeout(() => barcodeInputRef.current?.focus(), 40);
+          refocusBarcode(40);
         }}
         formatMoney={formatMoney}
         categories={categories}
@@ -625,10 +366,7 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
       {/* Item Details, Quantity & Price Touch Calculator Modal */}
       <Design7ItemEditModal
         isOpen={itemEditState.isOpen}
-        onClose={() => {
-          setItemEditState((prev) => ({ ...prev, isOpen: false }));
-          setTimeout(() => barcodeInputRef.current?.focus(), 40);
-        }}
+        onClose={closeItemEdit}
         item={activeItem}
         mode={itemEditState.mode}
         totalAmount={saleSummary.total}
@@ -655,16 +393,13 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
       {/* Virtual Touch Keyboard Modal (لوحة المفاتيح اللمسية للشاشات) */}
       <Design7VirtualKeyboardModal
         isOpen={isVirtualKeyboardOpen}
-        onClose={() => {
-          setIsVirtualKeyboardOpen(false);
-          setTimeout(() => barcodeInputRef.current?.focus(), 40);
-        }}
+        onClose={closeVirtualKeyboard}
         initialValue={barcodeInput || searchQuery || ''}
         onConfirm={(val) => {
           if (setBarcodeInput) setBarcodeInput(val);
           if (setSearchQuery) setSearchQuery(val);
           if (handleBarcodeSubmit) handleBarcodeSubmit();
-          setTimeout(() => barcodeInputRef.current?.focus(), 40);
+          refocusBarcode(40);
         }}
         title="لوحة المفاتيح اللمسية الافتراضية"
         placeholder="انقر على الأحرف أو الأرقام لكتابة الباركود والبحث..."

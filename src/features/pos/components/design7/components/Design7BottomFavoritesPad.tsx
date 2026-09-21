@@ -3,17 +3,8 @@ import { Star, Package, Plus } from 'lucide-react';
 import type { Product, Category } from '@/types';
 import { getProductTierPrice } from '@/services';
 
-export interface FavoritePackItem {
-  id: string;
-  categoryId?: string;
-  name: string;
-  price: number;
-  packQty?: number;
-  packUnit?: string;
-  barcode?: string;
-  itemId?: string;
-  isPack?: boolean;
-}
+import type { FavoritePackItem } from '../types';
+export type { FavoritePackItem };
 
 export interface Design7BottomFavoritesPadProps {
   favoriteCategories?: Array<{ id: string; name: string; icon?: string; color?: string }>;

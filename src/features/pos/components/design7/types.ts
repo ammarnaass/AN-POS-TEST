@@ -70,3 +70,24 @@ export interface Design7POSLayoutProps {
   isAnyModalOpen?: boolean;
   onCloseAllModals?: () => void;
 }
+
+export type ItemEditMode = 'qty' | 'price' | 'paid' | 'discount';
+
+export interface ItemEditState {
+  isOpen: boolean;
+  mode: ItemEditMode;
+}
+
+export interface FavoritePackItem {
+  id: string;
+  categoryId?: string;
+  category?: string;
+  name: string;
+  price: number;
+  packQty?: number;
+  packUnit?: string;
+  barcode?: string;
+  itemId?: string;
+  isPack?: boolean;
+  order?: number;
+}
