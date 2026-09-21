@@ -286,6 +286,7 @@ export interface SettingsEntity {
   terminalFavoritesMode?: boolean;
   allowCardPayment?: boolean;
   allowTransferPayment?: boolean;
+  design7ShowBottomFavorites?: boolean;
   invoiceTemplate?: 'basic' | 'detailed';
   expenseCategories?: string[];
   // SYS-GEN-001: العملة واللغة

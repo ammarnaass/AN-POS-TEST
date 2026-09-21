@@ -12,6 +12,7 @@ export default function PosSettingsTab(props: PosSettingsTabProps) {
   const hookData = useSystemSettings();
   const settings = props.settings || hookData.settings;
   const handleSaveSettings = props.handleSaveSettings || hookData.handleSaveSettings;
+  const sessionD7ShowFav = usePOSSessionStore((s) => s.design7ShowBottomFavorites);
 
   return (
     <div className="space-y-6">
@@ -100,45 +101,54 @@ export default function PosSettingsTab(props: PosSettingsTabProps) {
                     icon: ArrowLeftRight,
                     color: 'text-cyan-500 bg-cyan-500/10',
                   },
-                ].map((item) => (
-                  <div
-                    key={item.key}
-                    className="p-4 rounded-2xl bg-surface-container border border-outline-variant/15 flex items-start justify-between gap-3 hover:border-primary/30 transition-all shadow-xs"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${item.color}`}>
-                        <item.icon className="w-5 h-5" />
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-sm font-bold text-on-surface font-cairo">{item.title}</p>
-                        <p className="text-xs text-on-surface-variant leading-relaxed">{item.desc}</p>
-                      </div>
-                    </div>
+                ].map((item) => {
+                  const isChecked = item.key === 'design7ShowBottomFavorites'
+                    ? sessionD7ShowFav
+                    : Boolean(settings[item.key as keyof typeof settings]);
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const newVal = !settings[item.key as keyof typeof settings];
-                        handleSaveSettings({ [item.key]: newVal });
-                        if (item.key === 'terminalFavoritesMode') {
-                          usePOSSessionStore.getState().setTerminalCategoryMode(newVal ? 'favorites' : 'products');
-                        }
-                        if (item.key === 'design7ShowBottomFavorites') {
-                          usePOSSessionStore.getState().setDesign7ShowBottomFavorites?.(newVal);
-                        }
-                      }}
-                      className={`relative w-12 h-6 rounded-full transition-colors shrink-0 ${
-                        settings[item.key as keyof typeof settings] ? 'bg-primary' : 'bg-surface-container-highest border border-outline-variant/30'
-                      }`}
+                  return (
+                    <div
+                      key={item.key}
+                      className="p-4 rounded-2xl bg-surface-container border border-outline-variant/15 flex items-start justify-between gap-3 hover:border-primary/30 transition-all shadow-xs"
                     >
-                      <span
-                        className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-all shadow-sm ${
-                          settings[item.key as keyof typeof settings] ? 'right-0.5' : 'right-[26px]'
+                      <div className="flex items-start gap-3">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${item.color}`}>
+                          <item.icon className="w-5 h-5" />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-sm font-bold text-on-surface font-cairo">{item.title}</p>
+                          <p className="text-xs text-on-surface-variant leading-relaxed">{item.desc}</p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newVal = !isChecked;
+                          if (item.key === 'design7ShowBottomFavorites') {
+                            usePOSSessionStore.getState().setDesign7ShowBottomFavorites(newVal);
+                            try {
+                              localStorage.setItem('pos_design7_show_favorites', JSON.stringify(newVal));
+                            } catch {}
+                          }
+                          if (item.key === 'terminalFavoritesMode') {
+                            usePOSSessionStore.getState().setTerminalCategoryMode(newVal ? 'favorites' : 'products');
+                          }
+                          handleSaveSettings({ [item.key]: newVal });
+                        }}
+                        className={`relative w-12 h-6 rounded-full transition-colors shrink-0 cursor-pointer ${
+                          isChecked ? 'bg-primary' : 'bg-surface-container-highest border border-outline-variant/30'
                         }`}
-                      />
-                    </button>
-                  </div>
-                ))}
+                      >
+                        <span
+                          className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-all shadow-sm ${
+                            isChecked ? 'right-0.5' : 'right-[26px]'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>

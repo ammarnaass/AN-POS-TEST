@@ -44,6 +44,8 @@ export const SCHEMA_DDL: string[] = [
     allow_negative_stock INTEGER DEFAULT 0,
     confirm_no_stock INTEGER DEFAULT 0,
     average_pricing INTEGER DEFAULT 0,
+    terminal_favorites_mode INTEGER DEFAULT 1,
+    design7_show_bottom_favorites INTEGER DEFAULT 1,
     invoice_template TEXT DEFAULT 'basic',
     expense_categories TEXT DEFAULT '[]',
     date_format TEXT NOT NULL DEFAULT 'DD/MM/YYYY',

@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import type { Design7POSLayoutProps } from './types';
 import { usePOSSessionStore } from '@/features/pos/store/usePOSSessionStore';
 import './design7.css';
@@ -87,15 +87,31 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
   onToggleBottomFavorites,
 }) => {
   // Session Store & Favorites Pad Visibility
+  // الاعتماد الكامل على store — يتم تهيئته من prop مرة واحدة فقط عند الـ mount
   const storeShowBottomFavorites = usePOSSessionStore((s) => s.design7ShowBottomFavorites);
   const setStoreShowBottomFavorites = usePOSSessionStore((s) => s.setDesign7ShowBottomFavorites);
-  const isFavoritesPadVisible = propShowBottomFavorites !== undefined ? propShowBottomFavorites : storeShowBottomFavorites;
+
+  // تهيئة الـ store من الـ prop مرة واحدة فقط (لتجنب تعارض إعادة القراءة من DB)
+  const propSyncedRef = useRef(false);
+  useEffect(() => {
+    if (!propSyncedRef.current && propShowBottomFavorites !== undefined) {
+      propSyncedRef.current = true;
+      setStoreShowBottomFavorites(propShowBottomFavorites);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // الرؤية تعتمد فقط على الـ store (يُحدَّث فورياً من الإعدادات والشريط العلوي)
+  const isFavoritesPadVisible = storeShowBottomFavorites;
 
   const handleToggleBottomFavorites = useCallback(() => {
+    const next = !usePOSSessionStore.getState().design7ShowBottomFavorites;
+    setStoreShowBottomFavorites(next);
+    try {
+      localStorage.setItem('pos_design7_show_favorites', JSON.stringify(next));
+    } catch {}
     if (onToggleBottomFavorites) {
       onToggleBottomFavorites();
-    } else {
-      setStoreShowBottomFavorites((prev) => !prev);
     }
   }, [onToggleBottomFavorites, setStoreShowBottomFavorites]);
 

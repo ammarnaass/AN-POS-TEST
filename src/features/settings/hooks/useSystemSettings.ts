@@ -53,6 +53,9 @@ export function useSystemSettings() {
   });
 
   const settings: ExtendedSettings = {
+    // ⚠️ rawSettings spread أولاً — الحقول المعرّفة صراحةً بعدها تأخذ الأولوية دائماً
+    // هذا يمنع القيم الخام (0/1 integers من SQLite) من الكتابة فوق القيم المحوّلة (Boolean)
+    ...rawSettings,
     shopName: (rawSettings as any)?.shopName || (rawSettings as any)?.shop_name || '',
     phone: (rawSettings as any)?.phone || (rawSettings as any)?.shop_phone || '',
     tvaRate: (rawSettings as any)?.tvaRate ?? (rawSettings as any)?.tva_rate ?? 0,
@@ -80,22 +83,41 @@ export function useSystemSettings() {
     confirmNoStock: Boolean((rawSettings as any)?.confirmNoStock ?? (rawSettings as any)?.confirm_no_stock ?? true),
     averagePricing: Boolean((rawSettings as any)?.averagePricing ?? (rawSettings as any)?.average_pricing),
     terminalFavoritesMode: Boolean((rawSettings as any)?.terminalFavoritesMode ?? (rawSettings as any)?.terminal_favorites_mode ?? true),
-    design7ShowBottomFavorites: Boolean((rawSettings as any)?.design7ShowBottomFavorites ?? (rawSettings as any)?.design7_show_bottom_favorites ?? true),
+    design7ShowBottomFavorites: (() => {
+      const dbVal = (rawSettings as any)?.design7ShowBottomFavorites ?? (rawSettings as any)?.design7_show_bottom_favorites;
+      if (dbVal !== undefined && dbVal !== null) return Boolean(dbVal);
+      try {
+        const saved = localStorage.getItem('pos_design7_show_favorites');
+        if (saved !== null) return JSON.parse(saved);
+      } catch {}
+      return true;
+    })(),
     allowCardPayment: Boolean((rawSettings as any)?.allowCardPayment ?? (rawSettings as any)?.allow_card_payment),
     allowTransferPayment: Boolean((rawSettings as any)?.allowTransferPayment ?? (rawSettings as any)?.allow_transfer_payment),
     allowSelfRegistration: ((rawSettings as any)?.allowSelfRegistration ?? (rawSettings as any)?.allow_self_registration ?? 1) !== 0 && ((rawSettings as any)?.allowSelfRegistration ?? (rawSettings as any)?.allow_self_registration) !== false,
     defaultRole: (rawSettings as any)?.defaultRole || (rawSettings as any)?.default_role || 'seller',
-    ...rawSettings,
     currencies: Array.isArray((rawSettings as unknown as Record<string, unknown> | undefined)?.currencies) ? (rawSettings as unknown as Record<string, Currency[]>).currencies : ([] as Currency[]),
     expenseCategories: Array.isArray((rawSettings as unknown as Record<string, unknown> | undefined)?.expenseCategories) ? (rawSettings as unknown as Record<string, string[]>).expenseCategories : ['ايجار', 'كهرباء', 'ماء', 'رواتب', 'نقل', 'صيانة'],
   };
 
   const settingsMutation = useMutation({
     mutationFn: async (updates: Record<string, unknown>) => {
-      const current = await db.settings.get('default');
+      const current = await db.settings.get('default').catch(() => ({}));
       await db.settings.put({ ...(current as SettingsEntity | undefined), ...updates, id: 'default' } as SettingsEntity);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings'] }),
+    onMutate: async (updates) => {
+      await queryClient.cancelQueries({ queryKey: ['settings'] });
+      const previous = queryClient.getQueryData(['settings']);
+      queryClient.setQueryData(['settings'], (old: any) => ({ ...old, ...updates }));
+      return { previous };
+    },
+    onError: (err, _updates, context) => {
+      console.error('Settings save error:', err);
+      if (context?.previous) {
+        queryClient.setQueryData(['settings'], context.previous);
+      }
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['settings'] }),
   });
 
   const handleSaveSettings = (updates: Record<string, unknown>) => {
@@ -145,8 +167,12 @@ export function useSystemSettings() {
     }
     if (updates.design7ShowBottomFavorites !== undefined || updates.design7_show_bottom_favorites !== undefined) {
       const showFav = Boolean(updates.design7ShowBottomFavorites ?? updates.design7_show_bottom_favorites);
-      mirrored.design7_show_bottom_favorites = showFav;
+      mirrored.design7_show_bottom_favorites = showFav ? 1 : 0;
       mirrored.design7ShowBottomFavorites = showFav;
+      try {
+        localStorage.setItem('pos_design7_show_favorites', JSON.stringify(showFav));
+      } catch {}
+      usePOSSessionStore.getState().setDesign7ShowBottomFavorites?.(showFav);
     }
     settingsMutation.mutate(mirrored);
     if (updates.shopName !== undefined || updates.shop_name !== undefined) {

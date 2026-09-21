@@ -84,8 +84,15 @@ export function usePOSData() {
     confirmNoStock: settings?.confirmNoStock ?? true,
     averagePricing: settings?.averagePricing ?? false,
     allowCardPayment: Boolean((settings as any)?.allowCardPayment ?? false),
-    allowTransferPayment: Boolean((settings as any)?.allowTransferPayment ?? false),
-    design7ShowBottomFavorites: Boolean((settings as any)?.design7ShowBottomFavorites ?? (settings as any)?.design7_show_bottom_favorites ?? true),
+    design7ShowBottomFavorites: (() => {
+      const dbVal = (settings as any)?.design7ShowBottomFavorites ?? (settings as any)?.design7_show_bottom_favorites;
+      if (dbVal !== undefined && dbVal !== null) return Boolean(dbVal);
+      try {
+        const saved = localStorage.getItem('pos_design7_show_favorites');
+        if (saved !== null) return JSON.parse(saved);
+      } catch {}
+      return true;
+    })(),
   }), [settings]);
 
   const { data: allSessions = [] } = useQuery<CashSession[]>({

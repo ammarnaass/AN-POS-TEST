@@ -156,9 +156,20 @@ export function normalizeSettingsPayload(raw: Record<string, unknown>): Record<s
     normalized.language = String(data.language).trim();
   }
 
-  // تمرير أي حقول أخرى تم ضبطها بالفعل
+  const rawD7Fav = data.design7_show_bottom_favorites ?? data.design7ShowBottomFavorites;
+  if (rawD7Fav !== undefined && rawD7Fav !== null) {
+    normalized.design7_show_bottom_favorites = rawD7Fav ? 1 : 0;
+  }
+
+  const rawTermFav = data.terminal_favorites_mode ?? data.terminalFavoritesMode;
+  if (rawTermFav !== undefined && rawTermFav !== null) {
+    normalized.terminal_favorites_mode = rawTermFav ? 1 : 0;
+  }
+
+  // تمرير أي حقول أخرى تم ضبطها بالفعل مع استبعاد الحقول بصيغة camelCase التي تم تسويتها
+  const skippedCamelKeys = new Set(['design7ShowBottomFavorites', 'terminalFavoritesMode', 'shopName', 'shopAddress', 'shopPhone', 'shopPhone2', 'shopEmail', 'shopLogo', 'commercialRegister', 'taxNumber', 'taxArticle', 'printWidthMm', 'printLanguage', 'receiptFooter', 'baseCurrency', 'invoicePrefix', 'invoiceStartNumber', 'tvaRate']);
   for (const [key, val] of Object.entries(data)) {
-    if (!(key in normalized)) {
+    if (!(key in normalized) && !skippedCamelKeys.has(key)) {
       normalized[key] = val;
     }
   }
