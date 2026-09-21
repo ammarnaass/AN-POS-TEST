@@ -204,7 +204,7 @@ export const Design7ProductSearchModal: React.FC<Design7ProductSearchModalProps>
               className={`px-3 py-1 rounded font-black transition-all cursor-pointer whitespace-nowrap text-xs ${
                 selectedCat === 'ALL'
                   ? 'd7-pill-gloss-red text-white'
-                  : 'd7-glossy-fav-btn text-black'
+                  : 'bg-white text-black border border-[#9ba8b7] shadow-xs hover:border-teal-500 hover:bg-slate-50'
               }`}
             >
               الكل ({products.length})
@@ -217,7 +217,7 @@ export const Design7ProductSearchModal: React.FC<Design7ProductSearchModalProps>
                 className={`px-3 py-1 rounded font-black transition-all cursor-pointer whitespace-nowrap text-xs ${
                   selectedCat === cat
                     ? 'd7-pill-gloss-red text-white'
-                    : 'd7-glossy-fav-btn text-black'
+                    : 'bg-white text-black border border-[#9ba8b7] shadow-xs hover:border-teal-500 hover:bg-slate-50'
                 }`}
               >
                 {cat}
@@ -229,7 +229,7 @@ export const Design7ProductSearchModal: React.FC<Design7ProductSearchModalProps>
         {/* Results Grid */}
         <div className="flex-1 p-3 overflow-y-auto max-h-[50vh] bg-white">
           {filteredProducts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-slate-500 gap-2">
+            <div className="flex flex-col items-center justify-center py-12 text-slate-400 gap-2">
               <Package className="w-12 h-12 stroke-[1.5]" />
               <p className="font-bold text-xs text-black">لم يتم العثور على سلع مطابقة للبحث</p>
             </div>
@@ -248,12 +248,12 @@ export const Design7ProductSearchModal: React.FC<Design7ProductSearchModalProps>
                       setSelectedIndex(idx);
                       handleAdd(p);
                     }}
-                    className={`d7-glossy-product-tile rounded-lg p-2.5 flex flex-col justify-between gap-2 cursor-pointer transition-all border ${
+                    className={`bg-white rounded-lg p-2.5 flex flex-col justify-between gap-2 cursor-pointer transition-all border shadow-xs ${
                       isRecentlyAdded
-                        ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-400'
+                        ? 'border-emerald-500 ring-2 ring-emerald-400 bg-emerald-50'
                         : isSelected
-                        ? 'border-teal-600 bg-teal-50/70 ring-2 ring-teal-400 shadow-xs'
-                        : 'hover:border-teal-500'
+                        ? 'border-teal-500 ring-2 ring-teal-400 bg-teal-50'
+                        : 'border-[#9ba8b7] hover:border-teal-500 hover:bg-slate-50'
                     }`}
                   >
                     <div>
@@ -262,7 +262,7 @@ export const Design7ProductSearchModal: React.FC<Design7ProductSearchModalProps>
                           {p.name}
                         </span>
                         {isRecentlyAdded ? (
-                          <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                          <span className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
                             <Check className="w-3 h-3 stroke-[3]" />
                           </span>
                         ) : (
@@ -272,17 +272,17 @@ export const Design7ProductSearchModal: React.FC<Design7ProductSearchModalProps>
                         )}
                       </div>
                       {p.barcode && (
-                        <span className="text-[10px] font-mono font-bold text-black block mt-1">
+                        <span className="text-[10px] font-mono font-bold text-slate-600 block mt-1">
                           {p.barcode}
                         </span>
                       )}
                     </div>
 
-                    <div className="flex items-baseline justify-between pt-1 border-t border-slate-200">
-                      <span className="text-[10px] text-black font-bold">
-                        المخزون: <b className={stock <= 0 ? 'text-rose-700' : 'text-black font-black'}>{stock}</b>
+                    <div className="flex items-baseline justify-between pt-1 border-t border-slate-300">
+                      <span className="text-[10px] text-slate-700 font-bold">
+                        المخزون: <b className={stock <= 0 ? 'text-rose-600' : 'text-emerald-600 font-black'}>{stock}</b>
                       </span>
-                      <span className="font-black text-xs text-black font-mono">
+                      <span className="font-black text-xs text-amber-700 font-mono">
                         {formatMoney(price)}
                       </span>
                     </div>
