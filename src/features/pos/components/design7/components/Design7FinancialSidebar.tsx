@@ -65,19 +65,19 @@ export const Design7FinancialSidebar: React.FC<Design7FinancialSidebarProps> = (
     >
       <div className="space-y-1.5 overflow-y-auto min-h-0">
         {/* ملخص عدد الأصناف والقطع في السلة */}
-        <div className="bg-white/70 border border-[#b4c3d2] rounded px-2.5 py-1 flex items-center justify-between text-[11px] font-bold text-slate-700 shadow-2xs">
+        <div className="bg-white border border-[#b4c3d2] rounded px-2.5 py-1 flex items-center justify-between text-[11px] font-black text-black shadow-2xs">
           <span>عدد الأصناف:</span>
-          <span className="font-mono text-slate-900">
+          <span className="font-mono font-black text-black">
             {itemCount} صنف ({totalQuantity} قطعة)
           </span>
         </div>
 
         {/* المبلغ (Subtotal) */}
         <div className="flex items-center justify-between bg-[#edf3f8] border border-[#a2b5c8] rounded p-1 shadow-2xs">
-          <span className="d7-pill-gloss-cyan px-2.5 py-0.5 rounded text-slate-800 font-bold text-[11px]">
+          <span className="d7-pill-gloss-cyan px-2.5 py-0.5 rounded text-black font-black text-[11px]">
             المبلغ
           </span>
-          <span className="text-sm font-black text-slate-900 pr-1 font-mono">
+          <span className="text-sm font-black text-black pr-1 font-mono">
             {formatMoney(subtotal)}
           </span>
         </div>
@@ -89,14 +89,14 @@ export const Design7FinancialSidebar: React.FC<Design7FinancialSidebarProps> = (
           className="flex items-center justify-between bg-[#edf3f8] hover:bg-[#e4eff8] border border-[#a2b5c8] rounded p-1 shadow-2xs cursor-pointer transition-colors group"
         >
           <div className="flex items-center gap-1">
-            <span className="d7-pill-gloss-cyan px-2.5 py-0.5 rounded text-slate-800 font-bold text-[11px]">
+            <span className="d7-pill-gloss-cyan px-2.5 py-0.5 rounded text-black font-black text-[11px]">
               الخصم
             </span>
-            <span className="text-[10px] text-slate-500 font-mono group-hover:text-blue-700">
+            <span className="text-[10px] text-slate-700 font-mono font-bold group-hover:text-blue-900">
               (F6)
             </span>
           </div>
-          <span className="text-sm font-black text-rose-600 pr-1 font-mono">
+          <span className="text-sm font-black text-rose-700 pr-1 font-mono">
             {formatMoney(discountAmount)}
           </span>
         </div>
@@ -104,10 +104,10 @@ export const Design7FinancialSidebar: React.FC<Design7FinancialSidebarProps> = (
         {/* ضريبة القيمة المضافة إن وجدت */}
         {tvaAmount > 0 && (
           <div className="flex items-center justify-between bg-[#edf3f8] border border-[#a2b5c8] rounded p-1 shadow-2xs">
-            <span className="d7-pill-gloss-cyan px-2.5 py-0.5 rounded text-slate-800 font-bold text-[11px]">
+            <span className="d7-pill-gloss-cyan px-2.5 py-0.5 rounded text-black font-black text-[11px]">
               الرسم / TVA
             </span>
-            <span className="text-sm font-black text-slate-700 pr-1 font-mono">
+            <span className="text-sm font-black text-black pr-1 font-mono">
               {formatMoney(tvaAmount)}
             </span>
           </div>
@@ -123,11 +123,11 @@ export const Design7FinancialSidebar: React.FC<Design7FinancialSidebarProps> = (
             <span className="bg-sky-700 text-white px-2 py-0.5 rounded font-black text-[11px] shadow-2xs">
               الإجمالي
             </span>
-            <span className="text-[10px] text-sky-800 font-bold font-mono">
+            <span className="text-[10px] text-sky-950 font-black font-mono">
               (F1)
             </span>
           </div>
-          <span className="text-base font-black text-blue-950 pr-1 font-mono">
+          <span className="text-base font-black text-black pr-1 font-mono">
             {formatMoney(total)}
           </span>
         </div>

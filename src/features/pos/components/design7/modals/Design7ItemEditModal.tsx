@@ -246,17 +246,17 @@ export const Design7ItemEditModal: React.FC<Design7ItemEditModalProps> = ({
         {/* Header Ribbon (Classic Design 7 Glossy Style) */}
         <div className="px-4 py-2.5 bg-gradient-to-b from-[#e3e8ee] to-[#cad3de] border-b border-[#9ba8b7] flex items-center justify-between shadow-xs">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded d7-glossy-action-tile flex items-center justify-center text-sky-700 shadow-xs">
+            <div className="w-8 h-8 rounded d7-glossy-action-tile flex items-center justify-center text-sky-800 shadow-xs">
               <Calculator className="w-5 h-5 stroke-[2.2]" />
             </div>
             <div>
-              <h3 className="font-black text-sm text-slate-900 flex items-center gap-2">
+              <h3 className="font-black text-sm text-black flex items-center gap-2">
                 <span>لوحة الأرقام والآلة الحاسبة اللمسية</span>
-                <span className={`text-[10px] px-2 py-0.5 rounded border font-bold ${currentMeta.badge}`}>
+                <span className={`text-[10px] px-2 py-0.5 rounded border font-black ${currentMeta.badge}`}>
                   {currentMeta.label}
                 </span>
               </h3>
-              <p className="text-[11px] text-slate-600 truncate max-w-[280px]">
+              <p className="text-[11px] text-black font-semibold truncate max-w-[280px]">
                 {item ? itemName : `إجمالي الفاتورة: ${formatMoney(totalAmount)}`}
               </p>
             </div>
@@ -265,15 +265,15 @@ export const Design7ItemEditModal: React.FC<Design7ItemEditModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded d7-glossy-top-btn text-slate-600 hover:text-rose-700 flex items-center justify-center cursor-pointer transition-colors"
+            className="w-8 h-8 rounded d7-glossy-top-btn text-black hover:text-rose-700 flex items-center justify-center cursor-pointer transition-colors"
             title="إغلاق (Esc)"
           >
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4 stroke-[2.5]" />
           </button>
         </div>
 
         {/* 4 Mode Selector Tabs (Qty, Price, Paid, Discount) */}
-        <div className="grid grid-cols-4 gap-1 p-1.5 bg-[#cfdbe6] border-b border-[#a9b9c9] text-xs font-bold">
+        <div className="grid grid-cols-4 gap-1 p-1.5 bg-[#cfdbe6] border-b border-[#a9b9c9] text-xs font-black">
           {(['qty', 'price', 'paid', 'discount'] as const).map((tKey) => {
             const isSelected = activeMode === tKey;
             const meta = targetTitles[tKey];
@@ -286,7 +286,7 @@ export const Design7ItemEditModal: React.FC<Design7ItemEditModalProps> = ({
                 className={`py-1.5 px-1 rounded flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                   isSelected
                     ? 'bg-sky-700 text-white shadow-xs font-black border border-sky-800'
-                    : 'd7-glossy-fav-btn text-slate-700 hover:text-slate-950'
+                    : 'd7-glossy-fav-btn text-black hover:text-sky-950 font-bold'
                 }`}
               >
                 {meta.icon}
@@ -304,17 +304,17 @@ export const Design7ItemEditModal: React.FC<Design7ItemEditModalProps> = ({
           {item && (activeMode === 'qty' || activeMode === 'price') && (
             <div className="p-2 bg-white/90 border border-[#b4c3d2] rounded-md flex items-center justify-between text-xs shadow-inner">
               <div className="space-y-0.5">
-                <div className="font-bold text-slate-900 text-sm truncate max-w-[240px]">{itemName}</div>
-                <div className="text-slate-500 font-mono text-[11px] flex items-center gap-2">
-                  <span>الباركود: <b>{itemBarcode}</b></span>
-                  {item.unit && <span>الوحدة: <b>{item.unit}</b></span>}
+                <div className="font-black text-black text-sm truncate max-w-[240px]">{itemName}</div>
+                <div className="text-black font-mono text-[11px] font-bold flex items-center gap-2">
+                  <span>الباركود: <b className="font-black">{itemBarcode}</b></span>
+                  {item.unit && <span>الوحدة: <b className="font-black">{item.unit}</b></span>}
                 </div>
               </div>
               <div className="text-left bg-slate-50 border border-slate-200 px-2.5 py-1 rounded">
-                <div className="text-[10px] text-slate-500">
+                <div className="text-[10px] text-black font-bold">
                   {activeMode === 'qty' ? 'السعر الحالي' : 'الكمية الحالية'}
                 </div>
-                <div className="font-black text-amber-700 font-mono text-sm">
+                <div className="font-black text-black font-mono text-sm">
                   {activeMode === 'qty' ? formatMoney(currentUnitPrice) : currentQty}
                 </div>
               </div>
@@ -362,9 +362,9 @@ export const Design7ItemEditModal: React.FC<Design7ItemEditModalProps> = ({
           <div className="space-y-1">
             {activeMode === 'qty' ? (
               <>
-                <div className="flex items-center justify-between text-[11px] font-bold text-slate-600">
+                <div className="flex items-center justify-between text-[11px] font-black text-black">
                   <span>تعيين سريع:</span>
-                  <span className="text-[10px] text-slate-500 font-normal">إضافة تراكمية (+)</span>
+                  <span className="text-[10px] text-black font-semibold">إضافة تراكمية (+)</span>
                 </div>
                 <div className="grid grid-cols-6 gap-1">
                   {[1, 2, 5, 10, 12, 24].map((q) => (
@@ -372,7 +372,7 @@ export const Design7ItemEditModal: React.FC<Design7ItemEditModalProps> = ({
                       key={q}
                       type="button"
                       onClick={() => handlePresetVal(q)}
-                      className="py-1 rounded font-bold text-xs d7-glossy-fav-btn text-slate-800 hover:bg-sky-100 cursor-pointer text-center font-mono active:scale-95 shadow-2xs"
+                      className="py-1 rounded font-black text-xs d7-glossy-fav-btn text-black hover:bg-sky-100 cursor-pointer text-center font-mono active:scale-95 shadow-2xs"
                       title={`تعيين الكمية ${q}`}
                     >
                       {q === 12 ? '12 دزينة' : q === 24 ? '24 كرتونة' : `${q}`}
@@ -385,7 +385,7 @@ export const Design7ItemEditModal: React.FC<Design7ItemEditModalProps> = ({
                       key={inc}
                       type="button"
                       onClick={() => handleQuickAddQty(inc)}
-                      className="py-1 rounded font-bold text-[11px] d7-glossy-action-tile text-blue-900 hover:bg-blue-100 cursor-pointer flex items-center justify-center gap-0.5 active:scale-95 font-mono shadow-2xs"
+                      className="py-1 rounded font-black text-[11px] d7-glossy-action-tile text-black hover:bg-blue-100 cursor-pointer flex items-center justify-center gap-0.5 active:scale-95 font-mono shadow-2xs"
                       title={`إضافة +${inc}`}
                     >
                       <Plus className="w-2.5 h-2.5" />
@@ -396,14 +396,14 @@ export const Design7ItemEditModal: React.FC<Design7ItemEditModalProps> = ({
               </>
             ) : activeMode === 'paid' ? (
               <>
-                <div className="flex items-center justify-between text-[11px] font-bold text-slate-600">
+                <div className="flex items-center justify-between text-[11px] font-black text-black">
                   <span>فئات النقد السريعة:</span>
                 </div>
                 <div className="grid grid-cols-6 gap-1">
                   <button
                     type="button"
                     onClick={() => handlePresetVal(totalAmount)}
-                    className="col-span-2 py-1 px-1 rounded font-bold text-xs bg-emerald-100 hover:bg-emerald-200 border border-emerald-400 text-emerald-900 cursor-pointer text-center active:scale-95 shadow-2xs truncate"
+                    className="col-span-2 py-1 px-1 rounded font-black text-xs bg-emerald-100 hover:bg-emerald-200 border border-emerald-500 text-emerald-950 cursor-pointer text-center active:scale-95 shadow-2xs truncate"
                     title="سداد المبلغ التام بالكامل"
                   >
                     المبلغ التام ({formatMoney(totalAmount)})
@@ -413,7 +413,7 @@ export const Design7ItemEditModal: React.FC<Design7ItemEditModalProps> = ({
                       key={denom}
                       type="button"
                       onClick={() => handlePresetVal(denom)}
-                      className="py-1 rounded font-bold text-xs d7-glossy-action-tile text-slate-800 hover:bg-slate-200 cursor-pointer text-center font-mono active:scale-95 shadow-2xs"
+                      className="py-1 rounded font-black text-xs d7-glossy-action-tile text-black hover:bg-slate-200 cursor-pointer text-center font-mono active:scale-95 shadow-2xs"
                     >
                       {denom}
                     </button>
@@ -422,7 +422,7 @@ export const Design7ItemEditModal: React.FC<Design7ItemEditModalProps> = ({
               </>
             ) : activeMode === 'discount' ? (
               <>
-                <div className="flex items-center justify-between text-[11px] font-bold text-slate-600">
+                <div className="flex items-center justify-between text-[11px] font-black text-black">
                   <span>نسب ومبالغ التخفيض:</span>
                 </div>
                 <div className="grid grid-cols-6 gap-1">
@@ -433,7 +433,7 @@ export const Design7ItemEditModal: React.FC<Design7ItemEditModalProps> = ({
                         key={pct}
                         type="button"
                         onClick={() => handlePresetVal(discountVal)}
-                        className="py-1 rounded font-bold text-xs d7-glossy-fav-btn text-purple-900 hover:bg-purple-100 cursor-pointer text-center font-mono active:scale-95 shadow-2xs"
+                        className="py-1 rounded font-black text-xs d7-glossy-fav-btn text-purple-950 hover:bg-purple-100 cursor-pointer text-center font-mono active:scale-95 shadow-2xs"
                         title={`تخفيض ${pct}% (${formatMoney(discountVal)})`}
                       >
                         {pct}%
@@ -445,7 +445,7 @@ export const Design7ItemEditModal: React.FC<Design7ItemEditModalProps> = ({
                       key={amount}
                       type="button"
                       onClick={() => handlePresetVal(amount)}
-                      className="py-1 rounded font-bold text-xs d7-glossy-action-tile text-slate-800 hover:bg-slate-200 cursor-pointer text-center font-mono active:scale-95 shadow-2xs"
+                      className="py-1 rounded font-black text-xs d7-glossy-action-tile text-black hover:bg-slate-200 cursor-pointer text-center font-mono active:scale-95 shadow-2xs"
                     >
                       {amount} دج
                     </button>
@@ -463,7 +463,7 @@ export const Design7ItemEditModal: React.FC<Design7ItemEditModalProps> = ({
                 key={digit}
                 type="button"
                 onClick={() => handleNumpadClick(digit)}
-                className="h-12 rounded-lg font-black text-xl d7-glossy-action-tile text-slate-800 flex items-center justify-center cursor-pointer active:scale-95 shadow-xs font-mono"
+                className="h-12 rounded-lg font-black text-xl d7-glossy-action-tile text-black flex items-center justify-center cursor-pointer active:scale-95 shadow-xs font-mono"
               >
                 {digit}
               </button>
@@ -471,10 +471,10 @@ export const Design7ItemEditModal: React.FC<Design7ItemEditModalProps> = ({
             <button
               type="button"
               onClick={() => handleNumpadClick('DEL')}
-              className="h-12 rounded-lg font-bold text-xs bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 flex items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-xs"
+              className="h-12 rounded-lg font-black text-xs bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-400 flex items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-xs"
               title="حذف آخر خانة (Backspace)"
             >
-              <Delete className="w-4 h-4" />
+              <Delete className="w-4 h-4 stroke-[2.5]" />
               <span>حذف</span>
             </button>
 
@@ -484,7 +484,7 @@ export const Design7ItemEditModal: React.FC<Design7ItemEditModalProps> = ({
                 key={digit}
                 type="button"
                 onClick={() => handleNumpadClick(digit)}
-                className="h-12 rounded-lg font-black text-xl d7-glossy-action-tile text-slate-800 flex items-center justify-center cursor-pointer active:scale-95 shadow-xs font-mono"
+                className="h-12 rounded-lg font-black text-xl d7-glossy-action-tile text-black flex items-center justify-center cursor-pointer active:scale-95 shadow-xs font-mono"
               >
                 {digit}
               </button>
@@ -492,7 +492,7 @@ export const Design7ItemEditModal: React.FC<Design7ItemEditModalProps> = ({
             <button
               type="button"
               onClick={() => handleNumpadClick('C')}
-              className="h-12 rounded-lg font-black text-sm bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 flex items-center justify-center cursor-pointer active:scale-95 shadow-xs"
+              className="h-12 rounded-lg font-black text-sm bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-400 flex items-center justify-center cursor-pointer active:scale-95 shadow-xs"
               title="مسح كامل (Clear)"
             >
               مسح C
@@ -504,7 +504,7 @@ export const Design7ItemEditModal: React.FC<Design7ItemEditModalProps> = ({
                 key={digit}
                 type="button"
                 onClick={() => handleNumpadClick(digit)}
-                className="h-12 rounded-lg font-black text-xl d7-glossy-action-tile text-slate-800 flex items-center justify-center cursor-pointer active:scale-95 shadow-xs font-mono"
+                className="h-12 rounded-lg font-black text-xl d7-glossy-action-tile text-black flex items-center justify-center cursor-pointer active:scale-95 shadow-xs font-mono"
               >
                 {digit}
               </button>
@@ -512,7 +512,7 @@ export const Design7ItemEditModal: React.FC<Design7ItemEditModalProps> = ({
             <button
               type="button"
               onClick={() => handleNumpadClick('00')}
-              className="h-12 rounded-lg font-black text-base d7-glossy-action-tile text-slate-700 flex items-center justify-center cursor-pointer active:scale-95 shadow-xs font-mono"
+              className="h-12 rounded-lg font-black text-base d7-glossy-action-tile text-black flex items-center justify-center cursor-pointer active:scale-95 shadow-xs font-mono"
             >
               00
             </button>
@@ -521,14 +521,14 @@ export const Design7ItemEditModal: React.FC<Design7ItemEditModalProps> = ({
             <button
               type="button"
               onClick={() => handleNumpadClick('0')}
-              className="h-12 rounded-lg font-black text-xl d7-glossy-action-tile text-slate-800 flex items-center justify-center cursor-pointer active:scale-95 shadow-xs font-mono"
+              className="h-12 rounded-lg font-black text-xl d7-glossy-action-tile text-black flex items-center justify-center cursor-pointer active:scale-95 shadow-xs font-mono"
             >
               0
             </button>
             <button
               type="button"
               onClick={() => handleNumpadClick('.')}
-              className="h-12 rounded-lg font-black text-2xl d7-glossy-action-tile text-slate-800 flex items-center justify-center cursor-pointer active:scale-95 shadow-xs font-mono"
+              className="h-12 rounded-lg font-black text-2xl d7-glossy-action-tile text-black flex items-center justify-center cursor-pointer active:scale-95 shadow-xs font-mono"
             >
               .
             </button>
@@ -547,14 +547,14 @@ export const Design7ItemEditModal: React.FC<Design7ItemEditModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="h-9 rounded font-bold text-xs d7-glossy-top-btn text-slate-700 cursor-pointer"
+              className="h-9 rounded font-black text-xs d7-glossy-top-btn text-black cursor-pointer"
             >
               إلغاء
             </button>
             <button
               type="button"
               onClick={handleSubmit}
-              className="h-9 rounded font-bold text-xs bg-sky-700 hover:bg-sky-800 active:bg-sky-900 text-white shadow flex items-center justify-center gap-1.5 cursor-pointer"
+              className="h-9 rounded font-black text-xs bg-sky-700 hover:bg-sky-800 active:bg-sky-900 text-white shadow flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Check className="w-4 h-4 stroke-[3]" />
               <span>حفظ التعديل</span>

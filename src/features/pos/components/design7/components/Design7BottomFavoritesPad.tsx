@@ -302,23 +302,23 @@ export const Design7BottomFavoritesPad: React.FC<Design7BottomFavoritesPadProps>
                 >
                   {/* Pack Name: 2 lines with clear bold typography */}
                   <div className="w-full flex-1 flex items-center justify-center overflow-hidden">
-                    <span className="font-extrabold text-slate-900 text-[10.5px] sm:text-xs md:text-[12.5px] tracking-tight line-clamp-2 group-hover:text-blue-900 leading-snug break-words">
+                    <span className="font-extrabold text-black text-[10.5px] sm:text-xs md:text-[12.5px] tracking-tight line-clamp-2 group-hover:text-blue-950 leading-snug break-words">
                       {pack.name}
                     </span>
                   </div>
 
                   {/* Pack Price & Unit Row: Dedicated row ensuring both are 100% visible */}
-                  <div className="w-full flex items-center justify-between gap-1 mt-0.5 pt-0.5 border-t border-slate-300/50 shrink-0">
+                  <div className="w-full flex items-center justify-between gap-1 mt-0.5 pt-0.5 border-t border-slate-300/60 shrink-0">
                     {pack.packQty && pack.packQty > 1 ? (
-                      <span className="text-[9px] font-bold px-1 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300/80 font-mono truncate max-w-[65px]">
+                      <span className="text-[9px] font-black px-1 py-0.2 rounded bg-amber-100 text-amber-950 border border-amber-300 font-mono truncate max-w-[65px]">
                         ×{pack.packQty} {pack.packUnit || 'عبوة'}
                       </span>
                     ) : (
-                      <span className="text-[9px] font-medium text-slate-500 font-mono">
+                      <span className="text-[9px] font-bold text-slate-700 font-mono">
                         {pack.packUnit || 'عبوة'}
                       </span>
                     )}
-                    <span className="text-[10px] sm:text-[11px] font-black text-amber-800 font-mono bg-amber-100/90 px-1.5 py-0.2 rounded border border-amber-300/80 shadow-2xs shrink-0">
+                    <span className="text-[10px] sm:text-[11px] font-black text-black font-mono bg-amber-200/90 px-1.5 py-0.2 rounded border border-amber-400 shadow-2xs shrink-0">
                       {formatMoney(displayPrice)}
                     </span>
                   </div>

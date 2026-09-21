@@ -647,7 +647,7 @@ export function renderDocumentHTML(ctx: DocumentContext): string {
     ';' +
     'padding:' +
     spec.padding +
-    ';color:#0f172a;background:#fff;margin:0 auto;box-sizing:border-box;';
+    ';color:#000000;background:#fff;margin:0 auto;box-sizing:border-box;';
 
   return '<div class="print-doc" style="' + style + '">' + head + body + foot + '</div>';
 }
@@ -669,7 +669,7 @@ export function buildPrintPage(template: PrintTemplate, bodyHtml: string, title:
     sizeArg +
     ';margin:0;}' +
     '* { box-sizing: border-box; }' +
-    'html,body{margin:0;padding:0;background:#f1f5f9;direction:' +
+    'html,body{margin:0;padding:0;background:#f1f5f9;color:#000000;direction:' +
     direction +
     ';text-align:' +
     textAlign +
@@ -682,7 +682,7 @@ export function buildPrintPage(template: PrintTemplate, bodyHtml: string, title:
     'mm;min-height:' +
     minHeight +
     'mm;' +
-    'margin:8mm auto;background:#fff;direction:' +
+    'margin:8mm auto;background:#fff;color:#000000;direction:' +
     direction +
     ';text-align:' +
     textAlign +
@@ -700,9 +700,9 @@ export function buildPrintPage(template: PrintTemplate, bodyHtml: string, title:
     font.size +
     'px;font-weight:' +
     font.weight +
-    ';color:#0f172a;box-sizing:border-box;}' +
-    '@media print{html,body{background:#fff;}' +
-    '.print-sheet{box-shadow:none;margin:0;width:100%;min-height:auto;}}';
+    ';color:#000000;box-sizing:border-box;}' +
+    '@media print{html,body{background:#fff;color:#000000;}' +
+    '.print-sheet{box-shadow:none;margin:0;width:100%;min-height:auto;color:#000000;}}';
 
   return (
     '<!doctype html>' +
@@ -715,6 +715,7 @@ export function buildPrintPage(template: PrintTemplate, bodyHtml: string, title:
     '<title>' +
     esc(title) +
     '</title>' +
+    '<link rel="stylesheet" href="./fonts/fonts.css" />' +
     '<style>' +
     css +
     '</style>' +

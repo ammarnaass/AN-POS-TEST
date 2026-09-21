@@ -126,37 +126,37 @@ export const Design7ProductSearchModal: React.FC<Design7ProductSearchModalProps>
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 select-none">
       <div
-        className="w-full max-w-4xl max-h-[85vh] bg-[#e6ecf2] border-2 border-[#54606e] rounded-lg shadow-2xl flex flex-col overflow-hidden text-slate-800"
+        className="w-full max-w-4xl max-h-[85vh] bg-[#e6ecf2] border-2 border-[#54606e] rounded-lg shadow-2xl flex flex-col overflow-hidden text-black font-sans"
         dir="rtl"
         onKeyDown={handleKeyDown}
       >
         {/* Header */}
         <div className="px-4 py-2.5 bg-gradient-to-b from-[#e3e8ee] to-[#cad3de] border-b border-[#9ba8b7] flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded d7-glossy-action-tile flex items-center justify-center text-teal-700">
+            <div className="w-8 h-8 rounded d7-glossy-action-tile flex items-center justify-center text-teal-800">
               <Search className="w-4 h-4 stroke-[2.5]" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+              <h3 className="font-black text-sm text-black flex items-center gap-2">
                 <span>بحث واستعراض السلع والمواد</span>
-                <span className="text-[10px] font-mono bg-teal-100 text-teal-800 border border-teal-300 px-1.5 py-0.5 rounded">
+                <span className="text-[10px] font-mono font-bold bg-teal-100 text-teal-900 border border-teal-400 px-1.5 py-0.5 rounded">
                   F10
                 </span>
                 <span
-                  className={`text-[10px] font-bold border px-1.5 py-0.5 rounded ${
+                  className={`text-[10px] font-black border px-1.5 py-0.5 rounded ${
                     priceTier === '3'
-                      ? 'bg-purple-100 text-purple-800 border-purple-300'
+                      ? 'bg-purple-100 text-purple-950 border-purple-400'
                       : priceTier === '2'
-                      ? 'bg-amber-100 text-amber-800 border-amber-300'
+                      ? 'bg-amber-100 text-amber-950 border-amber-400'
                       : priceTier === '4'
-                      ? 'bg-blue-100 text-blue-800 border-blue-300'
-                      : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                      ? 'bg-blue-100 text-blue-950 border-blue-400'
+                      : 'bg-emerald-100 text-emerald-950 border-emerald-400'
                   }`}
                 >
                   فئة السعر: س{priceTier} ({priceTier === '3' ? 'جملة' : priceTier === '2' ? 'نصف جملة' : priceTier === '4' ? 'خاص' : 'تجزئة'})
                 </span>
               </h3>
-              <p className="text-[11px] text-slate-600">
+              <p className="text-[11px] text-black font-semibold">
                 ابحث بالاسم أو الباركود وأضف السلع مباشرة إلى الفاتورة النشطة
               </p>
             </div>
@@ -165,10 +165,10 @@ export const Design7ProductSearchModal: React.FC<Design7ProductSearchModalProps>
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded d7-glossy-top-btn text-slate-600 hover:text-rose-700 flex items-center justify-center cursor-pointer"
+            className="w-8 h-8 rounded d7-glossy-top-btn text-black hover:text-rose-700 flex items-center justify-center cursor-pointer"
             title="إغلاق (Esc)"
           >
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4 stroke-[2.5]" />
           </button>
         </div>
 
@@ -182,14 +182,14 @@ export const Design7ProductSearchModal: React.FC<Design7ProductSearchModalProps>
               onChange={(e) => setSearchTerm(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="اكتب اسم السلعة أو امسح الباركود للبحث..."
-              className="w-full h-10 bg-white border border-[#9ba8b7] focus:border-teal-600 rounded-md pl-10 pr-10 text-xs text-slate-900 placeholder-slate-400 focus:outline-hidden font-medium shadow-inner"
+              className="w-full h-10 bg-white border border-[#9ba8b7] focus:border-teal-600 rounded-md pl-10 pr-10 text-xs text-black placeholder-slate-500 focus:outline-hidden font-bold shadow-inner"
             />
-            <Search className="w-4 h-4 text-slate-500 absolute right-3 top-3 pointer-events-none" />
+            <Search className="w-4 h-4 text-black absolute right-3 top-3 pointer-events-none" />
             {searchTerm && (
               <button
                 type="button"
                 onClick={() => setSearchTerm('')}
-                className="absolute left-3 top-2.5 text-slate-500 hover:text-slate-900 p-0.5 cursor-pointer"
+                className="absolute left-3 top-2.5 text-black hover:text-rose-700 p-0.5 cursor-pointer font-bold"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -201,10 +201,10 @@ export const Design7ProductSearchModal: React.FC<Design7ProductSearchModalProps>
             <button
               type="button"
               onClick={() => setSelectedCat('ALL')}
-              className={`px-3 py-1 rounded font-bold transition-all cursor-pointer whitespace-nowrap text-xs ${
+              className={`px-3 py-1 rounded font-black transition-all cursor-pointer whitespace-nowrap text-xs ${
                 selectedCat === 'ALL'
                   ? 'd7-pill-gloss-red text-white'
-                  : 'd7-glossy-fav-btn text-slate-700'
+                  : 'd7-glossy-fav-btn text-black'
               }`}
             >
               الكل ({products.length})
@@ -214,10 +214,10 @@ export const Design7ProductSearchModal: React.FC<Design7ProductSearchModalProps>
                 key={cat}
                 type="button"
                 onClick={() => setSelectedCat(cat)}
-                className={`px-3 py-1 rounded font-bold transition-all cursor-pointer whitespace-nowrap text-xs ${
+                className={`px-3 py-1 rounded font-black transition-all cursor-pointer whitespace-nowrap text-xs ${
                   selectedCat === cat
                     ? 'd7-pill-gloss-red text-white'
-                    : 'd7-glossy-fav-btn text-slate-700'
+                    : 'd7-glossy-fav-btn text-black'
                 }`}
               >
                 {cat}
@@ -229,9 +229,9 @@ export const Design7ProductSearchModal: React.FC<Design7ProductSearchModalProps>
         {/* Results Grid */}
         <div className="flex-1 p-3 overflow-y-auto max-h-[50vh] bg-white">
           {filteredProducts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-slate-400 gap-2">
+            <div className="flex flex-col items-center justify-center py-12 text-slate-500 gap-2">
               <Package className="w-12 h-12 stroke-[1.5]" />
-              <p className="font-bold text-xs">لم يتم العثور على سلع مطابقة للبحث</p>
+              <p className="font-bold text-xs text-black">لم يتم العثور على سلع مطابقة للبحث</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
@@ -258,7 +258,7 @@ export const Design7ProductSearchModal: React.FC<Design7ProductSearchModalProps>
                   >
                     <div>
                       <div className="flex items-start justify-between gap-1">
-                        <span className="font-bold text-xs text-slate-900 line-clamp-2 leading-tight">
+                        <span className="font-black text-xs text-black line-clamp-2 leading-tight">
                           {p.name}
                         </span>
                         {isRecentlyAdded ? (
@@ -266,23 +266,23 @@ export const Design7ProductSearchModal: React.FC<Design7ProductSearchModalProps>
                             <Check className="w-3 h-3 stroke-[3]" />
                           </span>
                         ) : (
-                          <span className="w-5 h-5 rounded d7-glossy-action-tile flex items-center justify-center text-slate-600 shrink-0">
+                          <span className="w-5 h-5 rounded d7-glossy-action-tile flex items-center justify-center text-black shrink-0">
                             <Plus className="w-3 h-3 stroke-[3]" />
                           </span>
                         )}
                       </div>
                       {p.barcode && (
-                        <span className="text-[10px] font-mono text-slate-500 block mt-1">
+                        <span className="text-[10px] font-mono font-bold text-black block mt-1">
                           {p.barcode}
                         </span>
                       )}
                     </div>
 
                     <div className="flex items-baseline justify-between pt-1 border-t border-slate-200">
-                      <span className="text-[10px] text-slate-500">
-                        المخزون: <b className={stock <= 0 ? 'text-rose-600' : 'text-slate-700'}>{stock}</b>
+                      <span className="text-[10px] text-black font-bold">
+                        المخزون: <b className={stock <= 0 ? 'text-rose-700' : 'text-black font-black'}>{stock}</b>
                       </span>
-                      <span className="font-black text-xs text-amber-700 font-mono">
+                      <span className="font-black text-xs text-black font-mono">
                         {formatMoney(price)}
                       </span>
                     </div>
@@ -294,17 +294,17 @@ export const Design7ProductSearchModal: React.FC<Design7ProductSearchModalProps>
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-2 bg-[#dbe5ee] border-t border-[#b4c3d2] flex items-center justify-between text-xs text-slate-600 gap-2">
+        <div className="px-4 py-2 bg-[#dbe5ee] border-t border-[#b4c3d2] flex items-center justify-between text-xs text-black font-bold gap-2">
           <div className="flex items-center gap-2 sm:gap-3 overflow-hidden">
-            <span>السلع المعروضة: <b>{filteredProducts.length}</b></span>
-            <span className="text-[10px] bg-teal-100/90 text-teal-900 border border-teal-300 px-2 py-0.5 rounded font-mono hidden sm:inline truncate">
+            <span>السلع المعروضة: <b className="font-black">{filteredProducts.length}</b></span>
+            <span className="text-[10px] bg-teal-100/90 text-teal-950 border border-teal-300 px-2 py-0.5 rounded font-mono font-bold hidden sm:inline truncate">
               Enter للإضافة بالسلة • الأسهم ↑↓ للتنقل • Esc للإغلاق
             </span>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="d7-glossy-top-btn px-4 py-1.5 rounded font-bold text-slate-800 cursor-pointer shrink-0"
+            className="d7-glossy-top-btn px-4 py-1.5 rounded font-black text-black cursor-pointer shrink-0"
           >
             إغلاق
           </button>

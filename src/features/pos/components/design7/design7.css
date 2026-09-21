@@ -3,7 +3,31 @@
 .d7-container {
   user-select: none;
   -webkit-user-select: none;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: 'Cairo', 'Tajawal', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+  color: #000000;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Force high-contrast pure black for texts and inputs across Design 7 */
+.d7-container input,
+.d7-container select,
+.d7-container textarea {
+  color: #000000 !important;
+  font-family: inherit;
+}
+
+.d7-container table th,
+.d7-container table td {
+  color: #000000 !important;
+}
+
+.d7-glossy-top-btn,
+.d7-glossy-action-tile,
+.d7-glossy-fav-btn,
+.d7-glossy-product-tile {
+  color: #000000 !important;
+  font-family: inherit;
 }
 
 /* Metallic and glossy desktop button finishes */

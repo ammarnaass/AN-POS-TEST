@@ -98,24 +98,24 @@ export const Design7VirtualKeyboardModal: React.FC<Design7VirtualKeyboardModalPr
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-xs p-3 select-none">
       <div
-        className="w-full max-w-2xl bg-[#e6ecf2] border-2 border-[#54606e] rounded-lg shadow-2xl flex flex-col overflow-hidden text-slate-800"
+        className="w-full max-w-2xl bg-[#e6ecf2] border-2 border-[#54606e] rounded-lg shadow-2xl flex flex-col overflow-hidden text-black font-sans"
         dir="rtl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header Ribbon (Classic Design 7 Glossy Style) */}
         <div className="px-4 py-2.5 bg-gradient-to-b from-[#e3e8ee] to-[#cad3de] border-b border-[#9ba8b7] flex items-center justify-between shadow-xs">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded d7-glossy-action-tile flex items-center justify-center text-sky-700 shadow-xs">
+            <div className="w-8 h-8 rounded d7-glossy-action-tile flex items-center justify-center text-sky-800 shadow-xs">
               <Keyboard className="w-5 h-5 stroke-[2.2]" />
             </div>
             <div>
-              <h3 className="font-black text-sm text-slate-900 flex items-center gap-2">
+              <h3 className="font-black text-sm text-black flex items-center gap-2">
                 <span>{title}</span>
-                <span className="text-[10px] px-2 py-0.5 rounded border font-bold d7-pill-gloss-cyan">
+                <span className="text-[10px] px-2 py-0.5 rounded border font-black d7-pill-gloss-cyan text-white">
                   {layout === 'ar' ? 'العربية' : layout === 'en' ? 'English' : '123 / رموز'}
                 </span>
               </h3>
-              <p className="text-[11px] text-slate-600">
+              <p className="text-[11px] text-black font-semibold">
                 إدخال نصوص، أرقام وباركود للشاشات اللمسية
               </p>
             </div>
@@ -124,10 +124,10 @@ export const Design7VirtualKeyboardModal: React.FC<Design7VirtualKeyboardModalPr
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded d7-glossy-top-btn text-slate-600 hover:text-rose-700 flex items-center justify-center cursor-pointer transition-colors"
+            className="w-8 h-8 rounded d7-glossy-top-btn text-black hover:text-rose-700 flex items-center justify-center cursor-pointer transition-colors"
             title="إغلاق (Esc)"
           >
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4 stroke-[2.5]" />
           </button>
         </div>
 
@@ -138,7 +138,7 @@ export const Design7VirtualKeyboardModal: React.FC<Design7VirtualKeyboardModalPr
               {text ? (
                 <span>{text}</span>
               ) : (
-                <span className="text-slate-500 font-sans text-sm font-normal">
+                <span className="text-slate-400 font-sans text-sm font-normal">
                   {placeholder}
                 </span>
               )}
@@ -169,7 +169,7 @@ export const Design7VirtualKeyboardModal: React.FC<Design7VirtualKeyboardModalPr
                   key={keyChar}
                   type="button"
                   onClick={() => handleKeyPress(keyChar)}
-                  className="flex-1 max-w-[54px] h-11 rounded font-bold text-base d7-glossy-action-tile text-slate-900 flex items-center justify-center cursor-pointer active:scale-95 shadow-xs transition-transform font-sans"
+                  className="flex-1 max-w-[54px] h-11 rounded font-black text-base d7-glossy-action-tile text-black flex items-center justify-center cursor-pointer active:scale-95 shadow-xs transition-transform font-sans"
                 >
                   {keyChar}
                 </button>
@@ -189,7 +189,7 @@ export const Design7VirtualKeyboardModal: React.FC<Design7VirtualKeyboardModalPr
                   return 'ar';
                 });
               }}
-              className="px-3 h-11 rounded font-bold text-xs d7-glossy-action-tile text-sky-800 hover:text-sky-950 flex items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-xs"
+              className="px-3 h-11 rounded font-black text-xs d7-glossy-action-tile text-black hover:text-sky-950 flex items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-xs"
               title="تبديل لغة لوحة المفاتيح (عربي / EN / 123)"
             >
               <Globe className="w-4 h-4" />
@@ -201,10 +201,10 @@ export const Design7VirtualKeyboardModal: React.FC<Design7VirtualKeyboardModalPr
               <button
                 type="button"
                 onClick={() => setIsCaps((prev) => !prev)}
-                className={`px-3 h-11 rounded font-bold text-xs flex items-center justify-center cursor-pointer active:scale-95 shadow-xs ${
+                className={`px-3 h-11 rounded font-black text-xs flex items-center justify-center cursor-pointer active:scale-95 shadow-xs ${
                   isCaps
                     ? 'bg-amber-500 text-white border border-amber-600 font-black'
-                    : 'd7-glossy-action-tile text-slate-700'
+                    : 'd7-glossy-action-tile text-black'
                 }`}
                 title="تبديل الأحرف الكبيرة / الصغيرة (Caps Lock)"
               >
@@ -216,7 +216,7 @@ export const Design7VirtualKeyboardModal: React.FC<Design7VirtualKeyboardModalPr
             <button
               type="button"
               onClick={() => handleKeyPress(' ')}
-              className="flex-1 max-w-[280px] h-11 rounded font-bold text-xs d7-glossy-action-tile text-slate-700 flex items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-xs"
+              className="flex-1 max-w-[280px] h-11 rounded font-black text-xs d7-glossy-action-tile text-black flex items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-xs"
               title="مسافة (Space)"
             >
               <Space className="w-4 h-4" />
@@ -227,10 +227,10 @@ export const Design7VirtualKeyboardModal: React.FC<Design7VirtualKeyboardModalPr
             <button
               type="button"
               onClick={handleBackspace}
-              className="px-4 h-11 rounded font-bold text-xs bg-gradient-to-b from-rose-50 to-rose-100 hover:from-rose-100 hover:to-rose-200 border border-rose-300 text-rose-800 flex items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-xs"
+              className="px-4 h-11 rounded font-black text-xs bg-gradient-to-b from-rose-50 to-rose-100 hover:from-rose-100 hover:to-rose-200 border border-rose-400 text-rose-900 flex items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-xs"
               title="حذف الحرف الأخير (Backspace)"
             >
-              <Delete className="w-4 h-4 stroke-[2.2]" />
+              <Delete className="w-4 h-4 stroke-[2.5]" />
               <span>حذف</span>
             </button>
 
@@ -238,7 +238,7 @@ export const Design7VirtualKeyboardModal: React.FC<Design7VirtualKeyboardModalPr
             <button
               type="button"
               onClick={handleClear}
-              className="px-3 h-11 rounded font-bold text-xs bg-gradient-to-b from-amber-50 to-amber-100 hover:from-amber-100 hover:to-amber-200 border border-amber-300 text-amber-800 flex items-center justify-center cursor-pointer active:scale-95 shadow-xs font-mono"
+              className="px-3 h-11 rounded font-black text-xs bg-gradient-to-b from-amber-50 to-amber-100 hover:from-amber-100 hover:to-amber-200 border border-amber-400 text-amber-950 flex items-center justify-center cursor-pointer active:scale-95 shadow-xs font-mono"
               title="مسح الكل (C)"
             >
               C
@@ -250,14 +250,14 @@ export const Design7VirtualKeyboardModal: React.FC<Design7VirtualKeyboardModalPr
             <button
               type="button"
               onClick={onClose}
-              className="h-10 rounded font-bold text-xs d7-glossy-top-btn text-slate-700 cursor-pointer active:scale-95"
+              className="h-10 rounded font-black text-xs d7-glossy-top-btn text-black cursor-pointer active:scale-95"
             >
               إلغاء (Esc)
             </button>
             <button
               type="button"
               onClick={handleConfirm}
-              className="h-10 rounded font-bold text-sm bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-600 hover:to-emerald-800 active:scale-95 text-white flex items-center justify-center gap-2 cursor-pointer shadow-md border border-emerald-600"
+              className="h-10 rounded font-black text-sm bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-600 hover:to-emerald-800 active:scale-95 text-white flex items-center justify-center gap-2 cursor-pointer shadow-md border border-emerald-600"
             >
               <CornerDownLeft className="w-4 h-4 stroke-[2.5]" />
               <span>تأكيد وإدخال (Enter)</span>

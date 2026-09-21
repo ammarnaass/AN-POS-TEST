@@ -16,7 +16,12 @@
 @source "../**/*.{js,ts,jsx,tsx,html}";
 
 @theme {
-  /* ========== Light Mode (DESIGN.md) ========== */
+  /* ========== Typography (Local Offline Cairo & Tajawal) ========== */
+  --font-sans: 'Cairo', 'Tajawal', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-cairo: 'Cairo', 'Tajawal', sans-serif;
+  --font-tajawal: 'Tajawal', 'Cairo', sans-serif;
+
+  /* ========== Light Mode (DESIGN.md - High Contrast Deep Black) ========== */
   --color-background: #f7f9fb;
   --color-surface: #f7f9fb;
   --color-surface-dim: #d8dadc;
@@ -27,11 +32,11 @@
   --color-surface-container-high: #e6e8ea;
   --color-surface-container-highest: #e0e3e5;
   --color-surface-variant: #e0e3e5;
-  --color-on-surface: #191c1e;
-  --color-on-surface-variant: #434655;
-  --color-inverse-surface: #2d3133;
-  --color-inverse-on-surface: #eff1f3;
-  --color-on-background: #191c1e;
+  --color-on-surface: #000000;
+  --color-on-surface-variant: #111827;
+  --color-inverse-surface: #111827;
+  --color-inverse-on-surface: #f8fafc;
+  --color-on-background: #000000;
 
   --color-primary: #0046a8;
   --color-primary-container: #2563eb;

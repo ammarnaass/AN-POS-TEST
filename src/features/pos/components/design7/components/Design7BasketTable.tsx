@@ -39,7 +39,7 @@ export const Design7BasketTable: React.FC<Design7BasketTableProps> = ({
       <div className="overflow-y-auto flex-1 min-h-0">
         <table className="w-full text-right border-collapse text-xs select-none">
           <thead className="sticky top-0 z-10">
-            <tr className="bg-gradient-to-b from-[#dce5ed] to-[#c7d3df] border-b border-[#9eb0c2] text-slate-800 font-bold shadow-xs">
+            <tr className="bg-gradient-to-b from-[#dce5ed] to-[#c7d3df] border-b border-[#9eb0c2] text-black font-black shadow-xs">
               <th className="py-1 sm:py-1.5 px-1 sm:px-2 border-l border-[#b5c4d3] text-center w-10 sm:w-12">رقم</th>
               <th className="py-1 sm:py-1.5 px-1 sm:px-2 border-l border-[#b5c4d3] text-center w-24 sm:w-32 md:w-36">كودبار</th>
               <th className="py-1 sm:py-1.5 px-2 sm:px-3 border-l border-[#b5c4d3] text-right">إسم المنتوج</th>
@@ -49,14 +49,14 @@ export const Design7BasketTable: React.FC<Design7BasketTableProps> = ({
               <th className="py-1 sm:py-1.5 px-1 text-center w-9 sm:w-10">حذف</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 font-semibold text-slate-800">
+          <tbody className="divide-y divide-slate-200 font-bold text-black">
             {cart.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-16 text-center text-slate-400 font-medium">
+                <td colSpan={7} className="py-16 text-center text-slate-500 font-medium">
                   <div className="flex flex-col items-center justify-center gap-2">
                     <span className="text-3xl">🛒</span>
-                    <span className="text-sm font-bold text-slate-600">السلة فارغة حالياً</span>
-                    <span className="text-xs text-slate-400">
+                    <span className="text-sm font-black text-black">السلة فارغة حالياً</span>
+                    <span className="text-xs text-slate-500">
                       امسح الباركود (F3) أو اختر السلع من القائمة بالأسفل أو اضغط (F10) للبحث
                     </span>
                   </div>
@@ -85,14 +85,14 @@ export const Design7BasketTable: React.FC<Design7BasketTableProps> = ({
                     onDoubleClick={() => onOpenItemEdit?.(item, 'qty')}
                     className={`transition-colors cursor-pointer group ${
                       isSelected
-                        ? 'bg-[#d7e9f7] hover:bg-[#c9e1f5] text-slate-900 font-bold'
-                        : 'hover:bg-slate-50 text-slate-800'
+                        ? 'bg-[#d7e9f7] hover:bg-[#c9e1f5] text-black font-extrabold'
+                        : 'hover:bg-slate-100/80 text-black font-bold'
                     }`}
                   >
                     {/* رقم */}
                     <td
-                      className={`py-1.5 px-2 text-center border-l font-mono ${
-                        isSelected ? 'border-[#bdd0e3]' : 'border-slate-200'
+                      className={`py-1.5 px-2 text-center border-l font-mono font-bold text-black ${
+                        isSelected ? 'border-[#bdd0e3]' : 'border-slate-300'
                       }`}
                     >
                       {idx + 1}
@@ -100,8 +100,8 @@ export const Design7BasketTable: React.FC<Design7BasketTableProps> = ({
 
                     {/* كودبار */}
                     <td
-                      className={`py-1.5 px-2 text-center font-mono border-l text-[11px] ${
-                        isSelected ? 'border-[#bdd0e3]' : 'border-slate-200'
+                      className={`py-1.5 px-2 text-center font-mono font-bold text-black border-l text-[11px] ${
+                        isSelected ? 'border-[#bdd0e3]' : 'border-slate-300'
                       }`}
                     >
                       {barcode}
@@ -109,8 +109,8 @@ export const Design7BasketTable: React.FC<Design7BasketTableProps> = ({
 
                     {/* إسم المنتوج */}
                     <td
-                      className={`py-1.5 px-3 border-l ${
-                        isSelected ? 'border-[#bdd0e3] font-bold text-slate-950' : 'border-slate-200'
+                      className={`py-1.5 px-3 border-l font-extrabold text-black ${
+                        isSelected ? 'border-[#bdd0e3]' : 'border-slate-300'
                       }`}
                     >
                       <div className="flex items-center justify-between gap-1 flex-wrap">
@@ -217,16 +217,16 @@ export const Design7BasketTable: React.FC<Design7BasketTableProps> = ({
                       }}
                       title="انقر لفتح الآلة الحاسبة اللمسية لتعديل السعر"
                       className={`py-1.5 px-2 text-center border-l cursor-pointer hover:bg-amber-50/70 transition-colors ${
-                        isSelected ? 'border-[#bdd0e3]' : 'border-slate-200'
+                        isSelected ? 'border-[#bdd0e3]' : 'border-slate-300'
                       }`}
                     >
-                      <span className="font-mono">{formatMoney(unitPrice)}</span>
+                      <span className="font-mono font-black text-black">{formatMoney(unitPrice)}</span>
                     </td>
 
                     {/* الكمية مع خيار فتح الآلة الحاسبة اللمسية */}
                     <td
                       className={`py-1 px-1 text-center border-l ${
-                        isSelected ? 'border-[#bdd0e3]' : 'border-slate-200'
+                        isSelected ? 'border-[#bdd0e3]' : 'border-slate-300'
                       }`}
                     >
                       <div className="flex items-center justify-center gap-1">
@@ -236,7 +236,7 @@ export const Design7BasketTable: React.FC<Design7BasketTableProps> = ({
                             e.stopPropagation();
                             onUpdateQty(effectiveProductId, qty + 1);
                           }}
-                          className="w-5 h-5 rounded bg-slate-200 hover:bg-slate-300 active:bg-slate-400 text-slate-700 flex items-center justify-center font-bold text-xs cursor-pointer"
+                          className="w-5 h-5 rounded bg-slate-200 hover:bg-slate-300 active:bg-slate-400 text-black flex items-center justify-center font-bold text-xs cursor-pointer"
                           title={item.isPack && item.packMode === 'wholesale_packs' ? 'زيادة عدد العبوات' : 'زيادة الكمية'}
                         >
                           <Plus className="w-3 h-3 stroke-[3]" />
@@ -249,11 +249,11 @@ export const Design7BasketTable: React.FC<Design7BasketTableProps> = ({
                             onSelectRow(rowKey);
                             onOpenItemEdit?.(item, 'qty');
                           }}
-                          className="min-w-[28px] px-1.5 py-0.5 rounded bg-white hover:bg-sky-100 border border-slate-300 hover:border-sky-500 text-center font-black text-xs text-sky-800 shadow-2xs flex items-center justify-center gap-1 cursor-pointer transition-all"
+                          className="min-w-[28px] px-1.5 py-0.5 rounded bg-white hover:bg-sky-100 border border-slate-300 hover:border-sky-500 text-center font-black text-xs text-black shadow-2xs flex items-center justify-center gap-1 cursor-pointer transition-all"
                           title="انقر لفتح الآلة الحاسبة اللمسية لتعديل الكمية"
                         >
-                          <span className="font-mono">{qty}</span>
-                          <Edit3 className="w-2.5 h-2.5 opacity-50" />
+                          <span className="font-mono font-black text-black">{qty}</span>
+                          <Edit3 className="w-2.5 h-2.5 opacity-60 text-black" />
                         </button>
 
                         <button
@@ -266,7 +266,7 @@ export const Design7BasketTable: React.FC<Design7BasketTableProps> = ({
                               onRemoveFromCart(effectiveProductId);
                             }
                           }}
-                          className="w-5 h-5 rounded bg-slate-200 hover:bg-slate-300 active:bg-slate-400 text-slate-700 flex items-center justify-center font-bold text-xs cursor-pointer"
+                          className="w-5 h-5 rounded bg-slate-200 hover:bg-slate-300 active:bg-slate-400 text-black flex items-center justify-center font-bold text-xs cursor-pointer"
                           title={item.isPack && item.packMode === 'wholesale_packs' ? 'تقليل عدد العبوات' : 'إنقاص الكمية'}
                         >
                           <Minus className="w-3 h-3 stroke-[3]" />
@@ -277,12 +277,12 @@ export const Design7BasketTable: React.FC<Design7BasketTableProps> = ({
                       {item.isPack && item.packMode === 'wholesale_packs' ? (
                         <div className="text-[10px] font-mono font-bold text-purple-700 leading-tight mt-0.5">
                           <span>{qty} {item.packUnit || 'عبوة'}</span>
-                          <span className="text-[9px] text-slate-500 font-normal mr-1">
+                          <span className="text-[9px] text-slate-600 font-normal mr-1">
                             (×{item.packPiecesCount || 1} قطع = {qty * (item.packPiecesCount || 1)} قطعة)
                           </span>
                         </div>
                       ) : item.isPack ? (
-                        <div className="text-[9px] font-bold text-emerald-700 mt-0.5">
+                        <div className="text-[9px] font-bold text-emerald-800 mt-0.5">
                           {qty} قطعة (تجزئة)
                         </div>
                       ) : null}
@@ -290,8 +290,8 @@ export const Design7BasketTable: React.FC<Design7BasketTableProps> = ({
 
                     {/* المبلغ */}
                     <td
-                      className={`py-1.5 px-3 text-center font-bold text-emerald-800 border-l ${
-                        isSelected ? 'border-[#bdd0e3]' : 'border-slate-200'
+                      className={`py-1.5 px-3 text-center font-black font-mono text-black border-l text-xs ${
+                        isSelected ? 'border-[#bdd0e3]' : 'border-slate-300'
                       }`}
                     >
                       {formatMoney(lineTotal)}
