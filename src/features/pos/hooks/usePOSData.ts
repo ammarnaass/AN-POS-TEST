@@ -11,6 +11,7 @@ export interface POSSettings {
   averagePricing: boolean;
   allowCardPayment: boolean;
   allowTransferPayment: boolean;
+  design7ShowBottomFavorites?: boolean;
 }
 
 export function usePOSData() {
@@ -84,6 +85,7 @@ export function usePOSData() {
     averagePricing: settings?.averagePricing ?? false,
     allowCardPayment: Boolean((settings as any)?.allowCardPayment ?? false),
     allowTransferPayment: Boolean((settings as any)?.allowTransferPayment ?? false),
+    design7ShowBottomFavorites: Boolean((settings as any)?.design7ShowBottomFavorites ?? (settings as any)?.design7_show_bottom_favorites ?? true),
   }), [settings]);
 
   const { data: allSessions = [] } = useQuery<CashSession[]>({

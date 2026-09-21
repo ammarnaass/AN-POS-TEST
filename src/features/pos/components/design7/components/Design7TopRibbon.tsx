@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bell, LogOut } from 'lucide-react';
+import { Bell, LogOut, Layers } from 'lucide-react';
 import NotificationDropdown from '@/components/notifications/NotificationDropdown';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useDesign7Clock } from '../hooks/useDesign7Clock';
@@ -23,6 +23,8 @@ interface Design7TopRibbonProps {
   isFullscreen?: boolean;
   priceTier?: '1' | '2' | '3' | '4';
   onSelectPriceTier?: (tier: '1' | '2' | '3' | '4') => void;
+  isBottomFavoritesVisible?: boolean;
+  onToggleBottomFavorites?: () => void;
 }
 
 export const Design7TopRibbon: React.FC<Design7TopRibbonProps> = ({
@@ -44,6 +46,8 @@ export const Design7TopRibbon: React.FC<Design7TopRibbonProps> = ({
   isFullscreen = false,
   priceTier = '1',
   onSelectPriceTier,
+  isBottomFavoritesVisible = true,
+  onToggleBottomFavorites,
 }) => {
   const { timeStr, dateStr } = useDesign7Clock();
   const unreadCount = useNotificationStore((s) => s.getUnreadCount());
@@ -265,6 +269,30 @@ export const Design7TopRibbon: React.FC<Design7TopRibbonProps> = ({
           </svg>
           <span className="text-[9px] sm:text-[10px] font-bold text-purple-900 leading-tight">تخصيص F12</span>
         </button>
+
+        {/* زر إظهار أو إخفاء شريط العبوات والمفضلة السفلي */}
+        {onToggleBottomFavorites && (
+          <button
+            onClick={onToggleBottomFavorites}
+            title={
+              isBottomFavoritesVisible
+                ? 'إخفاء شريط العبوات وتصنيفات المفضلة (لتوسيع جدول السلة)'
+                : 'إظهار شريط العبوات وتصنيفات المفضلة'
+            }
+            className={`d7-glossy-top-btn flex flex-col items-center justify-center w-12 sm:w-14 md:w-16 h-10 sm:h-11 md:h-12 rounded px-1 cursor-pointer active:scale-95 transition-all shrink-0 ${
+              isBottomFavoritesVisible
+                ? 'bg-sky-50/20 hover:border-sky-400'
+                : 'bg-amber-50/40 border-amber-400/80 hover:border-amber-500 ring-1 ring-amber-400/50'
+            }`}
+            type="button"
+            data-purpose="toggle-bottom-favorites"
+          >
+            <Layers className={`w-4 h-4 sm:w-5 sm:h-5 drop-shadow-xs ${isBottomFavoritesVisible ? 'text-sky-600' : 'text-amber-700'}`} />
+            <span className={`text-[9px] sm:text-[10px] font-bold leading-tight ${isBottomFavoritesVisible ? 'text-slate-700' : 'text-amber-800'}`}>
+              {isBottomFavoritesVisible ? 'العبوات' : 'إظهار العبوات'}
+            </span>
+          </button>
+        )}
       </div>
 
       {/* Document Information & Notifications Block (Left in RTL) */}

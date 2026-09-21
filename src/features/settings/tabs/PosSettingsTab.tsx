@@ -1,6 +1,6 @@
 // Tab Component: PosSettingsTab (Refactored from SettingsPage.tsx)
 import React from 'react';
-import { ShoppingCart, Zap, Package, Bell, BarChart3, CreditCard, ShieldCheck, ArrowLeftRight, Star } from 'lucide-react';
+import { ShoppingCart, Zap, Package, Bell, BarChart3, CreditCard, ShieldCheck, ArrowLeftRight, Star, Layers } from 'lucide-react';
 import { usePOSSessionStore } from '@/features/pos/store/usePOSSessionStore';
 import { useSystemSettings } from '../hooks/useSystemSettings';
 
@@ -59,6 +59,13 @@ export default function PosSettingsTab(props: PosSettingsTabProps) {
                     color: 'text-amber-500 bg-amber-500/10',
                   },
                   {
+                    key: 'design7ShowBottomFavorites',
+                    title: 'إظهار شريط العبوات والمفضلة في تصميم 7',
+                    desc: 'التحكم في إظهار أو إخفاء شريط العبوات وتصنيفات المفضلة السفلي في كاشير تصميم 7 لتوفير مساحة عمودية أكبر لجدول السلة',
+                    icon: Layers,
+                    color: 'text-sky-500 bg-sky-500/10',
+                  },
+                  {
                     key: 'averagePricing',
                     title: 'التسعير بمتوسط التكلفة المرجح (PMP)',
                     desc: 'حساب تكلفة وأرباح المنتجات بناءً على متوسط سعر الشراء التراكمي',
@@ -115,6 +122,9 @@ export default function PosSettingsTab(props: PosSettingsTabProps) {
                         handleSaveSettings({ [item.key]: newVal });
                         if (item.key === 'terminalFavoritesMode') {
                           usePOSSessionStore.getState().setTerminalCategoryMode(newVal ? 'favorites' : 'products');
+                        }
+                        if (item.key === 'design7ShowBottomFavorites') {
+                          usePOSSessionStore.getState().setDesign7ShowBottomFavorites?.(newVal);
                         }
                       }}
                       className={`relative w-12 h-6 rounded-full transition-colors shrink-0 ${

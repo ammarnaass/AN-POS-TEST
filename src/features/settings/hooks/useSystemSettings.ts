@@ -33,6 +33,7 @@ export interface ExtendedSettings {
   confirmNoStock: boolean;
   averagePricing: boolean;
   terminalFavoritesMode: boolean;
+  design7ShowBottomFavorites: boolean;
   allowCardPayment: boolean;
   allowTransferPayment: boolean;
   allowSelfRegistration: boolean;
@@ -79,6 +80,7 @@ export function useSystemSettings() {
     confirmNoStock: Boolean((rawSettings as any)?.confirmNoStock ?? (rawSettings as any)?.confirm_no_stock ?? true),
     averagePricing: Boolean((rawSettings as any)?.averagePricing ?? (rawSettings as any)?.average_pricing),
     terminalFavoritesMode: Boolean((rawSettings as any)?.terminalFavoritesMode ?? (rawSettings as any)?.terminal_favorites_mode ?? true),
+    design7ShowBottomFavorites: Boolean((rawSettings as any)?.design7ShowBottomFavorites ?? (rawSettings as any)?.design7_show_bottom_favorites ?? true),
     allowCardPayment: Boolean((rawSettings as any)?.allowCardPayment ?? (rawSettings as any)?.allow_card_payment),
     allowTransferPayment: Boolean((rawSettings as any)?.allowTransferPayment ?? (rawSettings as any)?.allow_transfer_payment),
     allowSelfRegistration: ((rawSettings as any)?.allowSelfRegistration ?? (rawSettings as any)?.allow_self_registration ?? 1) !== 0 && ((rawSettings as any)?.allowSelfRegistration ?? (rawSettings as any)?.allow_self_registration) !== false,
@@ -140,6 +142,11 @@ export function useSystemSettings() {
       const newMode = (updates.syncMode ?? updates.sync_mode) as string;
       mirrored.sync_mode = newMode;
       mirrored.syncMode = newMode;
+    }
+    if (updates.design7ShowBottomFavorites !== undefined || updates.design7_show_bottom_favorites !== undefined) {
+      const showFav = Boolean(updates.design7ShowBottomFavorites ?? updates.design7_show_bottom_favorites);
+      mirrored.design7_show_bottom_favorites = showFav;
+      mirrored.design7ShowBottomFavorites = showFav;
     }
     settingsMutation.mutate(mirrored);
     if (updates.shopName !== undefined || updates.shop_name !== undefined) {

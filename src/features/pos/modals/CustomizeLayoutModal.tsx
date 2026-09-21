@@ -24,6 +24,7 @@ import {
   Terminal,
   Star,
   Package,
+  Layers,
 } from 'lucide-react';
 import { useThemeStore } from '@/store/themeStore';
 import {
@@ -145,7 +146,12 @@ export const CustomizeLayoutModal: React.FC<CustomizeLayoutModalProps> = ({
   setResolutionScaleMode,
 }) => {
   const { theme, setTheme } = useThemeStore();
-  const { terminalCategoryMode, setTerminalCategoryMode } = usePOSSessionStore();
+  const {
+    terminalCategoryMode,
+    setTerminalCategoryMode,
+    design7ShowBottomFavorites,
+    setDesign7ShowBottomFavorites,
+  } = usePOSSessionStore();
   const store = usePOSSessionStore();
 
   const activeResolution = screenResolution ?? store.screenResolution;
@@ -770,6 +776,61 @@ export const CustomizeLayoutModal: React.FC<CustomizeLayoutModalProps> = ({
                   <div className="text-xs font-bold text-on-surface dark:text-white">تصنيفات التجزئة القياسية (📦)</div>
                   <div className="text-[10px] text-on-surface-variant dark:text-slate-400 mt-0.5 leading-relaxed">
                     عرض تصنيفات المنتجات المعتادة للمتجر والأصناف السريعة
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* Section: شريط العبوات والمفضلة في تصميم 7 */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-sky-600" />
+                <span className="text-xs font-bold text-on-surface dark:text-white">
+                  شريط العبوات والمفضلة في تصميم 7 (شاشات اللمس)
+                </span>
+              </div>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300">
+                تصميم 7
+              </span>
+            </div>
+            <p className="text-[10px] text-on-surface-variant dark:text-slate-400 mb-2">
+              التحكم في إظهار أو إخفاء شريط العبوات وتصنيفات المفضلة السفلي لتوفير مساحة أوسع لجدول المشتريات:
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => setDesign7ShowBottomFavorites(true)}
+                className={`p-3 rounded-xl border text-right transition cursor-pointer flex items-start gap-2.5 ${
+                  design7ShowBottomFavorites
+                    ? 'border-sky-500 bg-sky-50/30 dark:bg-sky-950/40 shadow-xs ring-1 ring-sky-500'
+                    : 'border-outline-variant/20 dark:border-slate-700 bg-surface-container-high dark:bg-slate-800'
+                }`}
+              >
+                <Layers className={`w-4 h-4 shrink-0 mt-0.5 ${design7ShowBottomFavorites ? 'text-sky-500' : 'text-slate-400'}`} />
+                <div>
+                  <div className="text-xs font-bold text-on-surface dark:text-white">إظهار شريط العبوات والمفضلة (افتراضي)</div>
+                  <div className="text-[10px] text-on-surface-variant dark:text-slate-400 mt-0.5 leading-relaxed">
+                    عرض شبكة العبوات وتصنيفات المفضلة السريعة أسفل الشاشة للوصول السريع
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDesign7ShowBottomFavorites(false)}
+                className={`p-3 rounded-xl border text-right transition cursor-pointer flex items-start gap-2.5 ${
+                  !design7ShowBottomFavorites
+                    ? 'border-amber-500 bg-amber-50/30 dark:bg-amber-950/40 shadow-xs ring-1 ring-amber-500'
+                    : 'border-outline-variant/20 dark:border-slate-700 bg-surface-container-high dark:bg-slate-800'
+                }`}
+              >
+                <LayoutDashboard className={`w-4 h-4 shrink-0 mt-0.5 ${!design7ShowBottomFavorites ? 'text-amber-500' : 'text-slate-400'}`} />
+                <div>
+                  <div className="text-xs font-bold text-on-surface dark:text-white">إخفاء الشريط السفلي (شاشة كاملة)</div>
+                  <div className="text-[10px] text-on-surface-variant dark:text-slate-400 mt-0.5 leading-relaxed">
+                    توسيع جدول سلة المشتريات لملء كامل الشاشة الرأسية (مثالي لمسح الباركود)
                   </div>
                 </div>
               </button>

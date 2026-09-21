@@ -69,6 +69,8 @@ export interface Design7POSLayoutProps {
   /** Global (POSPage-level) modal state — Esc closes those before navigating back */
   isAnyModalOpen?: boolean;
   onCloseAllModals?: () => void;
+  showBottomFavorites?: boolean;
+  onToggleBottomFavorites?: () => void;
 }
 
 export type ItemEditMode = 'qty' | 'price' | 'paid' | 'discount';

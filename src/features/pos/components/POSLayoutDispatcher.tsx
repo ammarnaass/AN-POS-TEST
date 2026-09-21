@@ -538,6 +538,7 @@ export const POSLayoutDispatcher: React.FC<POSLayoutDispatcherProps> = ({
         onOpenFavoritesManagement={onOpenFavoritesManagement}
         isAnyModalOpen={isAnyModalOpen}
         onCloseAllModals={onCloseAllModals}
+        showBottomFavorites={posSettings?.design7ShowBottomFavorites}
       />
     );
   }

@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
 import type { Design7POSLayoutProps } from './types';
+import { usePOSSessionStore } from '@/features/pos/store/usePOSSessionStore';
 import './design7.css';
 
 import { Design7TopRibbon } from './components/Design7TopRibbon';
@@ -82,7 +83,22 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
   onOpenAddProduct,
   isAnyModalOpen: isAnyGlobalModalOpen = false,
   onCloseAllModals,
+  showBottomFavorites: propShowBottomFavorites,
+  onToggleBottomFavorites,
 }) => {
+  // Session Store & Favorites Pad Visibility
+  const storeShowBottomFavorites = usePOSSessionStore((s) => s.design7ShowBottomFavorites);
+  const setStoreShowBottomFavorites = usePOSSessionStore((s) => s.setDesign7ShowBottomFavorites);
+  const isFavoritesPadVisible = propShowBottomFavorites !== undefined ? propShowBottomFavorites : storeShowBottomFavorites;
+
+  const handleToggleBottomFavorites = useCallback(() => {
+    if (onToggleBottomFavorites) {
+      onToggleBottomFavorites();
+    } else {
+      setStoreShowBottomFavorites((prev) => !prev);
+    }
+  }, [onToggleBottomFavorites, setStoreShowBottomFavorites]);
+
   // 1. Cart Row Selection & Item Navigation Hook
   const {
     selectedCartRowId,
@@ -234,6 +250,8 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
           isFullscreen={isFullscreen}
           priceTier={priceTier}
           onSelectPriceTier={onSelectPriceTier}
+          isBottomFavoritesVisible={isFavoritesPadVisible}
+          onToggleBottomFavorites={handleToggleBottomFavorites}
         />
 
         {/* Main Workspace Middle Section */}
@@ -331,22 +349,24 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
         </div>
 
         {/* Bottom Favorites & Speed Dial Matrix: عبوات المفضلة وتصنيفاتها فقط */}
-        <Design7BottomFavoritesPad
-          favoriteCategories={activeFavoriteCategories}
-          selectedFavoriteCatId={selectedFavoriteCatId}
-          onSelectFavoriteCategory={setSelectedFavoriteCatId}
-          favoritePacks={displayedFavoriteItems}
-          totalPacksCount={activeFavoritesList.length}
-          onSelectFavoritePack={handleSelectFavoritePack}
-          onOpenFavoritesManagement={onOpenFavoritesManagement}
-          onAddToCart={onAddToCart}
-          formatMoney={formatMoney}
-          categories={categories}
-          selectedCategory={selectedCategory}
-          onSelectCategory={onSelectCategory}
-          products={(allProducts && allProducts.length > 0 ? allProducts : products) || []}
-          priceTier={priceTier}
-        />
+        {isFavoritesPadVisible && (
+          <Design7BottomFavoritesPad
+            favoriteCategories={activeFavoriteCategories}
+            selectedFavoriteCatId={selectedFavoriteCatId}
+            onSelectFavoriteCategory={setSelectedFavoriteCatId}
+            favoritePacks={displayedFavoriteItems}
+            totalPacksCount={activeFavoritesList.length}
+            onSelectFavoritePack={handleSelectFavoritePack}
+            onOpenFavoritesManagement={onOpenFavoritesManagement}
+            onAddToCart={onAddToCart}
+            formatMoney={formatMoney}
+            categories={categories}
+            selectedCategory={selectedCategory}
+            onSelectCategory={onSelectCategory}
+            products={(allProducts && allProducts.length > 0 ? allProducts : products) || []}
+            priceTier={priceTier}
+          />
+        )}
       </div>
 
       {/* Product Search & Catalog Modal (F10 / Search Icon) */}

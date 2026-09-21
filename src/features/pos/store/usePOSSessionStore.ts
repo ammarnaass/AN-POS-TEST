@@ -51,6 +51,7 @@ interface POSSessionState {
   resolutionScaleMode: ResolutionScaleMode;
   quickMode: boolean;
   terminalCategoryMode: 'favorites' | 'products';
+  design7ShowBottomFavorites: boolean;
 
   // Suspended orders
   suspendedOrders: SuspendedOrder[];
@@ -77,6 +78,7 @@ interface POSSessionState {
   setCustomResolution: (custom: { width: number; height: number } | ((prev: { width: number; height: number }) => { width: number; height: number })) => void;
   setResolutionScaleMode: (mode: ResolutionScaleMode | ((prev: ResolutionScaleMode) => ResolutionScaleMode)) => void;
   setTerminalCategoryMode: (mode: 'favorites' | 'products' | ((prev: 'favorites' | 'products') => 'favorites' | 'products')) => void;
+  setDesign7ShowBottomFavorites: (show: boolean | ((prev: boolean) => boolean)) => void;
   wholesaleMode: boolean;
   setWholesaleMode: (val: boolean | ((prev: boolean) => boolean)) => void;
   toggleWholesaleMode: () => void;
@@ -169,6 +171,14 @@ export const usePOSSessionStore = create<POSSessionState>((set) => ({
       return (saved as 'favorites' | 'products') || 'favorites';
     } catch {
       return 'favorites';
+    }
+  })(),
+  design7ShowBottomFavorites: (() => {
+    try {
+      const saved = localStorage.getItem('pos_design7_show_favorites');
+      return saved !== null ? JSON.parse(saved) : true;
+    } catch {
+      return true;
     }
   })(),
   wholesaleMode: (() => {
@@ -404,6 +414,17 @@ export const usePOSSessionStore = create<POSSessionState>((set) => ({
         // ignore
       }
       return { terminalCategoryMode: next };
+    }),
+
+  setDesign7ShowBottomFavorites: (show) =>
+    set((state) => {
+      const next = typeof show === 'function' ? show(state.design7ShowBottomFavorites) : show;
+      try {
+        localStorage.setItem('pos_design7_show_favorites', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return { design7ShowBottomFavorites: next };
     }),
 
   setWholesaleMode: (val) =>

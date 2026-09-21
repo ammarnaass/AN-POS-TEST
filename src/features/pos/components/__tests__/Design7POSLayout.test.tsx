@@ -1055,6 +1055,30 @@ describe('Design7POSLayout (تصميم 7 - كاشير اللمس الكلاسي�
 
     expect(onSettleSale).toHaveBeenCalledWith(500);
   });
+
+  it('renders bottom favorites pad by default when showBottomFavorites is undefined or true', () => {
+    render(<Design7POSLayout {...defaultProps} />);
+    expect(screen.getByText('تصنيفات العبوات')).toBeInTheDocument();
+    expect(document.querySelector('[data-purpose="toggle-bottom-favorites"]')).toBeInTheDocument();
+  });
+
+  it('hides bottom favorites pad when showBottomFavorites is false', () => {
+    render(<Design7POSLayout {...defaultProps} showBottomFavorites={false} />);
+    expect(screen.queryByText('تصنيفات العبوات')).not.toBeInTheDocument();
+    const toggleBtn = document.querySelector('[data-purpose="toggle-bottom-favorites"]');
+    expect(toggleBtn).toBeInTheDocument();
+    expect(toggleBtn).toHaveTextContent('إظهار العبوات');
+  });
+
+  it('toggles bottom favorites pad visibility when onToggleBottomFavorites or ribbon button is clicked', () => {
+    const onToggle = vi.fn();
+    render(<Design7POSLayout {...defaultProps} onToggleBottomFavorites={onToggle} showBottomFavorites={true} />);
+    
+    const toggleBtn = document.querySelector('[data-purpose="toggle-bottom-favorites"]') as HTMLElement;
+    expect(toggleBtn).toBeInTheDocument();
+    fireEvent.click(toggleBtn);
+    expect(onToggle).toHaveBeenCalledTimes(1);
+  });
 });
 
 
