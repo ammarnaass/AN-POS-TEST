@@ -92,7 +92,7 @@ export const Design7ActionKeypad: React.FC<Design7ActionKeypadProps> = ({
         {/* Row 2, Col 1: Delete Row with Trash Icon (Right in RTL) */}
         <button
           onClick={onDeleteSelectedRow}
-          title="حذف الصنف المحدد من السلة (Delete / Backspace)"
+          title="حذف الصنف المحدد من السلة (Delete)"
           className={`d7-glossy-action-tile min-h-[44px] rounded flex flex-col items-center justify-center p-0.5 cursor-pointer active:scale-95 transition-all ${
             hasSelectedItem ? 'hover:border-rose-400 bg-rose-50/60' : 'bg-rose-50/30'
           }`}

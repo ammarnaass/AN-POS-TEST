@@ -2,6 +2,12 @@ import React, { useRef } from 'react';
 import type { CartItem } from '@/types';
 import { ScanBarcode, Scale } from 'lucide-react';
 
+const normalizeNumericBarcode = (val: string): string => {
+  return val
+    .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
+    .replace(/[^\d]/g, '');
+};
+
 interface Design7ActiveScanStripProps {
   activeItem?: CartItem | null;
   barcodeInput: string;
@@ -67,14 +73,27 @@ export const Design7ActiveScanStrip: React.FC<Design7ActiveScanStripProps> = ({
 
       {/* Center: Barcode Input with instant scan support & Scale button */}
       <div className="flex-1 max-w-xs sm:max-w-md flex items-center gap-1.5 mx-1 sm:mx-2">
-        <form onSubmit={onBarcodeSubmit} className="flex-1 flex items-center">
+        <form
+          onSubmit={(e) => {
+            onBarcodeSubmit(e);
+            setTimeout(() => {
+              resolvedRef.current?.focus();
+            }, 40);
+          }}
+          className="flex-1 flex items-center"
+        >
           <div className="relative w-full flex items-center">
             <ScanBarcode className="w-4 h-4 text-emerald-700 absolute right-2.5 pointer-events-none" />
             <input
               ref={resolvedRef}
               type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               value={barcodeInput}
-              onChange={(e) => setBarcodeInput(e.target.value)}
+              onChange={(e) => {
+                const cleaned = normalizeNumericBarcode(e.target.value);
+                setBarcodeInput(cleaned);
+              }}
               placeholder="امسح الباركود أو أدخله يدوياً..."
               autoComplete="off"
               data-purpose="barcode-input"
@@ -83,7 +102,10 @@ export const Design7ActiveScanStrip: React.FC<Design7ActiveScanStripProps> = ({
             {barcodeInput ? (
               <button
                 type="button"
-                onClick={() => setBarcodeInput('')}
+                onClick={() => {
+                  setBarcodeInput('');
+                  resolvedRef.current?.focus();
+                }}
                 className="absolute left-7 w-4 h-4 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 flex items-center justify-center text-[10px] cursor-pointer"
                 title="مسح الحقل"
               >

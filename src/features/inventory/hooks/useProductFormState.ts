@@ -5,6 +5,8 @@ import { generateId } from '@/utils';
 import { db } from '@/infrastructure/database/dexie/db';
 import { categoriesApi, type Category } from '@/services/api/categoriesApi';
 import { generateEAN13 } from '@/services/barcode/generateBarcode';
+import { ProductBarcodeRepository } from '@/infrastructure/database/repositories/ProductBarcodeRepository';
+import type { LinkedBarcodeItem } from '@/features/products/components/ProductMultipleBarcodesSection';
 
 export const emptyProduct: Omit<Product, 'id'> = {
   name: '',
@@ -63,6 +65,7 @@ export function useProductFormState({
   const [newCategory, setNewCategory] = useState('');
   const [activeFormSection, setActiveFormSection] = useState<string>('basic');
   const [barcodeScanMode, setBarcodeScanMode] = useState(false);
+  const [linkedBarcodes, setLinkedBarcodes] = useState<LinkedBarcodeItem[]>([]);
 
   const barcodeInputRef = useRef<HTMLInputElement>(null);
 
@@ -92,6 +95,7 @@ export function useProductFormState({
     setShowForm(false);
     setEditingProduct(null);
     setFormData(emptyProduct);
+    setLinkedBarcodes([]);
     setFormErrors({});
     setBarcodeDuplicate(null);
     setIsSubmitted(false);
@@ -103,6 +107,7 @@ export function useProductFormState({
   const openCreateForm = useCallback(() => {
     setEditingProduct(null);
     setFormData(emptyProduct);
+    setLinkedBarcodes([]);
     setFormErrors({});
     setBarcodeDuplicate(null);
     setIsSubmitted(false);
@@ -135,6 +140,25 @@ export function useProductFormState({
       status: product.status,
       image: product.image,
     });
+    setLinkedBarcodes([]);
+    // تحميل الباركودات المرتبطة المسجلة لهذا المنتج
+    ProductBarcodeRepository.listByProduct(product.id)
+      .then((items) => {
+        setLinkedBarcodes(
+          items.map((it) => ({
+            id: it.id,
+            barcode: it.barcode,
+            type: it.type,
+            variantLabel: it.variantLabel,
+            batchNumber: it.batchNumber,
+            expiryDate: it.expiryDate,
+          }))
+        );
+      })
+      .catch((err) => {
+        console.warn('Failed to load linked barcodes for product:', err);
+      });
+
     setFormErrors({});
     setBarcodeDuplicate(null);
     setIsSubmitted(false);
@@ -142,6 +166,22 @@ export function useProductFormState({
     setActiveFormSection('basic');
     setBarcodeScanMode(false);
     setShowForm(true);
+  }, []);
+
+  const handleAddLinkedBarcode = useCallback((item: LinkedBarcodeItem) => {
+    setLinkedBarcodes((prev) => [...prev, item]);
+  }, []);
+
+  const handleUpdateLinkedBarcode = useCallback((index: number, item: LinkedBarcodeItem) => {
+    setLinkedBarcodes((prev) => {
+      const copy = [...prev];
+      copy[index] = item;
+      return copy;
+    });
+  }, []);
+
+  const handleRemoveLinkedBarcode = useCallback((index: number) => {
+    setLinkedBarcodes((prev) => prev.filter((_, idx) => idx !== index));
   }, []);
 
   // Form validation
@@ -162,7 +202,7 @@ export function useProductFormState({
     }
   }, [formData.name, formData.retailPrice, barcodeDuplicate, isSubmitted, validateForm]);
 
-  const handleSubmit = useCallback(() => {
+  const handleSubmit = useCallback(async () => {
     setIsSubmitted(true);
     const errors = validateForm();
     setFormErrors(errors);
@@ -176,12 +216,27 @@ export function useProductFormState({
     }
 
     if (editingProduct) {
-      onUpdate({ id: editingProduct.id, data: formData });
+      await onUpdate({ id: editingProduct.id, data: formData });
+      try {
+        await ProductBarcodeRepository.replaceForProduct(editingProduct.id, linkedBarcodes);
+        await queryClient.invalidateQueries({ queryKey: ['product_barcodes'] });
+      } catch (err) {
+        console.warn('Failed to sync linked barcodes:', err);
+      }
     } else {
-      onAdd(formData);
+      const newId = generateId();
+      await onAdd({ ...formData, id: newId } as any);
+      try {
+        if (linkedBarcodes.length > 0) {
+          await ProductBarcodeRepository.replaceForProduct(newId, linkedBarcodes);
+          await queryClient.invalidateQueries({ queryKey: ['product_barcodes'] });
+        }
+      } catch (err) {
+        console.warn('Failed to sync linked barcodes:', err);
+      }
     }
     closeFormModal();
-  }, [validateForm, editingProduct, onUpdate, onAdd, formData, closeFormModal]);
+  }, [validateForm, editingProduct, onUpdate, onAdd, formData, linkedBarcodes, queryClient, closeFormModal]);
 
   const handleAddNewCategory = useCallback(async () => {
     const trimmed = newCategory.trim();
@@ -272,5 +327,10 @@ export function useProductFormState({
     handleSubmit,
     handleAddNewCategory,
     handleGenerateBarcode,
+    linkedBarcodes,
+    setLinkedBarcodes,
+    handleAddLinkedBarcode,
+    handleUpdateLinkedBarcode,
+    handleRemoveLinkedBarcode,
   };
 }

@@ -104,6 +104,9 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
     setItemEditState((prev) => ({ ...prev, isOpen: false }));
     setIsVirtualKeyboardOpen(false);
     onCloseAllModals?.();
+    setTimeout(() => {
+      barcodeInputRef.current?.focus();
+    }, 40);
   }, [onCloseAllModals]);
 
   // Favorites Store & Categories for Favorite Packs (عبوات وتصنيفات المفضلة)
@@ -383,6 +386,18 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
 
   const barcodeInputRef = React.useRef<HTMLInputElement>(null);
 
+  // تسليم معالجة الباركود مع الحفاظ الفوري على التركيز داخل الحقل ومنع فقدانه
+  const handleBarcodeSubmit = useCallback(
+    (e?: React.FormEvent) => {
+      onBarcodeSubmit(e);
+      barcodeInputRef.current?.focus();
+      setTimeout(() => {
+        barcodeInputRef.current?.focus();
+      }, 40);
+    },
+    [onBarcodeSubmit]
+  );
+
   // قراءة الوزن الحي من الميزان الذكي المتصل (RS232 / USB Serial)
   const handleReadScale = useCallback(async () => {
     try {
@@ -485,7 +500,7 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
             activeItem={activeItem}
             barcodeInput={barcodeInput}
             setBarcodeInput={setBarcodeInput}
-            onBarcodeSubmit={onBarcodeSubmit}
+            onBarcodeSubmit={handleBarcodeSubmit}
             formatMoney={formatMoney}
             priceTier={priceTier}
             onReadScale={handleReadScale}
@@ -586,10 +601,14 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
       {/* Product Search & Catalog Modal (F10 / Search Icon) */}
       <Design7ProductSearchModal
         isOpen={isProductSearchOpen}
-        onClose={() => setIsProductSearchOpen(false)}
+        onClose={() => {
+          setIsProductSearchOpen(false);
+          setTimeout(() => barcodeInputRef.current?.focus(), 40);
+        }}
         products={products}
         onSelectProduct={(p) => {
           onAddToCart(p);
+          setTimeout(() => barcodeInputRef.current?.focus(), 40);
         }}
         formatMoney={formatMoney}
         categories={categories}
@@ -599,7 +618,10 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
       {/* Item Details, Quantity & Price Touch Calculator Modal */}
       <Design7ItemEditModal
         isOpen={itemEditState.isOpen}
-        onClose={() => setItemEditState((prev) => ({ ...prev, isOpen: false }))}
+        onClose={() => {
+          setItemEditState((prev) => ({ ...prev, isOpen: false }));
+          setTimeout(() => barcodeInputRef.current?.focus(), 40);
+        }}
         item={activeItem}
         mode={itemEditState.mode}
         totalAmount={saleSummary.total}
@@ -626,12 +648,16 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
       {/* Virtual Touch Keyboard Modal (لوحة المفاتيح اللمسية للشاشات) */}
       <Design7VirtualKeyboardModal
         isOpen={isVirtualKeyboardOpen}
-        onClose={() => setIsVirtualKeyboardOpen(false)}
+        onClose={() => {
+          setIsVirtualKeyboardOpen(false);
+          setTimeout(() => barcodeInputRef.current?.focus(), 40);
+        }}
         initialValue={barcodeInput || searchQuery || ''}
         onConfirm={(val) => {
           if (setBarcodeInput) setBarcodeInput(val);
           if (setSearchQuery) setSearchQuery(val);
-          if (onBarcodeSubmit) onBarcodeSubmit();
+          if (handleBarcodeSubmit) handleBarcodeSubmit();
+          setTimeout(() => barcodeInputRef.current?.focus(), 40);
         }}
         title="لوحة المفاتيح اللمسية الافتراضية"
         placeholder="انقر على الأحرف أو الأرقام لكتابة الباركود والبحث..."

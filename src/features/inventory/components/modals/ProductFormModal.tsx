@@ -8,6 +8,7 @@ import {
   Settings,
   ExternalLink,
   X,
+  Barcode,
 } from 'lucide-react';
 import type { Category } from '@/services/api/categoriesApi';
 import type { useProductFormState } from '../../hooks/useProductFormState';
@@ -16,6 +17,7 @@ import { ProductCategorySection } from './form/ProductCategorySection';
 import { ProductPricingSection } from './form/ProductPricingSection';
 import { ProductStockSection } from './form/ProductStockSection';
 import { ProductSettingsSection } from './form/ProductSettingsSection';
+import { ProductMultipleBarcodesSection } from '@/features/products/components/ProductMultipleBarcodesSection';
 
 interface ProductFormModalProps {
   formState: ReturnType<typeof useProductFormState>;
@@ -45,6 +47,12 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
   const formSections = [
     { id: 'basic', label: 'البيانات الأساسية', icon: <Package className="w-4 h-4" /> },
+    {
+      id: 'barcodes',
+      label: 'الباركود المتعدد',
+      icon: <Barcode className="w-4 h-4" />,
+      badgeCount: formState.linkedBarcodes?.length || 0,
+    },
     { id: 'category', label: 'الفئة والوحدة', icon: <Tag className="w-4 h-4" /> },
     { id: 'pricing', label: 'الأسعار والربحية', icon: <DollarSign className="w-4 h-4" /> },
     { id: 'stock', label: 'المخزون والتنبيهات', icon: <Box className="w-4 h-4" /> },
@@ -117,6 +125,11 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               >
                 {sec.icon}
                 <span>{sec.label}</span>
+                {sec.badgeCount !== undefined && sec.badgeCount > 0 && (
+                  <span className="px-1.5 py-0.2 bg-primary/15 text-primary rounded-full text-[10px] font-bold font-mono">
+                    +{sec.badgeCount}
+                  </span>
+                )}
                 {hasError && (
                   <span
                     className="w-2 h-2 rounded-full bg-error inline-block animate-pulse"
@@ -132,6 +145,18 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         <div className="flex-1 overflow-y-auto px-6 py-5 custom-scrollbar">
           <div className="grid grid-cols-2 gap-4">
             {activeFormSection === 'basic' && <ProductBasicSection formState={formState} />}
+            {activeFormSection === 'barcodes' && (
+              <ProductMultipleBarcodesSection
+                primaryBarcode={formState.formData.barcode}
+                linkedBarcodes={formState.linkedBarcodes}
+                onAddBarcode={formState.handleAddLinkedBarcode}
+                onUpdateBarcode={formState.handleUpdateLinkedBarcode}
+                onDeleteBarcode={formState.handleRemoveLinkedBarcode}
+                productId={editingProduct?.id}
+                productName={formState.formData.name}
+                disabled={isPending}
+              />
+            )}
             {activeFormSection === 'category' && (
               <ProductCategorySection formState={formState} categories={categories} />
             )}

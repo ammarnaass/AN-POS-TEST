@@ -1,4 +1,3 @@
-// BarcodeSection — PRD section 5: الباركود والترميز (UI/UX Pro Max)
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { generateEAN13, generateCode128 } from '@/services/barcode';
@@ -7,13 +6,27 @@ import {
   Barcode, RefreshCw, Printer,
   Copy, Check, ScanLine
 } from 'lucide-react';
+import ProductMultipleBarcodesSection, {
+  type LinkedBarcodeItem,
+} from '../components/ProductMultipleBarcodesSection';
 
 interface Props {
   form: Partial<Product>;
   setForm: (updater: (p: Partial<Product>) => Partial<Product>) => void;
+  linkedBarcodes?: LinkedBarcodeItem[];
+  onAddBarcode?: (item: LinkedBarcodeItem) => void;
+  onUpdateBarcode?: (index: number, item: LinkedBarcodeItem) => void;
+  onDeleteBarcode?: (index: number) => void;
 }
 
-export default function BarcodeSection({ form, setForm }: Props) {
+export default function BarcodeSection({
+  form,
+  setForm,
+  linkedBarcodes = [],
+  onAddBarcode,
+  onUpdateBarcode,
+  onDeleteBarcode,
+}: Props) {
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
 
@@ -164,6 +177,21 @@ export default function BarcodeSection({ form, setForm }: Props) {
           </p>
         </div>
       </div>
+
+      {/* قسم إدارة الباركودات المتعددة والبديلة */}
+      {onAddBarcode && (
+        <div className="pt-4 border-t border-outline-variant/15">
+          <ProductMultipleBarcodesSection
+            primaryBarcode={barcode}
+            linkedBarcodes={linkedBarcodes}
+            onAddBarcode={onAddBarcode}
+            onUpdateBarcode={onUpdateBarcode}
+            onDeleteBarcode={onDeleteBarcode || (() => {})}
+            productId={form.id}
+            productName={form.name}
+          />
+        </div>
+      )}
     </div>
   );
 }

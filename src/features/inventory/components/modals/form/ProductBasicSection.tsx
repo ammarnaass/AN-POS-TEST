@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScanLine, Sparkles } from 'lucide-react';
+import { ScanLine, Sparkles, Layers } from 'lucide-react';
 import ImageUpload from '@/components/products/ImageUpload';
 import type { useProductFormState } from '../../../hooks/useProductFormState';
 
@@ -21,6 +21,8 @@ export const ProductBasicSection: React.FC<ProductBasicSectionProps> = ({ formSt
     setBarcodeScanMode,
     barcodeInputRef,
     handleGenerateBarcode,
+    setActiveFormSection,
+    linkedBarcodes,
   } = formState;
 
   return (
@@ -94,6 +96,25 @@ export const ProductBasicSection: React.FC<ProductBasicSectionProps> = ({ formSt
         {barcodeDuplicate && !formErrors.barcode && (
           <p className="text-amber-500 text-body-xs mt-1">الباركود مستخدم بالفعل في: {barcodeDuplicate}</p>
         )}
+        <div className="mt-2 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setActiveFormSection('barcodes')}
+            className="inline-flex items-center gap-1.5 text-xs text-primary hover:text-primary-container font-semibold transition-colors cursor-pointer bg-primary/5 hover:bg-primary/10 px-2.5 py-1 rounded-lg border border-primary/20"
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>إدارة الباركود المتعدد</span>
+            {linkedBarcodes && linkedBarcodes.length > 0 ? (
+              <span className="px-1.5 py-0.2 rounded-full bg-primary/20 text-primary text-[10px] font-bold font-mono">
+                {linkedBarcodes.length} مرتبط
+              </span>
+            ) : (
+              <span className="text-[10px] text-on-surface-variant font-normal">
+                (إضافة بدائل أو نكهات)
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
       <div>

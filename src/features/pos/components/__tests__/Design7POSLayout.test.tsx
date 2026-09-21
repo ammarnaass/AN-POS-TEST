@@ -388,12 +388,19 @@ describe('Design7POSLayout (تصميم 7 - كاشير اللمس الكلاسي�
     fireEvent.keyDown(window, { key: 'F10' });
     expect(screen.getByText('بحث واستعراض السلع والمواد')).toBeInTheDocument();
 
-    // F12 -> Customize
+    // Verify background operations are halted while modal is open (F12 blocked)
+    fireEvent.keyDown(window, { key: 'F12' });
+    expect(defaultProps.onOpenCustomize).not.toHaveBeenCalled();
+
+    // Escape -> Close modal
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByText('بحث واستعراض السلع والمواد')).not.toBeInTheDocument();
+
+    // F12 -> Customize (works outside modal)
     fireEvent.keyDown(window, { key: 'F12' });
     expect(defaultProps.onOpenCustomize).toHaveBeenCalled();
 
-    // Escape -> Close modal on first press, then navigate back on second press
-    fireEvent.keyDown(window, { key: 'Escape' });
+    // Escape -> Navigate back
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(defaultProps.onNavigateBack).toHaveBeenCalled();
   });
@@ -908,6 +915,92 @@ describe('Design7POSLayout (تصميم 7 - كاشير اللمس الكلاسي�
     fireEvent.click(manageBtn);
 
     expect(onOpenFavoritesManagement).toHaveBeenCalledTimes(1);
+  });
+
+  it('enforces numeric-only input in barcode field and converts Arabic-Indic digits', () => {
+    render(<Design7POSLayout {...defaultProps} />);
+    const barcodeInput = screen.getByPlaceholderText(/امسح الباركود أو أدخله يدوياً/);
+
+    // Typing non-numeric characters should be filtered out
+    fireEvent.change(barcodeInput, { target: { value: 'abc-xyz' } });
+    expect(defaultProps.setBarcodeInput).toHaveBeenCalledWith('');
+
+    // Typing mixed text and numbers should only keep numbers
+    fireEvent.change(barcodeInput, { target: { value: 'bar123code456' } });
+    expect(defaultProps.setBarcodeInput).toHaveBeenCalledWith('123456');
+
+    // Typing Arabic-Indic digits should convert to standard digits
+    fireEvent.change(barcodeInput, { target: { value: '١٢٣٤٥٦' } });
+    expect(defaultProps.setBarcodeInput).toHaveBeenCalledWith('123456');
+  });
+
+  it('does NOT remove items from cart when Backspace is pressed outside inputs', () => {
+    render(<Design7POSLayout {...defaultProps} />);
+
+    // Press Backspace on window (outside any active text input)
+    fireEvent.keyDown(window, { key: 'Backspace' });
+
+    // Should NOT call onRemoveFromCart
+    expect(defaultProps.onRemoveFromCart).not.toHaveBeenCalled();
+  });
+
+  it('removes item from cart when Delete key or trash button is pressed in cart mode', () => {
+    render(<Design7POSLayout {...defaultProps} />);
+
+    // 1. Press Delete key in cart mode on window -> should remove item
+    fireEvent.keyDown(window, { key: 'Delete' });
+    expect(defaultProps.onRemoveFromCart).toHaveBeenCalled();
+
+    // 2. Press Delete key while barcode input has focus (and is empty) -> should remove item
+    const barcodeInput = screen.getByPlaceholderText(/امسح الباركود أو أدخله يدوياً/);
+    fireEvent.keyDown(barcodeInput, { key: 'Delete' });
+    expect(defaultProps.onRemoveFromCart).toHaveBeenCalledTimes(2);
+
+    // 3. Click trash button in basket table -> should remove item
+    const trashButtons = screen.getAllByTitle(/حذف الصنف من السلة/);
+    expect(trashButtons.length).toBeGreaterThan(0);
+    fireEvent.click(trashButtons[0]);
+    expect(defaultProps.onRemoveFromCart).toHaveBeenCalledTimes(3);
+
+    // 4. Click delete row button in side keypad -> should remove item
+    const keypadDeleteBtn = screen.getByTitle('حذف الصنف المحدد من السلة (Delete)');
+    fireEvent.click(keypadDeleteBtn);
+    expect(defaultProps.onRemoveFromCart).toHaveBeenCalledTimes(4);
+  });
+
+  it('halts background shortcuts and strictly prevents cart deletion during quick product search (F10)', () => {
+    render(<Design7POSLayout {...defaultProps} />);
+
+    // Open search modal via F10
+    fireEvent.keyDown(window, { key: 'F10' });
+    expect(screen.getByText('بحث واستعراض السلع والمواد')).toBeInTheDocument();
+
+    // Press Delete key inside modal -> MUST NOT remove anything from cart
+    fireEvent.keyDown(window, { key: 'Delete' });
+    expect(defaultProps.onRemoveFromCart).not.toHaveBeenCalled();
+
+    // Press Backspace outside input -> MUST NOT remove anything from cart
+    fireEvent.keyDown(window, { key: 'Backspace' });
+    expect(defaultProps.onRemoveFromCart).not.toHaveBeenCalled();
+
+    // Verify background shortcuts (F1 settle sale, F4 clear cart) are completely ignored
+    fireEvent.keyDown(window, { key: 'F1' });
+    expect(defaultProps.onSettleSale).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(window, { key: 'F4' });
+    expect(defaultProps.onClearCart).not.toHaveBeenCalled();
+
+    // Type in search input
+    const searchInput = screen.getByPlaceholderText(/اكتب اسم السلعة أو امسح الباركود للبحث/);
+    fireEvent.change(searchInput, { target: { value: 'عدس' } });
+
+    // Press Enter to add selected product to cart
+    fireEvent.keyDown(searchInput, { key: 'Enter' });
+    expect(defaultProps.onAddToCart).toHaveBeenCalledWith(mockProduct);
+
+    // Escape closes modal
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByText('بحث واستعراض السلع والمواد')).not.toBeInTheDocument();
   });
 });
 

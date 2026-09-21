@@ -36,6 +36,8 @@ local.properties
 **/android/app/src/main/res/drawable-*/node_modules_*
 
 *.local
+.env
+*.env
 
 # Editor directories and files
 .vscode/

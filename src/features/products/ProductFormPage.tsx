@@ -12,6 +12,8 @@ import StockSection from './sections/StockSection';
 import SaleSettingsSection from './sections/SaleSettingsSection';
 import BarcodeSection from './sections/BarcodeSection';
 import PackagingSection from './sections/PackagingSection';
+import { ProductBarcodeRepository } from '@/infrastructure/database/repositories/ProductBarcodeRepository';
+import type { LinkedBarcodeItem } from './components/ProductMultipleBarcodesSection';
 import {
   Save, Printer, Plus,
   Package, DollarSign, Box, SlidersHorizontal, Barcode as BarcodeIcon,
@@ -85,6 +87,7 @@ export default function ProductFormPage() {
   const [activeTab, setActiveTab] = useState<FormTab>('info');
   const [viewMode, setViewMode] = useState<'tabs' | 'all'>('tabs');
   const [savedToast, setSavedToast] = useState(false);
+  const [linkedBarcodes, setLinkedBarcodes] = useState<LinkedBarcodeItem[]>([]);
 
   // مرجع ومتحكم رفع الصورة المباشر من بطاقة المعاينة
   const previewInputRef = useRef<HTMLInputElement>(null);
@@ -107,6 +110,22 @@ export default function ProductFormPage() {
     reader.readAsDataURL(file);
   }, []);
 
+  const handleAddLinkedBarcode = useCallback((item: LinkedBarcodeItem) => {
+    setLinkedBarcodes((prev) => [...prev, item]);
+  }, []);
+
+  const handleUpdateLinkedBarcode = useCallback((index: number, item: LinkedBarcodeItem) => {
+    setLinkedBarcodes((prev) => {
+      const copy = [...prev];
+      copy[index] = item;
+      return copy;
+    });
+  }, []);
+
+  const handleRemoveLinkedBarcode = useCallback((index: number) => {
+    setLinkedBarcodes((prev) => prev.filter((_, idx) => idx !== index));
+  }, []);
+
   useEffect(() => {
     if (!isEdit || !id) return;
     let active = true;
@@ -122,6 +141,21 @@ export default function ProductFormPage() {
           product = await db.products.get(id);
         }
         if (active) setForm({ ...emptyProduct, ...(product as Partial<Product> ?? {}) });
+
+        // تحميل الباركودات المرتبطة المسجلة للمنتج
+        const barcodes = await ProductBarcodeRepository.listByProduct(id);
+        if (active) {
+          setLinkedBarcodes(
+            barcodes.map((b) => ({
+              id: b.id,
+              barcode: b.barcode,
+              type: b.type,
+              variantLabel: b.variantLabel,
+              batchNumber: b.batchNumber,
+              expiryDate: b.expiryDate,
+            }))
+          );
+        }
       } catch (err) {
         if (active) setFormError(err instanceof Error ? err.message : 'فشل تحميل بيانات المنتج');
       } finally {
@@ -138,13 +172,24 @@ export default function ProductFormPage() {
   const saveMutation = useMutation({
     mutationFn: async (product: Partial<Product>) => {
       const record = { ...(emptyProduct as Omit<Product, 'id'>), ...product };
+      let savedId: string;
       if (isEdit && id) {
+        savedId = id;
         await db.products.put({ ...record, id } as Product);
-        return { ...record, id };
+      } else {
+        savedId = generateId();
+        await db.products.add({ ...record, id: savedId } as Product);
       }
-      const newId = generateId();
-      await db.products.add({ ...record, id: newId } as Product);
-      return { ...record, id: newId };
+
+      // حفظ ومزامنة الباركودات المتعددة
+      try {
+        await ProductBarcodeRepository.replaceForProduct(savedId, linkedBarcodes);
+        await queryClient.invalidateQueries({ queryKey: ['product_barcodes'] });
+      } catch (err) {
+        console.warn('Failed to sync linked barcodes in ProductFormPage:', err);
+      }
+
+      return { ...record, id: savedId };
     },
     onMutate: async (productData) => {
       await queryClient.cancelQueries({ queryKey: ['products'] });
@@ -379,7 +424,16 @@ export default function ProductFormPage() {
                 {activeTab === 'pricing' && <PricingSection form={form} setForm={setField} />}
                 {activeTab === 'stock' && <StockSection form={form} setForm={setField} />}
                 {activeTab === 'sales' && <SaleSettingsSection form={form} setForm={setField} />}
-                {activeTab === 'barcode' && <BarcodeSection form={form} setForm={setField} />}
+                {activeTab === 'barcode' && (
+                  <BarcodeSection
+                    form={form}
+                    setForm={setField}
+                    linkedBarcodes={linkedBarcodes}
+                    onAddBarcode={handleAddLinkedBarcode}
+                    onUpdateBarcode={handleUpdateLinkedBarcode}
+                    onDeleteBarcode={handleRemoveLinkedBarcode}
+                  />
+                )}
                 {activeTab === 'packaging' && <PackagingSection form={form} />}
               </div>
             ) : (
@@ -398,7 +452,14 @@ export default function ProductFormPage() {
                   <SaleSettingsSection form={form} setForm={setField} />
                 </div>
                 <div className="bg-surface rounded-3xl border border-outline-variant/20 p-6 shadow-sm">
-                  <BarcodeSection form={form} setForm={setField} />
+                  <BarcodeSection
+                    form={form}
+                    setForm={setField}
+                    linkedBarcodes={linkedBarcodes}
+                    onAddBarcode={handleAddLinkedBarcode}
+                    onUpdateBarcode={handleUpdateLinkedBarcode}
+                    onDeleteBarcode={handleRemoveLinkedBarcode}
+                  />
                 </div>
                 <div className="bg-surface rounded-3xl border border-outline-variant/20 p-6 shadow-sm">
                   <PackagingSection form={form} />

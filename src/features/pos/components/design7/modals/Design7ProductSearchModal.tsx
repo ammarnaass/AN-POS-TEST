@@ -25,12 +25,14 @@ export const Design7ProductSearchModal: React.FC<Design7ProductSearchModalProps>
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCat, setSelectedCat] = useState<string>('ALL');
   const [addedId, setAddedId] = useState<string | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState<number>(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
       setSearchTerm('');
       setSelectedCat('ALL');
+      setSelectedIndex(0);
       setTimeout(() => searchInputRef.current?.focus(), 60);
     }
   }, [isOpen]);
@@ -67,10 +69,56 @@ export const Design7ProductSearchModal: React.FC<Design7ProductSearchModalProps>
     });
   }, [products, searchTerm, selectedCat]);
 
+  // Reset selected index whenever the search filter updates
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [filteredProducts.length, searchTerm, selectedCat]);
+
   const handleAdd = (product: Product) => {
     onSelectProduct(product);
     setAddedId(product.id);
     setTimeout(() => setAddedId(null), 700);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    const target = e.target as HTMLElement;
+    const isInput = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA';
+
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      onClose();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (filteredProducts.length > 0) {
+        const targetIdx = selectedIndex >= 0 && selectedIndex < filteredProducts.length ? selectedIndex : 0;
+        handleAdd(filteredProducts[targetIdx]);
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      e.stopPropagation();
+      setSelectedIndex((prev) => (prev < filteredProducts.length - 1 ? prev + 1 : 0));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      e.stopPropagation();
+      setSelectedIndex((prev) => (prev > 0 ? prev - 1 : Math.max(0, filteredProducts.length - 1)));
+    } else if (e.key === 'Delete') {
+      // حماية صارمة: منع حذف أي صنف من السلة نهائياً أثناء فتح نافذة البحث
+      if (!isInput) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    } else if (e.key === 'Backspace') {
+      if (!isInput) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    } else if (e.key.startsWith('F') && e.key !== 'F10') {
+      // إيقاف وتجميد كافة مفاتيح الوظائف F1-F12 في الخلفية (دفع، تفريغ، إلخ)
+      e.preventDefault();
+      e.stopPropagation();
+    }
   };
 
   if (!isOpen) return null;
@@ -80,9 +128,7 @@ export const Design7ProductSearchModal: React.FC<Design7ProductSearchModalProps>
       <div
         className="w-full max-w-4xl max-h-[85vh] bg-[#e6ecf2] border-2 border-[#54606e] rounded-lg shadow-2xl flex flex-col overflow-hidden text-slate-800"
         dir="rtl"
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') onClose();
-        }}
+        onKeyDown={handleKeyDown}
       >
         {/* Header */}
         <div className="px-4 py-2.5 bg-gradient-to-b from-[#e3e8ee] to-[#cad3de] border-b border-[#9ba8b7] flex items-center justify-between gap-3">
@@ -134,6 +180,7 @@ export const Design7ProductSearchModal: React.FC<Design7ProductSearchModalProps>
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={handleKeyDown}
               placeholder="اكتب اسم السلعة أو امسح الباركود للبحث..."
               className="w-full h-10 bg-white border border-[#9ba8b7] focus:border-teal-600 rounded-md pl-10 pr-10 text-xs text-slate-900 placeholder-slate-400 focus:outline-hidden font-medium shadow-inner"
             />
@@ -188,18 +235,24 @@ export const Design7ProductSearchModal: React.FC<Design7ProductSearchModalProps>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-              {filteredProducts.map((p) => {
+              {filteredProducts.map((p, idx) => {
                 const isRecentlyAdded = addedId === p.id;
+                const isSelected = selectedIndex === idx;
                 const price = getProductTierPrice(p, priceTier || '1');
                 const stock = p.quantity ?? 0;
 
                 return (
                   <div
                     key={p.id}
-                    onClick={() => handleAdd(p)}
+                    onClick={() => {
+                      setSelectedIndex(idx);
+                      handleAdd(p);
+                    }}
                     className={`d7-glossy-product-tile rounded-lg p-2.5 flex flex-col justify-between gap-2 cursor-pointer transition-all border ${
                       isRecentlyAdded
                         ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-400'
+                        : isSelected
+                        ? 'border-teal-600 bg-teal-50/70 ring-2 ring-teal-400 shadow-xs'
                         : 'hover:border-teal-500'
                     }`}
                   >
@@ -241,12 +294,17 @@ export const Design7ProductSearchModal: React.FC<Design7ProductSearchModalProps>
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-2 bg-[#dbe5ee] border-t border-[#b4c3d2] flex items-center justify-between text-xs text-slate-600">
-          <span>السلع المعروضة: <b>{filteredProducts.length}</b></span>
+        <div className="px-4 py-2 bg-[#dbe5ee] border-t border-[#b4c3d2] flex items-center justify-between text-xs text-slate-600 gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 overflow-hidden">
+            <span>السلع المعروضة: <b>{filteredProducts.length}</b></span>
+            <span className="text-[10px] bg-teal-100/90 text-teal-900 border border-teal-300 px-2 py-0.5 rounded font-mono hidden sm:inline truncate">
+              Enter للإضافة بالسلة • الأسهم ↑↓ للتنقل • Esc للإغلاق
+            </span>
+          </div>
           <button
             type="button"
             onClick={onClose}
-            className="d7-glossy-top-btn px-4 py-1.5 rounded font-bold text-slate-800 cursor-pointer"
+            className="d7-glossy-top-btn px-4 py-1.5 rounded font-bold text-slate-800 cursor-pointer shrink-0"
           >
             إغلاق
           </button>

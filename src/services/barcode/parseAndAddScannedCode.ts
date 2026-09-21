@@ -155,16 +155,25 @@ export async function parseAndAddScannedCode(
   // 3) البحث في قاعدة البيانات (للباركودات المرتبطة والـ variants والـ batches)
   const result = await searchByBarcode(code);
   if (!result) {
-    // fallback: بحث نصي جزئي بالاسم (لإدخال يدوي لتقصير)
+    // fallback: بحث نصي بالاسم للمدخلات النصية فقط (مع استبعاد الأكواد الرقمية الصرفة لقارئ الباركود منعاً للإضافة الخاطئة)
+    const isBarcodePattern = /^\d{3,}$/.test(code);
     const q = code.toLowerCase();
-    const textMatch = ctx.products.find(
-      (p) =>
-        p.status === 'active' &&
-        (ctx.allowNegativeStock || (p.quantity ?? 0) > 0) &&
-        (p.name.toLowerCase() === q ||
-          p.name.toLowerCase().startsWith(q) ||
-          p.barcode.toLowerCase() === q),
-    );
+    const textMatch = !isBarcodePattern
+      ? ctx.products.find(
+          (p) =>
+            p.status === 'active' &&
+            (ctx.allowNegativeStock || (p.quantity ?? 0) > 0) &&
+            (p.name.toLowerCase() === q ||
+              p.name.toLowerCase().startsWith(q) ||
+              (p.barcode && p.barcode.toLowerCase() === q)),
+        )
+      : ctx.products.find(
+          (p) =>
+            p.status === 'active' &&
+            (ctx.allowNegativeStock || (p.quantity ?? 0) > 0) &&
+            p.barcode &&
+            p.barcode.toLowerCase() === q,
+        );
     if (textMatch) {
       const price = resolveItemPrice(textMatch);
       const tmPkgSize = textMatch.packageSize ? parseInt(textMatch.packageSize, 10) : 0;
