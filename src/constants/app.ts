@@ -3,11 +3,11 @@
  * المصدر الموحد الوحيد لإصدار النظام في كامل الواجهات والمكونات
  */
 export const APP_NAME = 'AN POS';
-export const APP_VERSION = '2.4.1';
+export const APP_VERSION = '2.4.2';
 export const APP_DISPLAY_VERSION = `v${APP_VERSION}`;
 export const APP_FULL_NAME = `${APP_NAME} ${APP_DISPLAY_VERSION} Pro`;
-export const APP_RELEASE_DATE = '2026-09-20';
-export const APP_BUILD_NUMBER = '20260920.1';
+export const APP_RELEASE_DATE = '2026-09-21';
+export const APP_BUILD_NUMBER = '20260921.1';
 export const APP_CHANNEL = 'مستقر (Production Stable)';
 
 export interface AppRelease {
@@ -20,9 +20,18 @@ export interface AppRelease {
 
 export const APP_CHANGELOG: AppRelease[] = [
   {
+    version: 'v2.4.2',
+    date: '2026-09-21',
+    badge: 'الإصدار الحالي',
+    title: 'تحسين واجهة تصميم 7 وإصلاح ظهور السلع في البحث',
+    changes: [
+      'توحيد ألوان تصميم 7: عناوين سوداء على خلفية بيضاء في نافذة بحث السلع وبطاقات وتصنيفات المفضلة.',
+      'إصلاح عدم ظهور السلع في نافذة بحث واستعراض السلع (F10) بعد الحذف من السلة أو استخدام لوحة المفاتيح اللمسية.',
+    ],
+  },
+  {
     version: 'v2.4.1',
     date: '2026-09-20',
-    badge: 'الإصدار الحالي',
     title: 'تدقيق الأداء، استقرار الموارد، وضغط قاعدة البيانات',
     changes: [
       'تدقيق شامل للأداء والاستقرار واستهلاك الموارد والذاكرة.',

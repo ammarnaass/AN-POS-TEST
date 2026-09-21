@@ -270,7 +270,7 @@ describe('AdvancedTerminalPOSLayout (تصميم 6 - نقطة البيع المت
     expect(screen.getByText('قاعدة البيانات المحلية:')).toBeInTheDocument();
     expect(screen.getByText('متصلة')).toBeInTheDocument();
     expect(screen.getByText('SAMSUNG S19C150')).toBeInTheDocument();
-    expect(screen.getByText('v2.4.1 PRO')).toBeInTheDocument();
+    expect(screen.getByText('v2.4.2 PRO')).toBeInTheDocument();
   });
 
   it('triggers touch D-Pad interactions and quick actions', () => {
