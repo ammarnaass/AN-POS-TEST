@@ -184,6 +184,24 @@ describe('PaymentModal and SuccessModal Keyboard Shortcuts (إتمام الدف�
         expect.any(Object)
       );
     });
+
+    it('renders paid amount and customer change badge when paidAmount exceeds total', () => {
+      const saleWithChange: any = {
+        id: 'sale-change-1',
+        number: 105,
+        total: 1200,
+        paidAmount: 2000,
+        paymentMethod: 'cash',
+        docType: 'facture',
+      };
+      const { getByText } = render(
+        <SuccessModal isOpen={true} onClose={vi.fn()} completedSale={saleWithChange} />
+      );
+
+      expect(getByText(/المبلغ المستلم \(المدفوع\):/)).toBeInTheDocument();
+      expect(getByText(/الباقي للزبون \(الفكة\):/)).toBeInTheDocument();
+      expect(getByText(/\+800/)).toBeInTheDocument();
+    });
   });
 });
 

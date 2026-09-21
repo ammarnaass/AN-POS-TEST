@@ -94,6 +94,23 @@ export const SuccessModal: React.FC<SuccessModalProps> = ({
                 : 'آجل'}
             </span>
           </div>
+
+          {typeof completedSale.paidAmount === 'number' && completedSale.paidAmount > completedSale.total && (
+            <>
+              <div className="flex justify-between text-on-surface-variant pt-1 border-t border-outline-variant/10">
+                <span>المبلغ المستلم (المدفوع):</span>
+                <span className="font-bold text-on-surface font-mono">
+                  {formatNumber(completedSale.paidAmount)} دج
+                </span>
+              </div>
+              <div className="flex justify-between items-center bg-emerald-500/15 border border-emerald-500/35 rounded-xl px-3 py-2 text-emerald-800 dark:text-emerald-300 font-bold mt-1 shadow-2xs">
+                <span className="text-xs">الباقي للزبون (الفكة):</span>
+                <span className="text-sm sm:text-base font-black font-mono">
+                  +{formatNumber(completedSale.paidAmount - completedSale.total)} دج
+                </span>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="flex flex-col gap-2 pt-2">

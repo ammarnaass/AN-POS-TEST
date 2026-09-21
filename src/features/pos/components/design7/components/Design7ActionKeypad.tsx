@@ -10,7 +10,7 @@ interface Design7ActionKeypadProps {
   onArrowLeft: () => void;
   onArrowRight: () => void;
   onConfirm: () => void;
-  onSettleSale: () => void;
+  onSettleSale: (paidAmount?: number) => void;
   onOpenKeypad?: () => void;
   onOpenKeyboard?: () => void;
   onOpenSalesHistory?: () => void;

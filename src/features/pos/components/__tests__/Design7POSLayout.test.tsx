@@ -1002,6 +1002,21 @@ describe('Design7POSLayout (تصميم 7 - كاشير اللمس الكلاسي�
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByText('بحث واستعراض السلع والمواد')).not.toBeInTheDocument();
   });
+
+  it('forwards paidAmount when calling onSettleSale from financial sidebar or F1', () => {
+    const onSettleSale = vi.fn();
+    render(<Design7POSLayout {...defaultProps} onSettleSale={onSettleSale} />);
+
+    // Click quick pay button +500 in sidebar
+    const quick500 = screen.getByText('+500');
+    fireEvent.click(quick500);
+
+    // Click Settle Sale / Total
+    const totalBtn = screen.getByTitle(/انقر لإتمام عملية الدفع/);
+    fireEvent.click(totalBtn);
+
+    expect(onSettleSale).toHaveBeenCalledWith(500);
+  });
 });
 
 

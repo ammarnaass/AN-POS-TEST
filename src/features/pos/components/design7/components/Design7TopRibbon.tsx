@@ -13,7 +13,7 @@ interface Design7TopRibbonProps {
   suspendedCount: number;
   autoPrintReceipt: boolean;
   onToggleAutoPrint: () => void;
-  onSettleSale: () => void;
+  onSettleSale: (paidAmount?: number) => void;
   onOpenDiscount: () => void;
   onOpenCustomize: () => void;
   onNewOrder?: () => void;

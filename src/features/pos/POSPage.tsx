@@ -480,13 +480,17 @@ export default function POSPage() {
           }}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
-          onSettleSale={() => {
+          onSettleSale={(customPaid?: number) => {
             if (!isSessionOpen) {
               modals.setShowSessionWarning(true);
               return;
             }
             if (cart.length === 0) return;
-            setPaidAmount(pageState.saleSummary.total);
+            const finalPaid =
+              typeof customPaid === 'number' && customPaid > 0
+                ? customPaid
+                : pageState.saleSummary.total;
+            setPaidAmount(finalPaid);
             modals.setShowPaymentModal(true);
           }}
           onSuspendSale={paymentFlow.handleSuspend}

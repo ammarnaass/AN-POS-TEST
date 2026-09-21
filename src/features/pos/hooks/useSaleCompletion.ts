@@ -82,7 +82,9 @@ export function useSaleCompletion(settings: SaleSettings, onSaleSuccess?: (sale:
       // تحديد المبلغ المدفوع فعلياً
       const effectivePaidAmount =
         paymentMethod === 'cash'
-          ? saleSummary.total
+          ? (typeof params.paidAmount === 'number' && params.paidAmount > 0
+              ? params.paidAmount
+              : saleSummary.total)
           : (params.paidAmount ?? params.amountPaid ?? 0);
 
       // جلب بيانات العميل المختار إن وجد

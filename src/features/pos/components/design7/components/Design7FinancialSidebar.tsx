@@ -13,7 +13,7 @@ export interface Design7FinancialSidebarProps {
   onOpenPaidCalculator?: () => void;
   formatMoney: (amount?: number | null) => string;
   onOpenDiscount: () => void;
-  onSettleSale: () => void;
+  onSettleSale: (paidAmount?: number) => void;
   userName?: string;
   priceTier?: '1' | '2' | '3' | '4';
 }
@@ -42,12 +42,14 @@ export const Design7FinancialSidebar: React.FC<Design7FinancialSidebarProps> = (
     else setInternalPaidAmount(val);
   };
 
-  // Auto-sync paid amount when total changes if user hasn't typed anything custom
+  // تصفير المدفوع تلقائياً عند تفريغ السلة لضمان عدم بقاء أرقام قديمة عالقة
   useEffect(() => {
-    if (paidAmount === 0 && total > 0) {
-      // Keep at 0 or leave for user selection
+    if (itemCount === 0 || total === 0) {
+      if (paidAmount !== 0) {
+        setPaidAmount(0);
+      }
     }
-  }, [total, paidAmount]);
+  }, [itemCount, total]);
 
   const diff = paidAmount - total;
   const isOverpaid = diff > 0;
@@ -115,7 +117,7 @@ export const Design7FinancialSidebar: React.FC<Design7FinancialSidebarProps> = (
 
         {/* الإجمالي (Total) */}
         <div
-          onClick={onSettleSale}
+          onClick={() => onSettleSale(paidAmount)}
           title="انقر لإتمام عملية الدفع (F1 / Enter)"
           className="flex items-center justify-between bg-gradient-to-r from-[#e1f0fb] to-[#cde3f7] hover:from-[#d5eaf8] hover:to-[#bedbf3] border-2 border-sky-600 rounded p-1.5 shadow-sm cursor-pointer transition-all"
         >

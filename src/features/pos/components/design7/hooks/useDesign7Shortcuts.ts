@@ -3,7 +3,7 @@ import type { CartItem } from '@/types';
 import { getCartRowKey } from '../utils/cartRow';
 
 interface UseDesign7ShortcutsProps {
-  onSettleSale: () => void;
+  onSettleSale: (paidAmount?: number) => void;
   onOpenSalesHistory?: () => void;
   onSuspendSale?: () => void;
   onOpenReturns?: () => void;

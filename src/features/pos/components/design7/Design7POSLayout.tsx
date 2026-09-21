@@ -95,6 +95,13 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
   const [paidAmount, setPaidAmount] = useState<number>(0);
   const [isVirtualKeyboardOpen, setIsVirtualKeyboardOpen] = useState(false);
 
+  // تصفير المبلغ المدفوع تلقائياً عند خلو السلة (إتمام الفاتورة، تفريغها أو بدء بيع جديد)
+  useEffect(() => {
+    if (cart.length === 0) {
+      setPaidAmount(0);
+    }
+  }, [cart.length]);
+
   // Combined modal state (local design7 modals + global POSPage modals) for Esc handling
   const isAnyModalOpen =
     isProductSearchOpen || itemEditState.isOpen || isVirtualKeyboardOpen || isAnyGlobalModalOpen;
@@ -355,9 +362,9 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
 
   const handleConfirm = useCallback(() => {
     if (cart.length > 0) {
-      onSettleSale();
+      onSettleSale(paidAmount);
     }
-  }, [cart.length, onSettleSale]);
+  }, [cart.length, onSettleSale, paidAmount]);
 
   const handleDeleteSelectedRow = useCallback(() => {
     if (activeItem) {
@@ -424,7 +431,7 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
 
   // Connect keyboard shortcuts (F1-F12, Arrows, Del, Enter, Esc, Alt+1..4)
   useDesign7Shortcuts({
-    onSettleSale,
+    onSettleSale: (pAmount) => onSettleSale(pAmount ?? paidAmount),
     onOpenSalesHistory,
     onSuspendSale,
     onOpenReturns,
@@ -471,7 +478,7 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
           suspendedCount={suspendedCount}
           autoPrintReceipt={autoPrintReceipt}
           onToggleAutoPrint={onToggleAutoPrint}
-          onSettleSale={onSettleSale}
+          onSettleSale={() => onSettleSale(paidAmount)}
           onOpenDiscount={onOpenDiscount}
           onOpenCustomize={onOpenCustomize}
           onNewOrder={onNewOrder}
@@ -526,7 +533,7 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
                 if (onOpenDiscount) onOpenDiscount();
                 else setItemEditState({ isOpen: true, mode: 'discount' });
               }}
-              onSettleSale={onSettleSale}
+              onSettleSale={(pAmount) => onSettleSale(pAmount ?? paidAmount)}
               userName={userName}
               priceTier={priceTier}
             />
@@ -562,7 +569,7 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
               onArrowLeft={handleArrowLeft}
               onArrowRight={handleArrowRight}
               onConfirm={handleConfirm}
-              onSettleSale={onSettleSale}
+              onSettleSale={() => onSettleSale(paidAmount)}
               onOpenKeypad={() => {
                 setItemEditState({ isOpen: true, mode: activeItem ? 'qty' : 'paid' });
               }}
