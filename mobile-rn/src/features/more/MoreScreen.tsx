@@ -69,6 +69,10 @@ import {
 import { AnposCamera } from '@/modules/AnposCamera';
 import PairedDeviceCard from '@/components/PairedDeviceCard';
 import { getKnownDevices, setActiveDevice, type PairedDevice } from '@/lib/pairedDeviceStore';
+import { useSubscriptionStore } from '@/store/subscriptionStore';
+import RemoveAdsBanner from '@/components/subscription/RemoveAdsBanner';
+import FeatureUnlockAdModal from '@/components/subscription/FeatureUnlockAdModal';
+import ContactUsModal from '@/components/subscription/ContactUsModal';
 
 export const MoreScreen = ({ navigation }: any) => {
   const { user, logout } = useAuthStore();
@@ -87,6 +91,37 @@ export const MoreScreen = ({ navigation }: any) => {
   const [serverUrlDisplay, setServerUrlDisplay] = useState<string>('—');
   const [activeShift, setActiveShift] = useState<any>(null);
   const [knownDevices, setKnownDevices] = useState<PairedDevice[]>([]);
+
+  // Subscription & Ad modals
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [lockedFeatureModal, setLockedFeatureModal] = useState<{
+    key: string;
+    name: string;
+    screen: string;
+  } | null>(null);
+
+  const {
+    status: subscriptionStatus,
+    refreshStatus: refreshSubscriptionStatus,
+    isFeatureUnlocked,
+  } = useSubscriptionStore();
+
+  const handleGuardedNavigation = async (
+    featureKey: string,
+    featureName: string,
+    screen: string
+  ) => {
+    if (appMode === 'connected' || subscriptionStatus?.isAdFree) {
+      navigation.navigate(screen);
+      return;
+    }
+    const unlocked = await isFeatureUnlocked(featureKey);
+    if (unlocked) {
+      navigation.navigate(screen);
+    } else {
+      setLockedFeatureModal({ key: featureKey, name: featureName, screen });
+    }
+  };
 
   // Store Logo Modal state
   const [logoPickerVisible, setLogoPickerVisible] = useState(false);
@@ -580,6 +615,11 @@ export const MoreScreen = ({ navigation }: any) => {
         </TouchableOpacity>
       </View>
 
+      {/* Standalone Remove Ads Banner */}
+      {appMode === 'standalone' && (
+        <RemoveAdsBanner style={{ marginHorizontal: spacing.md, marginBottom: spacing.md }} />
+      )}
+
       {/* 5. Main Operations Modules Hub */}
       <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>{t('settings.operationsHub')}</Text>
       <View style={styles.hubGrid}>
@@ -678,7 +718,7 @@ export const MoreScreen = ({ navigation }: any) => {
 
         <TouchableOpacity
           style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
-          onPress={() => navigation.navigate('Packs')}
+          onPress={() => handleGuardedNavigation('wholesale_packs', t('nav.packs') || 'عبوات الجملة والباقات', 'Packs')}
           activeOpacity={0.75}
         >
           <View style={[styles.hubIconBox, { backgroundColor: colors.primary[50] }]}>
@@ -714,7 +754,7 @@ export const MoreScreen = ({ navigation }: any) => {
 
         <TouchableOpacity
           style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
-          onPress={() => navigation.navigate('Warehouses')}
+          onPress={() => handleGuardedNavigation('multi_warehouse', t('nav.warehouses'), 'Warehouses')}
           activeOpacity={0.75}
         >
           <View style={[styles.hubIconBox, { backgroundColor: colors.primary[100] }]}>
@@ -750,7 +790,7 @@ export const MoreScreen = ({ navigation }: any) => {
 
         <TouchableOpacity
           style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
-          onPress={() => navigation.navigate('ProfitCenter')}
+          onPress={() => handleGuardedNavigation('profit_center', t('nav.profitCenter'), 'ProfitCenter')}
           activeOpacity={0.75}
         >
           <View style={[styles.hubIconBox, { backgroundColor: colors.emerald[50] }]}>
@@ -762,7 +802,7 @@ export const MoreScreen = ({ navigation }: any) => {
 
         <TouchableOpacity
           style={[styles.hubCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
-          onPress={() => navigation.navigate('ZakatCalculator')}
+          onPress={() => handleGuardedNavigation('zakat_calculator', t('nav.zakatCalculator'), 'ZakatCalculator')}
           activeOpacity={0.75}
         >
           <View style={[styles.hubIconBox, { backgroundColor: colors.amber[50] }]}>
@@ -796,7 +836,7 @@ export const MoreScreen = ({ navigation }: any) => {
           icon={<Barcode size={18} color={colors.purple[600]} />}
           title={t('nav.barcodeLabels')}
           subtitle={t('barcodeLabels.subtitle')}
-          onPress={() => navigation.navigate('BarcodeLabels')}
+          onPress={() => handleGuardedNavigation('barcode_labels', t('nav.barcodeLabels'), 'BarcodeLabels')}
           colors={colors}
         />
       </Card>
@@ -828,7 +868,7 @@ export const MoreScreen = ({ navigation }: any) => {
           icon={<HardDrive size={18} color={colors.slate[600]} />}
           title={t('backupRestore.title')}
           subtitle={t('backupRestore.subtitle')}
-          onPress={() => navigation.navigate('BackupRestore')}
+          onPress={() => handleGuardedNavigation('backup_export', t('backupRestore.title'), 'BackupRestore')}
           colors={colors}
         />
       </Card>
@@ -1317,6 +1357,34 @@ export const MoreScreen = ({ navigation }: any) => {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* ── Feature Unlock Rewarded Ad Modal ── */}
+      {lockedFeatureModal && (
+        <FeatureUnlockAdModal
+          visible={!!lockedFeatureModal}
+          featureKey={lockedFeatureModal.key}
+          featureTitle={lockedFeatureModal.name}
+          onClose={() => setLockedFeatureModal(null)}
+          onUnlocked={() => {
+            const target = lockedFeatureModal.screen;
+            setLockedFeatureModal(null);
+            navigation.navigate(target);
+          }}
+          onContactUsPress={() => {
+            setLockedFeatureModal(null);
+            setShowContactModal(true);
+          }}
+        />
+      )}
+
+      {/* ── Contact Us to Remove Ads Modal ── */}
+      <ContactUsModal
+        visible={showContactModal}
+        onClose={() => setShowContactModal(false)}
+        onSuccess={() => {
+          refreshSubscriptionStatus();
+        }}
+      />
     </ScrollView>
   );
 };

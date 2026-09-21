@@ -5,8 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  TextInput,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import {
@@ -17,76 +15,63 @@ import {
   Crown,
   Check,
   Tv,
-  Key,
   ShieldCheck,
   RefreshCw,
-  Gift,
-  HelpCircle,
+  Lock,
+  Unlock,
+  Clock,
+  Layers,
 } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { useI18n } from '@/store/i18nStore';
 import { radii, spacing, shadows } from '@/theme/tokens';
 import { useSubscriptionStore } from '@/store/subscriptionStore';
-import { TIER_FEATURES, type SubscriptionTier } from '@/lib/subscriptionService';
+import {
+  getAllFeatureStatuses,
+  type UnlockedFeatureInfo,
+} from '@/lib/subscriptionService';
 import RewardAdModal from '@/components/subscription/RewardAdModal';
+import FeatureUnlockAdModal from '@/components/subscription/FeatureUnlockAdModal';
+import ContactUsModal from '@/components/subscription/ContactUsModal';
+import RemoveAdsBanner from '@/components/subscription/RemoveAdsBanner';
 
 export const SubscriptionScreen = ({ navigation }: any) => {
   const { colors, isDark } = useTheme();
   const { t, isRTL } = useI18n();
-  const { status, loading, refreshStatus, upgrade } = useSubscriptionStore();
+  const { status, refreshStatus, unlockAllFeatures } = useSubscriptionStore();
 
-  const [showAdModal, setShowAdModal] = useState(false);
-  const [licenseInput, setLicenseInput] = useState('');
-  const [selectedUpgradeTier, setSelectedUpgradeTier] = useState<SubscriptionTier | null>(null);
-  const [upgrading, setUpgrading] = useState(false);
+  const [featureStatuses, setFeatureStatuses] = useState<UnlockedFeatureInfo[]>([]);
+  const [loadingFeatures, setLoadingFeatures] = useState(false);
+  const [showRewardAdModal, setShowRewardAdModal] = useState(false);
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [selectedFeatureToUnlock, setSelectedFeatureToUnlock] = useState<{
+    key: string;
+    name: string;
+  } | null>(null);
+
+  const [unlockingAll, setUnlockingAll] = useState(false);
 
   useEffect(() => {
-    refreshStatus();
+    loadData();
   }, []);
 
-  const BackArrow = isRTL ? ArrowRight : ArrowLeft;
-  const currentTier = status?.tier || 'free';
-
-  const handleUpgradeTier = async (tier: SubscriptionTier) => {
-    if (tier === currentTier) return;
-
-    if (tier === 'free') {
-      Alert.alert(t('common.confirm'), 'هل تريد العودة للباقة المجانية؟', [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('common.confirm'),
-          onPress: async () => {
-            setUpgrading(true);
-            await upgrade('free');
-            setUpgrading(false);
-          },
-        },
-      ]);
-      return;
-    }
-
-    // For Lite or Pro: ask for activation or test activate
-    Alert.alert(
-      `ترقية الباقة إلى ${tier === 'lite' ? 'لايت (Lite)' : 'برو (Pro)'}`,
-      `تتيح لك باقة ${tier === 'lite' ? 'لايت' : 'برو'} رصيداً يصل إلى ${
-        tier === 'lite' ? '5,000' : '100,000'
-      } مبيعة مع كافة الميزات المتقدمة.`,
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: 'تفعيل الآن',
-          onPress: async () => {
-            setUpgrading(true);
-            const success = await upgrade(tier, licenseInput.trim() || `LIC-${tier.toUpperCase()}-${Date.now()}`);
-            setUpgrading(false);
-            if (success) {
-              Alert.alert(t('subscription.upgradeSuccess'), `${t('subscription.upgradeSuccessMsg')} ${tier.toUpperCase()}`);
-            }
-          },
-        },
-      ]
-    );
+  const loadData = async () => {
+    setLoadingFeatures(true);
+    await refreshStatus();
+    const feats = await getAllFeatureStatuses();
+    setFeatureStatuses(feats);
+    setLoadingFeatures(false);
   };
+
+  const handleUnlockAll = async () => {
+    setUnlockingAll(true);
+    await unlockAllFeatures(24);
+    await loadData();
+    setUnlockingAll(false);
+  };
+
+  const BackArrow = isRTL ? ArrowRight : ArrowLeft;
+  const isAdFree = status?.isAdFree || status?.isUnlimitedOrConnected;
 
   const percentUsed =
     status && status.totalQuota > 0
@@ -125,7 +110,7 @@ export const SubscriptionScreen = ({ navigation }: any) => {
 
         <TouchableOpacity
           style={[styles.refreshBtn, { backgroundColor: isDark ? colors.surfaceElevated : colors.slate[100] }]}
-          onPress={() => refreshStatus()}
+          onPress={loadData}
           activeOpacity={0.7}
         >
           <RefreshCw size={16} color={colors.text.secondary} />
@@ -136,13 +121,16 @@ export const SubscriptionScreen = ({ navigation }: any) => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── 1. Current Plan Bento Card ── */}
+        {/* ── 1. Prominent Remove Ads Banner ── */}
+        <RemoveAdsBanner style={{ marginBottom: spacing.md }} />
+
+        {/* ── 2. Sales Quota & Status Card ── */}
         <View
           style={[
             styles.statusCard,
             {
               backgroundColor: colors.surface,
-              borderColor: currentTier === 'pro' ? '#f59e0b' : currentTier === 'lite' ? '#3b82f6' : colors.border.default,
+              borderColor: isAdFree ? colors.emerald[400] : colors.border.default,
             },
           ]}
         >
@@ -152,24 +140,20 @@ export const SubscriptionScreen = ({ navigation }: any) => {
                 {t('subscription.currentPlan')}
               </Text>
               <View style={[styles.tierBadgeRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                {currentTier === 'pro' ? (
-                  <Crown size={22} color="#f59e0b" />
-                ) : currentTier === 'lite' ? (
-                  <Zap size={22} color="#3b82f6" />
+                {isAdFree ? (
+                  <ShieldCheck size={22} color={colors.emerald[600]} />
                 ) : (
-                  <Sparkles size={22} color={colors.emerald[600]} />
+                  <Sparkles size={22} color={colors.purple[600]} />
                 )}
                 <Text style={[styles.tierBadgeTitle, { color: colors.text.primary }]}>
-                  {currentTier === 'pro'
-                    ? t('subscription.proBadge')
-                    : currentTier === 'lite'
-                    ? t('subscription.liteBadge')
-                    : t('subscription.freeBadge')}
+                  {isAdFree
+                    ? t('subscription.adFreeStatus')
+                    : t('subscription.adSupportedStatus')}
                 </Text>
               </View>
             </View>
 
-            {currentTier === 'free' && (
+            {!isAdFree && (
               <TouchableOpacity
                 style={[
                   styles.quickAdBtn,
@@ -178,7 +162,7 @@ export const SubscriptionScreen = ({ navigation }: any) => {
                     flexDirection: isRTL ? 'row-reverse' : 'row',
                   },
                 ]}
-                onPress={() => setShowAdModal(true)}
+                onPress={() => setShowRewardAdModal(true)}
                 activeOpacity={0.85}
               >
                 <Tv size={15} color="#ffffff" />
@@ -187,37 +171,70 @@ export const SubscriptionScreen = ({ navigation }: any) => {
             )}
           </View>
 
-          {/* Quota Progress Bar */}
-          <View style={styles.quotaSection}>
-            <View style={[styles.quotaLabelsRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-              <Text style={[styles.quotaLabelText, { color: colors.text.secondary }]}>
-                {t('subscription.salesRemaining')}:{' '}
-                <Text style={{ fontWeight: '800', color: (status?.remainingSales || 0) < 20 ? colors.danger.main : colors.emerald[600] }}>
-                  {status?.remainingSales ?? 300}
-                </Text>{' '}
-                {t('subscription.salesUnit')}
-              </Text>
-              <Text style={[styles.quotaLabelText, { color: colors.text.tertiary }]}>
-                {percentUsed}% مستهلك
-              </Text>
-            </View>
+          {/* Quota Progress Bar (for ad-supported) */}
+          {!isAdFree ? (
+            <View style={styles.quotaSection}>
+              <View style={[styles.quotaLabelsRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <Text style={[styles.quotaLabelText, { color: colors.text.secondary }]}>
+                  {t('subscription.salesRemaining')}:{' '}
+                  <Text
+                    style={{
+                      fontWeight: '800',
+                      color:
+                        (status?.remainingSales || 0) < 20 ? colors.danger.main : colors.emerald[600],
+                    }}
+                  >
+                    {status?.remainingSales ?? 300}
+                  </Text>{' '}
+                  {t('subscription.salesUnit')}
+                </Text>
+                <Text style={[styles.quotaLabelText, { color: colors.text.tertiary }]}>
+                  {percentUsed}% مستهلك
+                </Text>
+              </View>
 
-            <View style={[styles.progressBarTrack, { backgroundColor: isDark ? colors.surfaceElevated : colors.slate[200] }]}>
               <View
                 style={[
-                  styles.progressBarFill,
-                  {
-                    width: `${Math.max(4, 100 - percentUsed)}%`,
-                    backgroundColor: (status?.remainingSales || 0) < 20 ? colors.danger.main : colors.primary[500],
-                  },
+                  styles.progressBarTrack,
+                  { backgroundColor: isDark ? colors.surfaceElevated : colors.slate[200] },
                 ]}
-              />
+              >
+                <View
+                  style={[
+                    styles.progressBarFill,
+                    {
+                      width: `${Math.max(4, 100 - percentUsed)}%`,
+                      backgroundColor:
+                        (status?.remainingSales || 0) < 20 ? colors.danger.main : colors.primary[500],
+                    },
+                  ]}
+                />
+              </View>
             </View>
-          </View>
+          ) : (
+            <View
+              style={[
+                styles.unlimitedNoticeBox,
+                {
+                  backgroundColor: isDark ? 'rgba(16, 185, 129, 0.1)' : '#f0fdf4',
+                  borderColor: colors.emerald[300],
+                },
+              ]}
+            >
+              <Text style={[styles.unlimitedNoticeText, { color: colors.emerald[700] }]}>
+                ✓ تم تفعيل النسخة الكاملة: مبيعات وفواتير غير محدودة وكافة الميزات مفعلة دائماً.
+              </Text>
+            </View>
+          )}
 
           {/* 4 Stats Chips */}
           <View style={styles.statsGrid}>
-            <View style={[styles.statChip, { backgroundColor: isDark ? colors.surfaceElevated : colors.surfaceSubtle }]}>
+            <View
+              style={[
+                styles.statChip,
+                { backgroundColor: isDark ? colors.surfaceElevated : colors.surfaceSubtle },
+              ]}
+            >
               <Text style={[styles.statChipValue, { color: colors.text.primary }]}>
                 {status?.usedSales ?? 0}
               </Text>
@@ -226,16 +243,26 @@ export const SubscriptionScreen = ({ navigation }: any) => {
               </Text>
             </View>
 
-            <View style={[styles.statChip, { backgroundColor: isDark ? colors.surfaceElevated : colors.surfaceSubtle }]}>
+            <View
+              style={[
+                styles.statChip,
+                { backgroundColor: isDark ? colors.surfaceElevated : colors.surfaceSubtle },
+              ]}
+            >
               <Text style={[styles.statChipValue, { color: colors.text.primary }]}>
-                {status?.baseQuota ?? 300}
+                {isAdFree ? 'غير محدود' : status?.baseQuota ?? 300}
               </Text>
               <Text style={[styles.statChipLabel, { color: colors.text.tertiary }]}>
                 الرصيد الأساسي
               </Text>
             </View>
 
-            <View style={[styles.statChip, { backgroundColor: isDark ? colors.surfaceElevated : colors.surfaceSubtle }]}>
+            <View
+              style={[
+                styles.statChip,
+                { backgroundColor: isDark ? colors.surfaceElevated : colors.surfaceSubtle },
+              ]}
+            >
               <Text style={[styles.statChipValue, { color: colors.emerald[600] }]}>
                 +{status?.bonusSales ?? 0}
               </Text>
@@ -244,7 +271,12 @@ export const SubscriptionScreen = ({ navigation }: any) => {
               </Text>
             </View>
 
-            <View style={[styles.statChip, { backgroundColor: isDark ? colors.surfaceElevated : colors.surfaceSubtle }]}>
+            <View
+              style={[
+                styles.statChip,
+                { backgroundColor: isDark ? colors.surfaceElevated : colors.surfaceSubtle },
+              ]}
+            >
               <Text style={[styles.statChipValue, { color: colors.primary[600] }]}>
                 {status?.adsWatched ?? 0}
               </Text>
@@ -255,189 +287,220 @@ export const SubscriptionScreen = ({ navigation }: any) => {
           </View>
         </View>
 
-        {/* ── 2. Plans Comparison Section ── */}
-        <Text style={[styles.sectionTitle, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
-          مقارنة باقات الاشتراك
-        </Text>
-
-        {/* Free Plan Card */}
-        <View
-          style={[
-            styles.planCard,
-            {
-              backgroundColor: colors.surface,
-              borderColor: currentTier === 'free' ? colors.primary[500] : colors.border.default,
-            },
-          ]}
-        >
-          <View style={[styles.planCardHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-            <View style={{ alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
-              <Text style={[styles.planName, { color: colors.text.primary }]}>
-                {t('subscription.free')}
-              </Text>
-              <Text style={[styles.planQuotaHighlight, { color: colors.primary[600] }]}>
-                300 مبيعة + إعلانات بمكافأة (+20)
-              </Text>
-            </View>
-            {currentTier === 'free' && (
-              <View style={[styles.activePlanBadge, { backgroundColor: colors.primary[50] }]}>
-                <Text style={[styles.activePlanBadgeText, { color: colors.primary[700] }]}>
-                  الباقة الحالية
-                </Text>
-              </View>
-            )}
+        {/* ── 3. Feature Unlock Passes Hub ── */}
+        <View style={styles.featuresHubHeader}>
+          <View style={{ alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
+            <Text
+              style={[
+                styles.sectionTitle,
+                { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' },
+              ]}
+            >
+              فتح الميزات المتقدمة عبر الإعلانات
+            </Text>
+            <Text style={[styles.sectionSubtitle, { color: colors.text.secondary }]}>
+              شاهد إعلاناً قصيراً لفتح أي ميزة لمدة 24 ساعة مجاناً
+            </Text>
           </View>
 
-          <Text style={[styles.planDesc, { color: colors.text.secondary, textAlign: isRTL ? 'right' : 'left' }]}>
-            {t('subscription.freeDesc')}
-          </Text>
-
-          <View style={styles.featuresList}>
-            {TIER_FEATURES.free.map((feat, idx) => (
-              <View key={idx} style={[styles.featureItemRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                <Check size={15} color={colors.emerald[600]} />
-                <Text style={[styles.featureItemText, { color: colors.text.secondary }]}>
-                  {feat}
-                </Text>
-              </View>
-            ))}
-          </View>
-
-          {currentTier === 'free' && (
+          {!isAdFree && (
             <TouchableOpacity
               style={[
-                styles.planActionBtn,
+                styles.unlockAllBtn,
                 {
-                  backgroundColor: colors.emerald[600],
+                  backgroundColor: isDark ? '#312e81' : '#ede9fe',
+                  borderColor: isDark ? '#4338ca' : '#c7d2fe',
                   flexDirection: isRTL ? 'row-reverse' : 'row',
                 },
               ]}
-              onPress={() => setShowAdModal(true)}
-              activeOpacity={0.88}
+              onPress={handleUnlockAll}
+              disabled={unlockingAll}
+              activeOpacity={0.8}
             >
-              <Tv size={16} color="#ffffff" />
-              <Text style={styles.planActionBtnText}>{t('subscription.watchAdBtn')}</Text>
+              {unlockingAll ? (
+                <ActivityIndicator size="small" color="#7c3aed" />
+              ) : (
+                <>
+                  <Layers size={14} color="#7c3aed" />
+                  <Text style={styles.unlockAllBtnText}>
+                    {t('subscription.unlockAllFeaturesAdBtn')}
+                  </Text>
+                </>
+              )}
             </TouchableOpacity>
           )}
         </View>
 
-        {/* Lite Plan Card */}
-        <View
-          style={[
-            styles.planCard,
-            {
-              backgroundColor: colors.surface,
-              borderColor: currentTier === 'lite' ? '#3b82f6' : colors.border.default,
-            },
-          ]}
-        >
-          <View style={[styles.planCardHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-            <View style={{ alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
-              <Text style={[styles.planName, { color: colors.text.primary }]}>
-                {t('subscription.lite')}
-              </Text>
-              <Text style={[styles.planQuotaHighlight, { color: '#2563eb' }]}>
-                5,000 مبيعة • بدون إعلانات
-              </Text>
-            </View>
-            {currentTier === 'lite' ? (
-              <View style={[styles.activePlanBadge, { backgroundColor: '#eff6ff' }]}>
-                <Text style={[styles.activePlanBadgeText, { color: '#2563eb' }]}>
-                  الباقة الحالية
-                </Text>
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={[styles.upgradeMiniBtn, { backgroundColor: '#2563eb' }]}
-                onPress={() => handleUpgradeTier('lite')}
-                activeOpacity={0.85}
-                disabled={upgrading}
+        {/* List of Features */}
+        <View style={styles.featuresListCol}>
+          {featureStatuses.map((feat) => {
+            return (
+              <View
+                key={feat.key}
+                style={[
+                  styles.featureRowCard,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: feat.isUnlocked ? colors.emerald[300] : colors.border.default,
+                    flexDirection: isRTL ? 'row-reverse' : 'row',
+                  },
+                ]}
               >
-                <Text style={styles.upgradeMiniBtnText}>ترقية إلى لايت</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+                <View
+                  style={[
+                    styles.featureIconBadge,
+                    {
+                      backgroundColor: feat.isUnlocked
+                        ? isDark
+                          ? 'rgba(16, 185, 129, 0.15)'
+                          : '#dcfce7'
+                        : isDark
+                        ? 'rgba(245, 158, 11, 0.15)'
+                        : '#fef3c7',
+                    },
+                  ]}
+                >
+                  {feat.isUnlocked ? (
+                    <Unlock size={18} color={colors.emerald[600]} />
+                  ) : (
+                    <Lock size={18} color="#f59e0b" />
+                  )}
+                </View>
 
-          <Text style={[styles.planDesc, { color: colors.text.secondary, textAlign: isRTL ? 'right' : 'left' }]}>
-            {t('subscription.liteDesc')}
-          </Text>
+                <View
+                  style={[
+                    styles.featureInfoContent,
+                    { alignItems: isRTL ? 'flex-end' : 'flex-start' },
+                  ]}
+                >
+                  <Text style={[styles.featureCardName, { color: colors.text.primary }]}>
+                    {feat.name}
+                  </Text>
 
-          <View style={styles.featuresList}>
-            {TIER_FEATURES.lite.map((feat, idx) => (
-              <View key={idx} style={[styles.featureItemRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                <Check size={15} color="#2563eb" />
-                <Text style={[styles.featureItemText, { color: colors.text.secondary }]}>
-                  {feat}
-                </Text>
+                  {feat.isUnlocked ? (
+                    <View
+                      style={[
+                        styles.remainingTimeRow,
+                        { flexDirection: isRTL ? 'row-reverse' : 'row' },
+                      ]}
+                    >
+                      <Clock size={12} color={colors.emerald[600]} />
+                      <Text style={[styles.remainingTimeText, { color: colors.emerald[700] }]}>
+                        {isAdFree
+                          ? 'مفتوحة دائماً (النسخة الكاملة)'
+                          : `مفتوحة (${feat.hoursRemaining || 24} ${t('subscription.hoursRemaining')})`}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={[styles.featureLockedNotice, { color: colors.text.tertiary }]}>
+                      {t('subscription.lockedBadge')}
+                    </Text>
+                  )}
+                </View>
+
+                {!isAdFree && (
+                  <TouchableOpacity
+                    style={[
+                      styles.featureUnlockBtn,
+                      {
+                        backgroundColor: feat.isUnlocked ? colors.surfaceSubtle : colors.primary[600],
+                        borderColor: feat.isUnlocked ? colors.border.default : colors.primary[600],
+                      },
+                    ]}
+                    onPress={() =>
+                      setSelectedFeatureToUnlock({ key: feat.key, name: feat.name })
+                    }
+                    activeOpacity={0.8}
+                  >
+                    <Tv size={13} color={feat.isUnlocked ? colors.text.secondary : '#ffffff'} />
+                    <Text
+                      style={[
+                        styles.featureUnlockBtnText,
+                        { color: feat.isUnlocked ? colors.text.secondary : '#ffffff' },
+                      ]}
+                    >
+                      {feat.isUnlocked ? 'تمديد 24س' : 'مشاهدة إعلان'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
-            ))}
-          </View>
+            );
+          })}
         </View>
 
-        {/* Pro Plan Card */}
+        {/* ── 4. Contact Us Card ── */}
         <View
           style={[
-            styles.planCard,
+            styles.contactSupportCard,
             {
               backgroundColor: colors.surface,
-              borderColor: currentTier === 'pro' ? '#f59e0b' : colors.border.default,
+              borderColor: colors.border.default,
             },
           ]}
         >
-          <View style={[styles.planCardHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-            <View style={{ alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
-              <View style={[styles.proBadgeRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                <Crown size={16} color="#d97706" />
-                <Text style={[styles.planName, { color: colors.text.primary }]}>
-                  {t('subscription.pro')}
-                </Text>
-              </View>
-              <Text style={[styles.planQuotaHighlight, { color: '#d97706' }]}>
-                100,000 مبيعة • سعة قصوى
-              </Text>
-            </View>
-            {currentTier === 'pro' ? (
-              <View style={[styles.activePlanBadge, { backgroundColor: '#fef3c7' }]}>
-                <Text style={[styles.activePlanBadgeText, { color: '#d97706' }]}>
-                  الباقة الحالية
-                </Text>
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={[styles.upgradeMiniBtn, { backgroundColor: '#d97706' }]}
-                onPress={() => handleUpgradeTier('pro')}
-                activeOpacity={0.85}
-                disabled={upgrading}
-              >
-                <Text style={styles.upgradeMiniBtnText}>ترقية إلى برو</Text>
-              </TouchableOpacity>
-            )}
+          <View style={[styles.contactCardHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+            <Crown size={20} color="#f59e0b" />
+            <Text style={[styles.contactCardTitle, { color: colors.text.primary }]}>
+              {t('subscription.contactUsTitle')}
+            </Text>
           </View>
-
-          <Text style={[styles.planDesc, { color: colors.text.secondary, textAlign: isRTL ? 'right' : 'left' }]}>
-            {t('subscription.proDesc')}
+          <Text
+            style={[
+              styles.contactCardSub,
+              { color: colors.text.secondary, textAlign: isRTL ? 'right' : 'left' },
+            ]}
+          >
+            {t('subscription.contactUsSubtitle')}
           </Text>
 
-          <View style={styles.featuresList}>
-            {TIER_FEATURES.pro.map((feat, idx) => (
-              <View key={idx} style={[styles.featureItemRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                <Check size={15} color="#d97706" />
-                <Text style={[styles.featureItemText, { color: colors.text.secondary }]}>
-                  {feat}
-                </Text>
-              </View>
-            ))}
-          </View>
+          <TouchableOpacity
+            style={[
+              styles.contactOpenModalBtn,
+              {
+                backgroundColor: '#7c3aed',
+                flexDirection: isRTL ? 'row-reverse' : 'row',
+              },
+            ]}
+            onPress={() => setShowContactModal(true)}
+            activeOpacity={0.88}
+          >
+            <Sparkles size={16} color="#ffffff" />
+            <Text style={styles.contactOpenModalBtnText}>
+              {t('subscription.contactUs')}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* Rewarded Ad Modal */}
+      {/* Rewarded Ad Modal (Sales Quota) */}
       <RewardAdModal
-        visible={showAdModal}
-        onClose={() => setShowAdModal(false)}
-        onRewardClaimed={() => refreshStatus()}
+        visible={showRewardAdModal}
+        onClose={() => setShowRewardAdModal(false)}
+        onRewardClaimed={loadData}
+      />
+
+      {/* Feature Unlock Rewarded Ad Modal */}
+      {selectedFeatureToUnlock && (
+        <FeatureUnlockAdModal
+          visible={!!selectedFeatureToUnlock}
+          featureKey={selectedFeatureToUnlock.key}
+          featureTitle={selectedFeatureToUnlock.name}
+          onClose={() => setSelectedFeatureToUnlock(null)}
+          onUnlocked={loadData}
+          onContactUsPress={() => {
+            setSelectedFeatureToUnlock(null);
+            setShowContactModal(true);
+          }}
+        />
+      )}
+
+      {/* Contact Us to Remove Ads Modal */}
+      <ContactUsModal
+        visible={showContactModal}
+        onClose={() => setShowContactModal(false)}
+        onSuccess={loadData}
       />
     </View>
   );
@@ -449,8 +512,7 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.md,
+    paddingVertical: spacing.sm,
     borderBottomWidth: 1,
     alignItems: 'center',
     gap: spacing.sm,
@@ -466,28 +528,28 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerMainTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
   },
   headerSubtitle: {
     fontSize: 12,
-    marginTop: 2,
+    marginTop: 1,
   },
   refreshBtn: {
-    width: 38,
-    height: 38,
+    width: 36,
+    height: 36,
     borderRadius: radii.full,
     justifyContent: 'center',
     alignItems: 'center',
   },
   scrollContent: {
     padding: spacing.md,
-    gap: spacing.md,
   },
   statusCard: {
     borderRadius: radii.xl,
     borderWidth: 1.5,
     padding: spacing.md,
+    marginBottom: spacing.lg,
     ...shadows.sm,
   },
   statusCardTop: {
@@ -497,6 +559,7 @@ const styles = StyleSheet.create({
   },
   currentPlanLabel: {
     fontSize: 12,
+    fontWeight: '600',
   },
   tierBadgeRow: {
     alignItems: 'center',
@@ -508,11 +571,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   quickAdBtn: {
-    paddingVertical: 7,
-    paddingHorizontal: 12,
+    paddingVertical: 8,
+    paddingHorizontal: spacing.md,
     borderRadius: radii.full,
     alignItems: 'center',
-    gap: 5,
+    gap: spacing.xs,
+    ...shadows.xs,
   },
   quickAdBtnText: {
     color: '#ffffff',
@@ -524,14 +588,12 @@ const styles = StyleSheet.create({
   },
   quotaLabelsRow: {
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.xs,
+    marginBottom: 6,
   },
   quotaLabelText: {
     fontSize: 12.5,
   },
   progressBarTrack: {
-    width: '100%',
     height: 8,
     borderRadius: radii.full,
     overflow: 'hidden',
@@ -540,100 +602,142 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: radii.full,
   },
+  unlimitedNoticeBox: {
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    padding: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  unlimitedNoticeText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
   statsGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: spacing.xs,
   },
   statChip: {
     flex: 1,
-    minWidth: '46%',
-    borderRadius: radii.md,
-    padding: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderRadius: radii.lg,
     alignItems: 'center',
   },
   statChipValue: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
   },
   statChipLabel: {
-    fontSize: 11,
+    fontSize: 10,
     marginTop: 2,
+    textAlign: 'center',
+  },
+  featuresHubHeader: {
+    marginBottom: spacing.sm,
+    gap: spacing.xs,
   },
   sectionTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    marginTop: spacing.xs,
-  },
-  planCard: {
-    borderRadius: radii.xl,
-    borderWidth: 1.5,
-    padding: spacing.md,
-    ...shadows.sm,
-  },
-  planCardHeader: {
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: spacing.xs,
-  },
-  planName: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '800',
   },
-  proBadgeRow: {
-    alignItems: 'center',
-    gap: 4,
-  },
-  planQuotaHighlight: {
-    fontSize: 13,
-    fontWeight: '700',
+  sectionSubtitle: {
+    fontSize: 12,
     marginTop: 2,
   },
-  activePlanBadge: {
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: radii.full,
-  },
-  activePlanBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  upgradeMiniBtn: {
+  unlockAllBtn: {
+    alignSelf: 'flex-start',
     paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: radii.full,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    alignItems: 'center',
+    gap: 6,
+    marginTop: spacing.xs,
   },
-  upgradeMiniBtnText: {
-    color: '#ffffff',
+  unlockAllBtnText: {
     fontSize: 12,
     fontWeight: '700',
+    color: '#7c3aed',
   },
-  planDesc: {
-    fontSize: 12.5,
-    lineHeight: 18,
-    marginBottom: spacing.sm,
+  featuresListCol: {
+    gap: spacing.xs,
+    marginBottom: spacing.lg,
   },
-  featuresList: {
-    gap: 6,
-    marginBottom: spacing.sm,
+  featureRowCard: {
+    padding: spacing.sm,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    alignItems: 'center',
+    gap: spacing.sm,
   },
-  featureItemRow: {
+  featureIconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: radii.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  featureInfoContent: {
+    flex: 1,
+  },
+  featureCardName: {
+    fontSize: 13.5,
+    fontWeight: '700',
+  },
+  remainingTimeRow: {
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  remainingTimeText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+  },
+  featureLockedNotice: {
+    fontSize: 11.5,
+    marginTop: 2,
+  },
+  featureUnlockBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: radii.md,
+    borderWidth: 1,
+  },
+  featureUnlockBtnText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
+  contactSupportCard: {
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    padding: spacing.md,
+    gap: spacing.xs,
+  },
+  contactCardHeader: {
     alignItems: 'center',
     gap: spacing.xs,
   },
-  featureItemText: {
-    fontSize: 12.5,
-    flexShrink: 1,
+  contactCardTitle: {
+    fontSize: 14.5,
+    fontWeight: '800',
   },
-  planActionBtn: {
-    paddingVertical: 10,
+  contactCardSub: {
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  contactOpenModalBtn: {
+    width: '100%',
+    paddingVertical: 11,
     borderRadius: radii.lg,
     justifyContent: 'center',
     alignItems: 'center',
     gap: spacing.xs,
     marginTop: spacing.xs,
   },
-  planActionBtnText: {
+  contactOpenModalBtnText: {
     color: '#ffffff',
     fontSize: 13.5,
     fontWeight: '700',

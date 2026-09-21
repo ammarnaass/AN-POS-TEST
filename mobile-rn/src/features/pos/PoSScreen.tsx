@@ -1710,10 +1710,8 @@ export const POSScreen = ({ route, navigation }: any) => {
             }}
             activeOpacity={0.75}
           >
-            {subscriptionStatus?.tier === 'pro' ? (
+            {subscriptionStatus?.isAdFree ? (
               <Crown size={14} color="#f59e0b" />
-            ) : subscriptionStatus?.tier === 'lite' ? (
-              <Zap size={14} color="#3b82f6" />
             ) : (
               <Sparkles size={14} color={colors.emerald[600]} />
             )}
@@ -2997,7 +2995,7 @@ export const POSScreen = ({ route, navigation }: any) => {
         onClose={() => setShowSubscriptionAdModal(false)}
         onRewardClaimed={() => {
           refreshSubscriptionStatus();
-          notify({ type: 'success', message: t('subscription.adCompletedMsg') });
+          notify.success(t('subscription.adCompletedMsg'));
         }}
         onUpgradePress={() => navigation.navigate('Subscription')}
       />

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -57,6 +58,9 @@ import { Card, Badge, Skeleton } from '@/components/ui';
 import { getStoreSettings, type StoreSettings } from '@/lib/settingService';
 import { useSubscriptionStore } from '@/store/subscriptionStore';
 import RewardAdModal from '@/components/subscription/RewardAdModal';
+import RemoveAdsBanner from '@/components/subscription/RemoveAdsBanner';
+import FeatureUnlockAdModal from '@/components/subscription/FeatureUnlockAdModal';
+import ContactUsModal from '@/components/subscription/ContactUsModal';
 
 export const DashboardScreen = ({ navigation }: any) => {
   const { user } = useAuthStore();
@@ -79,12 +83,46 @@ export const DashboardScreen = ({ navigation }: any) => {
   const [currentSession, setCurrentSession] = useState<CashSession | null>(null);
   const [storeSettings, setStoreSettings] = useState<StoreSettings | null>(null);
   const [showRewardAdModal, setShowRewardAdModal] = useState(false);
-  const { status: subscriptionStatus, refreshStatus: refreshSubscriptionStatus } = useSubscriptionStore();
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [lockedFeatureModal, setLockedFeatureModal] = useState<{
+    key: string;
+    name: string;
+    screen: string;
+  } | null>(null);
+
+  const {
+    status: subscriptionStatus,
+    refreshStatus: refreshSubscriptionStatus,
+    isFeatureUnlocked,
+  } = useSubscriptionStore();
+
+  const handleGuardedNavigation = async (
+    featureKey: string,
+    featureName: string,
+    screen: string
+  ) => {
+    if (isConnectedMode || subscriptionStatus?.isAdFree) {
+      navigation.navigate(screen);
+      return;
+    }
+    const unlocked = await isFeatureUnlocked(featureKey);
+    if (unlocked) {
+      navigation.navigate(screen);
+    } else {
+      setLockedFeatureModal({ key: featureKey, name: featureName, screen });
+    }
+  };
 
   useEffect(() => {
     loadDashboardData();
     refreshSubscriptionStatus().catch(() => {});
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshSubscriptionStatus().catch(() => {});
+    }, [refreshSubscriptionStatus])
+  );
 
   async function loadDashboardData() {
     setLoading(true);
@@ -450,127 +488,102 @@ export const DashboardScreen = ({ navigation }: any) => {
         </TouchableOpacity>
       </View>
 
-      {/* ── Standalone Subscription Quota Banner ── */}
+      {/* ── Standalone Subscription & Remove Ads Banner ── */}
       {!isConnectedMode && (
-        <View
-          style={[
-            styles.subBannerCard,
-            {
-              backgroundColor: colors.surface,
-              borderColor:
-                (subscriptionStatus?.remainingSales ?? 300) < 20
-                  ? colors.danger.main
-                  : subscriptionStatus?.tier === 'pro'
-                  ? '#f59e0b'
-                  : subscriptionStatus?.tier === 'lite'
-                  ? '#3b82f6'
-                  : colors.border.default,
-            },
-          ]}
-        >
-          <View style={[styles.subBannerTop, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-            <TouchableOpacity
-              style={[styles.subBannerLeft, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
-              onPress={() => navigation.navigate('Subscription')}
-              activeOpacity={0.8}
+        <View style={{ marginBottom: spacing.xs }}>
+          <RemoveAdsBanner compact style={{ marginBottom: spacing.xs }} />
+
+          {!subscriptionStatus?.isAdFree && (
+            <View
+              style={[
+                styles.subBannerCard,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor:
+                    (subscriptionStatus?.remainingSales ?? 300) < 20
+                      ? colors.danger.main
+                      : colors.border.default,
+                },
+              ]}
             >
-              <View
-                style={[
-                  styles.subIconBox,
-                  {
-                    backgroundColor:
-                      subscriptionStatus?.tier === 'pro'
-                        ? (isDark ? 'rgba(245, 158, 11, 0.2)' : '#fef3c7')
-                        : subscriptionStatus?.tier === 'lite'
-                        ? (isDark ? 'rgba(59, 130, 246, 0.2)' : '#dbeafe')
-                        : (isDark ? 'rgba(16, 185, 129, 0.2)' : '#dcfce7'),
-                  },
-                ]}
-              >
-                {subscriptionStatus?.tier === 'pro' ? (
-                  <Crown size={17} color="#d97706" />
-                ) : subscriptionStatus?.tier === 'lite' ? (
-                  <Zap size={17} color="#2563eb" />
-                ) : (
-                  <Sparkles size={17} color={colors.emerald[600]} />
-                )}
-              </View>
-
-              <View style={{ alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
-                <Text style={[styles.subTierTitle, { color: colors.text.primary }]}>
-                  {subscriptionStatus?.tier === 'pro'
-                    ? t('subscription.pro')
-                    : subscriptionStatus?.tier === 'lite'
-                    ? t('subscription.lite')
-                    : t('subscription.free')}
-                </Text>
-                <Text style={[styles.subQuotaSubtitle, { color: colors.text.secondary }]}>
-                  {t('subscription.salesRemaining')}:{' '}
-                  <Text
-                    style={{
-                      fontWeight: '800',
-                      color:
-                        (subscriptionStatus?.remainingSales ?? 300) < 20
-                          ? colors.danger.main
-                          : colors.emerald[600],
-                    }}
-                  >
-                    {subscriptionStatus?.remainingSales ?? 300}
-                  </Text>{' '}
-                  / {subscriptionStatus?.totalQuota ?? 300} {t('subscription.salesUnit')}
-                </Text>
-              </View>
-            </TouchableOpacity>
-
-            <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }}>
-              {subscriptionStatus?.tier === 'free' ? (
+              <View style={[styles.subBannerTop, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                 <TouchableOpacity
-                  style={[
-                    styles.subAdActionBtn,
-                    { backgroundColor: colors.primary[600], flexDirection: isRTL ? 'row-reverse' : 'row' },
-                  ]}
-                  onPress={() => setShowRewardAdModal(true)}
-                  activeOpacity={0.85}
-                >
-                  <Tv size={13} color="#ffffff" />
-                  <Text style={styles.subAdActionBtnText}>+20 مبيعة</Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  style={[styles.subUpgradeMiniBtn, { backgroundColor: colors.primary[50], borderColor: colors.primary[200] }]}
+                  style={[styles.subBannerLeft, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
                   onPress={() => navigation.navigate('Subscription')}
                   activeOpacity={0.8}
                 >
-                  <Text style={[styles.subUpgradeMiniBtnText, { color: colors.primary[700] }]}>
-                    {t('subscription.upgradePlan')}
-                  </Text>
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity onPress={() => navigation.navigate('Subscription')}>
-                <ChevronIcon size={16} color={colors.text.tertiary} />
-              </TouchableOpacity>
-            </View>
-          </View>
+                  <View
+                    style={[
+                      styles.subIconBox,
+                      {
+                        backgroundColor: isDark ? 'rgba(124, 58, 237, 0.2)' : '#ede9fe',
+                      },
+                    ]}
+                  >
+                    <Sparkles size={17} color="#7c3aed" />
+                  </View>
 
-          {/* Mini progress bar */}
-          <View style={[styles.subMiniProgressTrack, { backgroundColor: isDark ? colors.surfaceElevated : colors.slate[200] }]}>
-            <View
-              style={[
-                styles.subMiniProgressFill,
-                {
-                  width: `${Math.max(
-                    3,
-                    100 -
-                      (subscriptionStatus && subscriptionStatus.totalQuota > 0
-                        ? Math.min(100, Math.round((subscriptionStatus.usedSales / subscriptionStatus.totalQuota) * 100))
-                        : 0)
-                  )}%`,
-                  backgroundColor:
-                    (subscriptionStatus?.remainingSales ?? 300) < 20 ? colors.danger.main : colors.primary[500],
-                },
-              ]}
-            />
-          </View>
+                  <View style={{ alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
+                    <Text style={[styles.subTierTitle, { color: colors.text.primary }]}>
+                      {t('subscription.adSupportedStatus')}
+                    </Text>
+                    <Text style={[styles.subQuotaSubtitle, { color: colors.text.secondary }]}>
+                      {t('subscription.salesRemaining')}:{' '}
+                      <Text
+                        style={{
+                          fontWeight: '800',
+                          color:
+                            (subscriptionStatus?.remainingSales ?? 300) < 20
+                              ? colors.danger.main
+                              : colors.emerald[600],
+                        }}
+                      >
+                        {subscriptionStatus?.remainingSales ?? 300}
+                      </Text>{' '}
+                      / {subscriptionStatus?.totalQuota ?? 300} {t('subscription.salesUnit')}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
+                <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }}>
+                  <TouchableOpacity
+                    style={[
+                      styles.subAdActionBtn,
+                      { backgroundColor: colors.primary[600], flexDirection: isRTL ? 'row-reverse' : 'row' },
+                    ]}
+                    onPress={() => setShowRewardAdModal(true)}
+                    activeOpacity={0.85}
+                  >
+                    <Tv size={13} color="#ffffff" />
+                    <Text style={styles.subAdActionBtnText}>+20 مبيعة</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => navigation.navigate('Subscription')}>
+                    <ChevronIcon size={16} color={colors.text.tertiary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Mini progress bar */}
+              <View style={[styles.subMiniProgressTrack, { backgroundColor: isDark ? colors.surfaceElevated : colors.slate[200] }]}>
+                <View
+                  style={[
+                    styles.subMiniProgressFill,
+                    {
+                      width: `${Math.max(
+                        3,
+                        100 -
+                          (subscriptionStatus && subscriptionStatus.totalQuota > 0
+                            ? Math.min(100, Math.round((subscriptionStatus.usedSales / subscriptionStatus.totalQuota) * 100))
+                            : 0)
+                      )}%`,
+                      backgroundColor:
+                        (subscriptionStatus?.remainingSales ?? 300) < 20 ? colors.danger.main : colors.primary[500],
+                    },
+                  ]}
+                />
+              </View>
+            </View>
+          )}
         </View>
       )}
 
@@ -950,7 +963,7 @@ export const DashboardScreen = ({ navigation }: any) => {
             <View style={[styles.toolsGridRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <TouchableOpacity
                 style={[styles.toolCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
-                onPress={() => navigation.navigate('Warehouses')}
+                onPress={() => handleGuardedNavigation('multi_warehouse', t('nav.warehouses'), 'Warehouses')}
               >
                 <Warehouse size={18} color={colors.amber[700]} />
                 <Text style={[styles.toolCardTitle, { color: colors.text.primary }]}>{t('nav.warehouses')}</Text>
@@ -958,7 +971,7 @@ export const DashboardScreen = ({ navigation }: any) => {
 
               <TouchableOpacity
                 style={[styles.toolCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
-                onPress={() => navigation.navigate('ProfitCenter')}
+                onPress={() => handleGuardedNavigation('profit_center', t('profitCenter.title'), 'ProfitCenter')}
               >
                 <BarChart3 size={18} color={colors.emerald[700]} />
                 <Text style={[styles.toolCardTitle, { color: colors.text.primary }]}>{t('profitCenter.title')}</Text>
@@ -968,7 +981,7 @@ export const DashboardScreen = ({ navigation }: any) => {
             <View style={[styles.toolsGridRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <TouchableOpacity
                 style={[styles.toolCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
-                onPress={() => navigation.navigate('ZakatCalculator')}
+                onPress={() => handleGuardedNavigation('zakat_calculator', t('zakatCalculator.title'), 'ZakatCalculator')}
               >
                 <Calculator size={18} color={colors.amber[700]} />
                 <Text style={[styles.toolCardTitle, { color: colors.text.primary }]}>{t('zakatCalculator.title')}</Text>
@@ -976,7 +989,7 @@ export const DashboardScreen = ({ navigation }: any) => {
 
               <TouchableOpacity
                 style={[styles.toolCard, { backgroundColor: colors.surface, borderColor: colors.border.default }]}
-                onPress={() => navigation.navigate('BarcodeLabels')}
+                onPress={() => handleGuardedNavigation('barcode_labels', t('barcodeLabels.title'), 'BarcodeLabels')}
               >
                 <Barcode size={18} color={colors.purple[700]} />
                 <Text style={[styles.toolCardTitle, { color: colors.text.primary }]}>{t('barcodeLabels.title')}</Text>
@@ -1119,6 +1132,34 @@ export const DashboardScreen = ({ navigation }: any) => {
           refreshSubscriptionStatus();
         }}
         onUpgradePress={() => navigation.navigate('Subscription')}
+      />
+
+      {/* ── Feature Unlock Rewarded Ad Modal ── */}
+      {lockedFeatureModal && (
+        <FeatureUnlockAdModal
+          visible={!!lockedFeatureModal}
+          featureKey={lockedFeatureModal.key}
+          featureTitle={lockedFeatureModal.name}
+          onClose={() => setLockedFeatureModal(null)}
+          onUnlocked={() => {
+            const target = lockedFeatureModal.screen;
+            setLockedFeatureModal(null);
+            navigation.navigate(target);
+          }}
+          onContactUsPress={() => {
+            setLockedFeatureModal(null);
+            setShowContactModal(true);
+          }}
+        />
+      )}
+
+      {/* ── Contact Us to Remove Ads Modal ── */}
+      <ContactUsModal
+        visible={showContactModal}
+        onClose={() => setShowContactModal(false)}
+        onSuccess={() => {
+          refreshSubscriptionStatus();
+        }}
       />
     </ScrollView>
   );

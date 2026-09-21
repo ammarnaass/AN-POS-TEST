@@ -4,6 +4,10 @@ import {
   incrementSaleUsage,
   claimRewardAdBonus,
   upgradeSubscription,
+  isFeatureUnlocked as checkFeatureUnlocked,
+  unlockFeatureWithAd,
+  unlockAllFeaturesWithAd,
+  activateAdFree as activateAdFreeService,
   type SubscriptionStatus,
   type SubscriptionTier,
 } from '@/lib/subscriptionService';
@@ -15,6 +19,10 @@ interface SubscriptionStoreState {
   consumeSale: () => Promise<number>;
   claimAdReward: () => Promise<{ success: boolean; bonusAdded: number; newRemaining: number }>;
   upgrade: (tier: SubscriptionTier, licenseKey?: string) => Promise<boolean>;
+  isFeatureUnlocked: (featureKey: string) => Promise<boolean>;
+  unlockFeature: (featureKey: string, hours?: number) => Promise<{ success: boolean; expiresAt: string }>;
+  unlockAllFeatures: (hours?: number) => Promise<{ success: boolean; expiresAt: string }>;
+  activateAdFree: (code: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 export const useSubscriptionStore = create<SubscriptionStoreState>((set, get) => ({
@@ -32,13 +40,14 @@ export const useSubscriptionStore = create<SubscriptionStoreState>((set, get) =>
       set({ loading: false });
       return (
         get().status || {
-          tier: 'free',
+          isAdFree: false,
           baseQuota: 300,
           bonusSales: 0,
           usedSales: 0,
           totalQuota: 300,
           remainingSales: 300,
           adsWatched: 0,
+          unlockedFeatures: {},
           isUnlimitedOrConnected: false,
         }
       );
@@ -69,24 +78,63 @@ export const useSubscriptionStore = create<SubscriptionStoreState>((set, get) =>
     set({ loading: true });
     try {
       const res = await claimRewardAdBonus();
-      const current = get().status;
-      if (current) {
-        set({
-          status: {
-            ...current,
-            bonusSales: current.bonusSales + res.bonusAdded,
-            totalQuota: res.newTotalQuota,
-            remainingSales: res.newRemaining,
-            adsWatched: current.adsWatched + 1,
-          },
-          loading: false,
-        });
-      }
+      const updatedStatus = await getSubscriptionStatus();
+      set({ status: updatedStatus, loading: false });
       return res;
     } catch (err) {
       console.warn('[subscriptionStore] claimAdReward error:', err);
       set({ loading: false });
       return { success: false, bonusAdded: 0, newRemaining: 0 };
+    }
+  },
+
+  isFeatureUnlocked: async (featureKey: string) => {
+    return checkFeatureUnlocked(featureKey);
+  },
+
+  unlockFeature: async (featureKey: string, hours?: number) => {
+    set({ loading: true });
+    try {
+      const res = await unlockFeatureWithAd(featureKey, hours);
+      const updatedStatus = await getSubscriptionStatus();
+      set({ status: updatedStatus, loading: false });
+      return res;
+    } catch (err) {
+      console.warn('[subscriptionStore] unlockFeature error:', err);
+      set({ loading: false });
+      return { success: false, expiresAt: '' };
+    }
+  },
+
+  unlockAllFeatures: async (hours?: number) => {
+    set({ loading: true });
+    try {
+      const res = await unlockAllFeaturesWithAd(hours);
+      const updatedStatus = await getSubscriptionStatus();
+      set({ status: updatedStatus, loading: false });
+      return res;
+    } catch (err) {
+      console.warn('[subscriptionStore] unlockAllFeatures error:', err);
+      set({ loading: false });
+      return { success: false, expiresAt: '' };
+    }
+  },
+
+  activateAdFree: async (code: string) => {
+    set({ loading: true });
+    try {
+      const res = await activateAdFreeService(code);
+      if (res.success) {
+        const updatedStatus = await getSubscriptionStatus();
+        set({ status: updatedStatus, loading: false });
+      } else {
+        set({ loading: false });
+      }
+      return res;
+    } catch (err) {
+      console.warn('[subscriptionStore] activateAdFree error:', err);
+      set({ loading: false });
+      return { success: false, error: 'حدث خطأ غير متوقع' };
     }
   },
 

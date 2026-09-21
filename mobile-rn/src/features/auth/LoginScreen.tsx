@@ -42,7 +42,7 @@ import { useI18n } from '@/store/i18nStore';
 import { AppImages } from '@/assets';
 import { db, ensureInit } from '@/lib/db';
 import { getStoredMode, db as unifiedDB } from '@/infrastructure/database/UnifiedDB';
-import { TIER_QUOTAS, type SubscriptionTier } from '@/lib/subscriptionService';
+import { BASE_FREE_QUOTA } from '@/lib/subscriptionService';
 import { session } from '@/lib/apiClient';
 import { useTheme } from '@/theme';
 import { radii, spacing, typography, shadows } from '@/theme/tokens';
@@ -83,7 +83,6 @@ export const LoginScreen = ({ navigation }: any) => {
   const [regPhone, setRegPhone] = useState('');
   const [regPin, setRegPin] = useState('');
   const [regPinConfirm, setRegPinConfirm] = useState('');
-  const [selectedTier, setSelectedTier] = useState<SubscriptionTier>('free');
 
   // Android hardware back button handler
   useEffect(() => {
@@ -153,6 +152,13 @@ export const LoginScreen = ({ navigation }: any) => {
             setView('register');
           } else {
             setIsFirstRun(false);
+            const allUsers = (await db.users.toArray().catch(() => [])) as any[];
+            if (allUsers.length > 0 && allUsers[0]?.username) {
+              setUsername(allUsers[0].username);
+              if (allUsers[0].pin) {
+                setPin(allUsers[0].pin);
+              }
+            }
           }
         } else {
           setIsFirstRun(false);
@@ -292,7 +298,7 @@ export const LoginScreen = ({ navigation }: any) => {
         phone: regPhone.trim(),
         role: 'admin',
         status: 'active',
-        subscription_tier: selectedTier,
+        subscription_tier: 'free',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -301,10 +307,10 @@ export const LoginScreen = ({ navigation }: any) => {
 
       // Save initial subscription tier & quota in settings
       const settingsList = await db.settings.toArray().catch(() => []);
-      const baseQuota = TIER_QUOTAS[selectedTier] || 300;
+      const baseQuota = BASE_FREE_QUOTA;
       if (settingsList.length > 0) {
         await db.settings.update(settingsList[0].id, {
-          subscription_tier: selectedTier,
+          subscription_tier: 'free',
           subscription_base_quota: baseQuota,
           subscription_bonus_sales: 0,
           subscription_used_sales: 0,
@@ -858,134 +864,46 @@ export const LoginScreen = ({ navigation }: any) => {
             </View>
           </View>
 
-          {/* Subscription Tier Selection */}
-          <View style={styles.inputGroup}>
-            <Text style={[styles.fieldLabel, { color: colors.text.primary, textAlign: isRTL ? 'right' : 'left' }]}>
-              {t('subscription.selectPlan')}
+          {/* Ad-Supported Standalone Notice */}
+          <View
+            style={[
+              styles.adNoticeBox,
+              {
+                backgroundColor: isDark ? 'rgba(30, 27, 75, 0.45)' : '#ede9fe',
+                borderColor: isDark ? '#4338ca' : '#c7d2fe',
+              },
+            ]}
+          >
+            <View style={[styles.adNoticeHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <Sparkles size={18} color="#8b5cf6" />
+              <Text style={[styles.adNoticeTitle, { color: isDark ? '#f5f3ff' : '#4c1d95' }]}>
+                {t('subscription.adSupportedFreeAccountTitle')}
+              </Text>
+            </View>
+
+            <Text style={[styles.adNoticeDesc, { color: isDark ? '#c7d2fe' : '#5b21b6', textAlign: isRTL ? 'right' : 'left' }]}>
+              {t('subscription.adSupportedFreeAccountDesc')}
             </Text>
-            <View style={styles.planSelectorCol}>
-              {/* Free Plan */}
-              <TouchableOpacity
-                style={[
-                  styles.planOptionRow,
-                  {
-                    backgroundColor: inputBg,
-                    borderColor: selectedTier === 'free' ? colors.primary[500] : borderColor,
-                    flexDirection: isRTL ? 'row-reverse' : 'row',
-                  },
-                  selectedTier === 'free' && {
-                    backgroundColor: isDark ? 'rgba(37, 99, 235, 0.1)' : '#eff6ff',
-                    borderWidth: 2,
-                  },
-                ]}
-                onPress={() => setSelectedTier('free')}
-                activeOpacity={0.8}
-              >
-                <View style={[styles.planOptionIconBox, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.2)' : '#dcfce7' }]}>
-                  <Sparkles size={18} color={colors.emerald[600]} />
-                </View>
-                <View style={{ flex: 1, alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
-                  <Text style={[styles.planOptionTitle, { color: colors.text.primary }]}>
-                    {t('subscription.free')} (300 {t('subscription.salesUnit')})
-                  </Text>
-                  <Text style={[styles.planOptionSub, { color: colors.text.secondary }]}>
-                    {t('subscription.freeDesc')}
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.radioCircle,
-                    {
-                      borderColor: selectedTier === 'free' ? colors.primary[600] : colors.border.default,
-                    },
-                    selectedTier === 'free' && { backgroundColor: colors.primary[600] },
-                  ]}
-                >
-                  {selectedTier === 'free' && <Check size={11} color="#fff" />}
-                </View>
-              </TouchableOpacity>
 
-              {/* Lite Plan */}
-              <TouchableOpacity
-                style={[
-                  styles.planOptionRow,
-                  {
-                    backgroundColor: inputBg,
-                    borderColor: selectedTier === 'lite' ? '#3b82f6' : borderColor,
-                    flexDirection: isRTL ? 'row-reverse' : 'row',
-                  },
-                  selectedTier === 'lite' && {
-                    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#eff6ff',
-                    borderWidth: 2,
-                  },
-                ]}
-                onPress={() => setSelectedTier('lite')}
-                activeOpacity={0.8}
-              >
-                <View style={[styles.planOptionIconBox, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#dbeafe' }]}>
-                  <Zap size={18} color="#2563eb" />
-                </View>
-                <View style={{ flex: 1, alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
-                  <Text style={[styles.planOptionTitle, { color: colors.text.primary }]}>
-                    {t('subscription.lite')} (5,000 {t('subscription.salesUnit')})
-                  </Text>
-                  <Text style={[styles.planOptionSub, { color: colors.text.secondary }]}>
-                    {t('subscription.liteDesc')}
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.radioCircle,
-                    {
-                      borderColor: selectedTier === 'lite' ? '#2563eb' : colors.border.default,
-                    },
-                    selectedTier === 'lite' && { backgroundColor: '#2563eb' },
-                  ]}
-                >
-                  {selectedTier === 'lite' && <Check size={11} color="#fff" />}
-                </View>
-              </TouchableOpacity>
-
-              {/* Pro Plan */}
-              <TouchableOpacity
-                style={[
-                  styles.planOptionRow,
-                  {
-                    backgroundColor: inputBg,
-                    borderColor: selectedTier === 'pro' ? '#f59e0b' : borderColor,
-                    flexDirection: isRTL ? 'row-reverse' : 'row',
-                  },
-                  selectedTier === 'pro' && {
-                    backgroundColor: isDark ? 'rgba(245, 158, 11, 0.1)' : '#fef3c7',
-                    borderWidth: 2,
-                  },
-                ]}
-                onPress={() => setSelectedTier('pro')}
-                activeOpacity={0.8}
-              >
-                <View style={[styles.planOptionIconBox, { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.2)' : '#fde68a' }]}>
-                  <Crown size={18} color="#d97706" />
-                </View>
-                <View style={{ flex: 1, alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
-                  <Text style={[styles.planOptionTitle, { color: colors.text.primary }]}>
-                    {t('subscription.pro')} (100,000 {t('subscription.salesUnit')})
-                  </Text>
-                  <Text style={[styles.planOptionSub, { color: colors.text.secondary }]}>
-                    {t('subscription.proDesc')}
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.radioCircle,
-                    {
-                      borderColor: selectedTier === 'pro' ? '#d97706' : colors.border.default,
-                    },
-                    selectedTier === 'pro' && { backgroundColor: '#d97706' },
-                  ]}
-                >
-                  {selectedTier === 'pro' && <Check size={11} color="#fff" />}
-                </View>
-              </TouchableOpacity>
+            <View style={[styles.adNoticePoints, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+              <View style={[styles.adPointRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <Check size={14} color="#8b5cf6" />
+                <Text style={[styles.adPointText, { color: isDark ? '#e0e7ff' : '#3730a3' }]}>
+                  {t('subscription.starterQuotaDesc')}
+                </Text>
+              </View>
+              <View style={[styles.adPointRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <Check size={14} color="#8b5cf6" />
+                <Text style={[styles.adPointText, { color: isDark ? '#e0e7ff' : '#3730a3' }]}>
+                  {t('subscription.rewardAdUnlockNotice')}
+                </Text>
+              </View>
+              <View style={[styles.adPointRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <Crown size={14} color="#f59e0b" />
+                <Text style={[styles.adPointText, { color: isDark ? '#fde68a' : '#92400e', fontWeight: '700' }]}>
+                  {t('subscription.contactUsAnytimeToRemoveAds')}
+                </Text>
+              </View>
             </View>
           </View>
 
@@ -1417,43 +1335,41 @@ const styles = StyleSheet.create({
     fontFamily: 'Cairo',
     fontWeight: '700',
   },
-  planSelectorCol: {
-    gap: 8,
-    marginTop: 4,
-    width: '100%',
-  },
-  planOptionRow: {
-    padding: 10,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    alignItems: 'center',
-    gap: 10,
-  },
-  planOptionIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: radii.md,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  planOptionTitle: {
-    fontSize: 13.5,
-    fontFamily: 'Cairo',
-    fontWeight: '700',
-  },
-  planOptionSub: {
-    fontSize: 11,
-    fontFamily: 'Cairo',
-    marginTop: 2,
-    lineHeight: 15,
-  },
-  radioCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: radii.full,
+  adNoticeBox: {
+    padding: spacing.md,
+    borderRadius: radii.xl,
     borderWidth: 1.5,
-    justifyContent: 'center',
+    marginTop: spacing.xs,
+    marginBottom: spacing.xs,
+    width: '100%',
+    gap: spacing.sm,
+  },
+  adNoticeHeader: {
     alignItems: 'center',
+    gap: spacing.xs,
+  },
+  adNoticeTitle: {
+    fontSize: 14.5,
+    fontFamily: 'Cairo',
+    fontWeight: '800',
+  },
+  adNoticeDesc: {
+    fontSize: 12,
+    fontFamily: 'Cairo',
+    lineHeight: 17,
+  },
+  adNoticePoints: {
+    gap: 6,
+    marginTop: 2,
+  },
+  adPointRow: {
+    alignItems: 'center',
+    gap: 6,
+  },
+  adPointText: {
+    fontSize: 12,
+    fontFamily: 'Cairo',
+    fontWeight: '600',
   },
 });
 

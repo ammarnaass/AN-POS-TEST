@@ -10,45 +10,55 @@ import {
   Easing,
 } from 'react-native';
 import {
+  Lock,
   Sparkles,
-  Zap,
-  Play,
-  CheckCircle2,
-  AlertCircle,
-  X,
-  ArrowRight,
-  ArrowLeft,
-  Crown,
   Tv,
+  CheckCircle2,
+  X,
+  Clock,
+  Crown,
 } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { useI18n } from '@/store/i18nStore';
 import { radii, spacing, shadows } from '@/theme/tokens';
+import { LOCKED_FEATURES, UNLOCK_DURATION_HOURS } from '@/lib/subscriptionService';
 import { useSubscriptionStore } from '@/store/subscriptionStore';
-import ContactUsModal from './ContactUsModal';
 
-interface RewardAdModalProps {
+interface FeatureUnlockAdModalProps {
   visible: boolean;
+  featureKey: string;
+  featureTitle?: string;
+  featureDescription?: string;
   onClose: () => void;
-  onRewardClaimed?: () => void;
-  onUpgradePress?: () => void;
+  onUnlocked?: () => void;
+  onContactUsPress?: () => void;
 }
 
-export const RewardAdModal: React.FC<RewardAdModalProps> = ({
+export const FeatureUnlockAdModal: React.FC<FeatureUnlockAdModalProps> = ({
   visible,
+  featureKey,
+  featureTitle,
+  featureDescription,
   onClose,
-  onRewardClaimed,
-  onUpgradePress,
+  onUnlocked,
+  onContactUsPress,
 }) => {
   const { colors, isDark } = useTheme();
   const { t, isRTL } = useI18n();
-  const { status, claimAdReward, refreshStatus } = useSubscriptionStore();
+  const { unlockFeature } = useSubscriptionStore();
 
   const [step, setStep] = useState<'prompt' | 'watching' | 'completed'>('prompt');
   const [countdown, setCountdown] = useState(5);
-  const [loadingClaim, setLoadingClaim] = useState(false);
+  const [loadingUnlock, setLoadingUnlock] = useState(false);
   const [progressAnim] = useState(new Animated.Value(0));
-  const [showContactModal, setShowContactModal] = useState(false);
+
+  const featMeta = LOCKED_FEATURES[featureKey] || {
+    name: featureTitle || 'ميزة متقدمة',
+    desc: featureDescription || 'هذه الميزة متاحة عبر مشاهدة إعلان قصير لمدة 24 ساعة.',
+  };
+
+  const displayName = featureTitle || featMeta.name;
+  const displayDesc = featureDescription || featMeta.desc;
 
   useEffect(() => {
     if (visible) {
@@ -56,7 +66,7 @@ export const RewardAdModal: React.FC<RewardAdModalProps> = ({
       setCountdown(5);
       progressAnim.setValue(0);
     }
-  }, [visible]);
+  }, [visible, featureKey]);
 
   const startWatchingAd = () => {
     setStep('watching');
@@ -82,34 +92,31 @@ export const RewardAdModal: React.FC<RewardAdModalProps> = ({
   };
 
   const handleAdFinished = async () => {
-    setLoadingClaim(true);
+    setLoadingUnlock(true);
     try {
-      await claimAdReward();
+      await unlockFeature(featureKey, UNLOCK_DURATION_HOURS);
       setStep('completed');
     } catch (e) {
-      console.warn('Claim reward failed:', e);
+      console.warn('Unlock feature failed:', e);
     } finally {
-      setLoadingClaim(false);
+      setLoadingUnlock(false);
     }
   };
 
-  const handleDone = () => {
+  const handleEnterFeature = () => {
     onClose();
-    if (onRewardClaimed) {
-      onRewardClaimed();
+    if (onUnlocked) {
+      onUnlocked();
     }
   };
-
-  const NextArrow = isRTL ? ArrowLeft : ArrowRight;
 
   return (
-    <>
-      <Modal
-        visible={visible}
-        transparent
-        animationType="fade"
-        onRequestClose={step === 'watching' ? () => {} : onClose}
-      >
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={step === 'watching' ? () => {} : onClose}
+    >
       <View style={styles.backdrop}>
         <View
           style={[
@@ -120,7 +127,7 @@ export const RewardAdModal: React.FC<RewardAdModalProps> = ({
             },
           ]}
         >
-          {/* Top Close Button (disabled while watching) */}
+          {/* Close button */}
           {step !== 'watching' && (
             <TouchableOpacity
               style={[
@@ -137,46 +144,48 @@ export const RewardAdModal: React.FC<RewardAdModalProps> = ({
             </TouchableOpacity>
           )}
 
-          {/* ── STEP 1: Prompt to Watch Ad or Upgrade ── */}
+          {/* ── STEP 1: Prompt to Unlock with Ad ── */}
           {step === 'prompt' && (
             <View style={styles.body}>
               <View
                 style={[
                   styles.iconCircle,
                   {
-                    backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#fee2e2',
+                    backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : '#fef3c7',
                   },
                 ]}
               >
-                <AlertCircle size={32} color={colors.danger.main} />
+                <Lock size={32} color="#f59e0b" />
               </View>
 
               <Text style={[styles.title, { color: colors.text.primary }]}>
-                {t('subscription.limitReached')}
+                {t('subscription.featureLocked')}
+              </Text>
+              <Text style={[styles.featureHighlightName, { color: colors.primary[600] }]}>
+                {displayName}
               </Text>
               <Text style={[styles.description, { color: colors.text.secondary }]}>
-                {t('subscription.limitReachedDesc')}
+                {displayDesc}
               </Text>
 
-              {/* Status Pill */}
+              {/* Unlock Pass Info Badge */}
               <View
                 style={[
-                  styles.statusPill,
+                  styles.durationBadge,
                   {
-                    backgroundColor: isDark ? colors.surfaceElevated : colors.surfaceSubtle,
-                    borderColor: colors.border.default,
+                    backgroundColor: isDark ? colors.surfaceElevated : '#f0fdf4',
+                    borderColor: colors.emerald[300],
+                    flexDirection: isRTL ? 'row-reverse' : 'row',
                   },
                 ]}
               >
-                <Text style={[styles.statusPillLabel, { color: colors.text.tertiary }]}>
-                  {t('subscription.salesUsed')}:
-                </Text>
-                <Text style={[styles.statusPillValue, { color: colors.danger.main }]}>
-                  {status?.usedSales || 300} / {status?.totalQuota || 300} {t('subscription.salesUnit')}
+                <Clock size={16} color={colors.emerald[600]} />
+                <Text style={[styles.durationBadgeText, { color: colors.emerald[700] }]}>
+                  {t('subscription.unlockedBadge')}
                 </Text>
               </View>
 
-              {/* Action 1: Watch Ad (+20 Sales) */}
+              {/* Action 1: Watch Ad to Unlock */}
               <TouchableOpacity
                 style={[
                   styles.primaryRewardBtn,
@@ -190,40 +199,37 @@ export const RewardAdModal: React.FC<RewardAdModalProps> = ({
               >
                 <Tv size={20} color="#ffffff" />
                 <Text style={styles.primaryRewardBtnText}>
-                  {t('subscription.watchAdBtn')}
+                  {t('subscription.unlockWithAdBtn')}
                 </Text>
               </TouchableOpacity>
 
               {/* Action 2: Remove Ads / Contact Us */}
-              <TouchableOpacity
-                style={[
-                  styles.secondaryUpgradeBtn,
-                  {
-                    borderColor: colors.border.default,
-                    backgroundColor: isDark ? colors.surfaceElevated : '#f8fafc',
-                    flexDirection: isRTL ? 'row-reverse' : 'row',
-                  },
-                ]}
-                onPress={() => {
-                  if (onUpgradePress) {
+              {onContactUsPress && (
+                <TouchableOpacity
+                  style={[
+                    styles.secondaryContactBtn,
+                    {
+                      borderColor: colors.border.default,
+                      backgroundColor: isDark ? colors.surfaceElevated : '#f8fafc',
+                      flexDirection: isRTL ? 'row-reverse' : 'row',
+                    },
+                  ]}
+                  onPress={() => {
                     onClose();
-                    onUpgradePress();
-                  } else {
-                    setShowContactModal(true);
-                  }
-                }}
-                activeOpacity={0.8}
-              >
-                <Crown size={18} color={colors.amber[500]} />
-                <Text style={[styles.secondaryUpgradeBtnText, { color: colors.text.primary }]}>
-                  {t('subscription.removeAdsBannerCta')}
-                </Text>
-                <NextArrow size={16} color={colors.text.tertiary} />
-              </TouchableOpacity>
+                    onContactUsPress();
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Crown size={17} color={colors.amber[500]} />
+                  <Text style={[styles.secondaryContactBtnText, { color: colors.text.primary }]}>
+                    {t('subscription.removeAdsBannerCta')}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
 
-          {/* ── STEP 2: Watching Ad (Simulation / Ad Engine) ── */}
+          {/* ── STEP 2: Watching Ad ── */}
           {step === 'watching' && (
             <View style={styles.body}>
               <View
@@ -244,10 +250,10 @@ export const RewardAdModal: React.FC<RewardAdModalProps> = ({
                 </View>
 
                 <View style={styles.adContentCenter}>
-                  <Sparkles size={48} color="#60a5fa" />
+                  <Sparkles size={46} color="#60a5fa" />
                   <Text style={styles.adPromoTitle}>AN POS Cloud & Desktop</Text>
                   <Text style={styles.adPromoSubtitle}>
-                    إدارة نقاط البيع والمخزون المتعدد بكل سهولة ومزامنة فورية بين الأجهزة
+                    إدارة شاملة لنقاط البيع، المزامنة الفورية مع سطح المكتب، وتقارير أرباح متقدمة
                   </Text>
                 </View>
 
@@ -268,7 +274,7 @@ export const RewardAdModal: React.FC<RewardAdModalProps> = ({
               </View>
 
               <View style={styles.watchingStatusRow}>
-                {loadingClaim ? (
+                {loadingUnlock ? (
                   <ActivityIndicator size="small" color={colors.primary[500]} />
                 ) : (
                   <Text style={[styles.watchingStatusText, { color: colors.text.secondary }]}>
@@ -279,7 +285,7 @@ export const RewardAdModal: React.FC<RewardAdModalProps> = ({
             </View>
           )}
 
-          {/* ── STEP 3: Completed & Rewarded ── */}
+          {/* ── STEP 3: Completed & Unlocked ── */}
           {step === 'completed' && (
             <View style={styles.body}>
               <View
@@ -294,32 +300,14 @@ export const RewardAdModal: React.FC<RewardAdModalProps> = ({
               </View>
 
               <Text style={[styles.title, { color: colors.text.primary }]}>
-                {t('subscription.adCompletedTitle')}
+                {t('subscription.unlockedSuccessTitle')}
+              </Text>
+              <Text style={[styles.featureHighlightName, { color: colors.emerald[600] }]}>
+                {displayName}
               </Text>
               <Text style={[styles.description, { color: colors.text.secondary }]}>
-                {t('subscription.adCompletedMsg')}
+                {t('subscription.unlockedSuccessMsg')}
               </Text>
-
-              {/* Reward Highlight Box */}
-              <View
-                style={[
-                  styles.rewardSuccessBox,
-                  {
-                    backgroundColor: isDark ? 'rgba(16, 185, 129, 0.1)' : '#f0fdf4',
-                    borderColor: colors.emerald[300],
-                  },
-                ]}
-              >
-                <Zap size={22} color={colors.emerald[600]} />
-                <View style={{ alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
-                  <Text style={[styles.rewardSuccessNumber, { color: colors.emerald[700] }]}>
-                    +20 {t('subscription.salesUnit')}
-                  </Text>
-                  <Text style={[styles.rewardSuccessSub, { color: colors.text.secondary }]}>
-                    {t('subscription.salesRemaining')}: {status?.remainingSales || 20} {t('subscription.salesUnit')}
-                  </Text>
-                </View>
-              </View>
 
               <TouchableOpacity
                 style={[
@@ -330,12 +318,12 @@ export const RewardAdModal: React.FC<RewardAdModalProps> = ({
                     marginTop: spacing.md,
                   },
                 ]}
-                onPress={handleDone}
+                onPress={handleEnterFeature}
                 activeOpacity={0.88}
               >
                 <CheckCircle2 size={18} color="#ffffff" />
                 <Text style={styles.primaryRewardBtnText}>
-                  متابعة عملية البيع الآن
+                  {t('subscription.enterFeatureBtn')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -343,16 +331,6 @@ export const RewardAdModal: React.FC<RewardAdModalProps> = ({
         </View>
       </View>
     </Modal>
-
-    <ContactUsModal
-      visible={showContactModal}
-      onClose={() => setShowContactModal(false)}
-      onSuccess={() => {
-        refreshStatus();
-        onClose();
-      }}
-    />
-  </>
   );
 };
 
@@ -398,17 +376,22 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     textAlign: 'center',
+    marginBottom: 4,
+  },
+  featureHighlightName: {
+    fontSize: 16,
+    fontWeight: '800',
+    textAlign: 'center',
     marginBottom: spacing.xs,
   },
   description: {
-    fontSize: 13.5,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 19,
     textAlign: 'center',
     marginBottom: spacing.md,
     paddingHorizontal: spacing.sm,
   },
-  statusPill: {
-    flexDirection: 'row',
+  durationBadge: {
     alignItems: 'center',
     gap: spacing.xs,
     paddingVertical: spacing.xs,
@@ -417,11 +400,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: spacing.lg,
   },
-  statusPillLabel: {
+  durationBadgeText: {
     fontSize: 12.5,
-  },
-  statusPillValue: {
-    fontSize: 13,
     fontWeight: '700',
   },
   primaryRewardBtn: {
@@ -435,10 +415,10 @@ const styles = StyleSheet.create({
   },
   primaryRewardBtnText: {
     color: '#ffffff',
-    fontSize: 15,
+    fontSize: 14.5,
     fontWeight: '700',
   },
-  secondaryUpgradeBtn: {
+  secondaryContactBtn: {
     width: '100%',
     paddingVertical: 12,
     borderRadius: radii.lg,
@@ -448,11 +428,10 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     marginTop: spacing.sm,
   },
-  secondaryUpgradeBtnText: {
-    fontSize: 14,
+  secondaryContactBtnText: {
+    fontSize: 13.5,
     fontWeight: '600',
   },
-  // Ad Player Simulation Styles
   adPlayerCard: {
     width: '100%',
     height: 200,
@@ -460,7 +439,6 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     justifyContent: 'space-between',
     overflow: 'hidden',
-    position: 'relative',
   },
   adHeader: {
     flexDirection: 'row',
@@ -527,24 +505,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
   },
-  rewardSuccessBox: {
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    padding: spacing.md,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    marginBottom: spacing.xs,
-  },
-  rewardSuccessNumber: {
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  rewardSuccessSub: {
-    fontSize: 12.5,
-    marginTop: 2,
-  },
 });
 
-export default RewardAdModal;
+export default FeatureUnlockAdModal;

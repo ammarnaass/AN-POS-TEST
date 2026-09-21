@@ -36,8 +36,8 @@ export default function BootstrapScreen({ navigation }: Props) {
 
     // 4-second maximum safety timeout
     const timeout = setTimeout(() => {
-      console.warn('[BootstrapScreen] ⏱️ Timeout reached, defaulting to ModeSelect');
-      safeNavigate('ModeSelect');
+      console.warn('[BootstrapScreen] ⏱️ Timeout reached, defaulting to Login');
+      safeNavigate('Login');
     }, 4000);
 
     const bootstrap = async () => {
@@ -99,26 +99,13 @@ export default function BootstrapScreen({ navigation }: Props) {
           return;
         }
 
-        // Not connected mode: check if stored mode is standalone
-        const mode = await getStoredMode();
-        if (mode === 'standalone') {
-          // Check if standalone local users exist
-          const totalUsers = await db.users.count().catch(() => 0);
-          clearTimeout(timeout);
-          if (totalUsers > 0) {
-            safeNavigate('Login');
-          } else {
-            safeNavigate('ModeSelect');
-          }
-          return;
-        }
-
+        // Default direct navigation to Login screen
         clearTimeout(timeout);
-        safeNavigate('ModeSelect');
+        safeNavigate('Login');
       } catch (err) {
         console.warn('[BootstrapScreen] Bootstrap error:', err);
         clearTimeout(timeout);
-        safeNavigate('ModeSelect');
+        safeNavigate('Login');
       }
     };
 

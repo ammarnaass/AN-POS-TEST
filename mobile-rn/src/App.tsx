@@ -115,13 +115,16 @@ export default function App() {
         />
         <NavigationContainer theme={navTheme}>
           <Stack.Navigator
-            initialRouteName="Bootstrap"
+            initialRouteName="Login"
             screenOptions={{
               animation: 'slide_from_right',
               headerShown: false,
               contentStyle: { backgroundColor: colors.background },
             }}
           >
+            {/* Auth — Direct entry on app launch */}
+            <Stack.Screen name="Login" component={LoginScreen} />
+
             {/* Bootstrap Splash & Auto-Restore */}
             <Stack.Screen name="Bootstrap" component={BootstrapScreen} />
 
@@ -130,9 +133,6 @@ export default function App() {
 
             {/* Pair / Connection Hub */}
             <Stack.Screen name="Pair" component={PairScreen} />
-
-            {/* Auth */}
-            <Stack.Screen name="Login" component={LoginScreen} />
 
             {/* Main app — bottom tabs */}
             <Stack.Screen name="Home" component={HomeTabs} />
