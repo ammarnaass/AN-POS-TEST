@@ -248,13 +248,13 @@ export const Design7BottomFavoritesPad: React.FC<Design7BottomFavoritesPadProps>
         </div>
       </div>
 
-      {/* Center 4x4 Product Grid: عبوات المفضلة فقط - عرض وأبعاد موسعة لإظهار الاسم والسعر بوضوح */}
+      {/* Center Product Grid: عبوات المفضلة فقط - عرض أوسع وأبعاد مريحة لإظهار الاسم والسعر بوضوح */}
       <div
-        className="flex-1 grid grid-cols-4 grid-rows-4 gap-1 sm:gap-1.5 overflow-hidden"
+        className="flex-1 grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 gap-1.5 sm:gap-2 overflow-hidden"
         data-purpose="product-speed-dial"
       >
         {activePacksList.length === 0 ? (
-          <div className="col-span-4 row-span-4 flex flex-col items-center justify-center p-2 text-center text-slate-600 bg-white/40 rounded border border-dashed border-slate-300">
+          <div className="col-span-3 md:col-span-4 row-span-4 flex flex-col items-center justify-center p-2 text-center text-slate-600 bg-white/40 rounded border border-dashed border-slate-300">
             <Package className="w-6 h-6 text-amber-600 mb-1 opacity-80" />
             <span className="text-xs font-bold text-slate-800">لا توجد عبوات في هذا التصنيف المفضل</span>
             <button
@@ -294,27 +294,27 @@ export const Design7BottomFavoritesPad: React.FC<Design7BottomFavoritesPadProps>
                     }
                   }}
                   title={`${pack.name} - ${formatMoney(displayPrice)} (${pack.isPack === false ? 'سلعة' : 'عبوة'})`}
-                  className="d7-glossy-product-tile rounded p-1 flex flex-col justify-between items-center text-center cursor-pointer overflow-hidden group active:scale-95 transition-all shadow-sm hover:shadow-md min-h-[38px]"
+                  className="d7-glossy-product-tile rounded p-1.5 sm:p-2 flex flex-col justify-between items-center text-center cursor-pointer overflow-hidden group active:scale-95 transition-all shadow-sm hover:shadow-md min-h-[44px]"
                 >
-                  {/* Pack Name: 2 lines with clear bold typography on dark background */}
+                  {/* Pack Name: 2 lines with clear bold typography on deep dark background */}
                   <div className="w-full flex-1 flex items-center justify-center overflow-hidden">
-                    <span className="font-black text-white text-[11px] sm:text-xs md:text-[13px] tracking-tight line-clamp-2 group-hover:text-cyan-200 leading-snug break-words drop-shadow-xs">
+                    <span className="font-black text-white text-xs sm:text-[13px] md:text-[14px] tracking-normal line-clamp-2 group-hover:text-cyan-200 leading-tight break-words drop-shadow-xs">
                       {pack.name}
                     </span>
                   </div>
 
-                  {/* Pack Price & Unit Row: Dedicated row ensuring both are 100% visible */}
-                  <div className="w-full flex items-center justify-between gap-1 mt-0.5 pt-0.5 border-t border-slate-700/80 shrink-0">
+                  {/* Pack Price & Unit Row: Dedicated row ensuring both are 100% visible with generous width */}
+                  <div className="w-full flex items-center justify-between gap-1.5 mt-1 pt-1 border-t border-slate-700/80 shrink-0">
                     {pack.packQty && pack.packQty > 1 ? (
-                      <span className="text-[9.5px] sm:text-[10px] font-black px-1.5 py-0.2 rounded bg-amber-400 text-slate-950 border border-amber-300 font-mono truncate max-w-[65px] shadow-2xs">
+                      <span className="text-[10px] sm:text-[10.5px] font-black px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 border border-amber-300 font-mono truncate max-w-[80px] shadow-2xs">
                         ×{pack.packQty} {pack.packUnit || 'عبوة'}
                       </span>
                     ) : (
-                      <span className="text-[9.5px] sm:text-[10px] font-bold text-slate-300 font-mono">
+                      <span className="text-[10px] sm:text-[10.5px] font-bold text-slate-300 font-mono">
                         {pack.packUnit || 'عبوة'}
                       </span>
                     )}
-                    <span className="text-[10.5px] sm:text-[11.5px] font-black text-black font-mono bg-amber-300 px-1.5 py-0.2 rounded border border-amber-400 shadow-2xs shrink-0">
+                    <span className="text-[11px] sm:text-xs md:text-[12.5px] font-black text-black font-mono bg-amber-300 px-2 py-0.5 rounded border border-amber-400 shadow-2xs shrink-0">
                       {formatMoney(displayPrice)}
                     </span>
                   </div>
@@ -336,7 +336,12 @@ export const Design7BottomFavoritesPad: React.FC<Design7BottomFavoritesPadProps>
       </div>
 
       {/* Secondary Category Tabs / Management Shortcut (Left in RTL) */}
-      <div className="w-32 sm:w-36 md:w-40 flex flex-col gap-1 shrink-0" data-purpose="secondary-favs">
+      <div
+        className={`flex flex-col gap-1 shrink-0 ${
+          categoriesList.length > 8 ? 'w-28 sm:w-32 md:w-36' : 'w-20 sm:w-24 md:w-28'
+        }`}
+        data-purpose="secondary-favs"
+      >
         {/* Management Action Button */}
         <button
           type="button"
