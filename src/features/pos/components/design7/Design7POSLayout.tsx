@@ -389,7 +389,7 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
       <Design7ProductSearchModal
         isOpen={isProductSearchOpen}
         onClose={closeProductSearch}
-        products={products}
+        products={(allProducts && allProducts.length > 0 ? allProducts : products) || []}
         onSelectProduct={(p) => {
           onAddToCart(p);
           refocusBarcode(40);
@@ -433,8 +433,8 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
         initialValue={barcodeInput || searchQuery || ''}
         onConfirm={(val) => {
           if (setBarcodeInput) setBarcodeInput(val);
-          if (setSearchQuery) setSearchQuery(val);
-          if (handleBarcodeSubmit) handleBarcodeSubmit();
+          if (setSearchQuery) setSearchQuery('');
+          setTimeout(() => handleBarcodeSubmit(), 0);
           refocusBarcode(40);
         }}
         title="لوحة المفاتيح اللمسية الافتراضية"

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import React from 'react';
 import { Design7POSLayout } from '../design7';
 import type { CartItem, Product } from '@/types';
@@ -604,7 +604,7 @@ describe('Design7POSLayout (تصميم 7 - كاشير اللمس الكلاسي�
     expect(screen.queryByText('تخفيض القيمة')).not.toBeInTheDocument();
   });
 
-  it('opens virtual touch keyboard from keypad, types characters, switches layouts and submits', () => {
+  it('opens virtual touch keyboard from keypad, types characters, switches layouts and submits', async () => {
     render(<Design7POSLayout {...defaultProps} />);
 
     // Click virtual keyboard button in side keypad
@@ -639,9 +639,9 @@ describe('Design7POSLayout (تصميم 7 - كاشير اللمس الكلاسي�
     const enterBtn = screen.getByText('تأكيد وإدخال (Enter)');
     fireEvent.click(enterBtn);
 
-    // Barcode input and submit should be called
+    // Barcode input and submit should be called (submit is deferred one tick so state flushes)
     expect(defaultProps.setBarcodeInput).toHaveBeenCalledWith('حليب');
-    expect(defaultProps.onBarcodeSubmit).toHaveBeenCalled();
+    await waitFor(() => expect(defaultProps.onBarcodeSubmit).toHaveBeenCalled());
 
     // Modal should close
     expect(screen.queryByText('لوحة المفاتيح اللمسية الافتراضية')).not.toBeInTheDocument();
