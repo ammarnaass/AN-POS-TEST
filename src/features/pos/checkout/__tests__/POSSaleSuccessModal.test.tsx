@@ -123,4 +123,28 @@ describe('POSSaleSuccessModal — نافذة نجاح البيع مع إشعار
     expect(screen.getByText('توثيق المرتجعات')).toBeInTheDocument();
     expect(screen.getByText(/تم تحديث المخزون وحركة الصندوق/)).toBeInTheDocument();
   });
+
+  it('يرندر عناصر التوافق مع أحجام الشاشة وزر مركز الإشعارات', () => {
+    render(
+      <POSSaleSuccessModal
+        isOpen={true}
+        onClose={vi.fn()}
+        completedSale={baseSale}
+      />
+    );
+
+    // التحقق من زر فتح مركز الإشعارات
+    const notifBtn = screen.getByTitle('فتح مركز الإشعارات');
+    expect(notifBtn).toBeInTheDocument();
+
+    // التحقق من وجود أزرار الطباعة وزر فاتورة جديدة
+    expect(screen.getByText(/إيصال حراري/)).toBeInTheDocument();
+    expect(screen.getByText(/فاتورة جديدة/)).toBeInTheDocument();
+
+    // التحقق من أن النافذة مصيرة عبر Portal داخل document.body
+    const dialogElement = document.querySelector('.glass-card');
+    expect(dialogElement).toBeInTheDocument();
+    expect(dialogElement?.className).toContain('max-h-');
+    expect(dialogElement?.className).toContain('flex flex-col');
+  });
 });

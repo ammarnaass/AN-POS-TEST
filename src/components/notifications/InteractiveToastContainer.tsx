@@ -19,7 +19,7 @@ export const InteractiveToastContainer: React.FC = () => {
     <div
       dir="rtl"
       aria-live="polite"
-      className="fixed bottom-4 sm:bottom-6 left-4 sm:left-6 z-[9999] flex flex-col-reverse gap-2.5 max-w-[320px] sm:max-w-sm w-full pointer-events-none"
+      className="fixed bottom-2 sm:bottom-6 left-2 sm:left-6 z-[9999] flex flex-col-reverse gap-2 max-w-[calc(100vw-1rem)] sm:max-w-sm w-full pointer-events-none"
     >
       {/* بطاقات الإشعارات النشطة */}
       {visibleToasts.map((notification) => (

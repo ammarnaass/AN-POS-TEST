@@ -38,7 +38,7 @@ export const Design6FinancialStack: React.FC<Design6FinancialStackProps> = ({
   const initials = userName.slice(0, 2);
 
   return (
-    <div className="w-[320px] bg-slate-50 dark:bg-[#070b14] border-r border-slate-200 dark:border-slate-800/80 p-3 flex flex-col justify-between select-none shrink-0 transition-colors">
+    <div className="w-[280px] sm:w-[300px] xl:w-[320px] bg-slate-50 dark:bg-[#070b14] border-r border-slate-200 dark:border-slate-800/80 p-3 flex flex-col justify-between select-none shrink-0 transition-colors">
       {/* 1. Financial Cards Stack */}
       <div className="flex flex-col gap-2">
         {/* Card 1: المبلغ */}

@@ -82,6 +82,7 @@ export interface POSModalsContainerProps {
   isSalePending: boolean;
   returnMode?: boolean;
   returnContext?: any;
+  setReturnContext?: (ctx: any) => void;
   onAddProduct: (product: Product) => void;
   onResumeOrder: (order: SuspendedOrder) => void;
   onDeleteSuspendedOrder: (id: string) => void;
@@ -156,6 +157,7 @@ export const POSModalsContainer: React.FC<POSModalsContainerProps> = ({
   isSalePending,
   returnMode = false,
   returnContext,
+  setReturnContext,
   onAddProduct,
   onResumeOrder,
   onDeleteSuspendedOrder,
@@ -201,6 +203,11 @@ export const POSModalsContainer: React.FC<POSModalsContainerProps> = ({
         allowTransferPayment={posSettings.allowTransferPayment}
         isReturn={returnMode}
         refundMethod={returnContext?.refundMethod}
+        setRefundMethod={(m: 'cash' | 'customer_credit') => {
+          if (setReturnContext) {
+            setReturnContext((prev: any) => prev ? { ...prev, refundMethod: m } : { refundMethod: m });
+          }
+        }}
       />
 
       {/* 3. Keyboard Shortcuts Guide Modal */}

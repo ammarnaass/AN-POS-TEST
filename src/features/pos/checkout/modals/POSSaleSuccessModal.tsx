@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { CheckCircle2, Printer, Plus, AlertTriangle, Wallet, ExternalLink, RotateCcw, Bell } from 'lucide-react';
 import { formatNumber } from '@/features/pos/utils/format';
 import { useAuthStore } from '@/store/authStore';
@@ -14,6 +15,7 @@ export const POSSaleSuccessModal: React.FC<POSSaleSuccessModalProps> = ({
 }) => {
   const { user: currentUser } = useAuthStore();
   const unreadCount = useNotificationStore((s) => s.notifications.filter((n) => !n.read).length);
+  const openCenter = useNotificationStore((s) => s.openCenter);
 
   useSuccessModalShortcuts({
     isOpen,
@@ -36,12 +38,14 @@ export const POSSaleSuccessModal: React.FC<POSSaleSuccessModalProps> = ({
     Number(completedSale.total || 0) - Number(completedSale.paidAmount || 0)
   );
 
-  return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="glass-card bg-surface-container-low rounded-3xl border border-outline-variant/20 w-full max-w-md shadow-2xl p-6 text-center space-y-4 animate-in zoom-in-95 duration-200">
-        {/* Status Icon */}
-        <div
-          className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto border shadow-inner ${
+  const modalContent = (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-2 sm:p-4 backdrop-blur-xs animate-in fade-in duration-200">
+      <div className="glass-card bg-surface-container-low rounded-2xl sm:rounded-3xl border border-outline-variant/20 w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[88vh] animate-in zoom-in-95 duration-200">
+        {/* Scrollable Content Body */}
+        <div className="p-4 sm:p-6 text-center space-y-3 sm:space-y-4 overflow-y-auto flex-1 custom-scrollbar">
+          {/* Status Icon */}
+          <div
+            className={`w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center mx-auto border shadow-inner shrink-0 ${
             isCreditSale
               ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
               : 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30'
@@ -50,23 +54,26 @@ export const POSSaleSuccessModal: React.FC<POSSaleSuccessModalProps> = ({
           {isCreditSale ? <Wallet className="w-10 h-10" /> : <CheckCircle2 className="w-10 h-10" />}
         </div>
 
-        {/* Title & Sequence */}
-        <div>
-          <h3 className="text-lg font-bold text-on-surface">
-            {isCreditSale ? 'تم تسجيل البيع بالآجل (دين) بنجاح' : 'تمت عملية البيع بنجاح'}
-          </h3>
-          <div className="flex items-center justify-center gap-2 mt-1">
-            <p className="text-xs text-on-surface-variant font-mono">
-              فاتورة رقم: #{completedSale.number}
-            </p>
-            {unreadCount > 0 && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30 animate-in fade-in duration-300">
-                <Bell className="w-3 h-3" />
-                <span>{unreadCount} إشعار جديد</span>
-              </span>
-            )}
+          {/* Title & Sequence */}
+          <div>
+            <h3 className="text-base sm:text-lg font-bold text-on-surface">
+              {isCreditSale ? 'تم تسجيل البيع بالآجل (دين) بنجاح' : 'تمت عملية البيع بنجاح'}
+            </h3>
+            <div className="flex items-center justify-center gap-2 mt-1 flex-wrap">
+              <p className="text-xs text-on-surface-variant font-mono">
+                فاتورة رقم: #{completedSale.number}
+              </p>
+              <button
+                type="button"
+                onClick={() => openCenter?.()}
+                className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/15 hover:bg-blue-500/25 text-blue-700 dark:text-blue-300 border border-blue-500/30 transition-colors cursor-pointer"
+                title="فتح مركز الإشعارات"
+              >
+                <Bell className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                <span>{unreadCount > 0 ? `${unreadCount} إشعار جديد` : 'تم توثيق الإشعار بنجاح'}</span>
+              </button>
+            </div>
           </div>
-        </div>
 
         {/* Financial Details Card */}
         <div className="p-4 rounded-2xl bg-surface-container border border-outline-variant/15 space-y-1.5 text-xs">
@@ -221,9 +228,10 @@ export const POSSaleSuccessModal: React.FC<POSSaleSuccessModalProps> = ({
             </>
           )}
         </div>
+      </div>
 
-        {/* Print & Action Buttons */}
-        <div className="flex flex-col gap-2 pt-2">
+      {/* Print & Action Buttons (Fixed Footer) */}
+      <div className="px-4 sm:px-6 py-3 sm:py-4 bg-surface-container/50 border-t border-outline-variant/15 flex flex-col gap-2 shrink-0">
           <div className="grid grid-cols-2 gap-2">
             {completedSale.docType === 'wholesale' ? (
               <>
@@ -293,6 +301,8 @@ export const POSSaleSuccessModal: React.FC<POSSaleSuccessModalProps> = ({
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };
 
 export default POSSaleSuccessModal;

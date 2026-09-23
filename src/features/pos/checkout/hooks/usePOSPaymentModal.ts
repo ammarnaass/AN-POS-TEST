@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState } from 'react';
+import { useRef, useCallback, useState, useEffect } from 'react';
 import type { PaymentMethod, RefundMethod } from '../types';
 import {
   calculateChange,
@@ -41,8 +41,17 @@ export function usePOSPaymentModal({
   const customerSelectRef = useRef<HTMLSelectElement>(null);
   const paidInputRef = useRef<HTMLInputElement>(null);
 
-  const [localRefundMethod, setLocalRefundMethod] = useState<RefundMethod>('cash');
-  const activeRefundMethod = propRefundMethod ?? localRefundMethod;
+  const [localRefundMethod, setLocalRefundMethod] = useState<RefundMethod>(propRefundMethod || 'cash');
+
+  // مزامنة الحالة المحلية عند فتح النافذة أو تغير القيمة من السياق الخارجي
+  useEffect(() => {
+    if (isOpen && propRefundMethod) {
+      setLocalRefundMethod(propRefundMethod);
+    }
+  }, [isOpen, propRefundMethod]);
+
+  // الحالة المحلية هي المصدر الوحيد للحقيقة داخل المودال بعد المزامنة
+  const activeRefundMethod = localRefundMethod;
 
   const matchedCustomer = customers.find((c) => c.id === selectedCustomer);
   const isCreditSale = isReturn
@@ -60,6 +69,7 @@ export function usePOSPaymentModal({
     isPending ||
     (isReturn && activeRefundMethod === 'customer_credit' && !selectedCustomer) ||
     (!isReturn && isCreditSale && (!selectedCustomer || creditValidation.isConfirmDisabled));
+    // ملاحظة: في وضع الإرجاع لا نتحقق من سقف الدين لأن المرتجع يُنقص الدين ولا يزيده
 
   const handleSelectRefundMethod = useCallback(
     (method: RefundMethod) => {

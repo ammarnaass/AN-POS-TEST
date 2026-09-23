@@ -198,9 +198,15 @@ export function useSaleCompletion(
         });
       } else {
         const invoiceRef = sale.invoiceNumber || sale.number || sale.id?.slice(0, 8) || '';
+        const paymentMethodLabel =
+          sale.paymentMethod === 'card'
+            ? 'بطاقة CIB'
+            : sale.paymentMethod === 'transfer'
+            ? 'تحويل بنكي'
+            : 'نقداً';
         addNotification({
           title: 'تم إتمام عملية البيع وحفظ الفاتورة بنجاح',
-          message: `فاتورة #${invoiceRef} بقيمة ${formattedTotal} ${settings?.baseCurrency || 'دج'} — تم خصم المخزون وتحديث الصندوق`,
+          message: `فاتورة #${invoiceRef} بقيمة ${formattedTotal} ${settings?.baseCurrency || 'دج'} (${paymentMethodLabel}) — تم خصم المخزون وتحديث الصندوق`,
           type: 'success',
           category: 'sales',
           duration: 5000,

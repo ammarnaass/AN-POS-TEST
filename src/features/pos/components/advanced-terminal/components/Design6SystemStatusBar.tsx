@@ -1,6 +1,7 @@
 import React from 'react';
-import { Printer, Database, Monitor } from 'lucide-react';
+import { Printer, Database, Monitor, Bell } from 'lucide-react';
 import { APP_DISPLAY_VERSION } from '@/constants/app';
+import { useNotificationStore } from '@/store/notificationStore';
 
 export interface Design6SystemStatusBarProps {
   printerName?: string;
@@ -17,9 +18,11 @@ export const Design6SystemStatusBar: React.FC<Design6SystemStatusBarProps> = ({
   screenModel = 'SAMSUNG S19C150',
   appVersion = `${APP_DISPLAY_VERSION} PRO`,
 }) => {
+  const unreadCount = useNotificationStore((s) => s.notifications.filter((n) => !n.read).length);
+
   return (
     <footer className="w-full bg-slate-200/90 dark:bg-[#050811] border-t border-slate-300 dark:border-slate-900 px-3 py-1 flex items-center justify-between text-[11px] font-medium text-slate-600 dark:text-slate-400 select-none shrink-0 transition-colors">
-      {/* Right Info: Printer & DB status */}
+      {/* Right Info: Printer & DB status & Notifications */}
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-1.5">
           <span className={`w-2 h-2 rounded-full ${isPrinterReady ? 'bg-emerald-500 shadow-[0_0_6px_#10b981]' : 'bg-rose-500'}`} />
@@ -33,6 +36,15 @@ export const Design6SystemStatusBar: React.FC<Design6SystemStatusBarProps> = ({
           <Database className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
           <span>قاعدة البيانات المحلية:</span>
           <span className="font-bold text-emerald-600 dark:text-emerald-400">{isDbConnected ? 'متصلة' : 'غير متصلة'}</span>
+        </div>
+
+        <div className="flex items-center gap-1.5 border-r border-slate-300 dark:border-slate-800 pr-4">
+          <span className={`w-2 h-2 rounded-full ${unreadCount > 0 ? 'bg-amber-500 shadow-[0_0_6px_#f59e0b] animate-pulse' : 'bg-emerald-500 shadow-[0_0_6px_#10b981]'}`} />
+          <Bell className="w-3.5 h-3.5 text-amber-500" />
+          <span>الإشعارات:</span>
+          <span className="font-bold text-slate-800 dark:text-slate-200">
+            {unreadCount > 0 ? `${unreadCount} جديدة` : 'محدثة'}
+          </span>
         </div>
       </div>
 

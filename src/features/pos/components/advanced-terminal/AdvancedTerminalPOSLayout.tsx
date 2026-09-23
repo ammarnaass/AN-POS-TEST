@@ -13,7 +13,10 @@ import {
   Moon,
   History,
   LogOut,
+  Bell,
 } from 'lucide-react';
+import NotificationDropdown from '@/components/notifications/NotificationDropdown';
+import { useNotificationStore } from '@/store/notificationStore';
 import type { Product } from '@/types';
 import type { AdvancedTerminalPOSLayoutProps } from './types';
 import { useThemeStore } from '@/store/themeStore';
@@ -83,6 +86,7 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
   onCloseAllModals,
 }) => {
   // Local state
+  const unreadCount = useNotificationStore((s) => s.notifications.filter((n) => !n.read).length);
   const [selectedCartRowId, setSelectedCartRowId] = useState<string | null>(
     cart.length > 0 ? cart[0].productId : null
   );
@@ -442,6 +446,25 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
 
           {/* Left: Environment controls (unique to collapsed bar) */}
           <div className="flex items-center gap-1.5 shrink-0">
+            {/* زر الإشعارات والتنبيهات في الشريط المصغر */}
+            <NotificationDropdown hideBadge>
+              <button
+                type="button"
+                className="relative flex items-center gap-1 text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/70 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700/80 text-xs font-bold active:scale-95 transition-colors cursor-pointer"
+                title="الإشعارات والتنبيهات التشغيلية"
+              >
+                <div className="relative flex items-center justify-center">
+                  <Bell className="w-3.5 h-3.5 text-amber-500" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1.5 -right-2 min-w-[15px] h-[15px] flex items-center justify-center bg-rose-600 text-white text-[8px] font-black rounded-full px-0.5 animate-pulse">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
+                </div>
+                <span className="hidden sm:inline">إشعارات</span>
+              </button>
+            </NotificationDropdown>
+
             {/* زر تبديل المظهر في الشريط المصغر */}
             <button
               type="button"

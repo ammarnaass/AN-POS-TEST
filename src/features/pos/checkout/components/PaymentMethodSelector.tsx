@@ -24,7 +24,7 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
 
   const gridColsClass =
     methods.length === 4
-      ? 'grid-cols-4'
+      ? 'grid-cols-2 sm:grid-cols-4'
       : methods.length === 3
       ? 'grid-cols-3'
       : 'grid-cols-2';

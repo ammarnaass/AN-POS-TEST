@@ -646,6 +646,7 @@ export default function POSPage() {
           setFilterStockStatus={setFilterStockStatus}
           returnMode={returnMode}
           returnContext={returnContext}
+          setReturnContext={setReturnContext}
           onConfirmPayment={async (paid, custId, method, refundMethod) => {
             const finalMethod = method || paymentMethod;
             const finalCustomer = custId !== undefined ? custId : selectedCustomer;

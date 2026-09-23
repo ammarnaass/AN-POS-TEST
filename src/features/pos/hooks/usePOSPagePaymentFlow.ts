@@ -101,7 +101,13 @@ export function usePOSPagePaymentFlow({
       const activeMethod = overrides?.paymentMethod ?? paymentMethod;
       const activeCustomer = overrides?.selectedCustomer ?? selectedCustomer;
       const isCredit = activeMethod === 'credit';
-      const dbPaymentMethod = isCredit ? 'credit' : 'cash';
+      const dbPaymentMethod: 'cash' | 'card' | 'transfer' | 'credit' = isCredit
+        ? 'credit'
+        : activeMethod === 'card'
+        ? 'card'
+        : activeMethod === 'transfer'
+        ? 'transfer'
+        : 'cash';
 
       const activePaid =
         overrides?.paidAmount !== undefined

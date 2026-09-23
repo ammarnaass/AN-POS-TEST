@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { X, CreditCard, ArrowLeftRight, RotateCcw, Banknote, UserCheck, Wallet } from 'lucide-react';
 import { formatMoney } from '@/features/pos/utils/format';
 import { POSCreditPaymentSection } from '@/features/pos/debt';
@@ -71,11 +72,11 @@ export const POSPaymentModal: React.FC<POSPaymentModalProps> = ({
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="glass-card bg-surface-container-low rounded-3xl border border-outline-variant/20 w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+  const modalContent = (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-2 sm:p-4 backdrop-blur-xs animate-in fade-in duration-200">
+      <div className="glass-card bg-surface-container-low rounded-2xl sm:rounded-3xl border border-outline-variant/20 w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[88vh] animate-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-outline-variant/15 flex items-center justify-between">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-outline-variant/15 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <div
               className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
@@ -105,7 +106,7 @@ export const POSPaymentModal: React.FC<POSPaymentModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-5">
+        <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto flex-1 custom-scrollbar">
           {/* Grand Total Dominant Banner */}
           <SaleSummaryBreakdown total={total} formatMoney={formatMoney} />
 
@@ -273,12 +274,13 @@ export const POSPaymentModal: React.FC<POSPaymentModalProps> = ({
               creditValidation={creditValidation}
               paidAmount={paidAmount}
               setPaidAmount={setPaidAmount}
+              isReturn={isReturn}
             />
           )}
         </div>
 
         {/* Footer Actions */}
-        <div className="px-6 py-4 bg-surface-container/50 border-t border-outline-variant/15 flex items-center gap-3">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 bg-surface-container/50 border-t border-outline-variant/15 flex items-center gap-3 shrink-0">
           <button
             type="button"
             onClick={onClose}
@@ -298,6 +300,8 @@ export const POSPaymentModal: React.FC<POSPaymentModalProps> = ({
           >
             {isPending
               ? 'جاري التسجيل...'
+              : isReturn && activeRefundMethod === 'customer_credit' && !selectedCustomer
+              ? 'يرجى تحديد الزبون أولاً'
               : isReturn
               ? `تأكيد استرجاع المبلغ (${formatMoney(total)} دج)`
               : 'تأكيد ودفع (Enter)'}
@@ -306,6 +310,8 @@ export const POSPaymentModal: React.FC<POSPaymentModalProps> = ({
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };
 
 export default POSPaymentModal;
