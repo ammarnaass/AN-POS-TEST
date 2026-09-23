@@ -9,15 +9,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCartStore } from '@/store/cartStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import {
-  PaymentModal,
-  SuccessModal,
   ShortcutsGuideModal,
   FreeProductModal,
-  QuickCustomerModal,
-  CustomerSelectModal,
   SuspendedOrdersModal,
-  ReturnSaleModal,
-  PartialReturnModal,
   SessionWarningModal,
   OpenSessionModal,
   DiscountModal,
@@ -28,6 +22,9 @@ import {
   QuickProductModal,
   TouchKeypadModal,
 } from '../modals';
+import { POSCustomerDebtModals, recallSaleItemsToCart, toggleInvoicePaymentStatus } from '../debt';
+import { POSCheckoutModals } from '../checkout';
+import { POSReturnsModals } from '../returns';
 
 export interface POSModalsContainerProps {
   modals: POSModalsState;
@@ -81,8 +78,10 @@ export interface POSModalsContainerProps {
   isFeaturedOnly: boolean;
   setIsFeaturedOnly: (f: boolean) => void;
   onClearAllFilters: () => void;
-  onConfirmPayment: (paid: number, custId: string, method: string) => Promise<void>;
+  onConfirmPayment: (paid: number, custId: string, method: string, refundMethod?: 'cash' | 'customer_credit') => Promise<void>;
   isSalePending: boolean;
+  returnMode?: boolean;
+  returnContext?: any;
   onAddProduct: (product: Product) => void;
   onResumeOrder: (order: SuspendedOrder) => void;
   onDeleteSuspendedOrder: (id: string) => void;
@@ -155,6 +154,8 @@ export const POSModalsContainer: React.FC<POSModalsContainerProps> = ({
   onClearAllFilters,
   onConfirmPayment,
   isSalePending,
+  returnMode = false,
+  returnContext,
   onAddProduct,
   onResumeOrder,
   onDeleteSuspendedOrder,
@@ -176,12 +177,14 @@ export const POSModalsContainer: React.FC<POSModalsContainerProps> = ({
 
   return (
     <>
-      {/* 1. Complete Payment Modal */}
-      <PaymentModal
-        isOpen={modals.showPaymentModal}
-        onClose={() => modals.setShowPaymentModal(false)}
+      {/* 1 & 2. POS Checkout & Sale Confirmation Subsystem Modals */}
+      <POSCheckoutModals
+        showPaymentModal={modals.showPaymentModal}
+        onClosePaymentModal={() => modals.setShowPaymentModal(false)}
+        showSuccessModal={modals.showSuccessModal}
+        onCloseSuccessModal={() => modals.setShowSuccessModal(false)}
         total={saleSummary.total}
-        paymentMethod={paymentMethod}
+        paymentMethod={paymentMethod as any}
         setPaymentMethod={setPaymentMethod}
         paidAmount={paidAmount}
         setPaidAmount={setPaidAmount}
@@ -189,17 +192,15 @@ export const POSModalsContainer: React.FC<POSModalsContainerProps> = ({
         setSelectedCustomer={setSelectedCustomer}
         customers={customers}
         onOpenAddCustomer={() => modals.setShowAddCustomer(true)}
-        onConfirmPayment={() => onConfirmPayment(paidAmount, selectedCustomer, paymentMethod)}
-        isPending={isSalePending}
+        onConfirmPayment={(p, c, m, refMethod) =>
+          onConfirmPayment(p ?? paidAmount, c || selectedCustomer, m || paymentMethod, refMethod)
+        }
+        isSalePending={isSalePending}
+        completedSale={modals.completedSale}
         allowCardPayment={posSettings.allowCardPayment}
         allowTransferPayment={posSettings.allowTransferPayment}
-      />
-
-      {/* 2. Payment Success Modal */}
-      <SuccessModal
-        isOpen={modals.showSuccessModal}
-        onClose={() => modals.setShowSuccessModal(false)}
-        completedSale={modals.completedSale}
+        isReturn={returnMode}
+        refundMethod={returnContext?.refundMethod}
       />
 
       {/* 3. Keyboard Shortcuts Guide Modal */}
@@ -222,22 +223,69 @@ export const POSModalsContainer: React.FC<POSModalsContainerProps> = ({
         }}
       />
 
-      {/* 5. Quick Add Customer Modal */}
-      <QuickCustomerModal
-        isOpen={modals.showAddCustomer}
-        onClose={() => modals.setShowAddCustomer(false)}
-        onSelectCustomer={(id) => setSelectedCustomer(id)}
-      />
-
-      {/* 5b. Customer Selection Modal */}
-      <CustomerSelectModal
-        isOpen={modals.showCustomerSelect}
-        onClose={() => modals.setShowCustomerSelect(false)}
+      {/* 5. Customer & Debt Management Subsystem Modals */}
+      <POSCustomerDebtModals
+        showSelectModal={modals.showCustomerSelect}
+        onCloseSelectModal={() => modals.setShowCustomerSelect(false)}
+        showQuickAddModal={modals.showAddCustomer}
+        onCloseQuickAddModal={() => modals.setShowAddCustomer(false)}
+        onOpenQuickAddModal={() => modals.setShowAddCustomer(true)}
+        showSettlementModal={modals.showSettlementModal}
+        onCloseSettlementModal={() => modals.setShowSettlementModal?.(false)}
+        onOpenSettlementModal={(cust) => {
+          setSelectedCustomer(cust.id);
+          modals.setShowSettlementModal?.(true);
+        }}
+        showAddDebtModal={modals.showAddDebtModal}
+        onCloseAddDebtModal={() => modals.setShowAddDebtModal?.(false)}
+        onOpenAddDebtModal={(cust) => {
+          setSelectedCustomer(cust.id);
+          modals.setShowAddDebtModal?.(true);
+        }}
+        onDebtAdded={(res) => {
+          addNotification({
+            title: 'تم قيد الدين بنجاح',
+            message: `تم قيد مبلغ ${formatMoney(res.addedAmount)} دج على حساب ${res.customerName}`,
+            type: 'success',
+          });
+        }}
+        showInvoicesModal={modals.showCustomerInvoicesModal}
+        onCloseInvoicesModal={() => modals.setShowCustomerInvoicesModal?.(false)}
+        onRecallToCart={(sale) => {
+          recallSaleItemsToCart(sale, {
+            clearCart,
+            addItem,
+            setSelectedCustomer,
+            setDiscount,
+            setDiscountType,
+          });
+          addNotification({
+            title: 'تم استرجاع الفاتورة إلى السلة',
+            message: `تم شحن بنود الفاتورة #${sale.number} بنجاح إلى السلة`,
+            type: 'success',
+          });
+        }}
+        onFullReturn={(sale) => {
+          onSelectReturnSale(sale);
+        }}
+        onTogglePaymentStatus={async (params) => {
+          const res = await toggleInvoicePaymentStatus(params);
+          queryClient.invalidateQueries({ queryKey: ['sales'] });
+          queryClient.invalidateQueries({ queryKey: ['customers'] });
+          queryClient.invalidateQueries({ queryKey: ['cash_sessions'] });
+          addNotification({
+            title: res.newStatus === 'paid' ? 'تم تسديد الفاتورة بنجاح' : 'تم قيد الفاتورة كدين',
+            message: `فاتورة #${res.saleNumber} - رصيد العميل الحالي: ${formatMoney(res.newCustomerBalance)} دج`,
+            type: 'success',
+          });
+          return res;
+        }}
         customers={customers}
         selectedCustomerId={selectedCustomer}
         onSelectCustomer={(id) => setSelectedCustomer(id)}
-        onOpenAddCustomer={() => modals.setShowAddCustomer(true)}
+        currentSessionId={allSessions.find((s) => s.status === 'open')?.id}
         formatMoney={formatMoney}
+        currencySymbol={settings?.baseCurrency || 'دج'}
       />
 
       {/* 6. Suspended Orders Modal */}
@@ -249,24 +297,18 @@ export const POSModalsContainer: React.FC<POSModalsContainerProps> = ({
         onDeleteOrder={onDeleteSuspendedOrder}
       />
 
-      {/* 7. Return Sale Selection Modal */}
-      <ReturnSaleModal
-        isOpen={modals.showReturnSaleModal}
-        onClose={() => modals.setShowReturnSaleModal(false)}
+      {/* 7. Modular Returns Modals */}
+      <POSReturnsModals
+        showReturnSaleModal={modals.showReturnSaleModal}
+        showPartialReturnModal={modals.showPartialReturnModal}
+        selectedSaleForReturn={modals.selectedSaleForReturn}
         sales={sales}
+        onCloseReturnSale={() => modals.setShowReturnSaleModal(false)}
+        onClosePartialReturn={() => modals.setShowPartialReturnModal(false)}
         onSelectReturnSale={onSelectReturnSale}
+        onConfirmPartialReturn={(params) => onConfirmPartialReturn?.(params)}
+        onLoadReturnToCart={(params) => onLoadReturnToCart?.(params)}
       />
-
-      {/* 7.1. Dedicated Partial Return Modal */}
-      {modals.showPartialReturnModal && (
-        <PartialReturnModal
-          isOpen={modals.showPartialReturnModal}
-          onClose={() => modals.setShowPartialReturnModal(false)}
-          sale={modals.selectedSaleForReturn}
-          onConfirmReturn={(params) => onConfirmPartialReturn?.(params)}
-          onLoadToCart={(params) => onLoadReturnToCart?.(params)}
-        />
-      )}
 
       {/* 8. Session Warning Modal */}
       <SessionWarningModal

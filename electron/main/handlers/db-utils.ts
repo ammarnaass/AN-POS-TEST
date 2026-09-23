@@ -118,6 +118,14 @@ export function getTableColumns(tableName: string): Set<string> {
   return cols;
 }
 
+export function clearTableColumnsCache(tableName?: string): void {
+  if (tableName) {
+    tableColumnsCache.delete(tableName);
+  } else {
+    tableColumnsCache.clear();
+  }
+}
+
 export function tableHasColumn(tableName: string, columnName: string): boolean {
   return getTableColumns(tableName).has(columnName);
 }

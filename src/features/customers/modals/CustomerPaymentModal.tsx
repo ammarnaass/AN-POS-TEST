@@ -1,6 +1,6 @@
-import React from 'react';
-import { DollarSign, X } from 'lucide-react';
-import type { Customer } from '@/types';
+import React, { useState, useMemo } from 'react';
+import { DollarSign, X, FileText, CheckCircle2, Receipt } from 'lucide-react';
+import type { Customer, Sale } from '@/types';
 import { formatCustomerMoney } from '../services/customerStatus';
 
 interface CustomerPaymentModalProps {
@@ -20,6 +20,7 @@ interface CustomerPaymentModalProps {
   setPrintReceiptOnPayment: (print: boolean) => void;
   currencySymbol?: string;
   isPending?: boolean;
+  customerSales?: Sale[];
 }
 
 export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
@@ -39,16 +40,29 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
   setPrintReceiptOnPayment,
   currencySymbol = 'دج',
   isPending = false,
+  customerSales = [],
 }) => {
   if (!isOpen || !customer) return null;
+
+  const [activeTab, setActiveTab] = useState<'fifo' | 'selective'>('fifo');
 
   const currentBalance = customer.balance;
   const rawRemaining = currentBalance - (paymentAmount || 0);
   const isOverpayment = rawRemaining < 0;
 
+  // Unpaid or partial invoices for selective settlement
+  const unpaidInvoices = useMemo(() => {
+    return customerSales.filter((s) => {
+      const isCredit = s.paymentMethod === 'credit' || s.status === 'unpaid' || s.status === 'partial';
+      const paid = Number(s.amountPaid ?? s.paidAmount ?? (s as any).amount_paid ?? 0);
+      const unpaid = Number(s.total || 0) - paid;
+      return isCredit && unpaid > 0.01;
+    });
+  }, [customerSales]);
+
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-surface-container-low border border-outline-variant/30 rounded-3xl p-6 w-full max-w-lg shadow-2xl space-y-5 animate-in zoom-in-95">
+      <div className="bg-surface-container-low border border-outline-variant/30 rounded-3xl p-6 w-full max-w-lg max-h-[92vh] overflow-y-auto custom-scrollbar shadow-2xl space-y-4 animate-in zoom-in-95">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-outline-variant/20">
           <div className="flex items-center gap-2.5">
@@ -100,13 +114,78 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
           </div>
         </div>
 
-        {/* Overpayment Notice */}
-        {isOverpayment && (
-          <div className="p-3 rounded-2xl bg-teal-500/10 border border-teal-500/30 text-teal-700 dark:text-teal-300 text-xs flex items-center gap-2.5">
-            <span className="text-lg shrink-0">💡</span>
-            <p className="leading-relaxed">
-              المبلغ المدفوع يتجاوز الدين المستحق بمقدار <strong>{formatCustomerMoney(Math.abs(rawRemaining))} {currencySymbol}</strong>. سيتم تسجيل هذا الفائض تلقائياً كرصيد دائن في حساب العميل ليُخصم من مشترياته القادمة.
-            </p>
+        {/* Mode Selector Tabs (FIFO vs Selective) */}
+        {unpaidInvoices.length > 0 && (
+          <div className="flex rounded-xl bg-surface-container p-1 border border-outline-variant/20 text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => setActiveTab('fifo')}
+              className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                activeTab === 'fifo'
+                  ? 'bg-primary text-on-primary shadow-xs'
+                  : 'text-on-surface-variant hover:text-on-surface'
+              }`}
+            >
+              <Receipt className="w-3.5 h-3.5" />
+              <span>سداد عام على الحساب (FIFO)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('selective')}
+              className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                activeTab === 'selective'
+                  ? 'bg-primary text-on-primary shadow-xs'
+                  : 'text-on-surface-variant hover:text-on-surface'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>سداد فواتير محددة ({unpaidInvoices.length})</span>
+            </button>
+          </div>
+        )}
+
+        {/* Tab 2: Selective Invoice Settlement List */}
+        {activeTab === 'selective' && unpaidInvoices.length > 0 && (
+          <div className="space-y-2 border border-outline-variant/20 rounded-2xl p-3 bg-surface-container/40">
+            <span className="text-[11px] font-bold text-on-surface-variant block">
+              اختر الفاتورة المراد سدادها بالكامل أو جزء منها:
+            </span>
+            <div className="max-h-48 overflow-y-auto space-y-1.5 custom-scrollbar pr-1">
+              {unpaidInvoices.map((inv) => {
+                const invTotal = Number(inv.total || 0);
+                const invPaid = Number(inv.amountPaid ?? inv.paidAmount ?? (inv as any).amount_paid ?? 0);
+                const invRemaining = Math.max(0, invTotal - invPaid);
+
+                return (
+                  <div
+                    key={inv.id}
+                    onClick={() => {
+                      setPaymentAmount(invRemaining);
+                      setPaymentNote(`تسديد فاتورة #${inv.number || inv.id.slice(-6)}`);
+                    }}
+                    className="p-2.5 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/25 transition-all cursor-pointer flex items-center justify-between gap-3 text-xs"
+                  >
+                    <div>
+                      <div className="font-bold text-on-surface flex items-center gap-1.5">
+                        <span>فاتورة #{inv.number || inv.id.slice(-6)}</span>
+                        <span className="text-[10px] text-on-surface-variant font-mono">
+                          ({inv.date ? new Date(inv.date).toLocaleDateString('ar-DZ') : ''})
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-on-surface-variant mt-0.5">
+                        الإجمالي: {formatCustomerMoney(invTotal)} | المسدد: {formatCustomerMoney(invPaid)}
+                      </div>
+                    </div>
+                    <div className="text-left shrink-0">
+                      <span className="text-[10px] text-red-500 font-bold block">متبقي غير مسدد</span>
+                      <span className="font-black font-mono text-red-600 text-xs">
+                        {formatCustomerMoney(invRemaining)} {currencySymbol}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
@@ -116,14 +195,14 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
           <div className="grid grid-cols-4 gap-2">
             <button
               type="button"
-              onClick={() => setPaymentAmount(currentBalance)}
+              onClick={() => setPaymentAmount(currentBalance > 0 ? currentBalance : 0)}
               className="py-1.5 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black transition-all cursor-pointer shadow-2xs"
             >
               كامل الدين (100%)
             </button>
             <button
               type="button"
-              onClick={() => setPaymentAmount(Math.round(currentBalance / 2))}
+              onClick={() => setPaymentAmount(currentBalance > 0 ? Math.round(currentBalance / 2) : 0)}
               className="py-1.5 px-2 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface border border-outline-variant/20 text-xs font-bold transition-all cursor-pointer"
             >
               نصف الدين (50%)
@@ -147,7 +226,12 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
 
         {/* Amount Input */}
         <div>
-          <label className="text-xs font-bold text-on-surface-variant mb-1 block">مبلغ الدفعة (دج) *</label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-xs font-bold text-on-surface-variant block">مبلغ الدفعة (دج) *</label>
+            <span className="text-[10px] text-primary font-bold flex items-center gap-1">
+              <span>⚡ تسوية تلقائية للفواتير (FIFO)</span>
+            </span>
+          </div>
           <div className="relative">
             <input
               type="number"

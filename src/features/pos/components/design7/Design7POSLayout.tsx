@@ -81,11 +81,20 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
   onOpenKeypadForQty,
   onOpenKeyboard,
   onOpenAddProduct,
+  selectedCustomer,
+  selectedCustomerObj,
+  customers,
+  onOpenCustomerInvoices,
+  onOpenSettlementModal,
+  onOpenAddDebtModal,
   isAnyModalOpen: isAnyGlobalModalOpen = false,
   onCloseAllModals,
   showBottomFavorites: propShowBottomFavorites,
   onToggleBottomFavorites,
 }) => {
+  const activeCustomer =
+    selectedCustomerObj ||
+    (selectedCustomer && customers ? customers.find((c) => c.id === selectedCustomer) || null : null);
   // Session Store & Favorites Pad Visibility
   // الاعتماد الكامل على store — يتم تهيئته من prop مرة واحدة فقط عند الـ mount
   const storeShowBottomFavorites = usePOSSessionStore((s) => s.design7ShowBottomFavorites);
@@ -250,6 +259,7 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
         <Design7TopRibbon
           onNavigateBack={onNavigateBack}
           onOpenSalesHistory={onOpenSalesHistory}
+          onOpenCustomerLedger={onOpenCustomerInvoices}
           onOpenReturns={onOpenReturns}
           onSaveAsOrder={onSaveAsOrder}
           onOpenSuspended={onOpenSuspended}
@@ -278,7 +288,19 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
             formatMoney={formatMoney}
             currency={currency}
             selectedCustomerName={selectedCustomerName}
+            customer={activeCustomer}
             onSelectCustomer={onSelectCustomer}
+            onOpenCustomerLedger={onOpenCustomerInvoices}
+            onOpenSettlement={
+              activeCustomer && onOpenSettlementModal
+                ? () => onOpenSettlementModal(activeCustomer)
+                : undefined
+            }
+            onOpenAddDebt={
+              activeCustomer && onOpenAddDebtModal
+                ? () => onOpenAddDebtModal(activeCustomer)
+                : undefined
+            }
           />
 
           {/* Current Scanning / Active Item Notification Bar */}

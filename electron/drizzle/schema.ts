@@ -533,6 +533,13 @@ export const customers = sqliteTable('customers', {
   phone: text('phone').notNull().default(''),
   creditLimit: real('credit_limit').notNull().default(0),
   balance: real('balance').notNull().default(0),
+  address: text('address').default(''),
+  customerType: text('customer_type').default('retail'),
+  email: text('email').default(''),
+  notes: text('notes').default(''),
+  rc: text('rc').default(''),
+  nif: text('nif').default(''),
+  nis: text('nis').default(''),
   createdAt: text('created_at').default(sql`datetime('now')`),
   updatedAt: text('updated_at').default(sql`datetime('now')`),
 });
@@ -566,6 +573,9 @@ export const suppliers = sqliteTable('suppliers', {
   name: text('name').notNull(),
   phone: text('phone').notNull().default(''),
   balance: real('balance').notNull().default(0),
+  address: text('address').default(''),
+  email: text('email').default(''),
+  notes: text('notes').default(''),
   createdAt: text('created_at').default(sql`datetime('now')`),
   updatedAt: text('updated_at').default(sql`datetime('now')`),
 });

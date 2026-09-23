@@ -4,8 +4,8 @@ import {
   Search,
   Zap,
   Plus,
-  RotateCcw,
 } from 'lucide-react';
+import { POSReturnButton } from '@/features/pos/returns';
 import type { Category } from '@/types';
 
 export interface POSSearchBarcodeHeaderProps {
@@ -108,19 +108,8 @@ export const POSSearchBarcodeHeader: React.FC<POSSearchBarcodeHeaderProps> = ({
             <span>منتج حر (F8)</span>
           </button>
 
-          <button
-            type="button"
-            onClick={onOpenReturns}
-            className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl border transition cursor-pointer ${
-              returnMode
-                ? 'bg-rose-600 text-white border-rose-600'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
-            }`}
-            title="فاتورة إرجاع (F9)"
-          >
-            <RotateCcw className="w-4 h-4" />
-            <span>إرجاع (F9)</span>
-          </button>
+          {/* زر الإرجاع الموحد (F9) */}
+          <POSReturnButton variant="compact" onOpenReturns={onOpenReturns} />
 
           {/* تبديل فئات الأسعار الأربعة: س1 تجزئة، س2 نصف جملة، س3 جملة، س4 خاص */}
           {onSelectPriceTier && (

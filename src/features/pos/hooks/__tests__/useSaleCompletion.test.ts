@@ -314,6 +314,64 @@ describe('useSaleCompletion — منطق إتمام البيع والإرجاع'
       const updatedCustomer = await db.customers.get('cust-omar');
       expect(updatedCustomer?.balance).toBe(2500);
     });
+
+    it('2.3 يعتبر البيع ديناً كاملاً ويعين status = unpaid إذا تم تمرير paidAmount مساوياً لإجمالي الفاتورة افتراضياً', async () => {
+      await db.products.put({
+        id: 'prod-oil',
+        name: 'زيت 5 لتر',
+        quantity: 10,
+        retailPrice: 1000,
+        costPrice: 800,
+        category: 'مواد غذائية',
+      } as any);
+
+      await db.customers.put({
+        id: 'cust-khalid',
+        name: 'خالد سليم',
+        balance: 0,
+      } as any);
+
+      const { result } = renderHook(() => useSaleCompletion(defaultSettings), {
+        wrapper: createWrapper(),
+      });
+
+      const products = await db.products.toArray();
+      const customers = await db.customers.toArray();
+
+      await act(async () => {
+        await result.current.completeSale({
+          cart: [
+            {
+              productId: 'prod-oil',
+              name: 'زيت 5 لتر',
+              qty: 3,
+              unitPrice: 1000,
+              lineTotal: 3000,
+            } as any,
+          ],
+          discount: 0,
+          discountType: 'percent',
+          selectedCustomer: 'cust-khalid',
+          paymentMethod: 'credit',
+          paidAmount: 3000, // القيمة الافتراضية للكاش مساوية للإجمالي
+          settings: defaultSettings,
+          products,
+          packs: [],
+          customers,
+          currentSession: null,
+        } as any);
+      });
+
+      // يجب أن يعتبره ديناً كاملاً 3000 ولا يسجله كمدفوع
+      const updatedCustomer = await db.customers.get('cust-khalid');
+      expect(updatedCustomer?.balance).toBe(3000);
+
+      const sales = await db.sales.toArray();
+      const savedSale = sales[sales.length - 1];
+      expect(savedSale?.status).toBe('unpaid');
+      expect(savedSale?.paidAmount).toBe(0);
+      expect(savedSale?.paymentMethod).toBe('credit');
+    });
   });
 
   // ─── 3. إرجاع (Return) ───

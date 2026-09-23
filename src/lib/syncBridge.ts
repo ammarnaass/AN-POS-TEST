@@ -27,8 +27,9 @@ function invalidateQueriesForTable(qc: QueryClient | undefined, table?: string) 
       qc.invalidateQueries({ queryKey: ['categories'] });
     } else if (table === 'packs') {
       qc.invalidateQueries({ queryKey: ['packs'] });
-    } else if (table === 'sales' || table === 'sales_items') {
+    } else if (table === 'sales' || table === 'sale_items' || table === 'sales_items') {
       qc.invalidateQueries({ queryKey: ['sales'] });
+      qc.invalidateQueries({ queryKey: ['sales', 'return-candidates'] });
       qc.invalidateQueries({ queryKey: ['products'] });
       qc.invalidateQueries({ queryKey: ['cash_sessions'] });
       qc.invalidateQueries({ queryKey: ['cashSessions'] });

@@ -27,6 +27,13 @@ export interface SuspendedOrder {
   createdAt: string;
 }
 
+export interface POSReturnContext {
+  originalSaleId?: string;
+  originalSaleNumber?: string;
+  reason?: string;
+  refundMethod?: 'cash' | 'customer_credit';
+}
+
 interface POSSessionState {
   // Cart & items
   cart: CartItem[];
@@ -41,6 +48,7 @@ interface POSSessionState {
 
   // Operating modes
   returnMode: boolean;
+  returnContext: POSReturnContext | null;
   autoPrintReceipt: boolean;
   posLayout: POSLayout;
   viewMode: 'grid' | 'list';
@@ -69,6 +77,7 @@ interface POSSessionState {
   setPaymentMethod: (method: POSPaymentMethod | ((prev: POSPaymentMethod) => POSPaymentMethod)) => void;
   setPaidAmount: (amount: number | ((prev: number) => number)) => void;
   setReturnMode: (val: boolean | ((prev: boolean) => boolean)) => void;
+  setReturnContext: (ctx: POSReturnContext | null | ((prev: POSReturnContext | null) => POSReturnContext | null)) => void;
   setAutoPrintReceipt: (val: boolean | ((prev: boolean) => boolean)) => void;
   setPosLayout: (layout: POSLayout | ((prev: POSLayout) => POSLayout)) => void;
   setViewMode: (mode: 'grid' | 'list' | ((prev: 'grid' | 'list') => 'grid' | 'list')) => void;
@@ -103,6 +112,7 @@ export const usePOSSessionStore = create<POSSessionState>((set) => ({
   paymentMethod: 'cash',
   paidAmount: 0,
   returnMode: false,
+  returnContext: null,
   autoPrintReceipt: (() => {
     try {
       return localStorage.getItem('pos_auto_print') === 'true';
@@ -313,8 +323,17 @@ export const usePOSSessionStore = create<POSSessionState>((set) => ({
     })),
 
   setReturnMode: (val) =>
+    set((state) => {
+      const next = typeof val === 'function' ? val(state.returnMode) : val;
+      return {
+        returnMode: next,
+        ...(next ? {} : { returnContext: null }),
+      };
+    }),
+
+  setReturnContext: (ctx) =>
     set((state) => ({
-      returnMode: typeof val === 'function' ? val(state.returnMode) : val,
+      returnContext: typeof ctx === 'function' ? ctx(state.returnContext) : ctx,
     })),
 
   setAutoPrintReceipt: (val) =>
@@ -481,6 +500,7 @@ export const usePOSSessionStore = create<POSSessionState>((set) => ({
         paidAmount: 0,
         paymentMethod: 'cash',
         returnMode: false,
+        returnContext: null,
       };
     });
   },
@@ -506,6 +526,7 @@ export const usePOSSessionStore = create<POSSessionState>((set) => ({
         paidAmount: 0,
         paymentMethod: 'cash',
         returnMode: false,
+        returnContext: null,
       };
     });
   },

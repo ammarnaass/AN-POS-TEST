@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, RefreshCw } from 'lucide-react';
+import { User, RefreshCw, UserPlus } from 'lucide-react';
 
 export interface Design6LiveDisplayBannerProps {
   totalAmount: number;
@@ -8,6 +8,7 @@ export interface Design6LiveDisplayBannerProps {
   invoiceNumber?: string | number;
   customerName?: string;
   onSelectCustomer: () => void;
+  onOpenAddCustomer?: () => void;
   priceTier?: '1' | '2' | '3' | '4';
 }
 
@@ -18,6 +19,7 @@ export const Design6LiveDisplayBanner: React.FC<Design6LiveDisplayBannerProps> =
   invoiceNumber = 1,
   customerName = 'زبون عام (نقداً)',
   onSelectCustomer,
+  onOpenAddCustomer,
   priceTier = '1',
 }) => {
   const [currentDate, setCurrentDate] = useState('');
@@ -88,10 +90,21 @@ export const Design6LiveDisplayBanner: React.FC<Design6LiveDisplayBannerProps> =
         </div>
       </div>
 
-      {/* Right: Customer Card with Change Trigger */}
+      {/* Right: Customer Card with Change Trigger & Quick Add */}
       <div className="flex items-center gap-3 min-w-[220px] justify-end">
         <div className="text-left">
           <div className="flex items-center gap-1.5 text-[11px] justify-end">
+            {onOpenAddCustomer && (
+              <button
+                type="button"
+                onClick={onOpenAddCustomer}
+                className="h-6 px-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 dark:bg-emerald-950/80 dark:hover:bg-emerald-900/90 dark:text-emerald-300 rounded font-bold flex items-center gap-1 cursor-pointer transition-colors border border-emerald-300 dark:border-emerald-700/60"
+                title="إضافة زبون سريع جديد (Alt+C)"
+              >
+                <UserPlus className="w-2.5 h-2.5" />
+                <span>+ جديد</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={onSelectCustomer}
@@ -103,7 +116,7 @@ export const Design6LiveDisplayBanner: React.FC<Design6LiveDisplayBannerProps> =
             </button>
             <span className="text-slate-500 dark:text-slate-400">الزبون:</span>
           </div>
-          <div className="text-sm font-black text-slate-900 dark:text-white mt-0.5 text-right">
+          <div className="text-sm font-black text-slate-900 dark:text-white mt-0.5 text-right truncate max-w-[150px]">
             {customerName}
           </div>
         </div>

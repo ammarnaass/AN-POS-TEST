@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import type { CartItem, Product, Customer, Sale, DocType, CashSession } from '@/types';
-import { useSaleCompletion } from './useSaleCompletion';
+import { useSaleCompletion } from '../checkout';
 import { v4 as createId } from 'uuid';
 import { db } from '@/infrastructure/database/dexie/db';
 
@@ -82,34 +82,62 @@ export function usePOSPagePaymentFlow({
     }
   );
 
-  const handleExecutePayment = useCallback(async () => {
-    if (cart.length === 0) return;
-    if (!isSessionOpen) {
-      modals.setShowSessionWarning(true);
-      return;
-    }
+  const handleExecutePayment = useCallback(
+    async (overrides?: {
+      paidAmount?: number;
+      selectedCustomer?: string;
+      paymentMethod?: string;
+      refundMethod?: 'cash' | 'customer_credit';
+      originalSaleId?: string;
+      originalSaleNumber?: string;
+      returnReason?: string;
+    }) => {
+      if (cart.length === 0) return;
+      if (!isSessionOpen) {
+        modals.setShowSessionWarning(true);
+        return;
+      }
 
-    const dbPaymentMethod = paymentMethod === 'credit' ? 'credit' : 'cash';
-    const isWholesaleTier = priceTier === '3' || (!['1', '2', '4'].includes(priceTier) && isWholesaleActive);
-    const saleDocType: DocType = isWholesaleTier ? 'wholesale' : 'facture';
+      const activeMethod = overrides?.paymentMethod ?? paymentMethod;
+      const activeCustomer = overrides?.selectedCustomer ?? selectedCustomer;
+      const isCredit = activeMethod === 'credit';
+      const dbPaymentMethod = isCredit ? 'credit' : 'cash';
 
-    await completeSale({
-      cart,
-      discount,
-      discountType,
-      selectedCustomer,
-      paymentMethod: dbPaymentMethod,
-      paidAmount,
-      isReturn: returnMode,
-      currentSession,
-      settings: settingsOrDefault,
-      products: products as any[],
-      packs: packs as any[],
-      customers: customers as any[],
-      docType: saleDocType,
-      priceTier,
-    });
-  }, [
+      const activePaid =
+        overrides?.paidAmount !== undefined
+          ? overrides.paidAmount
+          : isCredit
+          ? 0
+          : paidAmount;
+
+      const isWholesaleTier = priceTier === '3' || (!['1', '2', '4'].includes(priceTier) && isWholesaleActive);
+      const saleDocType: DocType = isWholesaleTier ? 'wholesale' : 'facture';
+
+      const resolvedRefundMethod =
+        overrides?.refundMethod ||
+        (returnMode ? (dbPaymentMethod === 'credit' ? 'customer_credit' : 'cash') : undefined);
+
+      await completeSale({
+        cart,
+        discount,
+        discountType,
+        selectedCustomer: activeCustomer,
+        paymentMethod: dbPaymentMethod,
+        paidAmount: activePaid,
+        isReturn: returnMode,
+        currentSession,
+        settings: settingsOrDefault,
+        products: products as any[],
+        packs: packs as any[],
+        customers: customers as any[],
+        docType: saleDocType,
+        priceTier,
+        refundMethod: resolvedRefundMethod,
+        originalSaleId: overrides?.originalSaleId,
+        originalSaleNumber: overrides?.originalSaleNumber,
+        returnReason: overrides?.returnReason,
+      });
+    }, [
     cart,
     isSessionOpen,
     paymentMethod,

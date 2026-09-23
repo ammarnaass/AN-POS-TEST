@@ -24,6 +24,9 @@ export function usePOSModalsState() {
   const [showFreeProductModal, setShowFreeProductModal] = useState(false);
   const [showSuspended, setShowSuspended] = useState(false);
   const [showDiscountModal, setShowDiscountModal] = useState(false);
+  const [showCustomerInvoicesModal, setShowCustomerInvoicesModal] = useState(false);
+  const [showSettlementModal, setShowSettlementModal] = useState(false);
+  const [showAddDebtModal, setShowAddDebtModal] = useState(false);
 
   return {
     showPaymentModal,
@@ -70,6 +73,12 @@ export function usePOSModalsState() {
     setShowSuspended,
     showDiscountModal,
     setShowDiscountModal,
+    showCustomerInvoicesModal,
+    setShowCustomerInvoicesModal,
+    showSettlementModal,
+    setShowSettlementModal,
+    showAddDebtModal,
+    setShowAddDebtModal,
   };
 }
 

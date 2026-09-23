@@ -42,6 +42,7 @@ local.properties
 # Editor directories and files
 .vscode/
 **/.vscode/
+.qoder/
 Antigravity IDE/
 **/Antigravity IDE/
 .idea

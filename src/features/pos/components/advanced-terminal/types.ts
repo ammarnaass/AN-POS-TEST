@@ -40,6 +40,7 @@ export interface AdvancedTerminalPOSLayoutProps {
   onOpenSuspended: () => void;
   suspendedCount: number;
   onSelectCustomer: () => void;
+  onOpenAddCustomer?: () => void;
   selectedCustomerName: string;
   autoPrintReceipt: boolean;
   onToggleAutoPrint: () => void;

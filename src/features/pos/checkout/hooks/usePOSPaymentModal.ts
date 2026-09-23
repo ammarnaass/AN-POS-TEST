@@ -1,0 +1,145 @@
+import { useRef, useCallback, useState } from 'react';
+import type { PaymentMethod, RefundMethod } from '../types';
+import {
+  calculateChange,
+  calculateEffectivePaid,
+  isCashAmountSufficient,
+} from '../services/posPaymentCalculationService';
+import { useCreditSaleValidation } from '@/features/pos/debt';
+
+export interface UsePOSPaymentModalParams {
+  isOpen: boolean;
+  total: number;
+  paymentMethod: PaymentMethod;
+  setPaymentMethod: (method: PaymentMethod) => void;
+  paidAmount: number;
+  setPaidAmount: (amount: number) => void;
+  selectedCustomer: string;
+  customers: Array<{ id: string; name: string; phone?: string; balance?: number; creditLimit?: number }>;
+  isPending: boolean;
+  onConfirmPayment: (paid?: number, custId?: string, method?: string, refundMethod?: RefundMethod) => void;
+  isReturn?: boolean;
+  refundMethod?: RefundMethod;
+  setRefundMethod?: (method: RefundMethod) => void;
+}
+
+export function usePOSPaymentModal({
+  isOpen,
+  total,
+  paymentMethod,
+  setPaymentMethod,
+  paidAmount,
+  setPaidAmount,
+  selectedCustomer,
+  customers,
+  isPending,
+  onConfirmPayment,
+  isReturn = false,
+  refundMethod: propRefundMethod,
+  setRefundMethod: propSetRefundMethod,
+}: UsePOSPaymentModalParams) {
+  const customerSelectRef = useRef<HTMLSelectElement>(null);
+  const paidInputRef = useRef<HTMLInputElement>(null);
+
+  const [localRefundMethod, setLocalRefundMethod] = useState<RefundMethod>('cash');
+  const activeRefundMethod = propRefundMethod ?? localRefundMethod;
+
+  const matchedCustomer = customers.find((c) => c.id === selectedCustomer);
+  const isCreditSale = isReturn
+    ? activeRefundMethod === 'customer_credit'
+    : paymentMethod === 'credit';
+
+  const creditValidation = useCreditSaleValidation({
+    customer: matchedCustomer,
+    saleTotal: total,
+    isCreditSale,
+    isOpen,
+  });
+
+  const isConfirmDisabled =
+    isPending ||
+    (isReturn && activeRefundMethod === 'customer_credit' && !selectedCustomer) ||
+    (!isReturn && isCreditSale && (!selectedCustomer || creditValidation.isConfirmDisabled));
+
+  const handleSelectRefundMethod = useCallback(
+    (method: RefundMethod) => {
+      setLocalRefundMethod(method);
+      propSetRefundMethod?.(method);
+      if (method === 'cash') {
+        setPaymentMethod('cash');
+        setPaidAmount(total);
+      } else {
+        setPaymentMethod('credit');
+        setPaidAmount(0);
+      }
+    },
+    [propSetRefundMethod, setPaymentMethod, setPaidAmount, total]
+  );
+
+  const handleConfirm = useCallback(() => {
+    if (isPending) return;
+
+    if (isReturn) {
+      if (activeRefundMethod === 'customer_credit' && !selectedCustomer) {
+        customerSelectRef.current?.focus();
+        return;
+      }
+      const finalPaid = activeRefundMethod === 'cash' ? total : 0;
+      const finalMethod = activeRefundMethod === 'cash' ? 'cash' : 'credit';
+      onConfirmPayment(finalPaid, selectedCustomer, finalMethod, activeRefundMethod);
+      return;
+    }
+
+    if (paymentMethod === 'credit' && !selectedCustomer) {
+      customerSelectRef.current?.focus();
+      return;
+    }
+
+    if (creditValidation.isCreditLimitExceeded && !creditValidation.overrideCreditLimit) {
+      return;
+    }
+
+    const finalPaid = calculateEffectivePaid(paymentMethod, paidAmount, total);
+    onConfirmPayment(finalPaid, selectedCustomer, paymentMethod, undefined);
+  }, [
+    isPending,
+    isReturn,
+    activeRefundMethod,
+    paymentMethod,
+    selectedCustomer,
+    creditValidation,
+    paidAmount,
+    total,
+    onConfirmPayment,
+  ]);
+
+  const handleSelectPaymentMethod = useCallback(
+    (method: PaymentMethod) => {
+      setPaymentMethod(method);
+      if (method === 'credit') {
+        setPaidAmount(0);
+      } else if (paidAmount === 0) {
+        setPaidAmount(total);
+      }
+    },
+    [setPaymentMethod, setPaidAmount, paidAmount, total]
+  );
+
+  const changeDue = calculateChange(total, paidAmount);
+  const isPaidSufficient = isCashAmountSufficient(total, paidAmount);
+
+  return {
+    customerSelectRef,
+    paidInputRef,
+    matchedCustomer,
+    creditValidation,
+    isCreditSale,
+    isConfirmDisabled,
+    handleConfirm,
+    handleSelectPaymentMethod,
+    handleSelectRefundMethod,
+    refundMethod: activeRefundMethod,
+    changeDue,
+    isPaidSufficient,
+  };
+}

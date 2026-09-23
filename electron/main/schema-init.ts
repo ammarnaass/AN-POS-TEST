@@ -4,6 +4,7 @@
 
 import { execSql, getSqlite } from './database';
 import { bundledMigrations } from '../drizzle/migrations';
+import { clearTableColumnsCache } from './handlers/db-utils';
 
 /**
  * تهيئة المخطط — تطبيق هجرات Drizzle المسجلة بأمان
@@ -99,4 +100,17 @@ export function initSchema(): void {
   try { execSql("ALTER TABLE connected_devices ADD COLUMN app_version TEXT DEFAULT '';"); } catch { /* موجود */ }
   try { execSql("ALTER TABLE connected_devices ADD COLUMN device_unique_id TEXT DEFAULT '';"); } catch { /* موجود */ }
   try { execSql("CREATE UNIQUE INDEX IF NOT EXISTS idx_connected_devices_unique_id ON connected_devices(device_unique_id) WHERE device_unique_id != '';"); } catch { /* موجود */ }
+
+  // تصحيحات تكميلية آمنة لجدول العملاء والموردين
+  try { execSql("ALTER TABLE customers ADD COLUMN address TEXT DEFAULT '';"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE customers ADD COLUMN customer_type TEXT DEFAULT 'retail';"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE customers ADD COLUMN email TEXT DEFAULT '';"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE customers ADD COLUMN notes TEXT DEFAULT '';"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE customers ADD COLUMN rc TEXT DEFAULT '';"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE customers ADD COLUMN nif TEXT DEFAULT '';"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE customers ADD COLUMN nis TEXT DEFAULT '';"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE suppliers ADD COLUMN address TEXT DEFAULT '';"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE suppliers ADD COLUMN email TEXT DEFAULT '';"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE suppliers ADD COLUMN notes TEXT DEFAULT '';"); } catch { /* موجود */ }
+  clearTableColumnsCache();
 }

@@ -27,6 +27,7 @@ export interface UseDesign6ShortcutsProps {
   isAnyModalOpen?: boolean;
   onCloseModals?: () => void;
   onSelectPriceTier?: (tier: '1' | '2' | '3' | '4') => void;
+  onOpenAddCustomer?: () => void;
 }
 
 export const useDesign6Shortcuts = ({
@@ -56,6 +57,7 @@ export const useDesign6Shortcuts = ({
   isAnyModalOpen = false,
   onCloseModals,
   onSelectPriceTier,
+  onOpenAddCustomer,
 }: UseDesign6ShortcutsProps) => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -70,6 +72,13 @@ export const useDesign6Shortcuts = ({
         } else {
           onNavigateBack?.();
         }
+        return;
+      }
+
+      // Alt + C: فتح نافذة إضافة زبون سريع
+      if (e.altKey && (e.key === 'c' || e.key === 'C' || e.key === 'ؤ')) {
+        e.preventDefault();
+        onOpenAddCustomer?.();
         return;
       }
 

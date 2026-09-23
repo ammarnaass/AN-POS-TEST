@@ -38,6 +38,7 @@ export interface TerminalPOSLayoutProps {
   onOpenSuspended: () => void;
   suspendedCount: number;
   onSelectCustomer: () => void;
+  onOpenAddCustomer?: () => void;
   selectedCustomerName: string;
   autoPrintReceipt: boolean;
   onToggleAutoPrint: () => void;
@@ -98,6 +99,7 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
   onOpenSuspended,
   suspendedCount,
   onSelectCustomer,
+  onOpenAddCustomer,
   selectedCustomerName,
   autoPrintReceipt,
   onToggleAutoPrint,

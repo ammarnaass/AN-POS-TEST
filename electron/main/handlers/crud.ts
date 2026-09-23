@@ -375,12 +375,23 @@ export async function createRow(
     data[idField] = newId;
   }
 
-  const cols = Object.keys(data);
+  const validCols = getTableColumns(tableName);
+  const colMap = new Map<string, unknown>();
+  for (const [k, v] of Object.entries(data)) {
+    const snake = toSnakeKey(k);
+    if (validCols.size === 0 || validCols.has(snake)) {
+      colMap.set(snake, v);
+    } else if (validCols.has(k)) {
+      colMap.set(k, v);
+    }
+  }
+
+  const cols = Array.from(colMap.keys());
   const placeholders = cols.map(() => '?').join(', ');
-  const vals = cols.map((k) => serializeValue(data[k]));
+  const vals = cols.map((col) => serializeValue(colMap.get(col)));
 
   execute(
-    `INSERT INTO ${tableName} (${cols.map((c) => `"${toSnakeKey(c)}"`).join(', ')}) VALUES (${placeholders})`,
+    `INSERT INTO ${tableName} (${cols.map((c) => `"${c}"`).join(', ')}) VALUES (${placeholders})`,
     vals
   );
 
@@ -416,25 +427,33 @@ export async function updateRow(
   }
   const data = normalizePayloadForTable(tableName, rawData);
   const hasUpdatedAt = tableHasColumn(tableName, 'updated_at');
+  const validCols = getTableColumns(tableName);
 
-  const entries = Object.entries(data).filter(([k]) => {
-    if (k === idField) return false;
-    if (hasUpdatedAt && (k === 'updated_at' || k === 'updatedAt')) return false;
-    return true;
-  });
+  const colMap = new Map<string, unknown>();
+  for (const [k, v] of Object.entries(data)) {
+    if (k === idField) continue;
+    if (hasUpdatedAt && (k === 'updated_at' || k === 'updatedAt')) continue;
+    const snake = toSnakeKey(k);
+    if (validCols.size === 0 || validCols.has(snake)) {
+      colMap.set(snake, v);
+    } else if (validCols.has(k)) {
+      colMap.set(k, v);
+    }
+  }
 
   const existingRow = queryOne(`SELECT ${idField} FROM ${tableName} WHERE ${idField} = ?`, [resolvedId]);
   if (!existingRow) {
     return createRow(tableName, { [idField]: resolvedId, ...data });
   }
 
-  if (entries.length === 0) {
+  if (colMap.size === 0) {
     const currentRow = queryOne(`SELECT * FROM ${tableName} WHERE ${idField} = ?`, [resolvedId]);
     return { data: currentRow ? (config ? transformRow(currentRow, config) : currentRow) : null };
   }
 
-  const setClause = entries.map(([k]) => `"${toSnakeKey(k)}" = ?`).join(', ');
-  const vals = entries.map(([, v]) => serializeValue(v));
+  const cols = Array.from(colMap.keys());
+  const setClause = cols.map((c) => `"${c}" = ?`).join(', ');
+  const vals = cols.map((col) => serializeValue(colMap.get(col)));
 
   if (hasUpdatedAt) {
     execute(`UPDATE ${tableName} SET ${setClause}, updated_at = ? WHERE ${idField} = ?`, [...vals, new Date().toISOString(), resolvedId]);

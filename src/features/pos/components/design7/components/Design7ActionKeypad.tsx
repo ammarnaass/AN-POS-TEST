@@ -1,4 +1,5 @@
 import React from 'react';
+import { POSCustomerButton } from '@/features/pos/debt';
 
 interface Design7ActionKeypadProps {
   onSelectCustomer: () => void;
@@ -46,18 +47,11 @@ export const Design7ActionKeypad: React.FC<Design7ActionKeypadProps> = ({
     >
       <div className="grid grid-cols-3 gap-1">
         {/* ================= Row 1 ================= */}
-        {/* Row 1, Col 1: Customer (Right in RTL) */}
-        <button
-          onClick={onSelectCustomer}
-          title="اختيار الزبون وتعيينه (F9)"
-          className="d7-glossy-action-tile min-h-[44px] rounded flex flex-col items-center justify-center p-0.5 cursor-pointer active:scale-95 transition-all"
-          type="button"
-        >
-          <svg className="w-4 h-4 text-amber-600 drop-shadow-xs" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3z"></path>
-          </svg>
-          <span className="text-[9px] font-black text-black leading-tight mt-0.5">الزبون</span>
-        </button>
+        {/* Row 1, Col 1: Customer (Right in RTL) - Unified Robust Architecture */}
+        <POSCustomerButton
+          variant="keypad_tile"
+          onSelectCustomer={onSelectCustomer}
+        />
 
         {/* Row 1, Col 2: Search (Center) */}
         <button

@@ -20,6 +20,14 @@ function transformSale(row: Row) {
   if (typeof obj.items === 'string') {
     try { obj.items = JSON.parse(obj.items as string); } catch { obj.items = []; }
   }
+  // استخراج رقم الفاتورة الأصلية من الملاحظة إذا كان مفقوداً في الصف
+  if (!obj.originalSaleNumber && !obj.original_sale_number && typeof obj.note === 'string') {
+    const match = obj.note.match(/مرتجع للفاتورة #([^\s|]+)/);
+    if (match && match[1]) {
+      obj.originalSaleNumber = match[1];
+      obj.original_sale_number = match[1];
+    }
+  }
   return obj;
 }
 
@@ -101,6 +109,7 @@ export async function createSale(data: Record<string, unknown>): Promise<{ data:
   const total = Number(data.total ?? 0);
   const note = String(data.note ?? data.notes ?? '');
   const saleNumber = String(data.number || '');
+  const refundMethod = String(data.refundMethod ?? data.refund_method ?? '');
 
   // البحث عن جلسة الصندوق المفتوحة تلقائياً إذا لم تُمرر
   if (!cashSessionId) {
@@ -318,12 +327,19 @@ export async function createSale(data: Record<string, unknown>): Promise<{ data:
     // 3. تحديث رصيد العميل (الديون) بدقة
     if (customerId) {
       if (isReturn) {
-        // في المرتجع: ينقص دين العميل بمقدار قيمة الفاتورة
-        execute('UPDATE customers SET balance = balance - ?, updated_at = ? WHERE id = ?', [
-          total,
-          now,
-          customerId,
-        ]);
+        // في المرتجع: لا يُخصم من دين العميل إلا إذا تم قيد المرتجع في حسابه كرصيد دائن
+        const isCustomerCreditRefund =
+          refundMethod === 'customer_credit' ||
+          (paymentMethod === 'credit' && refundMethod !== 'cash');
+
+        if (isCustomerCreditRefund) {
+          execute('UPDATE customers SET balance = balance - ?, updated_at = ? WHERE id = ?', [
+            total,
+            now,
+            customerId,
+          ]);
+        }
+        // إذا كان الإرجاع نقداً (cash): لا يتم تعديل رصيد العميل مطلقاً لأن المبلغ خرج نقداً
       } else if (paymentMethod === 'credit') {
         // في البيع الآجل: يزداد دين العميل بالمبلغ المتبقي غير المدفوع
         const unpaidPart = Math.max(0, total - amountPaid);
@@ -340,15 +356,21 @@ export async function createSale(data: Record<string, unknown>): Promise<{ data:
     // 4. تحديث جلسة الصندوق
     if (cashSessionId) {
       if (isReturn) {
-        // الإرجاع: زيادة total_returns ونقصان النقدية الفعلية
-        execute('UPDATE cash_sessions SET total_returns = total_returns + ?, actual_balance = actual_balance - ?, updated_at = ? WHERE id = ?', [
-          total,
-          total,
-          now,
-          cashSessionId,
-        ]);
-      } else if ((paymentMethod === 'cash' || !paymentMethod) && amountPaid > 0) {
-        // البيع النقدي: زيادة total_sales وزيادة النقدية الفعلية
+        // الإرجاع: إذا كان الاسترداد نقداً، تخصم النقدية من الصندوق وتزيد total_returns
+        const isCashRefund =
+          refundMethod === 'cash' ||
+          (!refundMethod && paymentMethod === 'cash');
+
+        if (isCashRefund) {
+          execute('UPDATE cash_sessions SET total_returns = total_returns + ?, actual_balance = actual_balance - ?, updated_at = ? WHERE id = ?', [
+            total,
+            total,
+            now,
+            cashSessionId,
+          ]);
+        }
+      } else if ((paymentMethod === 'cash' || !paymentMethod || paymentMethod === 'credit') && amountPaid > 0) {
+        // البيع النقدي أو الدفعة النقدية الأولى للبيع الآجل: زيادة total_sales وزيادة النقدية الفعلية
         execute('UPDATE cash_sessions SET total_sales = total_sales + ?, actual_balance = actual_balance + ?, updated_at = ? WHERE id = ?', [
           amountPaid,
           amountPaid,
@@ -363,10 +385,22 @@ export async function createSale(data: Record<string, unknown>): Promise<{ data:
   notifyTableChange('sales', 'create', id);
   notifyTableChange('products', 'bulk-update');
   if (customerId) {
-    notifyTableChange('customers', 'update', customerId);
+    const isCustomerCreditRefund =
+      isReturn &&
+      (refundMethod === 'customer_credit' ||
+        (paymentMethod === 'credit' && refundMethod !== 'cash'));
+    if (!isReturn || isCustomerCreditRefund) {
+      notifyTableChange('customers', 'update', customerId);
+    }
   }
   if (cashSessionId) {
-    notifyTableChange('cash_sessions', 'update', cashSessionId);
+    const isCashRefund =
+      !isReturn ||
+      refundMethod === 'cash' ||
+      (!refundMethod && paymentMethod === 'cash');
+    if (isCashRefund) {
+      notifyTableChange('cash_sessions', 'update', cashSessionId);
+    }
   }
 
   const created = queryOne('SELECT * FROM sales WHERE id = ?', [id]);

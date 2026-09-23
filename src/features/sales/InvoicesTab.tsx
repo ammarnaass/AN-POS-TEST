@@ -18,6 +18,7 @@ import { getAllTemplates } from '@/services/print/templateService';
 import { listPrinters, getDefaultPrinter } from '@/services/print/printerService';
 import { useAuthStore } from '@/store/authStore';
 import { useCanPerform } from '@/services/print/permissions';
+import { settleSpecificInvoiceDebtRecord, toggleInvoicePaymentStatus } from '@/features/pos/debt';
 import type { DocType } from '@/types';
 import type { DocTypeKey, PrintTemplate, Printer as PrinterType } from '@/types/invoicePrint';
 import * as XLSX from 'xlsx';
@@ -135,6 +136,15 @@ export default function InvoicesTab() {
   const [selectedSaleIds, setSelectedSaleIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const salesCheckboxRef = useRef<HTMLInputElement>(null);
+
+  // Debt settlement & status toggling state
+  const [saleToSettle, setSaleToSettle] = useState<any | null>(null);
+  const [settleAmount, setSettleAmount] = useState<number>(0);
+  const [settleMethod, setSettleMethod] = useState<'cash' | 'card' | 'transfer' | 'baridimob'>('cash');
+  const [settleNote, setSettleNote] = useState<string>('');
+  const [settleCustomerId, setSettleCustomerId] = useState<string>('');
+  const [targetStatusAction, setTargetStatusAction] = useState<'settle' | 'convert_to_credit'>('settle');
+  const [isSettling, setIsSettling] = useState(false);
 
   const toggleSelectSale = (id: string) => {
     setSelectedSaleIds((prev) => {
@@ -425,16 +435,121 @@ export default function InvoicesTab() {
     }
   }, [viewSale, defaultPrinter]);
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, sale?: any) => {
     switch (status) {
       case 'paid':
-        return <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">مدفوعة</span>;
-      case 'partial':
-        return <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-500">جزئية</span>;
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+            <CheckCircle2 className="w-3 h-3" />
+            <span>مدفوعة</span>
+          </span>
+        );
+      case 'partial': {
+        const paid = Number(sale?.paidAmount ?? sale?.amountPaid ?? 0);
+        const total = Number(sale?.total || 0);
+        const rem = Math.max(0, total - paid);
+        return (
+          <span
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400"
+            title={`مسدد: ${paid.toLocaleString()} | دين متبقي: ${rem.toLocaleString()}`}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+            <span>جزئية {rem > 0 ? `(دين: ${rem.toLocaleString()} ${baseCurrency})` : ''}</span>
+          </span>
+        );
+      }
       case 'unpaid':
-        return <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-500">غير مدفوعة</span>;
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400">
+            <AlertCircle className="w-3 h-3" />
+            <span>غير مدفوعة (دين)</span>
+          </span>
+        );
       default:
-        return <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-surface-container-high text-on-surface-variant">{status || 'غير محدد'}</span>;
+        return (
+          <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-surface-container-high text-on-surface-variant">
+            {status || 'غير محدد'}
+          </span>
+        );
+    }
+  };
+
+  const handleConfirmSettleOrToggle = async () => {
+    if (!saleToSettle) return;
+    setIsSettling(true);
+    try {
+      if (targetStatusAction === 'settle') {
+        const effectiveCustomerId = saleToSettle.customerId || settleCustomerId;
+        if (!effectiveCustomerId) {
+          addNotification({
+            title: 'تنبيه',
+            message: 'يرجى اختيار العميل لربط السداد بحسابه المالي',
+            type: 'warning',
+          });
+          setIsSettling(false);
+          return;
+        }
+
+        const effectiveCustomer = customers.find((c) => c.id === effectiveCustomerId);
+        const res = await settleSpecificInvoiceDebtRecord({
+          saleId: saleToSettle.id,
+          customerId: effectiveCustomerId,
+          customerName: saleToSettle.customerName || effectiveCustomer?.name || 'زبون',
+          amount: settleAmount,
+          paymentMethod: settleMethod,
+          note: settleNote || `تسديد فاتورة #${saleToSettle.number}`,
+          currentUserName: currentUser?.name || 'الكاشير',
+        });
+
+        queryClient.invalidateQueries({ queryKey: ['sales'] });
+        queryClient.invalidateQueries({ queryKey: ['customers'] });
+        queryClient.invalidateQueries({ queryKey: ['cash_sessions'] });
+        queryClient.invalidateQueries({ queryKey: ['payments'] });
+
+        addNotification({
+          title: 'تم تسجيل السداد بنجاح',
+          message: `تم سداد مبلغ ${settleAmount.toLocaleString()} ${baseCurrency} من الفاتورة #${saleToSettle.number}. الرصيد المتبقي على العميل: ${res.newBalance.toLocaleString()} ${baseCurrency}`,
+          type: 'success',
+        });
+      } else {
+        // تحويل الفاتورة إلى دين غير مسدد
+        const effectiveCustomerId = saleToSettle.customerId || settleCustomerId;
+        if (!effectiveCustomerId) {
+          addNotification({
+            title: 'تنبيه',
+            message: 'لا يمكن تحويل الفاتورة إلى دين دون تحديد زبون مسجل.',
+            type: 'warning',
+          });
+          setIsSettling(false);
+          return;
+        }
+
+        const res = await toggleInvoicePaymentStatus({
+          saleId: saleToSettle.id,
+          targetStatus: 'unpaid',
+          currentUserName: currentUser?.name || 'الكاشير',
+          note: settleNote || `تحويل الفاتورة #${saleToSettle.number} إلى دين`,
+        });
+
+        queryClient.invalidateQueries({ queryKey: ['sales'] });
+        queryClient.invalidateQueries({ queryKey: ['customers'] });
+        queryClient.invalidateQueries({ queryKey: ['cash_sessions'] });
+
+        addNotification({
+          title: 'تم تحويل الفاتورة إلى دين',
+          message: `تم قيد مبلغ ${res.amountChanged.toLocaleString()} ${baseCurrency} كدين مستحق على العميل.`,
+          type: 'success',
+        });
+      }
+      setSaleToSettle(null);
+    } catch (err: any) {
+      addNotification({
+        title: 'خطأ أثناء المعالجة',
+        message: err.message || 'فشلت عملية تحديث حالة الفاتورة',
+        type: 'error',
+      });
+    } finally {
+      setIsSettling(false);
     }
   };
 
@@ -844,7 +959,23 @@ export default function InvoicesTab() {
 
                     {/* Payment Status */}
                     <td className="px-4 py-3.5 text-center">
-                      {getStatusBadge(sale.status)}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (sale.type !== 'return') {
+                            setSaleToSettle(sale);
+                            const unpaid = Math.max(0, (sale.total || 0) - (sale.paidAmount || 0));
+                            setSettleAmount(unpaid > 0 ? unpaid : sale.total);
+                            setSettleCustomerId(sale.customerId || '');
+                            setTargetStatusAction(sale.status === 'paid' ? 'convert_to_credit' : 'settle');
+                          }
+                        }}
+                        className="cursor-pointer hover:opacity-80 transition-opacity"
+                        title="انقر لتسديد الفاتورة أو تغيير حالة الدفع"
+                      >
+                        {getStatusBadge(sale.status, sale)}
+                      </button>
                     </td>
 
                     {/* Total Amount */}
@@ -855,6 +986,23 @@ export default function InvoicesTab() {
                     {/* Actions */}
                     <td className="px-5 py-3.5 text-center" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-center gap-1">
+                        {sale.type === 'sale' && sale.status !== 'paid' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSaleToSettle(sale);
+                              const unpaid = Math.max(0, (sale.total || 0) - (sale.paidAmount || 0));
+                              setSettleAmount(unpaid > 0 ? unpaid : sale.total);
+                              setSettleCustomerId(sale.customerId || '');
+                              setTargetStatusAction('settle');
+                            }}
+                            className="p-1.5 px-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 transition-all shadow-2xs cursor-pointer active:scale-95"
+                            title="تسديد الفاتورة"
+                          >
+                            <DollarSign className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">تسديد</span>
+                          </button>
+                        )}
                         <button
                           onClick={() => setViewSale(sale.id)}
                           className="p-2 rounded-xl text-primary hover:bg-primary/10 transition-all"
@@ -1007,7 +1155,24 @@ export default function InvoicesTab() {
                     <h3 className="font-cairo text-lg font-bold text-on-surface">
                       الفاتورة {selectedSale.number}
                     </h3>
-                    {getStatusBadge(selectedSale.status)}
+                    {getStatusBadge(selectedSale.status, selectedSale)}
+                    {selectedSale.type !== 'return' && selectedSale.status !== 'paid' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSaleToSettle(selectedSale);
+                          const unpaid = Math.max(0, (selectedSale.total || 0) - (selectedSale.paidAmount || 0));
+                          setSettleAmount(unpaid > 0 ? unpaid : selectedSale.total);
+                          setSettleCustomerId(selectedSale.customerId || '');
+                          setTargetStatusAction('settle');
+                        }}
+                        className="mr-2 px-3 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+                        title="تسديد الفاتورة"
+                      >
+                        <DollarSign className="w-3.5 h-3.5" />
+                        <span>تسديد الفاتورة</span>
+                      </button>
+                    )}
                   </div>
                   <p className="text-xs text-on-surface-variant mt-0.5">
                     تاريخ الإنشاء: {formatDate(selectedSale.date)}
@@ -1284,6 +1449,223 @@ export default function InvoicesTab() {
                 <span>حذف الفواتير المحددة ({selectedSaleIds.size})</span>
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Invoice Debt Settlement & Status Toggling Modal */}
+      {saleToSettle && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-200" dir="rtl">
+          <div className="bg-surface-container-low rounded-3xl border border-outline-variant/30 w-full max-w-lg shadow-2xl p-6 space-y-5 animate-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-outline-variant/15">
+              <div className="flex items-center gap-3">
+                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-bold ${
+                  targetStatusAction === 'settle'
+                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                    : 'bg-rose-500/15 text-rose-600 dark:text-rose-400'
+                }`}>
+                  <DollarSign className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold font-cairo text-on-surface">
+                    {targetStatusAction === 'settle' ? 'تسديد دين الفاتورة' : 'تحويل الفاتورة إلى دين آجل'}
+                  </h3>
+                  <p className="text-xs text-on-surface-variant mt-0.5">
+                    فاتورة رقم: <span className="font-mono font-bold text-on-surface">#{saleToSettle.number}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSaleToSettle(null)}
+                disabled={isSettling}
+                className="p-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer rounded-xl"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Action Switcher Tabs */}
+            <div className="flex rounded-xl bg-surface-container p-1 border border-outline-variant/20 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setTargetStatusAction('settle')}
+                className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  targetStatusAction === 'settle'
+                    ? 'bg-primary text-on-primary shadow-xs'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                تسديد دفعة / سداد كامل
+              </button>
+              <button
+                type="button"
+                onClick={() => setTargetStatusAction('convert_to_credit')}
+                className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  targetStatusAction === 'convert_to_credit'
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                قيد الفاتورة كدين (غير مسدد)
+              </button>
+            </div>
+
+            {/* Financial Status of the Invoice */}
+            <div className="bg-surface-container p-4 rounded-2xl border border-outline-variant/20 grid grid-cols-3 gap-2 text-center text-xs">
+              <div>
+                <span className="text-[11px] font-bold text-on-surface-variant block">إجمالي الفاتورة:</span>
+                <span className="font-mono font-black text-sm text-on-surface mt-0.5 inline-block">
+                  {Number(saleToSettle.total || 0).toLocaleString()} {baseCurrency}
+                </span>
+              </div>
+              <div className="border-r border-l border-outline-variant/20 px-1">
+                <span className="text-[11px] font-bold text-on-surface-variant block">المسدد سابقاً:</span>
+                <span className="font-mono font-black text-sm text-emerald-600 mt-0.5 inline-block">
+                  {Number(saleToSettle.paidAmount ?? saleToSettle.amountPaid ?? 0).toLocaleString()} {baseCurrency}
+                </span>
+              </div>
+              <div>
+                <span className="text-[11px] font-bold text-on-surface-variant block">المتبقي كدين:</span>
+                <span className="font-mono font-black text-sm text-rose-600 mt-0.5 inline-block">
+                  {Math.max(0, (saleToSettle.total || 0) - Number(saleToSettle.paidAmount ?? saleToSettle.amountPaid ?? 0)).toLocaleString()} {baseCurrency}
+                </span>
+              </div>
+            </div>
+
+            {/* Customer Selector if invoice is not associated with registered customer */}
+            {(!saleToSettle.customerId || !customers.some((c) => c.id === saleToSettle.customerId)) && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-on-surface block">
+                  ربط الفاتورة بزبون مسجل في النظام *:
+                </label>
+                <select
+                  value={settleCustomerId}
+                  onChange={(e) => setSettleCustomerId(e.target.value)}
+                  className="w-full h-10 px-3 bg-surface-container border border-outline-variant/30 rounded-xl text-xs font-bold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/25 cursor-pointer"
+                >
+                  <option value="">-- اختر الزبون لتسجيل الحركة في حسابه --</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {c.phone ? `(${c.phone})` : ''} [الدين: {Number(c.balance || 0).toLocaleString()} {baseCurrency}]
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {targetStatusAction === 'settle' ? (
+              <div className="space-y-4">
+                {/* Amount to pay */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-on-surface">مبلغ السداد الحالي *:</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const unpaid = Math.max(0, (saleToSettle.total || 0) - Number(saleToSettle.paidAmount ?? saleToSettle.amountPaid ?? 0));
+                        setSettleAmount(unpaid > 0 ? unpaid : saleToSettle.total);
+                      }}
+                      className="text-[11px] font-bold text-primary hover:underline cursor-pointer"
+                    >
+                      كامل المتبقي
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={settleAmount || ''}
+                      onChange={(e) => setSettleAmount(Math.max(0, Number(e.target.value)))}
+                      className="w-full h-11 px-4 bg-surface-container border border-outline-variant/30 rounded-xl text-base font-mono font-black text-on-surface text-center focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      placeholder="0.00"
+                    />
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-on-surface-variant">
+                      {baseCurrency}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Payment Method */}
+                <div>
+                  <label className="text-xs font-bold text-on-surface block mb-1">طريقة استلام المبلغ:</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: 'cash', label: 'نقداً في الصندوق' },
+                      { id: 'baridimob', label: 'بريدي موب / CCP' },
+                      { id: 'transfer', label: 'تحويل / شيك' },
+                    ].map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setSettleMethod(m.id as any)}
+                        className={`py-2 px-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                          settleMethod === m.id
+                            ? 'bg-primary text-on-primary border-primary shadow-xs'
+                            : 'bg-surface-container text-on-surface border-outline-variant/20 hover:bg-surface-container-high'
+                        }`}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Note */}
+                <div>
+                  <label className="text-xs font-bold text-on-surface block mb-1">ملاحظة أو بيان الدفعة (اختياري):</label>
+                  <input
+                    type="text"
+                    value={settleNote}
+                    onChange={(e) => setSettleNote(e.target.value)}
+                    placeholder="مثال: تسديد نقدي مباشر من الزبون"
+                    className="w-full h-9 px-3 bg-surface-container border border-outline-variant/30 rounded-xl text-xs text-on-surface focus:outline-none"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/25 text-xs text-rose-800 dark:text-rose-300 space-y-1.5">
+                <p className="font-bold flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>تأكيد تحويل الفاتورة إلى دين آجل</span>
+                </p>
+                <p className="text-[11px] leading-relaxed">
+                  سيتم تغيير حالة الفاتورة إلى "غير مدفوعة (دين)"، وقيد مبلغ{' '}
+                  <strong className="font-mono">{(saleToSettle.total || 0).toLocaleString()} {baseCurrency}</strong>{' '}
+                  كمديونية مستحقة في حساب الزبون.
+                </p>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setSaleToSettle(null)}
+                disabled={isSettling}
+                className="flex-1 h-11 bg-surface-container hover:bg-surface-container-high border border-outline-variant/25 text-on-surface-variant font-bold text-xs rounded-xl transition-all cursor-pointer"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSettleOrToggle}
+                disabled={isSettling || (targetStatusAction === 'settle' && settleAmount <= 0)}
+                className="flex-2 h-11 bg-primary hover:bg-primary/90 text-on-primary font-bold text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                {isSettling ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>جارٍ المعالجة...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>{targetStatusAction === 'settle' ? 'تأكيد التسديد' : 'تأكيد التحويل لدين'}</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

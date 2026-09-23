@@ -1,8 +1,9 @@
-import React from 'react';
-import { DollarSign, FileText, Printer, X } from 'lucide-react';
-import type { Customer } from '@/types';
+import React, { useMemo } from 'react';
+import { DollarSign, FileText, Printer, X, Clock, AlertTriangle, MessageSquare } from 'lucide-react';
+import type { Customer, Sale } from '@/types';
 import type { CustomerStatementEntry } from '../types';
-import { formatCustomerMoney } from '../services/customerStatus';
+import { formatCustomerMoney, getWhatsAppUrl } from '../services/customerStatus';
+import { calculateCustomerDebtAging } from '../services/customerStatementService';
 
 interface CustomerStatementModalProps {
   isOpen: boolean;
@@ -11,6 +12,7 @@ interface CustomerStatementModalProps {
   onPrint: () => void;
   onOpenPayment: (customer: Customer) => void;
   entries: CustomerStatementEntry[];
+  customerSales?: Sale[];
   filterType: 'all' | 'sales' | 'payments';
   setFilterType: (type: 'all' | 'sales' | 'payments') => void;
   dateFrom: string;
@@ -18,6 +20,7 @@ interface CustomerStatementModalProps {
   dateTo: string;
   setDateTo: (date: string) => void;
   currencySymbol?: string;
+  storeName?: string;
 }
 
 export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
@@ -27,6 +30,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
   onPrint,
   onOpenPayment,
   entries,
+  customerSales,
   filterType,
   setFilterType,
   dateFrom,
@@ -34,6 +38,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
   dateTo,
   setDateTo,
   currencySymbol = 'دج',
+  storeName = 'متجرنا',
 }) => {
   if (!isOpen || !customer) return null;
 
@@ -43,6 +48,12 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
 
   const totalPurchases = entries.filter((e) => e.type === 'sale').reduce((sum, e) => sum + e.debit, 0);
   const totalPayments = entries.filter((e) => e.type === 'payment').reduce((sum, e) => sum + e.credit, 0);
+  const waUrl = getWhatsAppUrl(customer, storeName, currencySymbol);
+
+  const agingSummary = useMemo(() => {
+    if (!customerSales || customerSales.length === 0) return null;
+    return calculateCustomerDebtAging(customerSales);
+  }, [customerSales]);
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -64,6 +75,19 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {waUrl && (
+              <a
+                href={waUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-2xs hover:shadow-md cursor-pointer"
+                title="إرسال إشعار تذكير بالدين عبر واتساب"
+              >
+                <MessageSquare className="w-4 h-4" />
+                <span>إشعار واتساب</span>
+              </a>
+            )}
+
             <button
               onClick={onPrint}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-on-primary text-xs font-bold transition-all shadow-2xs hover:shadow-md cursor-pointer"
@@ -125,6 +149,45 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
             </p>
           </div>
         </div>
+
+        {/* Debt Aging Analysis Strip */}
+        {agingSummary && agingSummary.totalOverdue > 0 && (
+          <div className="mb-3 p-3 rounded-2xl bg-surface-container/70 border border-outline-variant/20 shrink-0">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-black text-on-surface flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-primary" />
+                تحليل تعمير الديون (حسب أعمار الفواتير المستحقة):
+              </span>
+              <span className="text-[11px] font-bold text-on-surface-variant font-mono">
+                {agingSummary.unpaidInvoicesCount} فواتير معلقة • أقدم فاتورة منذ {agingSummary.oldestInvoiceDays} يوم
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {agingSummary.buckets.map((bucket, idx) => {
+                const colorClasses =
+                  bucket.severity === 'normal'
+                    ? 'border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400'
+                    : bucket.severity === 'due'
+                    ? 'border-blue-500/30 bg-blue-500/5 text-blue-700 dark:text-blue-400'
+                    : bucket.severity === 'warning'
+                    ? 'border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-400'
+                    : 'border-red-500/30 bg-red-500/5 text-red-700 dark:text-red-400';
+
+                return (
+                  <div key={idx} className={`p-2 rounded-xl border ${colorClasses} text-center`}>
+                    <div className="text-[10px] font-bold">{bucket.label}</div>
+                    <div className="text-sm font-black font-mono mt-0.5">
+                      {formatCustomerMoney(bucket.amount)} <span className="text-[10px] font-cairo">{currencySymbol}</span>
+                    </div>
+                    <div className="text-[10px] opacity-75 font-mono">
+                      {bucket.invoicesCount} فاتورة
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Filter controls inside statement */}
         <div className="bg-surface-container p-3 rounded-2xl border border-outline-variant/20 mb-3 flex flex-wrap items-center justify-between gap-3 text-xs shrink-0">

@@ -1,12 +1,14 @@
 import React from 'react';
-import { Bell, LogOut, Layers } from 'lucide-react';
+import { Bell, LogOut, Layers, RotateCcw, BookOpen } from 'lucide-react';
 import NotificationDropdown from '@/components/notifications/NotificationDropdown';
 import { useNotificationStore } from '@/store/notificationStore';
+import { POSReturnButton } from '@/features/pos/returns';
 import { useDesign7Clock } from '../hooks/useDesign7Clock';
 
 interface Design7TopRibbonProps {
   onNavigateBack: () => void;
   onOpenSalesHistory?: () => void;
+  onOpenCustomerLedger?: () => void;
   onOpenReturns?: () => void;
   onSaveAsOrder?: () => void;
   onOpenSuspended: () => void;
@@ -30,6 +32,7 @@ interface Design7TopRibbonProps {
 export const Design7TopRibbon: React.FC<Design7TopRibbonProps> = ({
   onNavigateBack,
   onOpenSalesHistory,
+  onOpenCustomerLedger,
   onOpenReturns,
   onSaveAsOrder,
   onOpenSuspended,
@@ -81,6 +84,22 @@ export const Design7TopRibbon: React.FC<Design7TopRibbonProps> = ({
           </svg>
           <span className="text-[10px] sm:text-[11px] font-bold text-slate-800 leading-tight truncate">سجل المبيعات</span>
         </button>
+
+        {/* دفتر حسابات الزبائن والديون وكشوف الحساب */}
+        {onOpenCustomerLedger && (
+          <button
+            onClick={onOpenCustomerLedger}
+            title="دفتر حسابات الزبائن والديون وكشوف الحساب (Alt+D)"
+            className="d7-glossy-top-btn flex flex-col items-center justify-center w-14 sm:w-16 md:w-20 h-10 sm:h-11 md:h-12 rounded px-1 cursor-pointer active:scale-95 transition-all bg-emerald-50/40 hover:border-emerald-400 shrink-0"
+            type="button"
+            data-purpose="open-customer-ledger-button"
+          >
+            <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-700 drop-shadow-xs" />
+            <span className="text-[10px] sm:text-[11px] font-bold text-emerald-900 leading-tight truncate">
+              دفتر الديون
+            </span>
+          </button>
+        )}
 
         {/* حفظ كطلبيّة زبون */}
         <button
@@ -270,28 +289,9 @@ export const Design7TopRibbon: React.FC<Design7TopRibbonProps> = ({
           <span className="text-[9px] sm:text-[10px] font-bold text-purple-900 leading-tight">تخصيص F12</span>
         </button>
 
-        {/* زر إظهار أو إخفاء شريط العبوات والمفضلة السفلي */}
-        {onToggleBottomFavorites && (
-          <button
-            onClick={onToggleBottomFavorites}
-            title={
-              isBottomFavoritesVisible
-                ? 'إخفاء شريط العبوات وتصنيفات المفضلة (لتوسيع جدول السلة)'
-                : 'إظهار شريط العبوات وتصنيفات المفضلة'
-            }
-            className={`d7-glossy-top-btn flex flex-col items-center justify-center w-12 sm:w-14 md:w-16 h-10 sm:h-11 md:h-12 rounded px-1 cursor-pointer active:scale-95 transition-all shrink-0 ${
-              isBottomFavoritesVisible
-                ? 'bg-sky-50/20 hover:border-sky-400'
-                : 'bg-amber-50/40 border-amber-400/80 hover:border-amber-500 ring-1 ring-amber-400/50'
-            }`}
-            type="button"
-            data-purpose="toggle-bottom-favorites"
-          >
-            <Layers className={`w-4 h-4 sm:w-5 sm:h-5 drop-shadow-xs ${isBottomFavoritesVisible ? 'text-sky-600' : 'text-amber-700'}`} />
-            <span className={`text-[9px] sm:text-[10px] font-bold leading-tight ${isBottomFavoritesVisible ? 'text-slate-700' : 'text-amber-800'}`}>
-              {isBottomFavoritesVisible ? 'العبوات' : 'إظهار العبوات'}
-            </span>
-          </button>
+        {/* زر إرجاع المبيعات / المرتجعات - معمارية قوية موحدة */}
+        {onOpenReturns && (
+          <POSReturnButton variant="ribbon" onOpenReturns={onOpenReturns} />
         )}
       </div>
 

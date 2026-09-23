@@ -56,33 +56,39 @@ export function calculateCustomerStatement(
     };
   });
 
-  // 2. استخراج حركات التسديد النقدية/البنكية
+  // 2. استخراج حركات التسديد النقدية والبنكية وقيود الديون الإضافية
   const allPayments = customerPayments.map((p: any) => {
+    const isDebitAddition = p.type === 'debit';
     const methodNames: Record<string, string> = {
       cash: 'نقداً',
       baridimob: 'بريدي موب / CCP',
       check: 'شيك بنكي',
       transfer: 'تحويل بنكي',
+      credit: 'قيد آجل / دين',
     };
     const methodLabel = methodNames[p.method] || p.method || 'نقداً';
     return {
       id: p.id,
       date: p.date || p.createdAt || new Date().toISOString(),
-      type: 'payment' as const,
-      number: '—',
-      description: `تسديد دفعة (${methodLabel})${p.note ? ' - ' + p.note : ''}`,
-      debit: 0,
-      credit: Number(p.amount || 0),
-      status: 'paid' as const,
+      type: (isDebitAddition ? 'debt_addition' : 'payment') as const,
+      number: p.voucherNumber || '—',
+      description: isDebitAddition
+        ? (p.note ? p.note : 'قيد دين إضافي على الحساب')
+        : `تسديد دفعة (${methodLabel})${p.note ? ' - ' + p.note : ''}`,
+      debit: isDebitAddition ? Number(p.amount || 0) : 0,
+      credit: isDebitAddition ? 0 : Number(p.amount || 0),
+      status: (isDebitAddition ? 'unpaid' : 'paid') as any,
     };
   });
 
   // 3. احتساب الرصيد الافتتاحي السابق المسجل عند فتح حساب العميل
   const totalAllSalesDebits = allSales.reduce((sum, s) => sum + s.debit, 0);
   const totalAllSalesCredits = allSales.reduce((sum, s) => sum + s.credit, 0);
-  const totalAllPayments = allPayments.reduce((sum, p) => sum + p.credit, 0);
+  const totalAllPaymentDebits = allPayments.reduce((sum, p) => sum + p.debit, 0);
+  const totalAllPaymentCredits = allPayments.reduce((sum, p) => sum + p.credit, 0);
 
-  const netTransactionsEver = totalAllSalesDebits - (totalAllSalesCredits + totalAllPayments);
+  // صافي الحركات = إجمالي المدين (مبيعات + قيود ديون) - إجمالي الدائن (مسدد مبيعات + سندات قبض)
+  const netTransactionsEver = (totalAllSalesDebits + totalAllPaymentDebits) - (totalAllSalesCredits + totalAllPaymentCredits);
   const currentCustomerBalance = Number(customer.balance || 0);
   // الرصيد الافتتاحي هو الفارق بين رصيد العميل الحالي وصافي كل الحركات المسجلة
   const rawOpeningBalance = currentCustomerBalance - netTransactionsEver;
@@ -98,7 +104,7 @@ export function calculateCustomerStatement(
     const priorSales = allSales.filter((s) => new Date(s.date).getTime() < fromTime);
     const priorPayments = allPayments.filter((p) => new Date(p.date).getTime() < fromTime);
 
-    const priorDebits = priorSales.reduce((sum, s) => sum + s.debit, 0);
+    const priorDebits = priorSales.reduce((sum, s) => sum + s.debit, 0) + priorPayments.reduce((sum, p) => sum + p.debit, 0);
     const priorCredits = priorSales.reduce((sum, s) => sum + s.credit, 0) + priorPayments.reduce((sum, p) => sum + p.credit, 0);
     balanceBroughtForward = Math.round((initialOpeningBalance + priorDebits - priorCredits) * 100) / 100;
   }
@@ -187,5 +193,107 @@ export function calculateCustomerStatement(
     finalBalance: Math.round(running * 100) / 100,
     currentBalance: Math.round(running * 100) / 100,
     balanceBroughtForward,
+  };
+}
+
+export interface CustomerDebtAgingBucket {
+  label: string;
+  rangeDays: string;
+  amount: number;
+  invoicesCount: number;
+  severity: 'normal' | 'due' | 'warning' | 'critical';
+}
+
+export interface CustomerDebtAgingSummary {
+  buckets: CustomerDebtAgingBucket[];
+  totalOverdue: number;
+  unpaidInvoicesCount: number;
+  oldestInvoiceDays: number;
+}
+
+/**
+ * دالة تحليل تعمير ديون العميل (Debt Aging Analysis)
+ * تقسم الديون غير المسددة إلى شرائح زمنية وفق تاريخ استحقاق الفواتير
+ */
+export function calculateCustomerDebtAging(
+  customerSales: Sale[],
+  referenceDate: Date = new Date()
+): CustomerDebtAgingSummary {
+  const unpaidSales = (customerSales || []).filter((s: any) => {
+    if (s.type === 'return') return false;
+    const total = Number(s.total || 0);
+    const paid = Number(s.paidAmount ?? s.amountPaid ?? 0);
+    return s.status === 'unpaid' || s.status === 'partial' || total > paid;
+  });
+
+  const nowMs = referenceDate.getTime();
+  const dayMs = 24 * 60 * 60 * 1000;
+
+  const b0_30: CustomerDebtAgingBucket = {
+    label: '0 - 30 يوماً (نشطة)',
+    rangeDays: '0-30',
+    amount: 0,
+    invoicesCount: 0,
+    severity: 'normal',
+  };
+  const b31_60: CustomerDebtAgingBucket = {
+    label: '31 - 60 يوماً (مستحقة)',
+    rangeDays: '31-60',
+    amount: 0,
+    invoicesCount: 0,
+    severity: 'due',
+  };
+  const b61_90: CustomerDebtAgingBucket = {
+    label: '61 - 90 يوماً (متأخرة)',
+    rangeDays: '61-90',
+    amount: 0,
+    invoicesCount: 0,
+    severity: 'warning',
+  };
+  const b90_plus: CustomerDebtAgingBucket = {
+    label: '+90 يوماً (حرجة)',
+    rangeDays: '+90',
+    amount: 0,
+    invoicesCount: 0,
+    severity: 'critical',
+  };
+
+  let oldestDays = 0;
+  let totalOverdue = 0;
+
+  for (const s of unpaidSales) {
+    const total = Number(s.total || 0);
+    const paid = Number(s.paidAmount ?? (s as any).amountPaid ?? 0);
+    const unpaidPart = Math.max(0, total - paid);
+    if (unpaidPart <= 0) continue;
+
+    const saleTime = new Date(s.date || (s as any).createdAt || nowMs).getTime();
+    const ageDays = Math.max(0, Math.floor((nowMs - saleTime) / dayMs));
+
+    if (ageDays > oldestDays) {
+      oldestDays = ageDays;
+    }
+    totalOverdue += unpaidPart;
+
+    if (ageDays <= 30) {
+      b0_30.amount += unpaidPart;
+      b0_30.invoicesCount += 1;
+    } else if (ageDays <= 60) {
+      b31_60.amount += unpaidPart;
+      b31_60.invoicesCount += 1;
+    } else if (ageDays <= 90) {
+      b61_90.amount += unpaidPart;
+      b61_90.invoicesCount += 1;
+    } else {
+      b90_plus.amount += unpaidPart;
+      b90_plus.invoicesCount += 1;
+    }
+  }
+
+  return {
+    buckets: [b0_30, b31_60, b61_90, b90_plus],
+    totalOverdue: Math.round(totalOverdue * 100) / 100,
+    unpaidInvoicesCount: unpaidSales.length,
+    oldestInvoiceDays: oldestDays,
   };
 }

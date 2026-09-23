@@ -9,8 +9,8 @@ import {
   FileText,
   FileCheck,
   Edit3,
-} from 'lucide-react';
 import { formatMoney } from '../utils/format';
+import { POSReturnButton } from '@/features/pos/returns';
 
 export interface POSActionBarProps {
   cartLength: number;
@@ -178,16 +178,7 @@ export const POSActionBar: React.FC<POSActionBarProps> = ({
 
         {/* Secondary Auxiliary Actions: سجل (F9) + مبدئية + طلبية */}
         <div className="grid grid-cols-3 gap-1.5">
-          <button
-            type="button"
-            onClick={onOpenReturns}
-            title="سجل المبيعات والمرتجع (F9)"
-            className="py-1.5 px-2 rounded-xl bg-surface-container-low hover:bg-blue-500/10 text-blue-600 border border-outline-variant/20 hover:border-blue-500/30 text-[11px] font-bold flex items-center justify-center gap-1 transition-all shadow-2xs hover:-translate-y-0.5 active:scale-95 cursor-pointer"
-          >
-            <History className="w-3.5 h-3.5 text-blue-500" />
-            <span>سجل</span>
-            <span className="text-[9px] font-mono opacity-60">F9</span>
-          </button>
+          <POSReturnButton variant="actionbar" onOpenReturns={onOpenReturns} className="w-full" />
 
           <button
             type="button"
@@ -321,17 +312,8 @@ export const POSActionBar: React.FC<POSActionBarProps> = ({
             <span className="text-[10px] font-mono opacity-70">F5</span>
           </button>
 
-          {/* سجل F9 */}
-          <button
-            type="button"
-            onClick={onOpenReturns}
-            title="سجل المبيعات والمرتجع (F9)"
-            className="h-10 px-2.5 rounded-xl bg-surface-container-low hover:bg-blue-500/15 text-blue-600 border border-outline-variant/20 hover:border-blue-500/30 flex items-center gap-1 text-xs font-bold transition-all shadow-2xs hover:-translate-y-0.5 active:scale-95 cursor-pointer shrink-0"
-          >
-            <History className="w-4 h-4 text-blue-500" />
-            <span className="hidden sm:inline">سجل</span>
-            <span className="text-[10px] font-mono opacity-70">F9</span>
-          </button>
+          {/* مرتجع مبيعات F9 */}
+          <POSReturnButton variant="actionbar" onOpenReturns={onOpenReturns} className="h-10 px-2.5 text-xs shrink-0" />
 
           {/* مبدئية */}
           <button

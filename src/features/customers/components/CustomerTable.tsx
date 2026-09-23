@@ -1,5 +1,5 @@
 import React from 'react';
-import { RefreshCw, Users, MessageSquare, Phone, DollarSign, FileText, Edit2, Trash2 } from 'lucide-react';
+import { RefreshCw, Users, MessageSquare, Phone, DollarSign, FileText, Edit2, Trash2, PlusCircle } from 'lucide-react';
 import type { Customer } from '@/types';
 import { formatCustomerMoney, getCreditStatus, getWhatsAppUrl } from '../services/customerStatus';
 
@@ -10,6 +10,7 @@ export interface CustomerTableProps {
   shopName?: string;
   getCustomerSales?: (id: string) => any[];
   onOpenPayment: (customer: Customer) => void;
+  onOpenAddDebt?: (customer: Customer) => void;
   onOpenStatement: (customer: Customer) => void;
   onEditCustomer?: (customer: Customer) => void;
   onOpenEdit?: (customer: Customer) => void;
@@ -27,6 +28,7 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
   shopName,
   getCustomerSales,
   onOpenPayment,
+  onOpenAddDebt,
   onOpenStatement,
   onEditCustomer,
   onOpenEdit,
@@ -262,11 +264,23 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
                     {/* Financial Actions */}
                     <td className="py-3.5 px-4 text-center">
                       <div className="flex items-center justify-center gap-1.5">
+                        {/* Direct Debt Addition Button */}
+                        {onOpenAddDebt && (
+                          <button
+                            onClick={() => onOpenAddDebt(customer)}
+                            className="px-2 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 border border-rose-500/25 font-bold text-xs flex items-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95"
+                            title="إضافة قيد دين مباشر على حساب هذا الزبون"
+                          >
+                            <PlusCircle className="w-3.5 h-3.5" />
+                            <span>دين</span>
+                          </button>
+                        )}
+
                         {/* Quick Payment Button */}
                         <button
                           onClick={() => onOpenPayment(customer)}
                           disabled={customer.balance <= 0}
-                          className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1 transition-all shadow-2xs disabled:opacity-40 disabled:hover:bg-emerald-600 cursor-pointer"
+                          className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1 transition-all shadow-2xs disabled:opacity-40 disabled:hover:bg-emerald-600 cursor-pointer active:scale-95"
                           title="تسجيل تسديد جديد"
                         >
                           <DollarSign className="w-3.5 h-3.5" />

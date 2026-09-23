@@ -23,6 +23,8 @@ import {
 } from 'lucide-react';
 import NotificationDropdown from '@/components/notifications/NotificationDropdown';
 import { useNotificationStore } from '@/store/notificationStore';
+import { POSReturnButton } from '@/features/pos/returns';
+import { POSCustomerButton } from '@/features/pos/debt';
 import type { CartItem } from '@/types';
 
 export interface TerminalPOSTopBarProps {
@@ -120,28 +122,12 @@ export const TerminalPOSTopBar: React.FC<TerminalPOSTopBarProps> = ({
           <kbd className="font-mono text-[9px] text-blue-500 bg-blue-100 dark:bg-blue-900/80 px-1 py-0.2 rounded font-bold">F9</kbd>
         </button>
 
-        {/* زر الزبون الذكي الموحد (F2) - يحل محل الزرين المكررين */}
-        <button
-          type="button"
-          onClick={onSelectCustomer}
-          className={`h-9.5 px-3 rounded-lg text-xs font-bold border transition-all cursor-pointer shrink-0 active:scale-95 flex items-center gap-1.5 ${
-            selectedCustomerName
-              ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 shadow-2xs ring-1 ring-amber-400/30'
-              : 'bg-slate-100 dark:bg-slate-800/90 hover:bg-slate-200 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700'
-          }`}
-          title="اختيار وتحديد الزبون (F2)"
-          aria-label="اختيار الزبون"
-        >
-          {selectedCustomerName ? (
-            <UserCheck className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-          ) : (
-            <User className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-          )}
-          <span className="truncate max-w-[110px] inline-block">
-            {selectedCustomerName || 'الزبون'}
-          </span>
-          <kbd className="font-mono text-[9px] text-slate-400 bg-black/5 dark:bg-white/10 px-1 py-0.2 rounded font-bold">F2</kbd>
-        </button>
+        {/* زر الزبون الذكي الموحد (F2) - معمارية قوية موحدة */}
+        <POSCustomerButton
+          variant="terminal"
+          onSelectCustomer={onSelectCustomer}
+          onOpenCustomerLedger={onOpenSalesHistory}
+        />
 
         {/* تعليق واسترجاع الفواتير (F12) */}
         <button
@@ -164,21 +150,8 @@ export const TerminalPOSTopBar: React.FC<TerminalPOSTopBarProps> = ({
           <kbd className="font-mono text-[9px] text-slate-400 bg-black/5 dark:bg-white/10 px-1 py-0.2 rounded font-bold">F12</kbd>
         </button>
 
-        {/* مرتجع مبيعات (تم تصحيح المسمى من الصندوق Caisse إلى مرتجع مبيعات) */}
-        <button
-          type="button"
-          onClick={onOpenReturns}
-          className={`h-9.5 px-3 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5 cursor-pointer shrink-0 active:scale-95 ${
-            returnMode
-              ? 'bg-rose-600 text-white border-rose-700 ring-2 ring-rose-400/50 animate-pulse shadow-xs'
-              : 'bg-slate-100 dark:bg-slate-800/90 hover:bg-slate-200 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700'
-          }`}
-          title={returnMode ? 'وضع إرجاع البضائع مفعّل حالياً' : 'تفعيل وضع مرتجع المبيعات واسترجاع السلع'}
-          aria-label="مرتجع مبيعات"
-        >
-          <Receipt className="w-3.5 h-3.5" />
-          <span>{returnMode ? 'إرجاع (مفعّل)' : 'مرتجع مبيعات'}</span>
-        </button>
+        {/* مرتجع مبيعات - معمارية قوية موحدة */}
+        <POSReturnButton variant="terminal" onOpenReturns={onOpenReturns} />
 
         {/* فاصل بنيوي خفيف */}
         <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-0.5 shrink-0 hidden sm:block" />

@@ -136,14 +136,21 @@ describe('PartialReturnModal (واجهة الإرجاع الجزئي)', () => {
   it('allows modifying return quantity with plus and minus buttons and updates total amount', () => {
     renderModal();
 
-    // بالافتراضي يتم اختيار قطعتين بسعر 200 + 150 = 350
-    // نزيد كمية قهوة اسبريسو من 1 إلى 3
-    const plusButtons = screen.getAllByRole('button').filter((b) => b.querySelector('svg.lucide-plus'));
-    fireEvent.click(plusButtons[0]); // أصبح 2 (400 دج)
-    fireEvent.click(plusButtons[0]); // أصبح 3 (600 دج)
+    // بالافتراضي يتم اختيار كامل الكميات المباعة: 5 * 200 + 2 * 150 = 1300 دج
+    expect(screen.getByText(formatMoney(1300))).toBeInTheDocument();
 
-    // إجمالي المسترد: 3 * 200 + 1 * 150 = 750 دج
-    expect(screen.getByText(formatMoney(750))).toBeInTheDocument();
+    // تقليل كمية قهوة اسبريسو من 5 إلى 3 بالضغط مرتين على زر الناقص
+    const minusButtons = screen.getAllByRole('button').filter((b) => b.querySelector('svg.lucide-minus'));
+    fireEvent.click(minusButtons[0]); // أصبح 4 (800 + 300 = 1100 دج)
+    fireEvent.click(minusButtons[0]); // أصبح 3 (600 + 300 = 900 دج)
+
+    // إجمالي المسترد: 3 * 200 + 2 * 150 = 900 دج
+    expect(screen.getByText(formatMoney(900))).toBeInTheDocument();
+
+    // تجربة زر قطعة واحدة فقط
+    const onePieceBtn = screen.getByText('قطعة واحدة فقط');
+    fireEvent.click(onePieceBtn);
+    expect(screen.getByText(formatMoney(350))).toBeInTheDocument();
   });
 
   it('submits onConfirmReturn with selected items, reason, and refund method', () => {
@@ -160,8 +167,8 @@ describe('PartialReturnModal (واجهة الإرجاع الجزئي)', () => {
         reason: 'طلب الزبون (تراجع عن الشراء)',
         refundMethod: 'cash',
         returnItems: expect.arrayContaining([
-          expect.objectContaining({ productId: 'p-1', qty: 1 }),
-          expect.objectContaining({ productId: 'p-2', qty: 1 }),
+          expect.objectContaining({ productId: 'p-1', qty: 5 }),
+          expect.objectContaining({ productId: 'p-2', qty: 2 }),
         ]),
       })
     );

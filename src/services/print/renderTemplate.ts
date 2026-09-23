@@ -500,6 +500,80 @@ function renderTable(b: TableBlock, ctx: DocumentContext, vars: Record<string, s
         ' ' +
         curSymbol +
         '</td></tr>';
+
+      // فحص وإظهار حالة الدفع والدين للفاتورة (معاينة الدين وتحديد هل الفاتورة بدين أم مسددة)
+      const invData = ctx.invoice as Record<string, unknown>;
+      const totalNum = Number(invData?.total || 0);
+      const hasExplicitPaid = invData?.paidAmount !== undefined || invData?.amountPaid !== undefined;
+      const isCreditPayment = invData?.paymentMethod === 'credit' || invData?.paymentMethod === 'آجل (دين)' || invData?.payment_method === 'credit';
+      const isUnpaidStatus = invData?.status === 'unpaid' || invData?.status === 'partial';
+
+      if (isCreditPayment || isUnpaidStatus || hasExplicitPaid) {
+        const paidVal = Number(invData?.paidAmount ?? invData?.amountPaid ?? (invData?.status === 'paid' ? totalNum : 0));
+        const remainingVal = Math.max(0, totalNum - paidVal);
+
+        // سطر المسدد نقداً / كدفعة أولى
+        html +=
+          '<tr><td colspan="' +
+          (colCount - 1) +
+          '" style="text-align:' +
+          alignLabel +
+          ';padding:4px 6px;color:#16a34a;font-weight:bold;">' +
+          (lang === 'fr' ? 'Payé:' : 'المدفوع / المسدد:') +
+          '</td>';
+        html +=
+          '<td style="text-align:' +
+          alignVal +
+          ';padding:4px 6px;color:#16a34a;font-weight:bold;font-variant-numeric:tabular-nums;white-space:nowrap;">' +
+          formatFullNumber(paidVal, 2, 2) +
+          ' ' +
+          curSymbol +
+          '</td></tr>';
+
+        // سطر المتبقي كدين
+        if (remainingVal > 0) {
+          html +=
+            '<tr><td colspan="' +
+            (colCount - 1) +
+            '" style="text-align:' +
+            alignLabel +
+            ';padding:4px 6px;color:#dc2626;font-weight:900;">' +
+            (lang === 'fr' ? 'Reste (Crédit):' : 'المتبقي (دين الفاتورة):') +
+            '</td>';
+          html +=
+            '<td style="text-align:' +
+            alignVal +
+            ';padding:4px 6px;color:#dc2626;font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap;">' +
+            formatFullNumber(remainingVal, 2, 2) +
+            ' ' +
+            curSymbol +
+            '</td></tr>';
+        }
+
+        // ختم حالة الفاتورة
+        const isFullyPaid = remainingVal === 0 || invData?.status === 'paid';
+        const stampBg = isFullyPaid ? '#f0fdf4' : remainingVal < totalNum ? '#fffbeb' : '#fef2f2';
+        const stampColor = isFullyPaid ? '#15803d' : remainingVal < totalNum ? '#b45309' : '#b91c1c';
+        const stampBorder = isFullyPaid ? '#16a34a' : remainingVal < totalNum ? '#f59e0b' : '#ef4444';
+        const stampText = isFullyPaid
+          ? (lang === 'fr' ? '✓ FACTURE RÉGLÉE (مسددة بالكامل)' : '✓ فاتورة مسددة بالكامل')
+          : remainingVal < totalNum
+          ? (lang === 'fr' ? '⚡ PAIEMENT PARTIEL (تسديد جزئي)' : '⚡ فاتورة بتسديد جزئي (متبقي دين)')
+          : (lang === 'fr' ? '⚠ FACTURE À CRÉDIT (فاتورة بالدين)' : '⚠ فاتورة بالدين (غير مسددة)');
+
+        html +=
+          '<tr><td colspan="' +
+          colCount +
+          '" style="text-align:center;padding:5px;background:' +
+          stampBg +
+          ';color:' +
+          stampColor +
+          ';font-weight:900;border:1px solid ' +
+          stampBorder +
+          ';font-size:11px;letter-spacing:0.5px;">' +
+          stampText +
+          '</td></tr>';
+      }
     }
 
     html += '</tfoot>';

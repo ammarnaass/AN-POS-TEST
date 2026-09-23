@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import type { Customer } from '@/types';
+import type { Customer, Sale } from '@/types';
 import type { CustomerFormData, PaymentVoucherData } from './types';
-import { calculateCustomerStatement } from './services/customerStatementService';
+import { calculateCustomerStatement, calculateCustomerDebtAging } from './services/customerStatementService';
 
 // Custom Hooks
 import { useCustomerQueries } from './hooks/useCustomerQueries';
@@ -20,12 +20,29 @@ import {
   parseCustomersFromExcel,
 } from './services/customerExcelService';
 
+import { Users, BookOpen } from 'lucide-react';
+
+// POS Debt imports for invoice details, settlement, debt addition, and printing
+import {
+  POSInvoiceDetailsModal,
+  POSAddCustomerDebtModal,
+  settleSpecificInvoiceDebtRecord,
+  printPOSDebtAdditionSlip,
+} from '@/features/pos/debt';
+import type { AddCustomerDebtResult } from '@/features/pos/debt/types';
+import { useInvoiceStatusToggle } from '@/features/pos/debt/hooks/useInvoiceStatusToggle';
+import { printDocument } from '@/services/print/printService';
+import { useQueryClient } from '@tanstack/react-query';
+import { useNotificationStore } from '@/store/notificationStore';
+
 // Components
 import { CustomerHeader } from './components/CustomerHeader';
 import { CustomerStatsCards } from './components/CustomerStatsCards';
 import { CustomerFilterBar } from './components/CustomerFilterBar';
 import { CustomerTable } from './components/CustomerTable';
 import { CustomerPagination } from './components/CustomerPagination';
+import { DebtAlertsCard } from './components/DebtAlertsCard';
+import { CustomerLedgerView } from './components/CustomerLedgerView';
 
 // Modals
 import { CustomerFormModal } from './modals/CustomerFormModal';
@@ -49,8 +66,11 @@ export default function CustomersPage() {
   // 1. Data Queries
   const { customers, sales, payments, settings, isLoading } = useCustomerQueries();
   const currencySymbol: string = (typeof settings?.currency === 'string' ? settings.currency : '') || 'دج';
+  const queryClient = useQueryClient();
+  const addNotification = useNotificationStore((s) => s.addNotification);
 
   // 2. Modals & Local UI State
+  const [activePageTab, setActivePageTab] = useState<'directory' | 'ledger'>('directory');
   const [showForm, setShowForm] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [formData, setFormData] = useState<CustomerFormData>(initialFormData);
@@ -63,6 +83,9 @@ export default function CustomersPage() {
   const [paymentNote, setPaymentNote] = useState('');
   const [printReceiptOnPayment, setPrintReceiptOnPayment] = useState(true);
 
+  // Add Direct Debt Modal State
+  const [showAddDebtCustomer, setShowAddDebtCustomer] = useState<Customer | null>(null);
+
   // Statement Modal State
   const [statementCustomer, setStatementCustomer] = useState<Customer | null>(null);
   const [statementFilterType, setStatementFilterType] = useState<'all' | 'sales' | 'payments'>('all');
@@ -71,6 +94,15 @@ export default function CustomersPage() {
 
   // Delete Confirmation State
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
+
+  // Invoice Details Modal State (from Ledger)
+  const [ledgerInvoiceDetails, setLedgerInvoiceDetails] = useState<Sale | null>(null);
+  const ledgerInvoiceCustomer = ledgerInvoiceDetails?.customerId
+    ? customers.find((c) => c.id === ledgerInvoiceDetails.customerId) || null
+    : null;
+
+  // Invoice Status Toggle Hook
+  const { togglePaymentStatus } = useInvoiceStatusToggle();
 
   // 3. Mutations
   const {
@@ -165,22 +197,26 @@ export default function CustomersPage() {
     setShowForm(true);
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim()) return;
 
-    if (editingCustomer) {
-      updateCustomerMutation.mutate({
-        ...editingCustomer,
-        ...formData,
-      });
-    } else {
-      addCustomerMutation.mutate(formData);
-    }
+    try {
+      if (editingCustomer) {
+        await updateCustomerMutation.mutateAsync({
+          ...editingCustomer,
+          ...formData,
+        });
+      } else {
+        await addCustomerMutation.mutateAsync(formData);
+      }
 
-    setFormData(initialFormData);
-    setEditingCustomer(null);
-    setShowForm(false);
+      setFormData(initialFormData);
+      setEditingCustomer(null);
+      setShowForm(false);
+    } catch (err) {
+      console.error('Failed to save customer:', err);
+    }
   };
 
   const handleOpenPayment = (customer: Customer) => {
@@ -205,6 +241,46 @@ export default function CustomersPage() {
     });
   };
 
+  const handleOpenAddDebt = (customer?: Customer) => {
+    if (customer) {
+      setShowAddDebtCustomer(customer);
+    } else if (customers.length > 0) {
+      setShowAddDebtCustomer(customers[0]);
+    } else {
+      addNotification({
+        title: 'تنبيه',
+        message: 'يجب تسجيل زبون أولاً لإضافة دين عليه.',
+        type: 'warning',
+      });
+    }
+  };
+
+  const handleDebtAdded = (result: AddCustomerDebtResult) => {
+    queryClient.invalidateQueries({ queryKey: ['customers'] });
+    queryClient.invalidateQueries({ queryKey: ['sales'] });
+    queryClient.invalidateQueries({ queryKey: ['payments'] });
+
+    try {
+      printPOSDebtAdditionSlip(
+        result,
+        result.customerName,
+        showAddDebtCustomer?.phone,
+        settings?.shopName,
+        currencySymbol
+      );
+    } catch (err) {
+      console.warn('Error while printing debt addition slip:', err);
+    }
+
+    setShowAddDebtCustomer(null);
+
+    addNotification({
+      title: 'تم قيد الدين بنجاح',
+      message: `تمت إضافة دين بقيمة ${result.addedAmount.toLocaleString()} ${currencySymbol} على حساب الزبون "${result.customerName}". الرصيد الجديد: ${result.newBalance.toLocaleString()} ${currencySymbol}`,
+      type: 'success',
+    });
+  };
+
   const handleExportExcel = () => {
     exportCustomersToExcel(filteredCustomers, getCustomerSales);
   };
@@ -226,6 +302,61 @@ export default function CustomersPage() {
     printDebtsReport(customers, stats.totalDebt, settings?.shopName, currencySymbol);
   };
 
+  // Handle opening invoice details from ledger
+  const handleOpenInvoiceDetails = (sale: Sale) => {
+    setLedgerInvoiceDetails(sale);
+  };
+
+  // Handle printing a single invoice from ledger
+  const handlePrintSingleInvoice = async (sale: Sale) => {
+    try {
+      const docType = sale.docType || 'receipt';
+      await printDocument(sale.id, docType);
+    } catch (err) {
+      console.warn('Error printing invoice from ledger:', err);
+    }
+  };
+
+  // Handle settling a specific invoice debt from ledger
+  const handleSettleSpecificInvoice = async (sale: Sale, remainingDebt: number) => {
+    if (!sale.customerId) {
+      addNotification({
+        title: 'تنبيه',
+        message: 'لا يمكن تسديد فاتورة غير مرتبطة بزبون مسجل.',
+        type: 'warning',
+      });
+      return;
+    }
+    try {
+      const customer = customers.find((c) => c.id === sale.customerId);
+      const result = await settleSpecificInvoiceDebtRecord({
+        saleId: sale.id,
+        customerId: sale.customerId,
+        customerName: customer?.name || sale.customerName || 'زبون',
+        amount: remainingDebt,
+        paymentMethod: 'cash',
+        note: `تسديد فاتورة #${sale.number} من دفتر حسابات العملاء`,
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['sales'] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+      queryClient.invalidateQueries({ queryKey: ['cash_sessions'] });
+
+      addNotification({
+        title: 'تم تسديد الفاتورة بنجاح',
+        message: `تم سداد ${remainingDebt.toLocaleString()} ${currencySymbol} من الفاتورة #${sale.number}. الرصيد المتبقي: ${result.newBalance.toLocaleString()} ${currencySymbol}`,
+        type: 'success',
+      });
+    } catch (err: any) {
+      addNotification({
+        title: 'خطأ في تسديد الفاتورة',
+        message: err?.message || 'تعذر تسديد هذه الفاتورة.',
+        type: 'error',
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -244,44 +375,118 @@ export default function CustomersPage() {
         onPrintDebtsReport={handlePrintDebts}
       />
 
-      {/* 2. Top Metric & Health Cards */}
-      <CustomerStatsCards stats={stats} currencySymbol={currencySymbol} />
+      {/* View Switcher Tabs: Customer Directory vs Debt & Movement Ledger */}
+      <div className="flex items-center gap-2 p-1.5 bg-surface-container-low border border-outline-variant/30 rounded-2xl w-fit">
+        <button
+          onClick={() => setActivePageTab('directory')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activePageTab === 'directory'
+              ? 'bg-primary text-on-primary shadow-xs'
+              : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          <span>دليل العملاء والأرصدة</span>
+          <span
+            className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
+              activePageTab === 'directory'
+                ? 'bg-white/20 text-on-primary'
+                : 'bg-surface-container text-on-surface-variant'
+            }`}
+          >
+            {customers.length}
+          </span>
+        </button>
 
-      {/* 3. Main Data Card: Filters & Customer Table */}
-      <div className="bg-surface-container-low border border-outline-variant/30 rounded-3xl p-5 shadow-2xs space-y-4">
-        <CustomerFilterBar
-          filterTab={filterTab}
-          setFilterTab={setFilterTab}
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
-          sortBy={sortBy}
-          setSortBy={setSortBy}
-          totalCustomers={customers.length}
-          debtCount={stats.customersWithDebt}
-          exceededCount={stats.exceededLimitCount}
-          settledCount={customers.length - stats.customersWithDebt}
-        />
-
-        <CustomerTable
-          customers={paginatedCustomers}
-          currencySymbol={currencySymbol}
-          storeName={settings?.shopName}
-          getCustomerSales={getCustomerSales}
-          onOpenPayment={handleOpenPayment}
-          onOpenStatement={(customer) => setStatementCustomer(customer)}
-          onEditCustomer={handleOpenEditForm}
-          onDeleteCustomer={(customer) => setCustomerToDelete(customer)}
-          isLoading={isLoading}
-          currentPage={currentPage}
-        />
-
-        <CustomerPagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          totalItems={totalItems}
-          onPageChange={(page) => setCurrentPage(page)}
-        />
+        <button
+          onClick={() => setActivePageTab('ledger')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activePageTab === 'ledger'
+              ? 'bg-primary text-on-primary shadow-xs'
+              : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
+          }`}
+        >
+          <BookOpen className="w-4 h-4" />
+          <span>دفتر حسابات الديون والحركات المالية</span>
+          {stats.customersWithDebt > 0 && (
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                activePageTab === 'ledger'
+                  ? 'bg-red-500 text-white'
+                  : 'bg-red-500/10 text-red-600 dark:text-red-400'
+              }`}
+            >
+              {stats.customersWithDebt} عليهم ديون
+            </span>
+          )}
+        </button>
       </div>
+
+      {activePageTab === 'directory' ? (
+        <>
+          {/* 2. Top Metric & Health Cards */}
+          <CustomerStatsCards stats={stats} currencySymbol={currencySymbol} />
+
+          {/* 3. Main Data Card: Filters & Customer Table */}
+          <div className="bg-surface-container-low border border-outline-variant/30 rounded-3xl p-5 shadow-2xs space-y-4">
+            <CustomerFilterBar
+              filterTab={filterTab}
+              setFilterTab={setFilterTab}
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              sortBy={sortBy}
+              setSortBy={setSortBy}
+              totalCustomers={customers.length}
+              debtCount={stats.customersWithDebt}
+              exceededCount={stats.exceededLimitCount}
+              settledCount={customers.length - stats.customersWithDebt}
+            />
+
+            <CustomerTable
+              customers={paginatedCustomers}
+              currencySymbol={currencySymbol}
+              storeName={settings?.shopName}
+              getCustomerSales={getCustomerSales}
+              onOpenPayment={handleOpenPayment}
+              onOpenAddDebt={handleOpenAddDebt}
+              onOpenStatement={(customer) => setStatementCustomer(customer)}
+              onEditCustomer={handleOpenEditForm}
+              onDeleteCustomer={(customer) => setCustomerToDelete(customer)}
+              isLoading={isLoading}
+              currentPage={currentPage}
+            />
+
+            <CustomerPagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              onPageChange={(page) => setCurrentPage(page)}
+            />
+          </div>
+        </>
+      ) : (
+        <>
+          <DebtAlertsCard
+            customers={customers}
+            sales={sales}
+            currencySymbol={currencySymbol}
+          />
+          <CustomerLedgerView
+            customers={customers}
+            sales={sales}
+            payments={payments}
+            currencySymbol={currencySymbol}
+            storeName={settings?.shopName}
+            onOpenPayment={handleOpenPayment}
+            onOpenAddDebt={handleOpenAddDebt}
+            onOpenStatement={(customer) => setStatementCustomer(customer)}
+            onPrintDebtsReport={handlePrintDebts}
+            onOpenInvoiceDetails={handleOpenInvoiceDetails}
+            onPrintInvoice={handlePrintSingleInvoice}
+            onSettleSpecificInvoice={handleSettleSpecificInvoice}
+          />
+        </>
+      )}
 
       {/* 4. Modals */}
       <CustomerFormModal
@@ -314,20 +519,26 @@ export default function CustomersPage() {
         setPrintReceiptOnPayment={setPrintReceiptOnPayment}
         currencySymbol={currencySymbol}
         isPending={addPaymentMutation.isPending}
+        customerSales={activePaymentCustomer ? sales.filter((s) => s.customerId === activePaymentCustomer.id) : []}
       />
 
       <CustomerStatementModal
         isOpen={!!statementCustomer}
         customer={statementCustomer}
         onClose={() => setStatementCustomer(null)}
+        customerSales={statementCustomer ? sales.filter((s) => s.customerId === statementCustomer.id) : []}
+        storeName={settings?.shopName}
         onPrint={() => {
           if (statementCustomer) {
+            const custSales = sales.filter((s) => s.customerId === statementCustomer.id);
+            const aging = calculateCustomerDebtAging(custSales);
             printCustomerStatement(
               statementCustomer,
               statementEntries,
               settings?.shopName,
               settings?.phone,
-              currencySymbol
+              currencySymbol,
+              aging
             );
           }
         }}
@@ -357,6 +568,42 @@ export default function CustomersPage() {
         isPending={deleteCustomerMutation.isPending}
         currencySymbol={currencySymbol}
       />
+
+      {/* Add Direct Debt Modal */}
+      {showAddDebtCustomer && (
+        <POSAddCustomerDebtModal
+          isOpen={!!showAddDebtCustomer}
+          onClose={() => setShowAddDebtCustomer(null)}
+          customer={showAddDebtCustomer}
+          onDebtAdded={handleDebtAdded}
+          currencySymbol={currencySymbol}
+          shopName={settings?.shopName}
+        />
+      )}
+
+      {/* Invoice Details Modal (from Ledger) */}
+      {ledgerInvoiceDetails && (
+        <POSInvoiceDetailsModal
+          isOpen={!!ledgerInvoiceDetails}
+          onClose={() => setLedgerInvoiceDetails(null)}
+          sale={ledgerInvoiceDetails}
+          customer={ledgerInvoiceCustomer}
+          onTogglePaymentStatus={async (params) => {
+            const result = await togglePaymentStatus(params);
+            queryClient.invalidateQueries({ queryKey: ['sales'] });
+            queryClient.invalidateQueries({ queryKey: ['customers'] });
+            queryClient.invalidateQueries({ queryKey: ['payments'] });
+            setLedgerInvoiceDetails(null);
+            return result;
+          }}
+          onPrintReceipt={handlePrintSingleInvoice}
+          onSettleInvoiceDebt={(sale, remainingDebt) => {
+            setLedgerInvoiceDetails(null);
+            handleSettleSpecificInvoice(sale, remainingDebt);
+          }}
+          currencySymbol={currencySymbol}
+        />
+      )}
     </div>
   );
 }

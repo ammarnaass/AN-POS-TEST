@@ -6,7 +6,7 @@ import { useSidebarStore } from '@/store/sidebarStore';
 import { useThemeStore } from '@/store/themeStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useBarcodeScanner } from '@/features/barcode/useBarcodeScanner';
-import { usePOSCartActions } from './hooks/usePOSCartActions';
+import { usePOSCartActions } from './cart';
 import { usePOSKeyboardShortcuts } from './hooks/usePOSKeyboardShortcuts';
 import { useMobileScanner } from './hooks/useMobileScanner';
 import { usePOSData } from './hooks/usePOSData';
@@ -15,7 +15,7 @@ import { usePOSModalsState } from './hooks/usePOSModalsState';
 import { usePOSPageState } from './hooks/usePOSPageState';
 import { usePOSNavigation } from './hooks/usePOSNavigation';
 import { usePOSPagePaymentFlow } from './hooks/usePOSPagePaymentFlow';
-import { usePOSPageReturnFlow } from './hooks/usePOSPageReturnFlow';
+import { usePOSReturnFlow } from './returns';
 import { POSTopBar } from './components/POSTopBar';
 import { POSLayoutDispatcher } from './components/POSLayoutDispatcher';
 import { POSModalsContainer } from './components/POSModalsContainer';
@@ -80,6 +80,8 @@ export default function POSPage() {
     setPaidAmount,
     returnMode,
     setReturnMode,
+    returnContext,
+    setReturnContext,
     selectedItemId,
     setSelectedItemId,
     quickMode,
@@ -220,7 +222,7 @@ export default function POSPage() {
   });
 
   // 8. Extracted Return Flow Hook
-  const returnFlow = usePOSPageReturnFlow({
+  const returnFlow = usePOSReturnFlow({
     isSessionOpen,
     completeSale: paymentFlow.completeSale,
     currentSession,
@@ -231,6 +233,7 @@ export default function POSPage() {
     clearCart,
     addItem,
     setReturnMode,
+    setReturnContext,
     setSelectedCustomer,
     modals,
     addNotification,
@@ -498,7 +501,7 @@ export default function POSPage() {
           suspendedCount={suspendedOrders.length}
           onSelectCustomer={() => modals.setShowCustomerSelect(true)}
           selectedCustomerName={
-            selectedCustomer ? customers.find((c) => c.id === selectedCustomer)?.name || '' : ''
+            selectedCustomer ? customers.find((c) => c.id === selectedCustomer)?.name || pageState.selectedCustomerObj?.name || '' : ''
           }
           autoPrintReceipt={autoPrintReceipt}
           onToggleAutoPrint={() => {
@@ -641,16 +644,36 @@ export default function POSPage() {
           setFilterSupplier={setFilterSupplier}
           filterStockStatus={filterStockStatus}
           setFilterStockStatus={setFilterStockStatus}
-          isFeaturedOnly={isFeaturedOnly}
-          setIsFeaturedOnly={setIsFeaturedOnly}
-          onClearAllFilters={handleClearAllFilters}
-          onConfirmPayment={async (paid, custId, method) => {
-            if (typeof paid === 'number' && !isNaN(paid)) {
-              setPaidAmount(paid);
-            }
-            if (custId) setSelectedCustomer(custId);
-            if (method) setPaymentMethod(method);
-            await paymentFlow.handleExecutePayment();
+          returnMode={returnMode}
+          returnContext={returnContext}
+          onConfirmPayment={async (paid, custId, method, refundMethod) => {
+            const finalMethod = method || paymentMethod;
+            const finalCustomer = custId !== undefined ? custId : selectedCustomer;
+            const isCredit = finalMethod === 'credit';
+            const finalPaid =
+              typeof paid === 'number' && !isNaN(paid)
+                ? (isCredit && paid >= pageState.saleSummary.total ? 0 : paid)
+                : (isCredit ? 0 : pageState.saleSummary.total);
+
+            setPaidAmount(finalPaid);
+            if (custId !== undefined) setSelectedCustomer(finalCustomer);
+            if (method) setPaymentMethod(finalMethod);
+
+            const effectiveRefundMethod =
+              refundMethod ||
+              (returnMode
+                ? (finalMethod === 'credit' ? 'customer_credit' : 'cash')
+                : undefined);
+
+            await paymentFlow.handleExecutePayment({
+              paidAmount: finalPaid,
+              selectedCustomer: finalCustomer,
+              paymentMethod: finalMethod,
+              refundMethod: effectiveRefundMethod,
+              originalSaleId: returnContext?.originalSaleId,
+              originalSaleNumber: returnContext?.originalSaleNumber,
+              returnReason: returnContext?.reason,
+            });
           }}
           isSalePending={paymentFlow.isSalePending}
           onAddProduct={handleAddProduct}

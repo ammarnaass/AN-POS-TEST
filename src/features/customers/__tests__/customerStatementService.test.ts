@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculateCustomerStatement } from '../services/customerStatementService';
+import { calculateCustomerStatement, calculateCustomerDebtAging } from '../services/customerStatementService';
 import type { Customer, Sale } from '@/types';
 
 describe('calculateCustomerStatement', () => {
@@ -133,5 +133,148 @@ describe('calculateCustomerStatement', () => {
     expect(result.balanceBroughtForward).toBe(15000);
     expect(result.entries[0].type).toBe('previous_balance');
     expect(result.entries[0].runningBalance).toBe(15000);
+  });
+});
+
+describe('calculateCustomerDebtAging', () => {
+  it('correctly categorizes unpaid and partial sales into aging buckets based on reference date', () => {
+    // Reference date: 2026-09-30
+    const refDate = new Date('2026-09-30T12:00:00.000Z');
+
+    const customerSales: Sale[] = [
+      // 10 days old -> 0-30 bucket (amount: 1,000)
+      {
+        id: 'sale-1',
+        number: 'INV-1',
+        total: 1000,
+        paidAmount: 0,
+        status: 'unpaid',
+        date: '2026-09-20T10:00:00.000Z',
+        type: 'sale',
+      } as any,
+      // 40 days old -> 31-60 bucket (total: 2,000, paid: 500, remaining debt: 1,500)
+      {
+        id: 'sale-2',
+        number: 'INV-2',
+        total: 2000,
+        paidAmount: 500,
+        status: 'partial',
+        date: '2026-08-21T10:00:00.000Z',
+        type: 'sale',
+      } as any,
+      // 75 days old -> 61-90 bucket (total: 3,000, debt: 3,000)
+      {
+        id: 'sale-3',
+        number: 'INV-3',
+        total: 3000,
+        paidAmount: 0,
+        status: 'unpaid',
+        date: '2026-07-17T10:00:00.000Z',
+        type: 'sale',
+      } as any,
+      // 110 days old -> +90 bucket (total: 4,000, debt: 4,000)
+      {
+        id: 'sale-4',
+        number: 'INV-4',
+        total: 4000,
+        paidAmount: 0,
+        status: 'unpaid',
+        date: '2026-06-12T10:00:00.000Z',
+        type: 'sale',
+      } as any,
+      // Fully paid sale -> should be ignored completely
+      {
+        id: 'sale-paid',
+        number: 'INV-PAID',
+        total: 5000,
+        paidAmount: 5000,
+        status: 'paid',
+        date: '2026-06-01T10:00:00.000Z',
+        type: 'sale',
+      } as any,
+      // Return sale -> should be ignored completely
+      {
+        id: 'sale-return',
+        number: 'RET-1',
+        total: -500,
+        status: 'return',
+        type: 'return',
+      } as any,
+    ];
+
+    const aging = calculateCustomerDebtAging(customerSales, refDate);
+
+    // Total overdue = 1,000 + 1,500 + 3,000 + 4,000 = 9,500
+    expect(aging.totalOverdue).toBe(9500);
+    expect(aging.unpaidInvoicesCount).toBe(4);
+    expect(aging.oldestInvoiceDays).toBe(110);
+
+    // Bucket 0-30
+    const b0 = aging.buckets.find((b) => b.rangeDays === '0-30');
+    expect(b0?.amount).toBe(1000);
+    expect(b0?.invoicesCount).toBe(1);
+
+    // Bucket 31-60
+    const b31 = aging.buckets.find((b) => b.rangeDays === '31-60');
+    expect(b31?.amount).toBe(1500);
+    expect(b31?.invoicesCount).toBe(1);
+
+    // Bucket 61-90
+    const b61 = aging.buckets.find((b) => b.rangeDays === '61-90');
+    expect(b61?.amount).toBe(3000);
+    expect(b61?.invoicesCount).toBe(1);
+
+    // Bucket +90
+    const b90 = aging.buckets.find((b) => b.rangeDays === '+90');
+    expect(b90?.amount).toBe(4000);
+    expect(b90?.invoicesCount).toBe(1);
+  });
+
+  it('correctly calculates statement when direct manual debt (debit) is added', () => {
+    const customer: Customer = {
+      id: 'cust-debt-test',
+      name: 'فاروق التاجر',
+      phone: '0666112233',
+      creditLimit: 50000,
+      balance: 7000,
+      createdAt: '2026-01-01T10:00:00.000Z',
+    };
+
+    const sales: Sale[] = [
+      {
+        id: 'sale-1',
+        number: 'INV-101',
+        customerId: 'cust-debt-test',
+        type: 'sale',
+        total: 5000,
+        paidAmount: 5000, // Fully paid
+        status: 'paid',
+        date: '2026-02-01T10:00:00.000Z',
+      } as any,
+    ];
+
+    const payments = [
+      // Direct debt addition of 7000
+      {
+        id: 'pay-debit-1',
+        customerId: 'cust-debt-test',
+        amount: 7000,
+        type: 'debit',
+        method: 'credit',
+        note: 'قيد دين إضافي مقابل خدمة صيانة خارجية',
+        date: '2026-02-05T10:00:00.000Z',
+        createdAt: '2026-02-05T10:00:00.000Z',
+      },
+    ];
+
+    const result = calculateCustomerStatement(customer, sales, payments);
+
+    expect(result.initialOpeningBalance).toBe(0);
+    expect(result.finalBalance).toBe(7000);
+    const debitEntry = result.entries.find((e) => e.type === 'debt_addition');
+    expect(debitEntry).toBeDefined();
+    expect(debitEntry?.debit).toBe(7000);
+    expect(debitEntry?.credit).toBe(0);
+    expect(debitEntry?.runningBalance).toBe(7000);
   });
 });

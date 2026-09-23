@@ -54,6 +54,7 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
   onOpenSuspended,
   suspendedCount,
   onSelectCustomer,
+  onOpenAddCustomer,
   selectedCustomerName,
   onOpenDiscount,
   onOpenFreeProduct,
@@ -207,6 +208,7 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
     isAnyModalOpen,
     onCloseModals: handleCloseModals,
     onSelectPriceTier,
+    onOpenAddCustomer,
   });
 
   // Favorites & Category Mode Integration (from useFavoritesStore and usePOSSessionStore)
@@ -509,6 +511,7 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
         invoiceNumber={invoiceNumber}
         customerName={selectedCustomerName}
         onSelectCustomer={onSelectCustomer}
+        onOpenAddCustomer={onOpenAddCustomer}
       />
 
       {/* 3. Main Center Area (3-Column Layout: Left Tools, Center Table, Right Finance) */}

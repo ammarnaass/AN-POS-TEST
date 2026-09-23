@@ -35,6 +35,9 @@ export function usePOSData() {
           queryClient.invalidateQueries({ queryKey: ['customers'] });
         } else if (data.table === 'cash_sessions') {
           queryClient.invalidateQueries({ queryKey: ['cashSessions'] });
+        } else if (data.table === 'sales' || data.table === 'sale_items' || data.table === 'sales_items') {
+          queryClient.invalidateQueries({ queryKey: ['sales'] });
+          queryClient.invalidateQueries({ queryKey: ['sales', 'return-candidates'] });
         }
       });
     }

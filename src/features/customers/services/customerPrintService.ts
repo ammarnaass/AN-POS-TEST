@@ -1,5 +1,6 @@
 import type { Customer } from '@/types';
 import type { PaymentVoucherData, CustomerStatementEntry } from '../types';
+import type { CustomerDebtAgingSummary } from './customerStatementService';
 
 export function printPaymentVoucher(
   voucher: PaymentVoucherData,
@@ -29,6 +30,12 @@ export function printPaymentVoucher(
         .row { display: flex; justify-content: space-between; margin-bottom: 6px; }
         .amount-box { background: #f0fdf4; border: 2px solid #16a34a; border-radius: 8px; text-align: center; padding: 10px; margin: 12px 0; }
         .amount-val { font-size: 22px; font-weight: 900; color: #15803d; font-family: monospace; }
+        .badge { text-align: center; padding: 6px; border-radius: 6px; margin: 10px 0; font-weight: 900; }
+        .badge-paid { border: 2px solid #16a34a; color: #16a34a; background: #f0fdf4; }
+        .badge-debt { border: 1px dashed #dc2626; color: #dc2626; background: #fef2f2; }
+        .alloc-table { width: 100%; border-collapse: collapse; font-size: 10px; margin-top: 6px; }
+        .alloc-table th { border-bottom: 1px solid #cbd5e1; color: #64748b; padding: 3px 2px; }
+        .alloc-table td { border-bottom: 1px dotted #e2e8f0; padding: 3px 2px; }
         .footer { text-align: center; border-top: 1px dashed #94a3b8; padding-top: 10px; margin-top: 16px; font-size: 11px; color: #64748b; }
       </style>
     </head>
@@ -47,7 +54,51 @@ export function printPaymentVoucher(
         <div class="amount-val">${voucher.amount.toLocaleString('fr-DZ')} ${currencySymbol}</div>
       </div>
       <div class="row"><span>الرصيد السابق:</span><span>${voucher.previousBalance.toLocaleString('fr-DZ')} ${currencySymbol}</span></div>
-      <div class="row" style="font-weight: 900; font-size: 14px; color: #b91c1c;"><span>الرصيد المتبقي:</span><span>${voucher.newBalance.toLocaleString('fr-DZ')} ${currencySymbol}</span></div>
+      <div class="row" style="font-weight: 900; font-size: 14px; color: ${voucher.newBalance > 0 ? '#b91c1c' : '#059669'};">
+        <span>${voucher.newBalance < 0 ? 'الرصيد الدائن:' : 'الرصيد المتبقي:'}</span>
+        <span>${Math.abs(voucher.newBalance).toLocaleString('fr-DZ')} ${currencySymbol}</span>
+      </div>
+
+      ${
+        voucher.newBalance <= 0
+          ? '<div class="badge badge-paid">✓ تمت تبرئة الذمة — الحساب مسدد بالكامل</div>'
+          : `<div class="badge badge-debt">⚠ متبقي بذمة الزبون: ${voucher.newBalance.toLocaleString('fr-DZ')} ${currencySymbol}</div>`
+      }
+
+      ${
+        voucher.allocations && voucher.allocations.length > 0
+          ? `
+          <div style="margin-top: 10px; border-top: 1px dashed #cbd5e1; padding-top: 8px;">
+            <div style="font-weight: 800; font-size: 11px; margin-bottom: 4px; color: #334155;">تسوية الفواتير المعلقة (FIFO):</div>
+            <table class="alloc-table">
+              <thead>
+                <tr>
+                  <th style="text-align: right;">الفاتورة</th>
+                  <th style="text-align: left;">المسدد</th>
+                  <th style="text-align: left;">المتبقي</th>
+                  <th style="text-align: center;">الحالة</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${voucher.allocations
+                  .map(
+                    (a) => `
+                  <tr>
+                    <td style="text-align: right;">#${a.invoiceNumber || a.saleId.slice(0, 8)}</td>
+                    <td style="text-align: left; font-weight: bold; color: #16a34a;">${a.allocatedAmount.toLocaleString('fr-DZ')}</td>
+                    <td style="text-align: left; color: ${a.remainingDebt > 0 ? '#dc2626' : '#64748b'};">${a.remainingDebt.toLocaleString('fr-DZ')}</td>
+                    <td style="text-align: center;">${a.newStatus === 'paid' ? 'مسددة' : 'جزئية'}</td>
+                  </tr>
+                `
+                  )
+                  .join('')}
+              </tbody>
+            </table>
+          </div>
+        `
+          : ''
+      }
+
       <div class="footer">
         <div>شكراً لتعاملكم معنا ووفائكم!</div>
         <div style="margin-top: 6px;">توقيع وختم المتجر: _______________</div>
@@ -69,7 +120,8 @@ export function printCustomerStatement(
   entries: CustomerStatementEntry[],
   shopName = 'متجرنا',
   shopPhone = '—',
-  currencySymbol = 'دج'
+  currencySymbol = 'دج',
+  agingSummary?: CustomerDebtAgingSummary
 ): void {
   const printWindow = window.open('', '_blank', 'width=850,height=900');
   if (!printWindow) return;
@@ -140,6 +192,39 @@ export function printCustomerStatement(
           <div class="card-val" style="color: ${customer.balance > 0 ? '#dc2626' : '#16a34a'};">${customer.balance.toLocaleString('fr-DZ')} ${currencySymbol}</div>
         </div>
       </div>
+
+      ${
+        agingSummary && agingSummary.totalOverdue > 0
+          ? `
+        <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px;">
+          <div style="font-weight: bold; font-size: 11px; margin-bottom: 8px; color: #1e293b;">
+            تحليل أعمار الديون المستحقة (${agingSummary.unpaidInvoicesCount} فواتير معلقة • أقدم فاتورة منذ ${agingSummary.oldestInvoiceDays} يوم):
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center;">
+            ${agingSummary.buckets
+              .map(
+                (b) => `
+              <div style="border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px; background: white;">
+                <div style="font-size: 10px; color: #64748b;">${b.label}</div>
+                <div style="font-size: 13px; font-weight: 800; font-family: monospace; color: ${
+                  b.severity === 'critical'
+                    ? '#dc2626'
+                    : b.severity === 'warning'
+                    ? '#d97706'
+                    : '#2563eb'
+                }; margin-top: 2px;">
+                  ${b.amount.toLocaleString('fr-DZ')} ${currencySymbol}
+                </div>
+                <div style="font-size: 9px; color: #94a3b8;">${b.invoicesCount} فاتورة</div>
+              </div>
+            `
+              )
+              .join('')}
+          </div>
+        </div>
+      `
+          : ''
+      }
 
       <table>
         <thead>

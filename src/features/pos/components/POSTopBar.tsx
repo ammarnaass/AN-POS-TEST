@@ -27,6 +27,7 @@ import {
   History,
 } from 'lucide-react';
 import NotificationDropdown from '@/components/notifications/NotificationDropdown';
+import { POSReturnButton } from '@/features/pos/returns';
 import type { Product, CashSession, User } from '@/types';
 
 export interface POSTopBarProps {
@@ -462,28 +463,8 @@ export const POSTopBar: React.FC<POSTopBarProps> = ({
               <span className="hidden sm:inline text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-700 dark:text-blue-300 font-black shadow-2xs">Alt+S</span>
             </button>
 
-            {/* Return Mode (F9) */}
-            <button
-              type="button"
-              onClick={() => {
-                if (returnMode) {
-                  setReturnMode(false);
-                  clearCart();
-                } else {
-                  onOpenReturnSale();
-                }
-              }}
-              className={`h-9 sm:h-10 px-2.5 sm:px-3.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 border shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 shrink-0 cursor-pointer ${
-                returnMode
-                  ? 'bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/40 shadow-red-500/20'
-                  : 'bg-surface-container/80 hover:bg-surface-container-high text-slate-900 dark:text-white border-outline-variant/25 hover:border-red-500/40'
-              }`}
-              title="وضع الإرجاع ومرتجع المبيعات (F9)"
-            >
-              <RotateCcw className="w-4 h-4 text-red-500" />
-              <span className="font-cairo font-black">الإرجاع</span>
-              <span className="hidden sm:inline text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-container-high border border-outline-variant/30 text-on-surface-variant font-bold shadow-2xs">F9</span>
-            </button>
+            {/* Return Mode (F9) - Centralized Robust Architecture */}
+            <POSReturnButton variant="topbar" onOpenReturns={onOpenReturnSale} />
           </div>
 
           {/* Group Divider */}

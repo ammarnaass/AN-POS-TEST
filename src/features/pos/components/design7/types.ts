@@ -65,7 +65,11 @@ export interface Design7POSLayoutProps {
   onOpenKeyboard?: () => void;
   onOpenAddProduct?: () => void;
   selectedCustomer?: string;
+  selectedCustomerObj?: Customer | null;
   customers?: Customer[];
+  onOpenCustomerInvoices?: () => void;
+  onOpenSettlementModal?: () => void;
+  onOpenAddDebtModal?: () => void;
   /** Global (POSPage-level) modal state — Esc closes those before navigating back */
   isAnyModalOpen?: boolean;
   onCloseAllModals?: () => void;
