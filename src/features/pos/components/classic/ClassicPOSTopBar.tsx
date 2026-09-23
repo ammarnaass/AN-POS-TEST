@@ -85,7 +85,7 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
   onSelectPriceTier,
 }) => {
   const { theme, toggleTheme } = useThemeStore();
-  const unreadCount = useNotificationStore((s) => s.getUnreadCount());
+  const unreadCount = useNotificationStore((s) => s.notifications.filter((n) => !n.read).length);
 
   return (
     <div className="bg-surface-container-low border-b border-outline-variant/20 p-2 sm:p-2.5 flex flex-col gap-2 shrink-0 shadow-sm">

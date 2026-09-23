@@ -86,7 +86,7 @@ export const TerminalPOSTopBar: React.FC<TerminalPOSTopBarProps> = ({
   isFullscreen,
   onToggleFullscreen,
 }) => {
-  const unreadCount = useNotificationStore((s) => s.getUnreadCount());
+  const unreadCount = useNotificationStore((s) => s.notifications.filter((n) => !n.read).length);
 
   return (
     <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-2.5 sm:px-3 py-2 flex items-center justify-between gap-2 shadow-2xs shrink-0 flex-wrap lg:flex-nowrap">

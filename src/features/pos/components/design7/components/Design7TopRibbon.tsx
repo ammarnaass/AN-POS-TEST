@@ -53,7 +53,7 @@ export const Design7TopRibbon: React.FC<Design7TopRibbonProps> = ({
   onToggleBottomFavorites,
 }) => {
   const { timeStr, dateStr } = useDesign7Clock();
-  const unreadCount = useNotificationStore((s) => s.getUnreadCount());
+  const unreadCount = useNotificationStore((s) => s.notifications.filter((n) => !n.read).length);
 
   return (
     <header className="bg-gradient-to-b from-[#e3e8ee] to-[#cad3de] px-1.5 sm:px-2 py-1 border-b border-[#9ba8b7] flex items-center justify-between gap-1 shadow-sm shrink-0 select-none overflow-hidden">

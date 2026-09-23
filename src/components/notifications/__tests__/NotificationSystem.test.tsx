@@ -191,6 +191,52 @@ describe('Interactive Notification System (نظام الإشعارات التف�
       expect(onActionClick).toHaveBeenCalled();
       expect(onDismiss).toHaveBeenCalledWith('toast-action');
     });
+
+    it('يعرض بطاقة تنبيه مخصصة للديون بشارة دين / بيع آجل أو تسديد دين', () => {
+      const onDismiss = vi.fn();
+      const debtNotification = {
+        id: 'toast-debt-1',
+        title: 'تم تسجيل بيع بالآجل (دين على الزبون)',
+        message: 'فاتورة #INV-900: قيد 5,000 دج كدين على أحمد بن علي',
+        type: 'warning' as const,
+        category: 'debt',
+        debtMetadata: {
+          customerId: 'cust-1',
+          customerName: 'أحمد بن علي',
+          debtAmount: 5000,
+          actionType: 'credit_sale' as const,
+        },
+        read: false,
+        createdAt: new Date().toISOString(),
+      };
+
+      const { rerender } = render(
+        <MemoryRouter>
+          <NotificationToastCard notification={debtNotification} onDismiss={onDismiss} />
+        </MemoryRouter>
+      );
+
+      expect(screen.getByText('دين / بيع آجل')).toBeDefined();
+      expect(screen.getByText('تم تسجيل بيع بالآجل (دين على الزبون)')).toBeDefined();
+
+      // تجربة تسديد دين
+      const settlementNotification = {
+        ...debtNotification,
+        id: 'toast-debt-2',
+        debtMetadata: {
+          ...debtNotification.debtMetadata,
+          actionType: 'debt_settlement' as const,
+        },
+      };
+
+      rerender(
+        <MemoryRouter>
+          <NotificationToastCard notification={settlementNotification} onDismiss={onDismiss} />
+        </MemoryRouter>
+      );
+
+      expect(screen.getByText('تسديد دين')).toBeDefined();
+    });
   });
 
   describe('3. InteractiveToastContainer (حاوية التكديس في أسفل اليسار)', () => {
@@ -238,6 +284,12 @@ describe('Interactive Notification System (نظام الإشعارات التف�
           message: 'ترخيص البرنامج نشط',
           type: 'success',
         });
+        useNotificationStore.getState().addNotification({
+          title: 'بيع بالآجل للزبون',
+          message: 'قيد مبلغ 5000 دج كدين',
+          type: 'warning',
+          category: 'debt',
+        });
         useNotificationStore.getState().openCenter();
       });
 
@@ -250,16 +302,25 @@ describe('Interactive Notification System (نظام الإشعارات التف�
       expect(screen.getByText('مركز الإشعارات والتنبيهات')).toBeDefined();
       expect(screen.getByText('تحذير أمني')).toBeDefined();
       expect(screen.getByText('تم التفعيل بنجاح')).toBeDefined();
+      expect(screen.getByText('بيع بالآجل للزبون')).toBeDefined();
+
+      // التبديل لتبويب الديون
+      fireEvent.click(screen.getByText(/الديون/));
+      expect(screen.getByText('بيع بالآجل للزبون')).toBeDefined();
+      expect(screen.queryByText('تحذير أمني')).toBeNull();
+      expect(screen.queryByText('تم التفعيل بنجاح')).toBeNull();
 
       // التبديل لتبويب تنبيهات وأخطاء
       fireEvent.click(screen.getByText('تنبيهات وأخطاء'));
       expect(screen.getByText('تحذير أمني')).toBeDefined();
       expect(screen.queryByText('تم التفعيل بنجاح')).toBeNull();
+      expect(screen.queryByText('بيع بالآجل للزبون')).toBeNull();
 
       // التبديل لتبويب نجاح ومعلومات
       fireEvent.click(screen.getByText('نجاح ومعلومات'));
       expect(screen.queryByText('تحذير أمني')).toBeNull();
       expect(screen.getByText('تم التفعيل بنجاح')).toBeDefined();
+      expect(screen.queryByText('بيع بالآجل للزبون')).toBeNull();
     });
 
     it('يسمح بتحديد الكل كمقروء ومسح السجل بالكامل من المركز', () => {
@@ -342,6 +403,12 @@ describe('Interactive Notification System (نظام الإشعارات التف�
           message: 'تم حفظ الفاتورة بنجاح',
           type: 'success',
         });
+        useNotificationStore.getState().addNotification({
+          title: 'دين زبون في القائمة',
+          message: 'تسجيل دين آجل',
+          type: 'warning',
+          category: 'debt',
+        });
       });
 
       render(
@@ -356,16 +423,25 @@ describe('Interactive Notification System (نظام الإشعارات التف�
       fireEvent.click(screen.getByTestId('bell-btn'));
       expect(screen.getByText('تحذير مخزون')).toBeDefined();
       expect(screen.getByText('عملية ناجحة')).toBeDefined();
+      expect(screen.getByText('دين زبون في القائمة')).toBeDefined();
+
+      // التبديل لتبويب الديون
+      fireEvent.click(screen.getByText(/الديون/));
+      expect(screen.getByText('دين زبون في القائمة')).toBeDefined();
+      expect(screen.queryByText('تحذير مخزون')).toBeNull();
+      expect(screen.queryByText('عملية ناجحة')).toBeNull();
 
       // التبديل لتبويب تنبيهات
       fireEvent.click(screen.getByText('تنبيهات'));
       expect(screen.getByText('تحذير مخزون')).toBeDefined();
       expect(screen.queryByText('عملية ناجحة')).toBeNull();
+      expect(screen.queryByText('دين زبون في القائمة')).toBeNull();
 
       // التبديل لتبويب نجاح
       fireEvent.click(screen.getByText('نجاح'));
       expect(screen.queryByText('تحذير مخزون')).toBeNull();
       expect(screen.getByText('عملية ناجحة')).toBeDefined();
+      expect(screen.queryByText('دين زبون في القائمة')).toBeNull();
 
       // تحديد الكل كمقروء
       const markAllBtn = screen.getByTitle('تحديد الكل كمقروء');

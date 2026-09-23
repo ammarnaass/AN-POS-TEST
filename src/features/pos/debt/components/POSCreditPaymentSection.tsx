@@ -1,5 +1,5 @@
 import React from 'react';
-import { UserCheck, UserPlus } from 'lucide-react';
+import { UserCheck, UserPlus, Wallet } from 'lucide-react';
 import type { Customer } from '@/types';
 import { formatNumber, formatMoney } from '../../utils/format';
 import type { CreditSaleValidation } from '../types';
@@ -91,6 +91,28 @@ export const POSCreditPaymentSection: React.FC<POSCreditPaymentSectionProps> = (
           ▼
         </div>
       </div>
+
+      {/* Dynamic Debt Registration Notice */}
+      {selectedCustomer && matchedCustomer && (
+        <div
+          className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-right space-y-1"
+          data-purpose="dynamic-debt-notice-card"
+          data-testid="dynamic-debt-notice-card"
+        >
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-xs font-extrabold text-amber-900 dark:text-amber-200">
+              <Wallet className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+              <span>إشعار: سيتم تسجيل الفاتورة كدين على الزبون</span>
+            </span>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-300">
+              {remainingDebtFromSale === saleTotal ? 'دين كامل' : 'دين جزئي متبقي'}
+            </span>
+          </div>
+          <p className="text-[11px] text-on-surface-variant leading-relaxed">
+            سيتم قيد مبلغ <strong className="text-rose-600 font-mono font-bold">{formatMoney(remainingDebtFromSale)} {currencySymbol}</strong> على حساب <strong className="text-on-surface font-bold">[{matchedCustomer.name}]</strong>، وربط العملية بنظام ديون الزبائن والإشعارات المالية.
+          </p>
+        </div>
+      )}
 
       {/* Partial Payment Input (Down payment / Advance in Cash) */}
       {selectedCustomer && setPaidAmount && (

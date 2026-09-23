@@ -6,6 +6,7 @@ import type { Customer } from '@/types';
 import { formatMoney } from '../../utils/format';
 import { settleCustomerDebtRecord } from '../services/posCustomerDebtService';
 import { printPOSDebtSettlementSlip } from '../services/posDebtReceiptService';
+import { posDebtNotificationService } from '../services/posDebtNotificationService';
 
 export interface POSDebtSettlementModalProps {
   isOpen: boolean;
@@ -59,10 +60,14 @@ export const POSDebtSettlementModal: React.FC<POSDebtSettlementModalProps> = ({
       await queryClient.invalidateQueries({ queryKey: ['payments'] });
       await queryClient.invalidateQueries({ queryKey: ['cash_sessions'] });
 
-      addNotification({
-        title: 'تم تسجيل تسديد الدين بنجاح',
-        message: `تم قبض مبلغ ${formatMoney(numAmount)} ${currencySymbol} من الزبون ${customer.name}`,
-        type: 'success',
+      posDebtNotificationService.notifyDebtSettlement({
+        customerId: customer.id,
+        customerName: customer.name,
+        settledAmount: numAmount,
+        newBalance: result.newBalance,
+        currency: currencySymbol,
+        paymentMethod: method,
+        receiptNumber: result.receiptNumber,
       });
 
       if (printSlip) {

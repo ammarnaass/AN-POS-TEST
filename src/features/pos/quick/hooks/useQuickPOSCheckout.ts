@@ -75,11 +75,7 @@ export function useQuickPOSCheckout({
         });
       }
 
-      addNotification({
-        title: 'تم تسجيل البيع السريع بنجاح',
-        message: `فاتورة #${sale.number} بمبلغ ${formatMoney(sale.total)} دج`,
-        type: 'success',
-      });
+      // ملاحظة: الإشعار يُرسل مركزياً من useSaleCompletion — لا حاجة لإعادة إرساله هنا
     }
   );
 

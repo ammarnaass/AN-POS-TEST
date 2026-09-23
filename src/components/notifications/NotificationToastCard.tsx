@@ -8,15 +8,40 @@ import {
   X,
   ExternalLink,
   ChevronRight,
+  Wallet,
 } from 'lucide-react';
-import type { Notification, NotificationType } from '@/store/notificationStore';
+import type { Notification, NotificationType, DebtNotificationMetadata } from '@/store/notificationStore';
 
 interface NotificationToastCardProps {
   notification: Notification;
   onDismiss: (id: string) => void;
 }
 
-const getToastConfig = (type: NotificationType) => {
+const getToastConfig = (
+  type: NotificationType,
+  category?: string,
+  debtMetadata?: DebtNotificationMetadata
+) => {
+  if (category === 'debt') {
+    let badgeText = 'دين / بيع آجل';
+    if (debtMetadata?.actionType === 'debt_settlement') {
+      badgeText = 'تسديد دين';
+    } else if (debtMetadata?.actionType === 'add_debt') {
+      badgeText = 'قيد دين';
+    } else if (debtMetadata?.actionType === 'partial_sale') {
+      badgeText = 'دين جزئي';
+    }
+
+    return {
+      icon: <Wallet className="w-5 h-5 text-indigo-500" />,
+      badgeBg: 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/30',
+      badgeText,
+      glowColor: 'shadow-indigo-500/15 border-indigo-500/40 ring-1 ring-indigo-500/20',
+      barColor: 'bg-indigo-600 dark:bg-indigo-500',
+      pulseDot: 'bg-indigo-500',
+    };
+  }
+
   switch (type) {
     case 'success':
       return {
@@ -73,7 +98,7 @@ export const NotificationToastCard: React.FC<NotificationToastCardProps> = ({
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const config = getToastConfig(notification.type);
+  const config = getToastConfig(notification.type, notification.category, notification.debtMetadata);
 
   // إعداد المؤقت الزمني للإغلاق التلقائي
   useEffect(() => {

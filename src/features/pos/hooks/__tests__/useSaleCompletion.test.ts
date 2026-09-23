@@ -6,6 +6,7 @@ import { db } from '@/infrastructure/database/dexie/db';
 import { useSaleCompletion } from '../useSaleCompletion';
 import { useAuthStore } from '@/store/authStore';
 import { useCartStore } from '@/store/cartStore';
+import { useNotificationStore } from '@/store/notificationStore';
 
 // =============================================================
 // إعداد البيئة
@@ -57,6 +58,9 @@ describe('useSaleCompletion — منطق إتمام البيع والإرجاع'
 
     // تصفير السلة
     useCartStore.setState({ items: [] });
+
+    // تصفير الإشعارات
+    useNotificationStore.setState({ notifications: [], activeToasts: [] });
   });
 
   // ─── 1. بيع نقدي كامل ───
@@ -372,7 +376,63 @@ describe('useSaleCompletion — منطق إتمام البيع والإرجاع'
       expect(savedSale?.paidAmount).toBe(0);
       expect(savedSale?.paymentMethod).toBe('credit');
     });
+
+    it('2.4 يرسل إشعاراً مخصصاً (Warning) عند إتمام عملية الدفع بدين مع تفاصيل العميل والمبلغ', async () => {
+      await db.products.put({
+        id: 'prod-milk',
+        name: 'حليب معقم 1ل',
+        quantity: 30,
+        retailPrice: 120,
+        costPrice: 90,
+      } as any);
+
+      await db.customers.put({
+        id: 'cust-faycal',
+        name: 'فيصل بلخير',
+        balance: 1000,
+      } as any);
+
+      const { result } = renderHook(() => useSaleCompletion(defaultSettings), {
+        wrapper: createWrapper(),
+      });
+
+      const products = await db.products.toArray();
+      const customers = await db.customers.toArray();
+
+      await act(async () => {
+        await result.current.completeSale({
+          cart: [
+            {
+              productId: 'prod-milk',
+              name: 'حليب معقم 1ل',
+              qty: 5,
+              unitPrice: 120,
+              lineTotal: 600,
+            } as any,
+          ],
+          discount: 0,
+          discountType: 'percent',
+          selectedCustomer: 'cust-faycal',
+          paymentMethod: 'credit',
+          paidAmount: 0,
+          settings: defaultSettings,
+          products,
+          packs: [],
+          customers,
+          currentSession: null,
+        } as any);
+      });
+
+      const notifs = useNotificationStore.getState().notifications;
+      expect(notifs.length).toBeGreaterThan(0);
+      expect(notifs[0].title).toBe('تم تسجيل بيع بالآجل (دين على الزبون)');
+      expect(notifs[0].type).toBe('warning');
+      expect(notifs[0].message).toContain('فيصل بلخير');
+      expect(notifs[0].message).toContain('600');
+      expect(notifs[0].action?.label).toBe('سجل ديون الزبائن');
+    });
   });
+
 
   // ─── 3. إرجاع (Return) ───
   describe('3. الإرجاع', () => {

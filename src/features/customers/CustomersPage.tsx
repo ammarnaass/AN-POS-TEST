@@ -347,6 +347,11 @@ export default function CustomersPage() {
         title: 'تم تسديد الفاتورة بنجاح',
         message: `تم سداد ${remainingDebt.toLocaleString()} ${currencySymbol} من الفاتورة #${sale.number}. الرصيد المتبقي: ${result.newBalance.toLocaleString()} ${currencySymbol}`,
         type: 'success',
+        category: 'debt',
+        action: {
+          label: 'كشف حساب الزبون',
+          link: `/customers?id=${sale.customerId}`,
+        },
       });
     } catch (err: any) {
       addNotification({

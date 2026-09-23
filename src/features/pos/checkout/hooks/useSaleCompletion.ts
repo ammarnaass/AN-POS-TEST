@@ -3,6 +3,7 @@ import { useCartStore } from '@/store/cartStore';
 import { useAuthStore } from '@/store/authStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import type { Sale } from '@/types';
+import { posDebtNotificationService } from '@/features/pos/debt';
 import { isTrialExpired, incrementTrialSales } from '@/services/trialService';
 import { isLicensed } from '@/services/licenseService';
 import {
@@ -143,21 +144,72 @@ export function useSaleCompletion(
       // تفريغ السلة
       clearCart();
 
-      // إرسال إشعار فوري
+      // إرسال إشعار فوري بحسب نوع وسيلة الدفع (نقدي / آجل بدين / مرتجع)
       const isReturn = sale.type === 'return';
+      const isCreditSale =
+        !isReturn &&
+        (sale.paymentMethod === 'credit' ||
+          sale.status === 'unpaid' ||
+          sale.status === 'partial');
+
       const formattedTotal = Number(sale.total || 0).toLocaleString('ar-DZ', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
       });
 
-      addNotification({
-        title: isReturn ? 'تم تسجيل المرتجع بنجاح' : 'تم إتمام عملية البيع بنجاح',
-        message: isReturn
-          ? `مرتجع بقيمة ${formattedTotal} ${settings?.baseCurrency || 'دج'}`
-          : `فاتورة رقم ${sale.invoiceNumber || sale.id?.slice(0, 8) || ''} بقيمة ${formattedTotal} ${settings?.baseCurrency || 'دج'}`,
-        type: 'success',
-        category: 'sales',
-      });
+      if (isCreditSale) {
+        const debtAmount = Math.max(
+          0,
+          Number(sale.total || 0) - Number(sale.paidAmount || 0)
+        );
+        const currency = settings?.baseCurrency || 'دج';
+        const isPartial = Number(sale.paidAmount || 0) > 0 && debtAmount > 0;
+
+        if (isPartial) {
+          posDebtNotificationService.notifyPartialCreditSale({
+            sale,
+            debtAmount,
+            paidAmount: Number(sale.paidAmount || 0),
+            currency,
+            customerName: sale.customerName,
+            customerId: sale.customerId,
+          });
+        } else {
+          posDebtNotificationService.notifyCreditSale({
+            sale,
+            debtAmount,
+            currency,
+            customerName: sale.customerName,
+            customerId: sale.customerId,
+          });
+        }
+      } else if (isReturn) {
+        const invoiceRef = sale.invoiceNumber || sale.number || sale.id?.slice(0, 8) || '';
+        addNotification({
+          title: 'تم تسجيل المرتجع وتحديث المخزون بنجاح',
+          message: `مرتجع فاتورة #${invoiceRef} بقيمة ${formattedTotal} ${settings?.baseCurrency || 'دج'} — تم تحديث الأرصدة وحركة الصندوق`,
+          type: 'success',
+          category: 'returns',
+          duration: 6000,
+          action: {
+            label: 'عرض سجل المبيعات',
+            link: '/sales',
+          },
+        });
+      } else {
+        const invoiceRef = sale.invoiceNumber || sale.number || sale.id?.slice(0, 8) || '';
+        addNotification({
+          title: 'تم إتمام عملية البيع وحفظ الفاتورة بنجاح',
+          message: `فاتورة #${invoiceRef} بقيمة ${formattedTotal} ${settings?.baseCurrency || 'دج'} — تم خصم المخزون وتحديث الصندوق`,
+          type: 'success',
+          category: 'sales',
+          duration: 5000,
+          action: {
+            label: 'عرض سجل المبيعات',
+            link: '/sales',
+          },
+        });
+      }
 
       if (onSaleSuccess) {
         onSaleSuccess(sale);

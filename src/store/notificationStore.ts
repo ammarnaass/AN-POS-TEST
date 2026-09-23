@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { playNotificationChime } from '@/services/sound/notificationSound';
+import { playNotificationChime, unlockNotificationAudio } from '@/services/sound/notificationSound';
 
 export type NotificationType = 'info' | 'warning' | 'error' | 'success';
 
@@ -7,6 +7,20 @@ export interface NotificationAction {
   label: string;
   onClick?: () => void;
   link?: string;
+}
+
+export interface DebtNotificationMetadata {
+  customerId?: string;
+  customerName?: string;
+  debtAmount: number;
+  paidAmount?: number;
+  totalAmount?: number;
+  newBalance?: number;
+  creditLimit?: number;
+  isCreditLimitExceeded?: boolean;
+  saleId?: string;
+  invoiceNumber?: string;
+  actionType: 'credit_sale' | 'partial_sale' | 'debt_settlement' | 'add_debt';
 }
 
 export interface Notification {
@@ -17,8 +31,9 @@ export interface Notification {
   read: boolean;
   createdAt: string;
   action?: NotificationAction;
-  category?: 'system' | 'inventory' | 'sales' | 'print' | 'security' | string;
+  category?: 'system' | 'inventory' | 'sales' | 'debt' | 'print' | 'security' | string;
   duration?: number; // ms: default 5000 (0 means persistent until user dismisses)
+  debtMetadata?: DebtNotificationMetadata;
 }
 
 interface NotificationState {
@@ -106,6 +121,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
       // تشغيل نغمة صوتية تفاعلية إذا كان الصوت مفعلاً
       if (state.soundEnabled) {
+        unlockNotificationAudio();
         playNotificationChime(newNotification.type);
       }
 

@@ -6,6 +6,7 @@ export * from './services/posCustomerDebtService';
 export * from './services/posDebtReceiptService';
 export * from './services/posInvoiceStatusService';
 export * from './services/posInvoiceLookupService';
+export * from './services/posDebtNotificationService';
 
 // Hooks
 export * from './hooks/useCreditSaleValidation';

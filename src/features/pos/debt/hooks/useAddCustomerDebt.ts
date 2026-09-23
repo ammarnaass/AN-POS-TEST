@@ -1,7 +1,9 @@
 import { useState, useMemo, useCallback } from 'react';
+import { useNotificationStore } from '@/store/notificationStore';
 import type { Customer } from '@/types';
 import { addCustomerDebtRecord } from '../services/posCustomerDebtService';
 import { printPOSDebtAdditionSlip } from '../services/posDebtReceiptService';
+import { posDebtNotificationService } from '../services/posDebtNotificationService';
 import type { AddCustomerDebtResult } from '../types';
 
 export interface UseAddCustomerDebtProps {
@@ -21,6 +23,7 @@ export function useAddCustomerDebt({
   onSuccess,
   onClose,
 }: UseAddCustomerDebtProps) {
+  const addNotification = useNotificationStore((s) => s.addNotification);
   const [amount, setAmount] = useState<string>('');
   const [reason, setReason] = useState<string>('');
   const [note, setNote] = useState<string>('');
@@ -109,6 +112,16 @@ export function useAddCustomerDebt({
           currencySymbol
         );
       }
+
+      posDebtNotificationService.notifyAddDebt({
+        customerId: customer.id,
+        customerName: customer.name,
+        amount: numericAmount,
+        currency: currencySymbol,
+        newBalance: result.newBalance,
+        creditLimit,
+        isLimitExceeded,
+      });
 
       resetForm();
       onSuccess?.(result);

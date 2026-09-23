@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   Info,
   ChevronLeft,
+  Wallet,
 } from 'lucide-react';
 import {
   useNotificationStore,
@@ -25,9 +26,12 @@ interface NotificationDropdownProps {
   hideBadge?: boolean;
 }
 
-type FilterTab = 'all' | 'unread' | 'alerts' | 'success';
+type FilterTab = 'all' | 'unread' | 'debt' | 'alerts' | 'success';
 
-const getNotificationIcon = (type: NotificationType) => {
+const getNotificationIcon = (type: NotificationType, category?: string) => {
+  if (category === 'debt') {
+    return <Wallet className="w-3.5 h-3.5 text-indigo-500" />;
+  }
   switch (type) {
     case 'warning':
       return <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />;
@@ -41,7 +45,10 @@ const getNotificationIcon = (type: NotificationType) => {
   }
 };
 
-const getNotificationBg = (type: NotificationType) => {
+const getNotificationBg = (type: NotificationType, category?: string) => {
+  if (category === 'debt') {
+    return 'bg-indigo-500/10 border-indigo-500/20';
+  }
   switch (type) {
     case 'warning':
       return 'bg-amber-500/10 border-amber-500/20';
@@ -175,10 +182,12 @@ export default function NotificationDropdown({
     switch (activeTab) {
       case 'unread':
         return notifications.filter((n) => !n.read);
+      case 'debt':
+        return notifications.filter((n) => n.category === 'debt');
       case 'alerts':
-        return notifications.filter((n) => n.type === 'warning' || n.type === 'error');
+        return notifications.filter((n) => (n.type === 'warning' || n.type === 'error') && n.category !== 'debt');
       case 'success':
-        return notifications.filter((n) => n.type === 'success' || n.type === 'info');
+        return notifications.filter((n) => (n.type === 'success' || n.type === 'info') && n.category !== 'debt');
       case 'all':
       default:
         return notifications;
@@ -353,6 +362,17 @@ export default function NotificationDropdown({
                 غير مقروءة ({unreadCount})
               </button>
               <button
+                onClick={() => setActiveTab('debt')}
+                type="button"
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  activeTab === 'debt'
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
+                }`}
+              >
+                الديون ({notifications.filter((n) => n.category === 'debt').length})
+              </button>
+              <button
                 onClick={() => setActiveTab('alerts')}
                 type="button"
                 className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
@@ -385,8 +405,8 @@ export default function NotificationDropdown({
                 </div>
               ) : (
                 filteredNotifications.map((notification) => {
-                  const bgBadge = getNotificationBg(notification.type);
-                  const icon = getNotificationIcon(notification.type);
+                  const bgBadge = getNotificationBg(notification.type, notification.category);
+                  const icon = getNotificationIcon(notification.type, notification.category);
 
                   return (
                     <div

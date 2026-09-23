@@ -39,14 +39,14 @@ export const Design7DisplayAndCustomerBanner: React.FC<Design7DisplayAndCustomer
 
   return (
     <div
-      className="flex items-stretch h-14 sm:h-16 md:h-20 border-b border-[#204060] shrink-0 overflow-hidden bg-slate-100 dark:bg-slate-900"
+      className="flex items-stretch h-[70px] sm:h-20 md:h-[100px] border-b border-[#204060] shrink-0 overflow-hidden bg-slate-100 dark:bg-slate-900"
       data-purpose="digital-banner"
     >
-      {/* Large LED Digital Amount Banner (Right in RTL) */}
-      <div className="flex-[5] sm:flex-[4] d7-led-display-bg flex items-center justify-center px-2 sm:px-4 relative overflow-hidden">
+      {/* Large LED Digital Amount Banner (Right in RTL) - Expanded length by 30% */}
+      <div className="w-[58%] shrink-0 d7-led-display-bg flex items-center justify-center px-2 sm:px-4 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent pointer-events-none" />
         <span
-          className="text-red-500 font-black tracking-wider text-2xl sm:text-3xl md:text-5xl drop-shadow-[0_2px_8px_rgba(255,0,0,0.7)] select-none truncate max-w-full px-1"
+          className="text-red-500 font-black tracking-wider text-3xl sm:text-4xl md:text-[3.75rem] lg:text-[4.25rem] xl:text-6xl drop-shadow-[0_2px_8px_rgba(255,0,0,0.7)] select-none truncate max-w-full px-1"
           style={{ fontFamily: "'Courier New', monospace, sans-serif" }}
         >
           {displayTotal}
@@ -54,7 +54,7 @@ export const Design7DisplayAndCustomerBanner: React.FC<Design7DisplayAndCustomer
       </div>
 
       {/* Customer Identity, Balance, Credit Limit & Actions (Left in RTL) */}
-      <div className="flex-[6] sm:flex-[5] bg-[#cde4f9] dark:bg-[#1a2c3d] border-r-2 border-[#5a8bb8] flex items-center px-2 sm:px-3 justify-between overflow-hidden gap-1 sm:gap-2">
+      <div className="w-[42%] min-w-0 flex-1 bg-[#cde4f9] dark:bg-[#1a2c3d] border-r-2 border-[#5a8bb8] flex items-center px-2 sm:px-3 justify-between overflow-hidden gap-1 sm:gap-2">
         {/* Customer Information & Debt Badges */}
         <div className="flex flex-col justify-center min-w-0 flex-1">
           <div className="flex items-center gap-1.5 flex-wrap">

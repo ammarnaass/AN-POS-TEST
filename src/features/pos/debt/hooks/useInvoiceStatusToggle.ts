@@ -23,6 +23,7 @@ export function useInvoiceStatusToggle() {
           ? `تم تغيير حالة الفاتورة #${result.saleNumber} إلى مدفوعة وخصم المبلغ من دين الزبون`
           : `تم تغيير حالة الفاتورة #${result.saleNumber} إلى غير مسددة وقيد المبلغ كدين على الزبون`,
         type: 'success',
+        category: 'debt',
       });
     },
     onError: (error) => {

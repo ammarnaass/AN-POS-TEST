@@ -135,7 +135,7 @@ export const SidebarPOSLayout: React.FC<SidebarPOSLayoutProps> = ({
   showProductImages = true,
 }) => {
   const { theme, toggleTheme } = useThemeStore();
-  const unreadCount = useNotificationStore((s) => s.getUnreadCount());
+  const unreadCount = useNotificationStore((s) => s.notifications.filter((n) => !n.read).length);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
 
   const [currentPage, setCurrentPage] = useState(1);

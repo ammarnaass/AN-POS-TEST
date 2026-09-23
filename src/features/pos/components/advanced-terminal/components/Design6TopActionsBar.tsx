@@ -80,7 +80,7 @@ export const Design6TopActionsBar: React.FC<Design6TopActionsBarProps> = ({
   theme = 'dark',
   onToggleTheme,
 }) => {
-  const unreadCount = useNotificationStore((s) => s.getUnreadCount());
+  const unreadCount = useNotificationStore((s) => s.notifications.filter((n) => !n.read).length);
 
   const getTierLabel = () => {
     switch (priceTier) {

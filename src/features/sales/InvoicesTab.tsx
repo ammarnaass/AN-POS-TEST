@@ -510,6 +510,7 @@ export default function InvoicesTab() {
           title: 'تم تسجيل السداد بنجاح',
           message: `تم سداد مبلغ ${settleAmount.toLocaleString()} ${baseCurrency} من الفاتورة #${saleToSettle.number}. الرصيد المتبقي على العميل: ${res.newBalance.toLocaleString()} ${baseCurrency}`,
           type: 'success',
+          category: 'debt',
         });
       } else {
         // تحويل الفاتورة إلى دين غير مسدد
@@ -519,6 +520,7 @@ export default function InvoicesTab() {
             title: 'تنبيه',
             message: 'لا يمكن تحويل الفاتورة إلى دين دون تحديد زبون مسجل.',
             type: 'warning',
+            category: 'debt',
           });
           setIsSettling(false);
           return;
@@ -539,6 +541,7 @@ export default function InvoicesTab() {
           title: 'تم تحويل الفاتورة إلى دين',
           message: `تم قيد مبلغ ${res.amountChanged.toLocaleString()} ${baseCurrency} كدين مستحق على العميل.`,
           type: 'success',
+          category: 'debt',
         });
       }
       setSaleToSettle(null);

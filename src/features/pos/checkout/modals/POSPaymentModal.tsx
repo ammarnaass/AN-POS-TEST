@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, CreditCard, ArrowLeftRight, RotateCcw, Banknote, UserCheck } from 'lucide-react';
+import { X, CreditCard, ArrowLeftRight, RotateCcw, Banknote, UserCheck, Wallet } from 'lucide-react';
 import { formatMoney } from '@/features/pos/utils/format';
 import { POSCreditPaymentSection } from '@/features/pos/debt';
 import { usePOSPaymentModal } from '../hooks/usePOSPaymentModal';
@@ -230,6 +230,32 @@ export const POSPaymentModal: React.FC<POSPaymentModalProps> = ({
                 <h4 className="text-xs font-bold text-on-surface">الدفع عبر التحويل البنكي أو البريدي</h4>
                 <p className="text-[11px] text-on-surface-variant mt-0.5">
                   يرجى التأكد من استلام إشعار التحويل البنكي أو البريدي المطابق لرقم الفاتورة.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Credit / Debt Payment Notice */}
+          {!isReturn && paymentMethod === 'credit' && (
+            <div
+              className="p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 dark:border-indigo-500/40 flex items-center gap-3"
+              data-purpose="credit-payment-notice-card"
+              data-testid="credit-payment-notice-card"
+            >
+              <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 shadow-2xs">
+                <Wallet className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-1 flex-wrap">
+                  <h4 className="text-xs font-extrabold text-indigo-900 dark:text-indigo-200">
+                    إشعار: إتمام المعاملة بالآجل (قيد دين على الحساب)
+                  </h4>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-800 dark:text-indigo-300">
+                    نظام الديون
+                  </span>
+                </div>
+                <p className="text-[11px] text-on-surface-variant mt-0.5 leading-relaxed">
+                  سيتم تسجيل هذه الفاتورة كدين رسمي في سجل الزبون وإرسال إشعار فوري بحركتها المالية.
                 </p>
               </div>
             </div>
