@@ -17,10 +17,19 @@ export interface UsePOSPaymentModalParams {
   selectedCustomer: string;
   customers: Array<{ id: string; name: string; phone?: string; balance?: number; creditLimit?: number }>;
   isPending: boolean;
-  onConfirmPayment: (paid?: number, custId?: string, method?: string, refundMethod?: RefundMethod) => void;
+  onConfirmPayment: (
+    paid?: number,
+    custId?: string,
+    method?: string,
+    refundMethod?: RefundMethod,
+    returnReason?: string,
+    transactionReference?: string
+  ) => void;
   isReturn?: boolean;
   refundMethod?: RefundMethod;
   setRefundMethod?: (method: RefundMethod) => void;
+  initialReturnReason?: string;
+  onReturnReasonChange?: (reason: string) => void;
 }
 
 export function usePOSPaymentModal({
@@ -37,18 +46,50 @@ export function usePOSPaymentModal({
   isReturn = false,
   refundMethod: propRefundMethod,
   setRefundMethod: propSetRefundMethod,
+  initialReturnReason,
+  onReturnReasonChange,
 }: UsePOSPaymentModalParams) {
   const customerSelectRef = useRef<HTMLSelectElement>(null);
   const paidInputRef = useRef<HTMLInputElement>(null);
 
   const [localRefundMethod, setLocalRefundMethod] = useState<RefundMethod>(propRefundMethod || 'cash');
+  const [returnReason, setReturnReason] = useState<string>(initialReturnReason || 'طلب الزبون (تراجع عن الشراء)');
+  const [customReason, setCustomReason] = useState<string>('');
+  const [transactionReference, setTransactionReference] = useState<string>('');
+  const [goodsCondition, setGoodsCondition] = useState<'restock' | 'damaged'>('restock');
 
   // مزامنة الحالة المحلية عند فتح النافذة أو تغير القيمة من السياق الخارجي
+  useEffect(() => {
+    if (isOpen) {
+      setTransactionReference('');
+      setGoodsCondition('restock');
+    }
+  }, [isOpen]);
+
   useEffect(() => {
     if (isOpen && propRefundMethod) {
       setLocalRefundMethod(propRefundMethod);
     }
   }, [isOpen, propRefundMethod]);
+
+  useEffect(() => {
+    if (isOpen && initialReturnReason) {
+      setReturnReason(initialReturnReason);
+    }
+  }, [isOpen, initialReturnReason]);
+
+  const handleChangeReturnReason = useCallback(
+    (reason: string) => {
+      setReturnReason(reason);
+      onReturnReasonChange?.(reason);
+    },
+    [onReturnReasonChange]
+  );
+
+  const effectiveReturnReason =
+    returnReason === 'أخرى' && customReason.trim()
+      ? customReason.trim()
+      : returnReason;
 
   // الحالة المحلية هي المصدر الوحيد للحقيقة داخل المودال بعد المزامنة
   const activeRefundMethod = localRefundMethod;
@@ -96,7 +137,7 @@ export function usePOSPaymentModal({
       }
       const finalPaid = activeRefundMethod === 'cash' ? total : 0;
       const finalMethod = activeRefundMethod === 'cash' ? 'cash' : 'credit';
-      onConfirmPayment(finalPaid, selectedCustomer, finalMethod, activeRefundMethod);
+      onConfirmPayment(finalPaid, selectedCustomer, finalMethod, activeRefundMethod, effectiveReturnReason);
       return;
     }
 
@@ -110,16 +151,25 @@ export function usePOSPaymentModal({
     }
 
     const finalPaid = calculateEffectivePaid(paymentMethod, paidAmount, total);
-    onConfirmPayment(finalPaid, selectedCustomer, paymentMethod, undefined);
+    onConfirmPayment(
+      finalPaid,
+      selectedCustomer,
+      paymentMethod,
+      undefined,
+      undefined,
+      transactionReference.trim() || undefined
+    );
   }, [
     isPending,
     isReturn,
     activeRefundMethod,
+    effectiveReturnReason,
     paymentMethod,
     selectedCustomer,
     creditValidation,
     paidAmount,
     total,
+    transactionReference,
     onConfirmPayment,
   ]);
 
@@ -149,6 +199,15 @@ export function usePOSPaymentModal({
     handleSelectPaymentMethod,
     handleSelectRefundMethod,
     refundMethod: activeRefundMethod,
+    returnReason,
+    customReason,
+    setReturnReason: handleChangeReturnReason,
+    setCustomReason,
+    effectiveReturnReason,
+    transactionReference,
+    setTransactionReference,
+    goodsCondition,
+    setGoodsCondition,
     changeDue,
     isPaidSufficient,
   };

@@ -46,7 +46,7 @@ const QUICK_PERIODS = [
 /**
  * دالة مساعدة لفك عناصر الفاتورة بأمان سواء كانت مصفوفة أو نص JSON أو كائناً
  */
-export function parseSaleItems(items: unknown): any[] {
+function parseSaleItems(items: unknown): any[] {
   if (!items) return [];
   if (Array.isArray(items)) return items;
   if (typeof items === 'string') {
@@ -424,7 +424,7 @@ export default function InvoicesTab() {
     return () => {
       if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
     };
-  }, [selectedSale?.id, selectedTemplateId]);
+  }, [selectedSale, selectedTemplateId, currentUser?.id, currentUser?.name]);
 
   useEffect(() => {
     if (viewSale) {

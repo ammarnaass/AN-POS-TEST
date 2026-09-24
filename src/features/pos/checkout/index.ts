@@ -16,6 +16,8 @@ export * from './components/PaymentMethodSelector';
 export * from './components/CashPresetsButtons';
 export * from './components/PaymentChangeDisplay';
 export * from './components/SaleSummaryBreakdown';
+export * from './components/POSReturnGoodsConfirmation';
+export * from './components/POSSalePaymentConfirmation';
 
 // Modals
 export * from './modals/POSPaymentModal';

@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { app, dialog } from 'electron';
+import { getDatabasePath } from '../database';
 import {
   queryAll,
   execute,
@@ -103,7 +104,7 @@ export async function exportFullBackup(): Promise<ComprehensiveBackup> {
 
   const metadata: BackupMetadata = {
     appName: 'AN POS',
-    appVersion: app.getVersion() || '2.4.3',
+    appVersion: app.getVersion() || '2.5.0',
     exportDate: new Date().toISOString(),
     environment: 'electron',
     stats: {
@@ -252,9 +253,9 @@ export async function openFileDialog(): Promise<{
  * تصدير ملف قاعدة البيانات الخام an-pos.db
  */
 export async function exportRawDbFile(): Promise<{ canceled: boolean; filePath?: string }> {
-  const dbPath = path.join(app.getPath('userData'), 'an-pos.db');
+  const dbPath = getDatabasePath();
   if (!fs.existsSync(dbPath)) {
-    throw new Error('ملف قاعدة البيانات an-pos.db غير موجود');
+    throw new Error('ملف قاعدة البيانات an-pos.db غير موجود في: ' + dbPath);
   }
 
   const dateStr = new Date().toISOString().slice(0, 10);

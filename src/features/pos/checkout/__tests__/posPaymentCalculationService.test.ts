@@ -7,6 +7,7 @@ import {
   resolvePaymentStatus,
   calculatePaymentBreakdown,
   getCashPresets,
+  calculateChangeDenominations,
 } from '../services/posPaymentCalculationService';
 
 describe('posPaymentCalculationService — خدمة الحسابات المالية للدفع والفكة', () => {
@@ -126,4 +127,31 @@ describe('posPaymentCalculationService — خدمة الحسابات المال�
       expect(presets[3]).toEqual({ label: '+2,000 دج', val: 4300, shortcut: 'F8' });
     });
   });
+
+  describe('calculateChangeDenominations (تفكيك الفكة إلى أوراق وقطع نقدية)', () => {
+    it('يعيد مصفوفة فارغة إذا كانت الفكة 0 أو سالبة', () => {
+      expect(calculateChangeDenominations(0)).toEqual([]);
+      expect(calculateChangeDenominations(-100)).toEqual([]);
+    });
+
+    it('يفكك الفكة بشكل مثالي إلى أكبر الأوراق والقطع النقدية المتاحة', () => {
+      // 3750 دج = 1×2000 + 1×1000 + 1×500 + 1×200 + 1×50
+      const denoms = calculateChangeDenominations(3750);
+      expect(denoms).toEqual([
+        { denomination: 2000, count: 1, type: 'banknote' },
+        { denomination: 1000, count: 1, type: 'banknote' },
+        { denomination: 500, count: 1, type: 'banknote' },
+        { denomination: 200, count: 1, type: 'banknote' },
+        { denomination: 50, count: 1, type: 'coin' },
+      ]);
+    });
+
+    it('يتعامل مع المضاعفات الكبيرة (مثلاً ورقتين من فئة 2000)', () => {
+      const denoms = calculateChangeDenominations(4000);
+      expect(denoms).toEqual([
+        { denomination: 2000, count: 2, type: 'banknote' },
+      ]);
+    });
+  });
 });
+

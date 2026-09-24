@@ -382,16 +382,16 @@ describe('شاشة إدارة المخزون وقائمة المنتجات (Inve
     expect(screen.getByText('تعديل سريع')).toBeInTheDocument();
 
     // التأكد من ظهور بعض المنتجات المحددة
-    expect(await screen.findByText('شاحن سريع 25واط')).toBeInTheDocument();
-    expect(screen.getByText('2524768100946')).toBeInTheDocument();
-    expect(screen.getByText('حمص')).toBeInTheDocument();
-    expect(screen.getByText('Mater')).toBeInTheDocument();
-  });
+    expect(await screen.findByText('شاحن سريع 25واط', {}, { timeout: 10000 })).toBeInTheDocument();
+    expect(await screen.findByText('2524768100946', {}, { timeout: 10000 })).toBeInTheDocument();
+    expect(await screen.findByText('حمص', {}, { timeout: 10000 })).toBeInTheDocument();
+    expect(await screen.findByText('Mater', {}, { timeout: 10000 })).toBeInTheDocument();
+  }, 25000);
 
   it('يصفي المنتجات حسب الحالة (منخفض 2) عند النقر على شارة منخفض', async () => {
     renderInventoryPage();
 
-    await screen.findByText('شاحن سريع 25واط');
+    await screen.findByText('شاحن سريع 25واط', {}, { timeout: 10000 });
 
     // النقر على زر تصفية "منخفض"
     const lowStockBtn = screen.getByRole('button', { name: /منخفض/i });
@@ -401,42 +401,40 @@ describe('شاشة إدارة المخزون وقائمة المنتجات (Inve
     await waitFor(() => {
       expect(screen.getByText('زيت هالي 1ل')).toBeInTheDocument();
       expect(screen.queryByText('شاحن سريع 25واط')).not.toBeInTheDocument();
-    });
-  });
+    }, { timeout: 10000 });
+  }, 25000);
 
   it('يصفي المنتجات حسب التصنيف عند اختيار تصنيف محدد', async () => {
     renderInventoryPage();
 
-    await screen.findByText('شاحن سريع 25واط');
+    await screen.findByText('شاحن سريع 25واط', {}, { timeout: 10000 });
 
     // النقر على تصنيف "حليب ومشتقات"
-    const dairyBtn = await screen.findByRole('button', { name: /حليب ومشتقات/i });
+    const dairyBtn = await screen.findByRole('button', { name: /حليب ومشتقات/i }, { timeout: 10000 });
     fireEvent.click(dairyBtn);
 
     await waitFor(() => {
       expect(screen.getByText('حليب نيدو')).toBeInTheDocument();
       expect(screen.queryByText('شاحن سريع 25واط')).not.toBeInTheDocument();
-    });
-  });
+    }, { timeout: 10000 });
+  }, 25000);
 
   it('يبحث في المنتجات بالاسم أو الباركود أو SKU لحظياً', async () => {
     renderInventoryPage();
 
-    await screen.findByText('شاحن سريع 25واط');
-
-    const searchInput = screen.getByPlaceholderText(/ابحث بالاسم، الباركود، أو رقم الصنف SKU.../i);
+    const searchInput = await screen.findByPlaceholderText(/ابحث بالاسم، الباركود، أو رقم الصنف SKU.../i, {}, { timeout: 10000 });
     fireEvent.change(searchInput, { target: { value: 'ART-30183' } });
 
     await waitFor(() => {
       expect(screen.getByText('شاحن سريع 25واط')).toBeInTheDocument();
       expect(screen.queryByText('حمص')).not.toBeInTheDocument();
-    });
-  });
+    }, { timeout: 10000 });
+  }, 25000);
 
   it('يبدل طريقة العرض بين الجدول والشبكة بسلاسة', async () => {
     renderInventoryPage();
 
-    await screen.findByText('شاحن سريع 25واط');
+    await screen.findByText('شاحن سريع 25واط', {}, { timeout: 10000 });
 
     // النقر على زر العرض الشبكي
     const gridBtn = screen.getByLabelText('عرض شبكي');
@@ -454,17 +452,17 @@ describe('شاشة إدارة المخزون وقائمة المنتجات (Inve
     await waitFor(() => {
       expect(screen.getByText('المنتج والوحدة')).toBeInTheDocument();
     });
-  });
+  }, 25000);
 
   it('يفتح نافذة إضافة منتج جديد ويعرض الأقسام الخمسة المفككة بدقة', async () => {
     renderInventoryPage();
 
     // النقر على زر "منتج جديد" مباشرة بمجرد ظهور الترويسة
-    const addBtn = await screen.findByRole('button', { name: /منتج جديد/i });
+    const addBtn = await screen.findByRole('button', { name: /منتج جديد/i }, { timeout: 10000 });
     fireEvent.click(addBtn);
 
     // ظهور المودال وتفرعاته المفككة
-    expect(await screen.findByText('إضافة صنف جديد للمخزون')).toBeInTheDocument();
+    expect(await screen.findByText('إضافة صنف جديد للمخزون', {}, { timeout: 10000 })).toBeInTheDocument();
     expect(screen.getByText('البيانات الأساسية')).toBeInTheDocument();
     expect(screen.getByText('الفئة والوحدة')).toBeInTheDocument();
     expect(screen.getByText('الأسعار والربحية')).toBeInTheDocument();

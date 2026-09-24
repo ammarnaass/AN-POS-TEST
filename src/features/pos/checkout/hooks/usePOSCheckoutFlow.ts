@@ -97,6 +97,10 @@ export function usePOSCheckoutFlow({
       paidAmount?: number;
       selectedCustomer?: string;
       paymentMethod?: PaymentMethod | string;
+      refundMethod?: 'cash' | 'customer_credit';
+      originalSaleId?: string;
+      originalSaleNumber?: string;
+      returnReason?: string;
     }) => {
       if (cart.length === 0) return;
       if (!isSessionOpen) {
@@ -120,6 +124,10 @@ export function usePOSCheckoutFlow({
         priceTier === '3' || (!['1', '2', '4'].includes(priceTier) && isWholesaleActive);
       const saleDocType: DocType = isWholesaleTier ? 'wholesale' : 'facture';
 
+      const resolvedRefundMethod =
+        overrides?.refundMethod ||
+        (returnMode ? (dbPaymentMethod === 'credit' ? 'customer_credit' : 'cash') : undefined);
+
       completeSale({
         cart,
         discount,
@@ -135,6 +143,10 @@ export function usePOSCheckoutFlow({
         customers: customers as any[],
         docType: saleDocType,
         priceTier,
+        refundMethod: resolvedRefundMethod,
+        originalSaleId: overrides?.originalSaleId,
+        originalSaleNumber: overrides?.originalSaleNumber,
+        returnReason: overrides?.returnReason,
       });
     },
     [

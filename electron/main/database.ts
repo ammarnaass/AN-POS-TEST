@@ -101,25 +101,68 @@ function executeQuery(sql: string, params: unknown[], method: 'run' | 'all' | 'v
   return { rows: rows.map(normalizeRow) };
 }
 
+let activeDbPath: string = '';
+
+/**
+ * تحديد مسار قاعدة البيانات وفق هرمية مرنة:
+ * 1. متغير البيئة AN_POS_DB_PATH (للاختبار والتشغيل المخصص)
+ * 2. ملف تهيئة البيئة an-pos-env.json (المولد بواسطة مثبت NSIS أو لوحة الإعدادات)
+ * 3. المسار الافتراضي المعزول في userData: %APPDATA%\an-pos\an-pos.db
+ */
+export function resolveDatabasePath(): string {
+  if (process.env.AN_POS_DB_PATH && process.env.AN_POS_DB_PATH.trim()) {
+    return path.resolve(process.env.AN_POS_DB_PATH.trim());
+  }
+
+  const userDataPath = app.getPath('userData');
+  const envConfigPath = path.join(userDataPath, 'an-pos-env.json');
+
+  if (fs.existsSync(envConfigPath)) {
+    try {
+      const raw = fs.readFileSync(envConfigPath, 'utf-8');
+      const cfg = JSON.parse(raw);
+      if (cfg.dbPath && typeof cfg.dbPath === 'string' && cfg.dbPath.trim()) {
+        return path.resolve(cfg.dbPath.trim());
+      }
+      if (cfg.dataDirectory && typeof cfg.dataDirectory === 'string' && cfg.dataDirectory.trim()) {
+        return path.join(path.resolve(cfg.dataDirectory.trim()), 'an-pos.db');
+      }
+    } catch (e) {
+      console.warn('[database] تعذر قراءة an-pos-env.json، الاعتماد على المسار الافتراضي:', e);
+    }
+  }
+
+  return path.join(userDataPath, 'an-pos.db');
+}
+
+/**
+ * جلب المسار الفعلي النشط لملف قاعدة البيانات
+ */
+export function getDatabasePath(): string {
+  if (activeDbPath) return activeDbPath;
+  return resolveDatabasePath();
+}
+
 /**
  * تهيئة قاعدة البيانات:
- * 1. تحديد مسار ملف SQLite في userData
- * 2. فتح الاتصال + ضبط PRAGMAs
+ * 1. تحديد مسار ملف SQLite (من البيئة أو الإعدادات أو userData)
+ * 2. فتح الاتصال + ضبط PRAGMAs فائقة السرعة والأمان
  * 3. تهيئة Drizzle مع callback التنفيذ
- * 4. تشغيل migrations (إنشاء الجداول)
  */
 export function initDatabase(): DB {
   if (dbInstance) return dbInstance;
 
-  const userDataPath = app.getPath('userData');
-  const dbPath = path.join(userDataPath, 'an-pos.db');
+  activeDbPath = resolveDatabasePath();
+  const dbDir = path.dirname(activeDbPath);
 
-  // التأكد من وجود المجلد
-  fs.mkdirSync(userDataPath, { recursive: true });
+  // التأكد من وجود المجلد برمجياً
+  fs.mkdirSync(dbDir, { recursive: true });
+
+  console.log(`[database] تم الاتصال بقاعدة البيانات في: ${activeDbPath}`);
 
   // فتح قاعدة البيانات
   // node:sqlite: DatabaseSync(path, options)
-  sqliteInstance = new DatabaseSync(dbPath);
+  sqliteInstance = new DatabaseSync(activeDbPath);
 
   // PRAGMAs — حزمة تسريع فائقة لبيئة الإنتاج والـ POS
   sqliteInstance.exec('PRAGMA journal_mode = WAL;');

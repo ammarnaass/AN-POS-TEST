@@ -153,6 +153,11 @@ export interface ElectronAPI {
     ) => Promise<{ success: boolean; error?: string }>;
     getPrinters: () => Promise<SystemPrinterInfo[]>;
   };
+  system?: {
+    getAutoLaunch: () => Promise<{ success: boolean; enabled: boolean; error?: string }>;
+    setAutoLaunch: (enabled: boolean) => Promise<{ success: boolean; enabled: boolean; error?: string }>;
+    getDatabasePath: () => Promise<{ success: boolean; path?: string; error?: string }>;
+  };
 }
 
 export interface SystemPrinterInfo {

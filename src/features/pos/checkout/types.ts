@@ -54,6 +54,14 @@ export interface PaymentCalculationResult {
 
 export type RefundMethod = 'cash' | 'customer_credit';
 
+export const DEFAULT_RETURN_REASONS = [
+  'طلب الزبون (تراجع عن الشراء)',
+  'عيب مصنعي أو كسر',
+  'منتج غير مطابق أو صنف خاطئ',
+  'انتهاء أو قرب الصلاحية',
+  'أخرى',
+];
+
 export interface POSPaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -66,13 +74,24 @@ export interface POSPaymentModalProps {
   setSelectedCustomer: (id: string) => void;
   customers: Array<{ id: string; name: string; phone?: string; balance?: number; creditLimit?: number }>;
   onOpenAddCustomer: () => void;
-  onConfirmPayment: (paid?: number, custId?: string, method?: string, refundMethod?: RefundMethod) => void;
+  onConfirmPayment: (
+    paid?: number,
+    custId?: string,
+    method?: string,
+    refundMethod?: RefundMethod,
+    returnReason?: string,
+    transactionReference?: string
+  ) => void;
   isPending: boolean;
   allowCardPayment?: boolean;
   allowTransferPayment?: boolean;
   isReturn?: boolean;
   refundMethod?: RefundMethod;
   setRefundMethod?: (method: RefundMethod) => void;
+  cart?: CartItem[];
+  returnContext?: { originalSaleId?: string; originalSaleNumber?: string; reason?: string; refundMethod?: RefundMethod } | null;
+  returnReason?: string;
+  setReturnReason?: (r: string) => void;
 }
 
 export interface POSSaleSuccessModalProps {
@@ -95,7 +114,14 @@ export interface POSCheckoutModalsProps {
   setSelectedCustomer: (id: string) => void;
   customers: Array<{ id: string; name: string; phone?: string; balance?: number; creditLimit?: number }>;
   onOpenAddCustomer: () => void;
-  onConfirmPayment: (paid?: number, custId?: string, method?: string, refundMethod?: RefundMethod) => void;
+  onConfirmPayment: (
+    paid?: number,
+    custId?: string,
+    method?: string,
+    refundMethod?: RefundMethod,
+    returnReason?: string,
+    transactionReference?: string
+  ) => void;
   isSalePending: boolean;
   completedSale: Sale | null;
   allowCardPayment?: boolean;
@@ -103,4 +129,8 @@ export interface POSCheckoutModalsProps {
   isReturn?: boolean;
   refundMethod?: RefundMethod;
   setRefundMethod?: (method: RefundMethod) => void;
+  cart?: CartItem[];
+  returnContext?: { originalSaleId?: string; originalSaleNumber?: string; reason?: string; refundMethod?: RefundMethod } | null;
+  returnReason?: string;
+  setReturnReason?: (r: string) => void;
 }

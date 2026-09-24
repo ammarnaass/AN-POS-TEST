@@ -646,7 +646,7 @@ export default function POSPage() {
           returnMode={returnMode}
           returnContext={returnContext}
           setReturnContext={setReturnContext}
-          onConfirmPayment={async (paid, custId, method, refundMethod) => {
+          onConfirmPayment={async (paid, custId, method, refundMethod, returnReason) => {
             const finalMethod = method || paymentMethod;
             const finalCustomer = custId !== undefined ? custId : selectedCustomer;
             const isCredit = finalMethod === 'credit';
@@ -672,8 +672,11 @@ export default function POSPage() {
               refundMethod: effectiveRefundMethod,
               originalSaleId: returnContext?.originalSaleId,
               originalSaleNumber: returnContext?.originalSaleNumber,
-              returnReason: returnContext?.reason,
+              returnReason: returnReason || returnContext?.reason,
             });
+            if (setReturnContext) {
+              setReturnContext(null);
+            }
           }}
           isSalePending={paymentFlow.isSalePending}
           onAddProduct={handleAddProduct}

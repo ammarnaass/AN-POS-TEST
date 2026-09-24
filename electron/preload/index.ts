@@ -277,6 +277,16 @@ const electronAPI = {
       ipcRenderer.removeAllListeners('pos:barcode-scan');
     },
   },
+
+  // ===== تكامل النظام وتكوين ويندوز (System Integration) =====
+  system: {
+    getAutoLaunch: () =>
+      ipcRenderer.invoke('system:getAutoLaunch'),
+    setAutoLaunch: (enabled: boolean) =>
+      ipcRenderer.invoke('system:setAutoLaunch', enabled),
+    getDatabasePath: () =>
+      ipcRenderer.invoke('system:getDatabasePath'),
+  },
 };
 
 try {

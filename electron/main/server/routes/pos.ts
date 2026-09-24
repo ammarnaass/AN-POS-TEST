@@ -87,7 +87,7 @@ export function findProductByBarcode(barcode: string): FoundItemResult | null {
         packUnit: (fromPacks as any).unitName || 'عبوة',
       };
     }
-  } catch (err) {
+  } catch {
     // جدول packs قد يكون غير متاح أو قيد الهجرة
   }
 

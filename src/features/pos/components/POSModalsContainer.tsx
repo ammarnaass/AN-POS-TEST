@@ -78,7 +78,13 @@ export interface POSModalsContainerProps {
   isFeaturedOnly: boolean;
   setIsFeaturedOnly: (f: boolean) => void;
   onClearAllFilters: () => void;
-  onConfirmPayment: (paid: number, custId: string, method: string, refundMethod?: 'cash' | 'customer_credit') => Promise<void>;
+  onConfirmPayment: (
+    paid: number,
+    custId: string,
+    method: string,
+    refundMethod?: 'cash' | 'customer_credit',
+    returnReason?: string
+  ) => Promise<void>;
   isSalePending: boolean;
   returnMode?: boolean;
   returnContext?: any;
@@ -194,8 +200,8 @@ export const POSModalsContainer: React.FC<POSModalsContainerProps> = ({
         setSelectedCustomer={setSelectedCustomer}
         customers={customers}
         onOpenAddCustomer={() => modals.setShowAddCustomer(true)}
-        onConfirmPayment={(p, c, m, refMethod) =>
-          onConfirmPayment(p ?? paidAmount, c || selectedCustomer, m || paymentMethod, refMethod)
+        onConfirmPayment={(p, c, m, refMethod, retReason) =>
+          onConfirmPayment(p ?? paidAmount, c || selectedCustomer, m || paymentMethod, refMethod, retReason)
         }
         isSalePending={isSalePending}
         completedSale={modals.completedSale}
@@ -206,6 +212,14 @@ export const POSModalsContainer: React.FC<POSModalsContainerProps> = ({
         setRefundMethod={(m: 'cash' | 'customer_credit') => {
           if (setReturnContext) {
             setReturnContext((prev: any) => prev ? { ...prev, refundMethod: m } : { refundMethod: m });
+          }
+        }}
+        cart={cart}
+        returnContext={returnContext}
+        returnReason={returnContext?.reason}
+        setReturnReason={(reason: string) => {
+          if (setReturnContext) {
+            setReturnContext((prev: any) => prev ? { ...prev, reason } : { reason });
           }
         }}
       />

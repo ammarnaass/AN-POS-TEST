@@ -16,6 +16,7 @@ import { registerLicenseIpc } from './license';
 import { registerTrialIpc } from './trial';
 import { registerBackupIpc } from './backup';
 import { registerPrintingIpc } from '../printing/silentPrint';
+import { registerSystemIpc } from './system';
 import { ipcMain } from 'electron';
 import {
   listBarcodePrints,
@@ -93,6 +94,7 @@ export function registerIpcHandlers(): void {
   registerTrialIpc();
   registerPrintingIpc();
   registerBackupIpc();
+  registerSystemIpc();
 
   // ===== barcodePrints (list with filter) =====
   ipcMain.handle('barcodePrints:list', async (_evt, opts?: { productId?: string }) => listBarcodePrints(opts));

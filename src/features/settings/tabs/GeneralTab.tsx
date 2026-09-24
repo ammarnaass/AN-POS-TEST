@@ -1,6 +1,6 @@
 // Tab Component: GeneralTab (Refactored from SettingsPage.tsx)
 import React from 'react';
-import { X, Plus, Trash2, FileText, Store, Receipt, Tag, ImageIcon, ShieldCheck, Building2, Phone, Mail, MapPin, Copy, Check, Sparkles, ArrowLeftRight, Landmark, BadgePercent, Coins, CheckCircle } from 'lucide-react';
+import { X, Plus, Trash2, FileText, Store, Receipt, Tag, ImageIcon, ShieldCheck, Building2, Phone, Mail, MapPin, Copy, Check, Sparkles, ArrowLeftRight, Landmark, BadgePercent, Coins, CheckCircle, Power, Monitor, Database, Loader2 } from 'lucide-react';
 import type { Currency } from '@/types';
 import { useSystemSettings } from '../hooks/useSystemSettings';
 
@@ -33,6 +33,76 @@ export default function GeneralTab(props: GeneralTabProps) {
   const setNewCurrencyRate = props.setNewCurrencyRate || hookData.setNewCurrencyRate;
   const setNewCurrencySymbol = props.setNewCurrencySymbol || hookData.setNewCurrencySymbol;
   const setNewExpenseCategory = props.setNewExpenseCategory || hookData.setNewExpenseCategory;
+
+  // إعدادات التشغيل التلقائي مع نظام ويندوز ومسار قاعدة البيانات
+  const [autoLaunchEnabled, setAutoLaunchEnabled] = React.useState<boolean>(false);
+  const [autoLaunchLoading, setAutoLaunchLoading] = React.useState<boolean>(false);
+  const [autoLaunchStatusMsg, setAutoLaunchStatusMsg] = React.useState<string | null>(null);
+  const [activeDbPath, setActiveDbPath] = React.useState<string>('');
+  const [copiedDbPath, setCopiedDbPath] = React.useState<boolean>(false);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    async function loadSystemState() {
+      if (typeof window !== 'undefined' && window.electronAPI?.system?.getAutoLaunch) {
+        try {
+          const res = await window.electronAPI.system.getAutoLaunch();
+          if (isMounted && res && res.success) {
+            setAutoLaunchEnabled(Boolean(res.enabled));
+          }
+        } catch (e) {
+          console.error('[GeneralTab] فشل قراءة حالة التشغيل التلقائي:', e);
+        }
+      }
+      if (typeof window !== 'undefined' && window.electronAPI?.system?.getDatabasePath) {
+        try {
+          const dbRes = await window.electronAPI.system.getDatabasePath();
+          if (isMounted && dbRes && dbRes.success && dbRes.path) {
+            setActiveDbPath(dbRes.path);
+          }
+        } catch (e) {
+          console.error('[GeneralTab] فشل قراءة مسار قاعدة البيانات:', e);
+        }
+      }
+    }
+    loadSystemState();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleToggleAutoLaunch = async () => {
+    if (typeof window === 'undefined' || !window.electronAPI?.system?.setAutoLaunch) return;
+    setAutoLaunchLoading(true);
+    setAutoLaunchStatusMsg(null);
+    try {
+      const nextVal = !autoLaunchEnabled;
+      const res = await window.electronAPI.system.setAutoLaunch(nextVal);
+      if (res && res.success) {
+        setAutoLaunchEnabled(res.enabled);
+        setAutoLaunchStatusMsg(
+          res.enabled
+            ? 'تم تفعيل التشغيل التلقائي مع إقلاع نظام ويندوز بنجاح'
+            : 'تم تعطيل التشغيل التلقائي مع النظام'
+        );
+      } else {
+        setAutoLaunchStatusMsg(res?.error || 'تعذر تغيير إعدادات التشغيل التلقائي');
+      }
+    } catch (err) {
+      console.error('[GeneralTab] خطأ أثناء تبديل التشغيل التلقائي:', err);
+      setAutoLaunchStatusMsg('حدث خطأ أثناء تعديل إعدادات النظام');
+    } finally {
+      setAutoLaunchLoading(false);
+      setTimeout(() => setAutoLaunchStatusMsg(null), 4000);
+    }
+  };
+
+  const handleCopyDbPath = () => {
+    if (!activeDbPath) return;
+    navigator.clipboard?.writeText(activeDbPath);
+    setCopiedDbPath(true);
+    setTimeout(() => setCopiedDbPath(false), 2500);
+  };
 
   return (
     <div className="space-y-8">
@@ -717,6 +787,119 @@ export default function GeneralTab(props: GeneralTabProps) {
                   <span>إضافة فئة</span>
                 </button>
               </div>
+            </div>
+
+            {/* === 7. تكامل النظام وبيئة ويندوز والتشغيل التلقائي === */}
+            <div className="rounded-3xl bg-surface-container-low border border-outline-variant/30 p-6 sm:p-8 space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-outline-variant/15">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center border border-primary/20">
+                    <Monitor className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold font-cairo text-on-surface flex items-center gap-2">
+                      تكامل النظام وبيئة ويندوز (Windows Integration)
+                    </h3>
+                    <p className="text-xs text-on-surface-variant">
+                      التحكم في بدء تشغيل النظام التلقائي والجاهزية اليومية لمحطة الكاشير
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 ${
+                    autoLaunchEnabled
+                      ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'
+                      : 'bg-surface-container-highest text-on-surface-variant border border-outline-variant/20'
+                  }`}>
+                    <Power className={`w-3.5 h-3.5 ${autoLaunchEnabled ? 'text-emerald-500' : 'text-on-surface-variant'}`} />
+                    {autoLaunchEnabled ? 'التشغيل التلقائي مفعّل' : 'التشغيل التلقائي معطّل'}
+                  </span>
+                </div>
+              </div>
+
+              {/* بطاقة ميزة التشغيل التلقائي مع النظام */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-surface-container border border-outline-variant/20 transition-all hover:border-primary/30">
+                <div className="space-y-1.5 max-w-xl">
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-bold text-on-surface">
+                      تشغيل AN POS تلقائياً عند إقلاع نظام ويندوز (Launch at Startup)
+                    </h4>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+                      Windows
+                    </span>
+                  </div>
+                  <p className="text-xs text-on-surface-variant leading-relaxed">
+                    يبدأ تشغيل البرنامج وخدماته تلقائياً بمجرد تشغيل الكمبيوتر كل صباح، ليكون نظام نقاط البيع جاهزاً فوراً للبيع واستقبال مسح الباركود وربط أجهزة الموبايل دون الحاجة للبحث عن الأيقونة وفتحها يدوياً.
+                  </p>
+                  {autoLaunchStatusMsg && (
+                    <div className="pt-1 text-xs font-semibold text-primary animate-fade-in flex items-center gap-1">
+                      <Check className="w-3.5 h-3.5" />
+                      <span>{autoLaunchStatusMsg}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* زر التبديل التفاعلي (Toggle Switch) */}
+                <div className="flex items-center gap-3 shrink-0">
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={autoLaunchEnabled}
+                    disabled={autoLaunchLoading}
+                    onClick={handleToggleAutoLaunch}
+                    className={`relative inline-flex h-8 w-15 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
+                      autoLaunchEnabled ? 'bg-primary' : 'bg-surface-container-highest'
+                    } ${autoLaunchLoading ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  >
+                    <span className="sr-only">تبديل التشغيل التلقائي</span>
+                    <span
+                      aria-hidden="true"
+                      className={`pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out flex items-center justify-center ${
+                        autoLaunchEnabled ? '-translate-x-7' : 'translate-x-0'
+                      }`}
+                    >
+                      {autoLaunchLoading ? (
+                        <Loader2 className="w-3.5 h-3.5 text-primary animate-spin" />
+                      ) : autoLaunchEnabled ? (
+                        <Check className="w-3.5 h-3.5 text-primary stroke-[3]" />
+                      ) : (
+                        <Power className="w-3.5 h-3.5 text-slate-400" />
+                      )}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* بطاقة مسار قاعدة البيانات المحمية */}
+              {activeDbPath && (
+                <div className="p-4 rounded-2xl bg-surface-container/60 border border-outline-variant/15 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2.5 overflow-hidden">
+                    <Database className="w-4 h-4 text-primary shrink-0" />
+                    <span className="text-on-surface-variant shrink-0 font-medium">مسار قاعدة البيانات الفعلي:</span>
+                    <code className="text-on-surface font-mono bg-surface-container-highest/60 px-2 py-1 rounded text-[11px] truncate direction-ltr text-left">
+                      {activeDbPath}
+                    </code>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCopyDbPath}
+                    className="px-3 py-1.5 rounded-xl bg-surface-container-high hover:bg-surface-container-highest border border-outline-variant/20 text-on-surface transition-all flex items-center gap-1.5 self-start sm:self-auto cursor-pointer shrink-0 font-medium"
+                  >
+                    {copiedDbPath ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-500" />
+                        <span className="text-emerald-500">تم النسخ</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>نسخ المسار</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
   );

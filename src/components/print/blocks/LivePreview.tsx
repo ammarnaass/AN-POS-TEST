@@ -90,7 +90,7 @@ export default function LivePreview({ templateName, templateId }: Props) {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [layout, styles, visibility, paperSize, orientation, templateName, storeSettings, previewLang, previewDocType, supportedDocuments]);
+  }, [layout, styles, visibility, paperSize, orientation, templateName, templateId, description, storeSettings, previewLang, previewDocType, supportedDocuments]);
 
 
   const openInWindow = () => {

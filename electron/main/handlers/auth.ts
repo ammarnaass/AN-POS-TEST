@@ -258,7 +258,7 @@ export function checkRegistrationAllowed(): { allowSelfRegistration: boolean; de
       allowSelfRegistration: row ? Number(row.allow_self_registration) !== 0 : true,
       defaultRole: (row?.default_role as string) || 'seller',
     };
-  } catch (err) {
+  } catch {
     return { allowSelfRegistration: true, defaultRole: 'seller' };
   }
 }

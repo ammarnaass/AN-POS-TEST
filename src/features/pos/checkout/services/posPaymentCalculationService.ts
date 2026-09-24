@@ -117,3 +117,50 @@ export function getCashPresets(total: number): CashPresetOption[] {
     { label: '+2,000 دج', val: safeTotal + 2000, shortcut: 'F8' },
   ];
 }
+
+/**
+ * فئات الأوراق النقدية والقطع الجزائرية الأكثر تداولاً
+ */
+export const ALGERIAN_BANKNOTE_DENOMINATIONS = [2000, 1000, 500, 200] as const;
+export const ALGERIAN_COIN_DENOMINATIONS = [100, 50, 20, 10] as const;
+
+export interface ChangeDenominationBreakdown {
+  denomination: number;
+  count: number;
+  type: 'banknote' | 'coin';
+}
+
+/**
+ * تفكيك مبلغ الفكة إلى أوراق وقطع نقدية مقترحة لتسهيل التسليم للزبون
+ */
+export function calculateChangeDenominations(changeAmount: number): ChangeDenominationBreakdown[] {
+  if (typeof changeAmount !== 'number' || isNaN(changeAmount) || changeAmount <= 0) {
+    return [];
+  }
+
+  let remaining = Math.round(changeAmount);
+  const result: ChangeDenominationBreakdown[] = [];
+
+  const allDenominations: Array<{ denom: number; type: 'banknote' | 'coin' }> = [
+    { denom: 2000, type: 'banknote' },
+    { denom: 1000, type: 'banknote' },
+    { denom: 500, type: 'banknote' },
+    { denom: 200, type: 'banknote' },
+    { denom: 100, type: 'coin' },
+    { denom: 50, type: 'coin' },
+    { denom: 20, type: 'coin' },
+    { denom: 10, type: 'coin' },
+  ];
+
+  for (const { denom, type } of allDenominations) {
+    if (remaining >= denom) {
+      const count = Math.floor(remaining / denom);
+      if (count > 0) {
+        result.push({ denomination: denom, count, type });
+        remaining %= denom;
+      }
+    }
+  }
+
+  return result;
+}

@@ -619,7 +619,7 @@ export async function parsePdfSupplierInvoice(
   let lines: string[] = [];
   try {
     lines = await extractTextLinesFromPdf(fileOrBuffer);
-  } catch (err) {
+  } catch {
     // التحقق مما إذا كان الملف بصيغة PDF أو صورة صالحة
     let headerBytes: Uint8Array;
     if (fileOrBuffer instanceof File) {

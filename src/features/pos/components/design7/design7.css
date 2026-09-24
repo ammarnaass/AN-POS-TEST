@@ -23,9 +23,7 @@
 }
 
 .d7-glossy-top-btn,
-.d7-glossy-action-tile,
-.d7-glossy-fav-btn,
-.d7-glossy-product-tile {
+.d7-glossy-action-tile {
   color: #000000 !important;
   font-family: inherit;
 }
@@ -128,4 +126,108 @@
 .d7-classic-cell-border {
   border-left: 1px solid #aebac7;
   border-right: 1px solid #ffffff;
+}
+
+/* Design 7 Touch Calculator Black LED Screen with Luminous Green Digits (شاشة LED سوداء مع أرقام خضراء) */
+.d7-calc-screen {
+  background: radial-gradient(ellipse at 50% 20%, #0d1722 0%, #060b11 55%, #020408 100%);
+  border: 2px solid #1a2533;
+  box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.95), inset 0 0 15px rgba(0, 0, 0, 0.9), 0 1px 0 rgba(255, 255, 255, 0.15);
+  color: #22c55e;
+}
+
+.d7-calc-screen-digits {
+  color: #22c55e !important;
+  text-shadow: 0 0 10px rgba(34, 197, 94, 0.65), 0 0 20px rgba(34, 197, 94, 0.3);
+  font-family: 'Courier New', monospace, sans-serif;
+}
+
+.d7-calc-tab-btn-inactive {
+  background: linear-gradient(to bottom, #ffffff 0%, #edf2f7 100%);
+  border: 1px solid #cbd5e1;
+  box-shadow: inset 0 1px 0 #ffffff, 0 1px 2px rgba(0, 0, 0, 0.05);
+  color: #1e293b !important;
+  transition: all 0.08s ease;
+}
+.d7-calc-tab-btn-inactive:hover {
+  background: linear-gradient(to bottom, #ffffff 0%, #e2e8f0 100%);
+  border-color: #94a3b8;
+  color: #0f172a !important;
+}
+
+.d7-calc-tab-btn-active {
+  background: linear-gradient(to bottom, #0284c7 0%, #0369a1 100%);
+  border: 1px solid #075985;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 1px 2px rgba(0, 0, 0, 0.15);
+  color: #ffffff !important;
+}
+
+.d7-calc-num-btn {
+  background: linear-gradient(to bottom, #ffffff 0%, #f8fafc 48%, #e2e8f0 52%, #edf2f7 100%);
+  border: 1px solid #94a3b8;
+  box-shadow: inset 0 1px 0 #ffffff, 0 1px 2px rgba(0, 0, 0, 0.12), inset 0 -1px 0 #cbd5e1;
+  color: #0f172a !important;
+  font-family: inherit;
+  transition: all 0.08s ease;
+}
+.d7-calc-num-btn:hover {
+  background: linear-gradient(to bottom, #ffffff 0%, #f1f5f9 48%, #cbd5e1 52%, #e2e8f0 100%);
+  border-color: #64748b;
+  color: #000000 !important;
+}
+.d7-calc-num-btn:active {
+  background: linear-gradient(to bottom, #cbd5e1 0%, #e2e8f0 100%);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.25);
+  transform: scale(0.98);
+}
+
+.d7-calc-preset-chip {
+  background: linear-gradient(to bottom, #ffffff 0%, #f1f5f9 100%);
+  border: 1px solid #cbd5e1;
+  box-shadow: inset 0 1px 0 #ffffff, 0 1px 2px rgba(0, 0, 0, 0.05);
+  color: #0f172a !important;
+  transition: all 0.08s ease;
+}
+.d7-calc-preset-chip:hover {
+  background: linear-gradient(to bottom, #ffffff 0%, #e0f2fe 100%);
+  border-color: #38bdf8;
+  color: #0369a1 !important;
+}
+.d7-calc-preset-chip:active {
+  transform: scale(0.97);
+}
+
+.d7-calc-action-del {
+  background: linear-gradient(to bottom, #fff1f2 0%, #ffe4e6 100%);
+  border: 1px solid #fda4af;
+  box-shadow: inset 0 1px 0 #ffffff, 0 1px 2px rgba(225, 29, 72, 0.1);
+  color: #9f1239 !important;
+  transition: all 0.08s ease;
+}
+.d7-calc-action-del:hover {
+  background: linear-gradient(to bottom, #ffe4e6 0%, #fecdd3 100%);
+  border-color: #f43f5e;
+}
+
+.d7-calc-action-clear {
+  background: linear-gradient(to bottom, #fffbeb 0%, #fef3c7 100%);
+  border: 1px solid #fcd34d;
+  box-shadow: inset 0 1px 0 #ffffff, 0 1px 2px rgba(217, 119, 6, 0.1);
+  color: #92400e !important;
+  transition: all 0.08s ease;
+}
+.d7-calc-action-clear:hover {
+  background: linear-gradient(to bottom, #fef3c7 0%, #fde68a 100%);
+  border-color: #f59e0b;
+}
+
+.d7-calc-action-submit {
+  background: linear-gradient(to bottom, #10b981 0%, #059669 100%);
+  border: 1px solid #047857;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 2px 4px rgba(5, 150, 105, 0.3);
+  color: #ffffff !important;
+  transition: all 0.08s ease;
+}
+.d7-calc-action-submit:hover {
+  background: linear-gradient(to bottom, #059669 0%, #047857 100%);
 }

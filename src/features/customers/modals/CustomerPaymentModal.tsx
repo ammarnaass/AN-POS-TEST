@@ -42,13 +42,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
   isPending = false,
   customerSales = [],
 }) => {
-  if (!isOpen || !customer) return null;
-
   const [activeTab, setActiveTab] = useState<'fifo' | 'selective'>('fifo');
-
-  const currentBalance = customer.balance;
-  const rawRemaining = currentBalance - (paymentAmount || 0);
-  const isOverpayment = rawRemaining < 0;
 
   // Unpaid or partial invoices for selective settlement
   const unpaidInvoices = useMemo(() => {
@@ -59,6 +53,12 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
       return isCredit && unpaid > 0.01;
     });
   }, [customerSales]);
+
+  if (!isOpen || !customer) return null;
+
+  const currentBalance = customer.balance;
+  const rawRemaining = currentBalance - (paymentAmount || 0);
+  const isOverpayment = rawRemaining < 0;
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">

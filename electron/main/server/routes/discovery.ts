@@ -40,7 +40,7 @@ export async function registerDiscoveryRoutes(server: FastifyInstance): Promise<
       shopName: (settings.shop_name as string) || 'AN POS',
       port: Number(netSettings?.server_port) || 3000,
       ips,
-      version: app?.getVersion ? app.getVersion() : '2.4.3',
+      version: app?.getVersion ? app.getVersion() : '2.5.0',
       platform: os.platform(),
       arch: os.arch(),
     });

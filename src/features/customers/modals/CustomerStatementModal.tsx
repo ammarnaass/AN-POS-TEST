@@ -40,6 +40,11 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
   currencySymbol = 'دج',
   storeName = 'متجرنا',
 }) => {
+  const agingSummary = useMemo(() => {
+    if (!customerSales || customerSales.length === 0) return null;
+    return calculateCustomerDebtAging(customerSales);
+  }, [customerSales]);
+
   if (!isOpen || !customer) return null;
 
   const openingEntry = entries.find((e) => e.type === 'opening_balance' || e.type === 'previous_balance');
@@ -49,11 +54,6 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
   const totalPurchases = entries.filter((e) => e.type === 'sale').reduce((sum, e) => sum + e.debit, 0);
   const totalPayments = entries.filter((e) => e.type === 'payment').reduce((sum, e) => sum + e.credit, 0);
   const waUrl = getWhatsAppUrl(customer, storeName, currencySymbol);
-
-  const agingSummary = useMemo(() => {
-    if (!customerSales || customerSales.length === 0) return null;
-    return calculateCustomerDebtAging(customerSales);
-  }, [customerSales]);
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">

@@ -82,7 +82,7 @@ export function useMobileScanner({ onScan, enabled = true }: UseMobileScannerOpt
             // ignore non-json pings
           }
         };
-      } catch (err) {
+      } catch {
         // SSE not supported or unreachable
       }
 

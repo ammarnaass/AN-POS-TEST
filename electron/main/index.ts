@@ -3,6 +3,7 @@
 
 import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron';
 import path from 'node:path';
+import os from 'node:os';
 import { initDatabase, closeDatabase } from './database';
 import { initSchema } from './schema-init';
 import { seedDatabase } from './seed';
@@ -13,6 +14,28 @@ import { isDeveloperModeActive } from './handlers/auth';
 
 // إخفاء شريط القوائم الافتراضي بالكامل (File, Edit, View, Window, etc.)
 Menu.setApplicationMenu(null);
+
+// توافقية أنظمة ويندوز القديمة (Windows 7 / 8 / 8.1) وأجهزة الكاشير ذات العتاد المحدود
+if (process.platform === 'win32') {
+  try {
+    const release = os.release() || '';
+    const [majorStr, minorStr] = release.split('.');
+    const major = parseInt(majorStr, 10);
+    const minor = parseInt(minorStr, 10);
+    // Windows 7 = NT 6.1, Windows 8 = NT 6.2, Windows 8.1 = NT 6.3
+    const isLegacyWindows = major === 6 && minor <= 3;
+
+    if (isLegacyWindows) {
+      // تفادي مشاكل Direct3D 11 على بطاقات الشاشة المدمجة القديمة (Intel Atom / Celeron J1900)
+      app.commandLine.appendSwitch('disable-gpu-sandbox');
+      app.commandLine.appendSwitch('disable-direct-composition');
+      app.commandLine.appendSwitch('use-angle', 'd3d9');
+      app.commandLine.appendSwitch('no-sandbox');
+    }
+  } catch (e) {
+    console.warn('[main] تعذر التحقق من إصدار ويندوز:', e);
+  }
+}
 
 // دعم Wayland على لينكس
 app.commandLine.appendSwitch('ozone-platform-hint', 'auto');

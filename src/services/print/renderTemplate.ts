@@ -598,7 +598,7 @@ export function generateQrSvg(value: string, size: number = 110): string {
       }
     }
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="display:inline-block;vertical-align:middle;"><rect width="${size}" height="${size}" fill="#ffffff"/><path d="${paths}" fill="#000000"/></svg>`;
-  } catch (err) {
+  } catch {
     return `<div style="width:${size}px;height:${size}px;border:1px dashed #cbd5e1;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:#64748b;">QR</div>`;
   }
 }

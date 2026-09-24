@@ -19,14 +19,6 @@ export const POSInvoiceDetailsModal: React.FC<POSInvoiceDetailsModalProps> = ({
   onSettleInvoiceDebt,
   currencySymbol = 'دج',
 }) => {
-  if (!isOpen || !sale) return null;
-
-  const items = sale.items || [];
-  const isReturn = sale.type === 'return';
-  const paidAmount = Number(sale.paidAmount) || (sale.status === 'paid' ? sale.total : 0);
-  const remainingDebt = Math.max(0, (sale.total || 0) - paidAmount);
-  const paidPercent = sale.total > 0 ? Math.min(100, (paidAmount / sale.total) * 100) : 0;
-
   // Payment history for this invoice
   const [paymentHistory, setPaymentHistory] = useState<Payment[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -68,6 +60,14 @@ export const POSInvoiceDetailsModal: React.FC<POSInvoiceDetailsModalProps> = ({
 
     loadPayments();
   }, [sale?.id, sale?.customerId, isOpen]);
+
+  if (!isOpen || !sale) return null;
+
+  const items = sale.items || [];
+  const isReturn = sale.type === 'return';
+  const paidAmount = Number(sale.paidAmount) || (sale.status === 'paid' ? sale.total : 0);
+  const remainingDebt = Math.max(0, (sale.total || 0) - paidAmount);
+  const paidPercent = sale.total > 0 ? Math.min(100, (paidAmount / sale.total) * 100) : 0;
 
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-200">

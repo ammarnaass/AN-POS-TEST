@@ -179,7 +179,13 @@ describe('POSPaymentModal — وضع الإرجاع: التبديل بين ال�
     expect(confirmBtn).not.toBeDisabled();
 
     fireEvent.click(confirmBtn);
-    expect(onConfirmPayment).toHaveBeenCalledWith(0, 'c1', 'credit', 'customer_credit');
+    expect(onConfirmPayment).toHaveBeenCalledWith(
+      0,
+      'c1',
+      'credit',
+      'customer_credit',
+      expect.any(String)
+    );
   });
 
   it('يرسل refundMethod=cash مع المبلغ الكامل عند تأكيد الاسترجاع النقدي', () => {
@@ -194,7 +200,13 @@ describe('POSPaymentModal — وضع الإرجاع: التبديل بين ال�
 
     const confirmBtn = screen.getByText(/تأكيد استرجاع المبلغ/);
     fireEvent.click(confirmBtn);
-    expect(onConfirmPayment).toHaveBeenCalledWith(2000, '', 'cash', 'cash');
+    expect(onConfirmPayment).toHaveBeenCalledWith(
+      2000,
+      '',
+      'cash',
+      'cash',
+      expect.any(String)
+    );
   });
 
   it('يعرض بطاقة تأثير الدين على الزبون مع خصم المرتجع عند اختيار قيد الدين مع زبون', () => {
@@ -212,5 +224,60 @@ describe('POSPaymentModal — وضع الإرجاع: التبديل بين ال�
     // يجب أن يعرض الدين الحالي والمتوقع بعد المرتجع
     expect(screen.getByText('الدين الحالي:')).toBeInTheDocument();
     expect(screen.getByText('الدين بعد المرتجع:')).toBeInTheDocument();
+  });
+
+  it('يعرض تفاصيل البضاعة المسترجعة ورقم الفاتورة الأصلية ويتيح تغيير سبب الإرجاع', () => {
+    const onConfirmPayment = vi.fn();
+    const mockCart = [
+      {
+        productId: 'p1',
+        name: 'حليب الصومام 1 لتر',
+        barcode: '6130001',
+        unitPrice: 120,
+        qty: 2,
+        lineTotal: 240,
+        unit: 'علبة',
+      },
+    ];
+
+    render(
+      <POSPaymentModal
+        {...returnProps}
+        cart={mockCart as any}
+        returnContext={{
+          originalSaleId: 'sale-999',
+          originalSaleNumber: 'INV-2026-0042',
+          reason: 'عيب مصنعي أو كسر',
+        }}
+        total={240}
+        onConfirmPayment={onConfirmPayment}
+      />
+    );
+
+    // 1. التحقق من رقم الفاتورة الأصلية
+    expect(screen.getByText(/INV-2026-0042/)).toBeInTheDocument();
+
+    // 2. التحقق من كارت تأكيد البضائع
+    expect(screen.getByTestId('pos-return-goods-confirmation')).toBeInTheDocument();
+    expect(screen.getByText(/1 صنف • 2 قطعة/)).toBeInTheDocument();
+    expect(screen.getByText('حليب الصومام 1 لتر')).toBeInTheDocument();
+    expect(screen.getByText('+2 علبة')).toBeInTheDocument();
+    expect(screen.getByText(/إعادة للمخزون فورياً/)).toBeInTheDocument();
+
+    // 3. التحقق من سبب الإرجاع الممرر
+    const reasonSelect = screen.getByLabelText('سبب الإرجاع') as HTMLSelectElement;
+    expect(reasonSelect.value).toBe('عيب مصنعي أو كسر');
+
+    // 4. تأكيد الاسترجاع وتمرير السبب المختار
+    const confirmBtn = screen.getByText(/تأكيد استرجاع المبلغ/);
+    fireEvent.click(confirmBtn);
+
+    expect(onConfirmPayment).toHaveBeenCalledWith(
+      240,
+      '',
+      'cash',
+      'cash',
+      'عيب مصنعي أو كسر'
+    );
   });
 });

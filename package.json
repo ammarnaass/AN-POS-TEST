@@ -1,7 +1,7 @@
 {
   "name": "an-pos",
   "private": true,
-  "version": "2.4.3",
+  "version": "2.5.1",
   "type": "module",
   "main": "out/main/index.js",
   "scripts": {
@@ -18,6 +18,9 @@
     "db:studio": "drizzle-kit studio",
     "package": "electron-vite build --config electron.vite.config.ts && electron-builder",
     "package:win": "electron-vite build --config electron.vite.config.ts && electron-builder --win",
+    "package:win:x64": "electron-vite build --config electron.vite.config.ts && electron-builder --win --x64",
+    "package:win:ia32": "electron-vite build --config electron.vite.config.ts && electron-builder --win --ia32",
+    "package:win:all": "electron-vite build --config electron.vite.config.ts && electron-builder --win --x64 --ia32",
     "package:win:portable": "electron-vite build --config electron.vite.config.ts && electron-builder --win portable"
   },
   "build": {
@@ -45,11 +48,42 @@
     },
     "win": {
       "target": [
-        "nsis",
-        "portable"
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        }
       ],
       "icon": "public/an-pos-icon.ico",
-      "signExecutable": false
+      "signExecutable": false,
+      "requestedExecutionLevel": "requireAdministrator"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "AN POS",
+      "uninstallDisplayName": "AN POS",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "include": "electron/installer.nsh",
+      "artifactName": "${productName}-Setup-${version}-${arch}.exe"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-${arch}-portable.exe",
+      "requestExecutionLevel": "admin"
     },
     "linux": {
       "target": "AppImage",

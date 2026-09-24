@@ -25,6 +25,10 @@ export const POSCheckoutModals: React.FC<POSCheckoutModalsProps> = ({
   isReturn = false,
   refundMethod,
   setRefundMethod,
+  cart,
+  returnContext,
+  returnReason,
+  setReturnReason,
 }) => {
   return (
     <>
@@ -47,6 +51,10 @@ export const POSCheckoutModals: React.FC<POSCheckoutModalsProps> = ({
         isReturn={isReturn}
         refundMethod={refundMethod}
         setRefundMethod={setRefundMethod}
+        cart={cart}
+        returnContext={returnContext}
+        returnReason={returnReason}
+        setReturnReason={setReturnReason}
       />
 
       <POSSaleSuccessModal
