@@ -11,6 +11,7 @@ import PairingQR from '../components/PairingQR';
 import ConnectedDevicesManager from '../components/ConnectedDevicesManager';
 import { useNetworkServer } from '../hooks/useNetworkServer';
 import { useSystemSettings } from '../hooks/useSystemSettings';
+import { setStoredTransportConfig } from '@/lib/transportGateway';
 
 interface NetworkTabProps {
   [key: string]: any;
@@ -84,6 +85,32 @@ export default function NetworkTab(props: NetworkTabProps) {
   const [clientUrlInput, setClientUrlInput] = useState(settings.serverLanUrl || '');
   const [clientTermCodeInput, setClientTermCodeInput] = useState(settings.terminalCode || 'T02');
 
+  // الاكتشاف التلقائي لخوادم الشبكة المحلية (mDNS / UDP Broadcast)
+  const [isScanningServers, setIsScanningServers] = useState(false);
+  const [discoveredServers, setDiscoveredServers] = useState<Array<{
+    ip: string;
+    port: number;
+    serverUrl: string;
+    shopName: string;
+    deviceName: string;
+    protocol: string;
+    pingMs?: number;
+    version?: string;
+  }>>([]);
+  const [scanInitiated, setScanInitiated] = useState(false);
+
+  // الاقتران المشفر بحاسوب الخادم (Encrypted Handshake & Session Token)
+  const [pairingKeyInput, setPairingKeyInput] = useState('');
+  const [showPairKeyInput, setShowPairKeyInput] = useState(false);
+  const [isPairingLoading, setIsPairingLoading] = useState(false);
+  const [isUnpairingLoading, setIsUnpairingLoading] = useState(false);
+  const [pairingStatusResult, setPairingStatusResult] = useState<{
+    success?: boolean;
+    msg?: string;
+    deviceId?: string;
+    sessionToken?: string;
+  } | null>(null);
+
   const handleTestServerConnection = async (targetUrl: string) => {
     const cleanUrl = (targetUrl || '').trim().replace(/\/+$/, '');
     if (!cleanUrl) {
@@ -125,6 +152,188 @@ export default function NetworkTab(props: NetworkTabProps) {
       setTestClientUrlResult({ success: false, msg: e.message || 'تعذر الاتصال بالخادم' });
     } finally {
       setTestClientUrlLoading(false);
+    }
+  };
+
+  // فحص الشبكة المحلية لاكتشاف خوادم AN POS تلقائياً
+  const handleScanLanServers = async () => {
+    setIsScanningServers(true);
+    setScanInitiated(true);
+    setDiscoveredServers([]);
+    try {
+      if (typeof window !== 'undefined' && window.electronAPI?.server?.scanLocalServers) {
+        const res = await window.electronAPI.server.scanLocalServers();
+        if (res.success && Array.isArray(res.servers)) {
+          setDiscoveredServers(res.servers);
+          if (res.servers.length > 0 && !clientUrlInput) {
+            setClientUrlInput(res.servers[0].serverUrl);
+          }
+        }
+      } else {
+        // فحص بديل في بيئة المتصفح / الاختبار
+        const probeUrl = clientUrlInput || 'http://localhost:3000';
+        const controller = new AbortController();
+        const tid = setTimeout(() => controller.abort(), 2000);
+        const res = await fetch(`${probeUrl}/api/health`, { signal: controller.signal }).catch(() => null);
+        clearTimeout(tid);
+        if (res && res.ok) {
+          const info = await res.json().catch(() => ({}));
+          setDiscoveredServers([
+            {
+              ip: '127.0.0.1',
+              port: 3000,
+              serverUrl: probeUrl,
+              shopName: 'خادم AN POS المحلي',
+              deviceName: 'المحطة الرئيسية',
+              protocol: 'udp+mdns',
+              pingMs: 4,
+              version: info?.version || '2.5.1',
+            },
+          ]);
+        }
+      }
+    } catch (e: any) {
+      console.warn('LAN Scan Error:', e);
+    } finally {
+      setIsScanningServers(false);
+    }
+  };
+
+  // اختيار خادم مكتشف بنقرة واحدة
+  const handleSelectDiscoveredServer = (serverUrl: string) => {
+    setClientUrlInput(serverUrl);
+    setPairingStatusResult(null);
+    handleTestServerConnection(serverUrl);
+  };
+
+  // تنفيذ الاقتران المشفر وتوثيق الجهاز
+  const handlePairWithServer = async () => {
+    const cleanUrl = (clientUrlInput || '').trim().replace(/\/+$/, '');
+    if (!cleanUrl) {
+      setPairingStatusResult({ success: false, msg: 'يرجى تحديد أو إدخال عنوان الخادم أولاً' });
+      return;
+    }
+    const cleanKey = (pairingKeyInput || '').trim();
+    if (!cleanKey) {
+      setPairingStatusResult({ success: false, msg: 'يرجى إدخال رمز الاقتران السري (Connection Key) المعروض في شاشة السيرفر' });
+      return;
+    }
+
+    setIsPairingLoading(true);
+    setPairingStatusResult(null);
+
+    try {
+      if (typeof window !== 'undefined' && window.electronAPI?.server?.pairWithServer) {
+        const res = await window.electronAPI.server.pairWithServer({
+          serverUrl: cleanUrl,
+          connectionKey: cleanKey,
+          terminalCode: clientTermCodeInput || 'T02',
+        });
+        if (res.success && res.sessionToken && res.deviceId) {
+          handleSaveSettings({
+            terminalRole: 'client',
+            terminal_role: 'client',
+            serverLanUrl: cleanUrl,
+            server_lan_url: cleanUrl,
+            terminalCode: clientTermCodeInput || 'T02',
+            terminal_code: clientTermCodeInput || 'T02',
+            clientToken: res.sessionToken,
+            client_token: res.sessionToken,
+            clientDeviceId: res.deviceId,
+            client_device_id: res.deviceId,
+          });
+          setStoredTransportConfig({
+            role: 'client',
+            serverUrl: cleanUrl,
+            token: res.sessionToken,
+            deviceId: res.deviceId,
+          });
+          setPairingStatusResult({
+            success: true,
+            msg: 'تم الاقتران وتوثيق محطة الكاشير بنجاح! هذا الجهاز موثق الآن لدى الخادم المركزي وجاهز للعمل.',
+            deviceId: res.deviceId,
+            sessionToken: res.sessionToken,
+          });
+        } else {
+          setPairingStatusResult({
+            success: false,
+            msg: res.error || 'فشل الاقتران. تأكد من صحة رمز الاقتران السري (PIN).',
+          });
+        }
+      } else {
+        // Fallback في بيئة المتصفح
+        const res = await fetch(`${cleanUrl}/api/pair`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            deviceName: `${clientTermCodeInput || 'T02'} (Browser Terminal)`,
+            connectionKey: cleanKey,
+            deviceType: 'desktop_client',
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data?.sessionToken) {
+          handleSaveSettings({
+            terminalRole: 'client',
+            terminal_role: 'client',
+            serverLanUrl: cleanUrl,
+            server_lan_url: cleanUrl,
+            terminalCode: clientTermCodeInput || 'T02',
+            terminal_code: clientTermCodeInput || 'T02',
+            clientToken: data.sessionToken,
+            client_token: data.sessionToken,
+            clientDeviceId: data.deviceId,
+            client_device_id: data.deviceId,
+          });
+          setStoredTransportConfig({
+            role: 'client',
+            serverUrl: cleanUrl,
+            token: data.sessionToken,
+            deviceId: data.deviceId,
+          });
+          setPairingStatusResult({
+            success: true,
+            msg: 'تم الاقتران وتوثيق محطة الكاشير بنجاح!',
+            deviceId: data.deviceId,
+            sessionToken: data.sessionToken,
+          });
+        } else {
+          setPairingStatusResult({
+            success: false,
+            msg: data?.error?.detail || 'فشل الاقتران. تأكد من صحة رمز الاقتران السري.',
+          });
+        }
+      }
+    } catch (e: any) {
+      setPairingStatusResult({ success: false, msg: e.message || 'تعذر إتمام عملية الاقتران مع الخادم' });
+    } finally {
+      setIsPairingLoading(false);
+    }
+  };
+
+  // فك الارتباط / إلغاء الاقتران
+  const handleUnpairServer = async () => {
+    setIsUnpairingLoading(true);
+    try {
+      if (typeof window !== 'undefined' && window.electronAPI?.server?.unpairServer) {
+        await window.electronAPI.server.unpairServer({ serverUrl: clientUrlInput });
+      }
+      handleSaveSettings({
+        clientToken: '',
+        client_token: '',
+        clientDeviceId: '',
+        client_device_id: '',
+      });
+      setStoredTransportConfig({
+        token: '',
+        deviceId: '',
+      });
+      setPairingStatusResult(null);
+      setPairingKeyInput('');
+    } catch (e: any) {
+      console.warn('Unpair error:', e);
+    } finally {
+      setIsUnpairingLoading(false);
     }
   };
 
@@ -638,88 +847,327 @@ export default function NetworkTab(props: NetworkTabProps) {
 
               {/* تفاصيل إعدادات اتصال الكاشير الفرعي بالخادم الرئيسي */}
               {settings.terminalRole === 'client' && (
-                <div className="p-4 sm:p-5 rounded-2xl bg-amber-500/5 border border-amber-500/20 space-y-4 animate-fade-in">
-                  <div className="flex items-center gap-2.5 text-xs sm:text-sm font-bold font-cairo text-amber-900 dark:text-amber-200">
-                    <Zap className="w-4 h-4 text-amber-600" />
-                    إعدادات الاتصال بالسيرفر المركزي
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div className="md:col-span-2 space-y-1">
-                      <label className="text-xs font-bold text-on-surface-variant">عنوان الخادم على الشبكة (Server URL):</label>
-                      <input
-                        type="text"
-                        value={clientUrlInput}
-                        onChange={(e) => setClientUrlInput(e.target.value)}
-                        placeholder="http://192.168.1.100:3000"
-                        className="w-full h-11 px-3.5 rounded-xl border border-outline-variant/30 bg-surface text-on-surface font-mono text-xs sm:text-sm focus:border-amber-500 focus:outline-none"
-                      />
-                      <p className="text-[11px] text-on-surface-variant font-tajawal">
-                        اكتب عنوان IP الخاص بحاسوب الخادم متبوعاً بالمنفذ 3000 (يمكنك معرفته من شاشة السيرفر الرئيسي).
-                      </p>
-                    </div>
-
+                <div className="p-4 sm:p-6 rounded-3xl bg-amber-500/5 dark:bg-amber-500/10 border-2 border-amber-500/25 space-y-6 animate-fade-in shadow-xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-amber-500/20 pb-4">
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-on-surface-variant">رمز المحطة (Terminal Code):</label>
-                      <input
-                        type="text"
-                        value={clientTermCodeInput}
-                        onChange={(e) => setClientTermCodeInput(e.target.value.toUpperCase())}
-                        placeholder="T02"
-                        maxLength={5}
-                        className="w-full h-11 px-3.5 rounded-xl border border-outline-variant/30 bg-surface text-on-surface font-bold text-xs sm:text-sm focus:border-amber-500 focus:outline-none text-center uppercase"
-                      />
-                      <p className="text-[11px] text-on-surface-variant font-tajawal">
-                        لمنع تضارب أرقام الفواتير الرسمية.
+                      <div className="flex items-center gap-2.5 text-sm sm:text-base font-bold font-cairo text-on-surface">
+                        <div className="w-8 h-8 rounded-xl bg-amber-500/15 flex items-center justify-center text-amber-600">
+                          <Zap className="w-4 h-4" />
+                        </div>
+                        ربط نقطة البيع بالخادم الرئيسي (Client Terminal Pairing)
+                      </div>
+                      <p className="text-xs text-on-surface-variant font-tajawal">
+                        اكتشف خادم المتجر تلقائياً عبر الشبكة المحلية (LAN) وقم بالاقتران المشفر لتسجيل المبيعات لحظياً
                       </p>
                     </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                    <button
-                      type="button"
-                      disabled={testClientUrlLoading || !clientUrlInput}
-                      onClick={() => handleTestServerConnection(clientUrlInput)}
-                      className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-xs font-bold font-cairo transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
-                    >
-                      <RefreshCw className={`w-3.5 h-3.5 ${testClientUrlLoading ? 'animate-spin' : ''}`} />
-                      {testClientUrlLoading ? 'جاري فحص الاتصال...' : 'اختبار الاتصال بالسيرفر'}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        handleSaveSettings({
-                          terminalRole: 'client',
-                          terminal_role: 'client',
-                          serverLanUrl: clientUrlInput,
-                          server_lan_url: clientUrlInput,
-                          terminalCode: clientTermCodeInput || 'T02',
-                          terminal_code: clientTermCodeInput || 'T02',
-                        });
-                        handleTestServerConnection(clientUrlInput);
-                      }}
-                      className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold font-cairo transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                      حفظ واعتماد الاتصال
-                    </button>
-                  </div>
-
-                  {testClientUrlResult && (
-                    <div className={`p-3 rounded-xl border text-xs font-semibold flex items-center gap-2 animate-fade-in ${
-                      testClientUrlResult.success
-                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300'
-                        : 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300'
-                    }`}>
-                      {testClientUrlResult.success ? (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <div className="flex items-center gap-2">
+                      {settings.clientToken ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                          الجهاز مقترن وموثق
+                        </span>
                       ) : (
-                        <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                          <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                          بانتظار الاقتران بالخادم
+                        </span>
                       )}
-                      <span>{testClientUrlResult.msg}</span>
                     </div>
-                  )}
+                  </div>
+
+                  {/* قسم الاكتشاف التلقائي عبر الشبكة (Zero-Config Auto-Discovery) */}
+                  <div className="p-4 sm:p-5 rounded-2xl bg-surface border border-outline-variant/20 shadow-xs space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="space-y-1">
+                        <h5 className="text-xs sm:text-sm font-bold font-cairo flex items-center gap-2 text-on-surface">
+                          <Radio className="w-4 h-4 text-primary animate-pulse" />
+                          الاكتشاف التلقائي الذكي (mDNS & UDP Discovery)
+                        </h5>
+                        <p className="text-xs text-on-surface-variant font-tajawal">
+                          يبحث الماسح تلقائياً عن حواسيب الخادم النشطة على نفس شبكة Wi-Fi أو كابل LAN دون الحاجة لكتابة IP
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={isScanningServers}
+                        onClick={handleScanLanServers}
+                        className="px-4 py-2.5 rounded-xl bg-primary hover:bg-primary/90 disabled:opacity-50 text-on-primary text-xs font-bold font-cairo transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer shrink-0"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isScanningServers ? 'animate-spin' : ''}`} />
+                        {isScanningServers ? 'جاري مسح الشبكة...' : '🔍 بحث تلقائي عن الخوادم في الشبكة'}
+                      </button>
+                    </div>
+
+                    {/* عرض حالة المسح والنتائج */}
+                    {isScanningServers && (
+                      <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 flex items-center gap-3 animate-pulse">
+                        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary shrink-0">
+                          <Radio className="w-4 h-4 animate-ping" />
+                        </div>
+                        <div className="text-xs font-cairo text-on-surface">
+                          <p className="font-bold">جاري إرسال نداءات البث الإذاعي (UDP 41999) واستكشاف إشارات Bonjour / mDNS...</p>
+                          <p className="text-on-surface-variant text-[11px] mt-0.5">يرجى الانتظار ثوانٍ قليلة لالتقاط استجابة الخادم على الشبكة.</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* نتائج الخوادم المكتشفة */}
+                    {!isScanningServers && scanInitiated && discoveredServers.length > 0 && (
+                      <div className="space-y-2.5 pt-1">
+                        <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                          <CheckCircle2 className="w-4 h-4" />
+                          تم العثور على ({discoveredServers.length}) خادم نشط على الشبكة:
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {discoveredServers.map((srv, idx) => {
+                            const isSelected = clientUrlInput === srv.serverUrl;
+                            return (
+                              <div
+                                key={`${srv.serverUrl}_${idx}`}
+                                className={`p-3.5 rounded-2xl border transition-all flex flex-col justify-between gap-3 ${
+                                  isSelected
+                                    ? 'border-emerald-500 bg-emerald-500/10 shadow-xs ring-1 ring-emerald-500/30'
+                                    : 'border-outline-variant/20 bg-surface-container hover:border-primary/40'
+                                }`}
+                              >
+                                <div className="space-y-1.5">
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-bold text-xs sm:text-sm font-cairo text-on-surface flex items-center gap-1.5">
+                                      <Server className="w-3.5 h-3.5 text-primary" />
+                                      {srv.shopName || 'خادم AN POS'}
+                                    </span>
+                                    <div className="flex items-center gap-1.5">
+                                      {srv.pingMs !== undefined && (
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/15 text-blue-600 border border-blue-500/20">
+                                          ⚡ {srv.pingMs}ms
+                                        </span>
+                                      )}
+                                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-surface-container-high text-on-surface-variant border border-outline-variant/20 uppercase">
+                                        {srv.protocol}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <p className="text-xs font-mono text-on-surface-variant dir-ltr text-right select-all">
+                                    {srv.serverUrl}
+                                  </p>
+                                  <p className="text-[11px] text-on-surface-variant font-tajawal">
+                                    اسم الجهاز: <span className="font-bold">{srv.deviceName}</span>
+                                    {srv.version && ` • الإصدار: ${srv.version}`}
+                                  </p>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleSelectDiscoveredServer(srv.serverUrl)}
+                                  className={`w-full py-2 px-3 rounded-xl text-xs font-bold font-cairo transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                                    isSelected
+                                      ? 'bg-emerald-600 text-white shadow-xs'
+                                      : 'bg-primary/10 text-primary hover:bg-primary hover:text-on-primary'
+                                  }`}
+                                >
+                                  {isSelected ? (
+                                    <>
+                                      <Check className="w-3.5 h-3.5" />
+                                      تم اختيار هذا الخادم
+                                    </>
+                                  ) : (
+                                    'اعتماد واختيار هذا الخادم'
+                                  )}
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* في حال عدم العثور على خوادم */}
+                    {!isScanningServers && scanInitiated && discoveredServers.length === 0 && (
+                      <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-xs text-amber-900 dark:text-amber-200 space-y-1">
+                        <p className="font-bold flex items-center gap-1.5">
+                          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                          لم يتم العثور على خوادم AN POS تلقائياً خلال الفحص
+                        </p>
+                        <ul className="list-disc list-inside text-[11px] text-on-surface-variant space-y-0.5 font-tajawal pr-1">
+                          <li>تأكد من أن الحاسوب الخادم يعمل ومفعّل فيه دور "خادم رئيسي (Server Master)".</li>
+                          <li>تأكد من اتصال كلا الجهازين بنفس راوتر الشبكة (LAN أو Wi-Fi).</li>
+                          <li>يمكنك إدخال عنوان IP الخاص بالخادم يدوياً في الحقل أدناه (مثال: http://192.168.1.100:3000).</li>
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* قسم الإعدادات اليدوية والاقتران المشفر (Pairing Handshake) */}
+                  <div className="p-4 sm:p-5 rounded-2xl bg-surface border border-outline-variant/20 shadow-xs space-y-4">
+                    <h5 className="text-xs sm:text-sm font-bold font-cairo flex items-center gap-2 text-on-surface">
+                      <KeyRound className="w-4 h-4 text-amber-600" />
+                      بيانات الاتصال ومفتاح التوثيق السري (Authentication Key)
+                    </h5>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div className="md:col-span-2 space-y-1">
+                        <label className="text-xs font-bold text-on-surface-variant">عنوان الخادم على الشبكة (Server URL):</label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={clientUrlInput}
+                            onChange={(e) => setClientUrlInput(e.target.value)}
+                            placeholder="http://192.168.1.100:3000"
+                            className="w-full h-11 px-3.5 rounded-xl border border-outline-variant/30 bg-surface text-on-surface font-mono text-xs sm:text-sm focus:border-amber-500 focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            disabled={testClientUrlLoading || !clientUrlInput}
+                            onClick={() => handleTestServerConnection(clientUrlInput)}
+                            title="فحص الاتصال"
+                            className="h-11 px-3 rounded-xl bg-surface-container-high hover:bg-surface-container border border-outline-variant/20 text-on-surface text-xs font-bold font-cairo transition-all flex items-center gap-1 shrink-0 cursor-pointer"
+                          >
+                            <RefreshCw className={`w-3.5 h-3.5 ${testClientUrlLoading ? 'animate-spin' : ''}`} />
+                            <span className="hidden sm:inline">فحص</span>
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-on-surface-variant font-tajawal">
+                          عنوان IP الخاص بالخادم متبوعاً بالمنفذ 3000 (يمكنك جلبه بالاكتشاف التلقائي أو من شاشة الخادم).
+                        </p>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-on-surface-variant">رمز المحطة (Terminal Code):</label>
+                        <input
+                          type="text"
+                          value={clientTermCodeInput}
+                          onChange={(e) => setClientTermCodeInput(e.target.value.toUpperCase())}
+                          placeholder="T02"
+                          maxLength={5}
+                          className="w-full h-11 px-3.5 rounded-xl border border-outline-variant/30 bg-surface text-on-surface font-bold text-xs sm:text-sm focus:border-amber-500 focus:outline-none text-center uppercase"
+                        />
+                        <p className="text-[11px] text-on-surface-variant font-tajawal">
+                          رمز نقطة البيع لترقيم الفواتير (T02، T03...).
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* حالة الاقتران والتوثيق */}
+                    {settings.clientToken ? (
+                      /* بطاقة الجهاز الموثق */
+                      <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-3 animate-fade-in">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-500/20 pb-2.5">
+                          <div className="flex items-center gap-2 text-xs sm:text-sm font-bold font-cairo text-emerald-900 dark:text-emerald-200">
+                            <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                            هذا الجهاز موثق ومقترن رسمياً بالخادم المركزي
+                          </div>
+                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-600 text-white self-start sm:self-auto">
+                            Session Active
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono">
+                          <div className="p-2.5 rounded-xl bg-surface/80 border border-emerald-500/20 text-on-surface">
+                            <span className="text-[10px] text-on-surface-variant block font-sans">معرف الجهاز (Device ID):</span>
+                            <span className="font-bold select-all">{settings.clientDeviceId || 'N/A'}</span>
+                          </div>
+                          <div className="p-2.5 rounded-xl bg-surface/80 border border-emerald-500/20 text-on-surface">
+                            <span className="text-[10px] text-on-surface-variant block font-sans">رمز الجلسة المشفر (Session Token):</span>
+                            <span className="font-bold">
+                              ••••••••••••{settings.clientToken ? settings.clientToken.slice(-8) : ''}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            disabled={testClientUrlLoading}
+                            onClick={() => handleTestServerConnection(clientUrlInput)}
+                            className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold font-cairo transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                          >
+                            <Activity className="w-3.5 h-3.5" />
+                            اختبار سرعة الاستجابة (Ping)
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isUnpairingLoading}
+                            onClick={handleUnpairServer}
+                            className="px-3.5 py-2 rounded-xl bg-rose-600/15 hover:bg-rose-600 text-rose-700 hover:text-white border border-rose-500/30 text-xs font-bold font-cairo transition-all flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            {isUnpairingLoading ? 'جاري فك الارتباط...' : 'إلغاء الاقتران / تغيير الخادم'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* نموذج إدخال رمز الاقتران للربط الجديد */
+                      <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 space-y-3 animate-fade-in">
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-on-surface flex items-center gap-1.5">
+                            <KeyRound className="w-3.5 h-3.5 text-amber-600" />
+                            مفتاح الربط السري (Server Connection Key / PIN):
+                          </label>
+                          <div className="relative">
+                            <input
+                              type={showPairKeyInput ? 'text' : 'password'}
+                              value={pairingKeyInput}
+                              onChange={(e) => setPairingKeyInput(e.target.value)}
+                              placeholder="مثال: A1B2-C3D4-E5F6-7890"
+                              className="w-full h-11 px-3.5 pl-10 rounded-xl border border-outline-variant/30 bg-surface text-on-surface font-mono text-xs sm:text-sm focus:border-amber-500 focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPairKeyInput(!showPairKeyInput)}
+                              className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface cursor-pointer p-1"
+                            >
+                              {showPairKeyInput ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
+                          <p className="text-[11px] text-on-surface-variant font-tajawal">
+                            يمكنك نسخ هذا الرمز من شاشة السيرفر الرئيسي (تحت بند: مفتاح الاتصال السري).
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            disabled={isPairingLoading || !clientUrlInput || !pairingKeyInput}
+                            onClick={handlePairWithServer}
+                            className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-xs font-bold font-cairo transition-all flex items-center gap-2 shadow-sm cursor-pointer"
+                          >
+                            <ShieldCheck className={`w-4 h-4 ${isPairingLoading ? 'animate-spin' : ''}`} />
+                            {isPairingLoading ? 'جاري الاقتران وتوثيق الجهاز...' : '🔐 اقتران وتوثيق نقطة البيع الآن'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* رسائل نتيجة الاقتران أو الفحص */}
+                    {pairingStatusResult && (
+                      <div className={`p-3.5 rounded-xl border text-xs font-semibold flex items-center gap-2 animate-fade-in ${
+                        pairingStatusResult.success
+                          ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-900 dark:text-emerald-200'
+                          : 'bg-rose-500/15 border-rose-500/40 text-rose-900 dark:text-rose-200'
+                      }`}>
+                        {pairingStatusResult.success ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                        )}
+                        <span>{pairingStatusResult.msg}</span>
+                      </div>
+                    )}
+
+                    {testClientUrlResult && !pairingStatusResult && (
+                      <div className={`p-3.5 rounded-xl border text-xs font-semibold flex items-center gap-2 animate-fade-in ${
+                        testClientUrlResult.success
+                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300'
+                          : 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300'
+                      }`}>
+                        {testClientUrlResult.success ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                        )}
+                        <span>{testClientUrlResult.msg}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

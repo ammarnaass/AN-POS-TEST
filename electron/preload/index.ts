@@ -217,6 +217,12 @@ const electronAPI = {
       ipcRenderer.invoke('server:update-port', port),
     refreshAdvertising: () =>
       ipcRenderer.invoke('server:refresh-advertising'),
+    scanLocalServers: () =>
+      ipcRenderer.invoke('server:scanLocalServers'),
+    pairWithServer: (params: { serverUrl: string; connectionKey: string; terminalCode?: string; deviceName?: string }) =>
+      ipcRenderer.invoke('server:pairWithServer', params),
+    unpairServer: (params?: { serverUrl?: string }) =>
+      ipcRenderer.invoke('server:unpairServer', params),
   },
 
   // ===== نظام الترخيص والتفعيل (Ed25519) =====

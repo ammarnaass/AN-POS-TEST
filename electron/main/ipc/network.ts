@@ -1,7 +1,6 @@
-// معالجات IPC لشبكة الربط بين الهاتف وسطح المكتب
-// تُكشف لواجهة سطح المكتب عبر window.electronAPI.server
-
-import { ipcMain } from 'electron';
+import os from 'node:os';
+import { randomUUID } from 'node:crypto';
+import { ipcMain, app } from 'electron';
 import {
   getPairingInfo,
   startHttpServer,
@@ -16,6 +15,7 @@ import { execute, queryAll, queryOne } from '../handlers/db-utils';
 import { isDeveloperModeActive } from '../handlers/auth';
 import { refreshAdvertisement } from '../discoveryBonjour';
 import { generateUniqueDeviceName } from '../server/routes/pair';
+import { scanLocalServers } from '../discoveryScanner';
 
 /**
  * تفعيل/تعطيل خادم HTTP + إعداد network_settings
@@ -23,10 +23,11 @@ import { generateUniqueDeviceName } from '../server/routes/pair';
 export function registerNetworkIpc(): void {
   // server:status — هل الخادم يعمل؟
   ipcMain.handle('server:status', async () => {
-    const settingsRow = queryOne('SELECT sync_mode FROM settings WHERE id = \'default\' LIMIT 1');
+    const settingsRow = queryOne('SELECT sync_mode, terminal_role FROM settings WHERE id = \'default\' LIMIT 1');
     const syncMode = (settingsRow?.sync_mode as string) || 'single';
+    const terminalRole = (settingsRow?.terminal_role as string) || 'server';
     const isDev = isDeveloperModeActive();
-    if (syncMode === 'single' && !isDev && isHttpServerRunning()) {
+    if (syncMode === 'single' && terminalRole !== 'server' && !isDev && isHttpServerRunning()) {
       await stopHttpServer();
       execute(
         "UPDATE network_settings SET lan_enabled = 0, updated_at = ? WHERE id = 'default'",
@@ -38,16 +39,18 @@ export function registerNetworkIpc(): void {
       lanEnabled: Boolean(getNetworkSettings()?.lan_enabled),
       port: Number(getNetworkSettings()?.server_port) || 3000,
       syncMode,
+      terminalRole,
     };
   });
 
   // server:enable — فتح الخادم + تحديث lan_enabled = 1
   ipcMain.handle('server:enable', async (_evt, opts?: { port?: number }) => {
-    // شرط وضع التشغيل: يجب ألا يشتغل وضع المقترن مع الهاتف إذا كان الوضع جهاز واحد (إلا لحساب المطور)
-    const settingsRow = queryOne('SELECT sync_mode FROM settings WHERE id = \'default\' LIMIT 1');
+    // شرط وضع التشغيل: يجب ألا يشتغل وضع المقترن مع الهاتف إذا كان الوضع جهاز واحد (إلا لحساب المطور أو إذا كان خادماً)
+    const settingsRow = queryOne('SELECT sync_mode, terminal_role FROM settings WHERE id = \'default\' LIMIT 1');
     const syncMode = (settingsRow?.sync_mode as string) || 'single';
+    const terminalRole = (settingsRow?.terminal_role as string) || 'server';
     const isDev = isDeveloperModeActive();
-    if (syncMode === 'single' && !isDev) {
+    if (syncMode === 'single' && terminalRole !== 'server' && !isDev) {
       return {
         success: false,
         error: 'لا يمكن تشغيل خادم الربط أو إقران الهواتف في وضع "جهاز واحد". يجب تغيير وضع التشغيل أولاً إلى "عدة أجهزة (شبكة محلية LAN)".',
@@ -84,9 +87,10 @@ export function registerNetworkIpc(): void {
 
   // server:pairing-info — معلومات QR (ip, port, key, shopName)
   ipcMain.handle('server:pairing-info', async () => {
-    const settingsRow = queryOne('SELECT sync_mode FROM settings WHERE id = \'default\' LIMIT 1');
+    const settingsRow = queryOne('SELECT sync_mode, terminal_role FROM settings WHERE id = \'default\' LIMIT 1');
     const syncMode = (settingsRow?.sync_mode as string) || 'single';
-    if (syncMode === 'single' && !isDeveloperModeActive()) {
+    const terminalRole = (settingsRow?.terminal_role as string) || 'server';
+    if (syncMode === 'single' && terminalRole !== 'server' && !isDeveloperModeActive()) {
       return null;
     }
     return getPairingInfo();
@@ -183,5 +187,157 @@ export function registerNetworkIpc(): void {
       [uniqueName, deviceId]
     );
     return { success: true, name: uniqueName };
+  });
+
+  // =========================================================================
+  // المرحلة 2: الاكتشاف التلقائي والاقتران المشفر بحاسوب الخادم (Auto-Discovery & Pairing)
+  // =========================================================================
+
+  // server:scanLocalServers — فحص الشبكة المحلية عبر mDNS و UDP للعثور على خوادم AN POS
+  ipcMain.handle('server:scanLocalServers', async () => {
+    try {
+      const servers = await scanLocalServers(3200);
+      return { success: true, servers };
+    } catch (err: any) {
+      console.warn('[ipc/network] خطأ أثناء فحص الخوادم:', err);
+      return { success: false, servers: [], error: err?.message || 'فشل فحص خوادم الشبكة المحلية' };
+    }
+  });
+
+  // server:pairWithServer — إرسال طلب اقتران موثق بمفتاح الاتصال إلى الخادم وتخزين رمز الجلسة
+  ipcMain.handle('server:pairWithServer', async (_evt, params: {
+    serverUrl: string;
+    connectionKey: string;
+    terminalCode?: string;
+    deviceName?: string;
+  }) => {
+    try {
+      const cleanUrl = (params?.serverUrl || '').trim().replace(/\/+$/, '');
+      if (!cleanUrl) {
+        return { success: false, error: 'عنوان الخادم مطلوب (Server URL)' };
+      }
+      const cleanKey = (params?.connectionKey || '').trim();
+      if (!cleanKey) {
+        return { success: false, error: 'رمز الاقتران السري (Connection Key) مطلوب' };
+      }
+
+      // تحديد أو توليد معرّف فريد ثابت لهذا الجهاز العميل لمنع التكرار
+      const currentSettings = queryOne("SELECT client_device_id, terminal_code FROM settings WHERE id = 'default'") || {};
+      let deviceUniqueId = (currentSettings.client_device_id as string) || '';
+      if (!deviceUniqueId) {
+        deviceUniqueId = `client_${os.hostname()}_${randomUUID().substring(0, 8)}`;
+      }
+      const finalTerminalCode = (params.terminalCode || (currentSettings.terminal_code as string) || 'T02').trim().toUpperCase();
+      const hostName = os.hostname();
+      const deviceName = (params.deviceName || `${finalTerminalCode} (${hostName})`).trim();
+
+      const payload = {
+        deviceName,
+        connectionKey: cleanKey,
+        deviceType: 'desktop_client',
+        deviceUniqueId,
+        model: `${os.type()} ${os.arch()}`,
+        vendor: 'AN-POS Client Terminal',
+        appName: 'AN POS Desktop Terminal',
+        appVersion: app.getVersion(),
+      };
+
+      const controller = new AbortController();
+      const tid = setTimeout(() => controller.abort(), 6000);
+      const response = await fetch(`${cleanUrl}/api/pair`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'x-device-unique-id': deviceUniqueId,
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      clearTimeout(tid);
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result?.error) {
+        return {
+          success: false,
+          error: result?.error?.detail || `فشل الاقتران (كود: ${response.status})`,
+        };
+      }
+
+      if (!result.sessionToken || !result.deviceId) {
+        return { success: false, error: 'لم يُرجع الخادم رمز جلسة صالح' };
+      }
+
+      // حفظ بيانات الاقتران والاعتماد في قاعدة بيانات العميل المحلية
+      execute(
+        `UPDATE settings SET
+          terminal_role = 'client',
+          server_lan_url = ?,
+          terminal_code = ?,
+          client_token = ?,
+          client_device_id = ?,
+          updated_at = ?
+         WHERE id = 'default'`,
+        [cleanUrl, finalTerminalCode, result.sessionToken, result.deviceId, new Date().toISOString()]
+      );
+
+      return {
+        success: true,
+        sessionToken: result.sessionToken,
+        deviceId: result.deviceId,
+        serverUrl: cleanUrl,
+        terminalCode: finalTerminalCode,
+        deviceName: result.deviceName || deviceName,
+      };
+    } catch (err: any) {
+      console.error('[ipc/network] خطأ أثناء الاقتران بالخادم:', err);
+      return {
+        success: false,
+        error: err?.message || 'تعذر الاتصال بالخادم. يرجى التأكد من تشغيل الخادم وصحة عنوان IP والشبكة.',
+      };
+    }
+  });
+
+  // server:unpairServer — إلغاء اقتران العميل بالخادم وحذف رمز الجلسة
+  ipcMain.handle('server:unpairServer', async (_evt, params?: { serverUrl?: string }) => {
+    try {
+      const settingsRow = queryOne("SELECT server_lan_url, client_token, client_device_id FROM settings WHERE id = 'default'") || {};
+      const targetUrl = (params?.serverUrl || (settingsRow.server_lan_url as string) || '').trim().replace(/\/+$/, '');
+      const token = (settingsRow.client_token as string) || '';
+      const deviceId = (settingsRow.client_device_id as string) || '';
+
+      if (targetUrl && token && deviceId) {
+        try {
+          const controller = new AbortController();
+          const tid = setTimeout(() => controller.abort(), 3000);
+          await fetch(`${targetUrl}/api/pair/unpair`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-session-token': token,
+              'x-device-id': deviceId,
+            },
+            signal: controller.signal,
+          });
+          clearTimeout(tid);
+        } catch {
+          // تجاهل أي خطأ بالشبكة خلال فك الارتباط
+        }
+      }
+
+      // مسح رمز الجلسة والاعتماد محلياً
+      execute(
+        `UPDATE settings SET
+          client_token = '',
+          client_device_id = '',
+          updated_at = ?
+         WHERE id = 'default'`,
+        [new Date().toISOString()]
+      );
+
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'تعذر إلغاء الاقتران' };
+    }
   });
 }

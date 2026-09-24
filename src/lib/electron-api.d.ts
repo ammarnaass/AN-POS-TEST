@@ -93,6 +93,36 @@ export interface ElectronAPI {
     regenerateKey: () => Promise<{ success: boolean; key: string }>;
     connectedDevices: () => Promise<{ data: Array<Record<string, unknown>> }>;
     disconnectDevice: (deviceId: string) => Promise<{ success: boolean }>;
+    scanLocalServers: () => Promise<{
+      success: boolean;
+      servers: Array<{
+        ip: string;
+        port: number;
+        serverUrl: string;
+        shopName: string;
+        deviceName: string;
+        protocol: 'udp' | 'mdns' | 'udp+mdns';
+        version?: string;
+        pingMs?: number;
+        requiresPairing?: boolean;
+      }>;
+      error?: string;
+    }>;
+    pairWithServer: (params: {
+      serverUrl: string;
+      connectionKey: string;
+      terminalCode?: string;
+      deviceName?: string;
+    }) => Promise<{
+      success: boolean;
+      sessionToken?: string;
+      deviceId?: string;
+      serverUrl?: string;
+      terminalCode?: string;
+      deviceName?: string;
+      error?: string;
+    }>;
+    unpairServer: (params?: { serverUrl?: string }) => Promise<{ success: boolean; error?: string }>;
   };
   license?: {
     getStatus: () => Promise<any>;

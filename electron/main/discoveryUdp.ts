@@ -25,12 +25,16 @@ export function startDiscoveryListener(): void {
 
         const netSettings = getNetworkSettings();
         const lanEnabled = Boolean(netSettings?.lan_enabled);
-        const settingsRow = queryOne("SELECT shop_name, sync_mode FROM settings WHERE id = 'default'") || {};
+        const settingsRow = queryOne("SELECT shop_name, sync_mode, terminal_role FROM settings WHERE id = 'default'") || {};
         const syncMode = (settingsRow.sync_mode as string) || 'single';
+        const terminalRole = (settingsRow.terminal_role as string) || 'server';
+
+        // إذا كان الجهاز يعمل كمحطة عميل، لا يرد على طلبات الاكتشاف
+        if (terminalRole === 'client') return;
 
         const isDev = isDeveloperModeActive();
-        // لا يتم الرد إذا كانت الشبكة معطلة أو كان وضع التشغيل جهاز واحد (إلا إذا كان حساب المطور نشطاً)
-        if ((!lanEnabled && !isDev) || (syncMode === 'single' && !isDev)) return;
+        // لا يتم الرد إذا كانت الشبكة معطلة ولم يكن الجهاز خادماً أو في وضع المطور
+        if ((!lanEnabled && !isDev) || (syncMode === 'single' && terminalRole !== 'server' && !isDev)) return;
 
         const reply = JSON.stringify({
           type: 'anpos-discover-reply',
