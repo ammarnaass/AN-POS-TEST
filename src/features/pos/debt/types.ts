@@ -1,4 +1,4 @@
-import type { Customer, Sale, CartItem } from '@/types';
+import type { Customer, Sale } from '@/types';
 
 export interface CustomerDebtSummary {
   customerId: string;

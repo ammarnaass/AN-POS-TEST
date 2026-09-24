@@ -1,6 +1,6 @@
 import React from 'react';
 import { CheckSquare, Square, Plus, Minus, Layers, Hash } from 'lucide-react';
-import { formatNumber, formatMoney } from '@/features/pos/utils/format';
+import { formatMoney } from '@/features/pos/utils/format';
 import type { ReturnItemSelection } from '../types';
 
 export interface ReturnItemsTableProps {

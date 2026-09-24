@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { AdvancedTerminalPOSLayout } from '../AdvancedTerminalPOSLayout';
 import type { CartItem, Product } from '@/types';
+import { APP_DISPLAY_VERSION } from '@/constants/app';
 
 describe('AdvancedTerminalPOSLayout (تصميم 6 - نقطة البيع المتقدمة)', () => {
   const mockCart: CartItem[] = [
@@ -270,7 +271,7 @@ describe('AdvancedTerminalPOSLayout (تصميم 6 - نقطة البيع المت
     expect(screen.getByText('قاعدة البيانات المحلية:')).toBeInTheDocument();
     expect(screen.getByText('متصلة')).toBeInTheDocument();
     expect(screen.getByText('SAMSUNG S19C150')).toBeInTheDocument();
-    expect(screen.getByText('v2.4.2 PRO')).toBeInTheDocument();
+    expect(screen.getByText(`${APP_DISPLAY_VERSION} PRO`)).toBeInTheDocument();
   });
 
   it('triggers touch D-Pad interactions and quick actions', () => {

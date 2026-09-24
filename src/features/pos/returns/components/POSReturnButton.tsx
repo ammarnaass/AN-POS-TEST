@@ -2,10 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   RotateCcw,
   X,
-  ChevronDown,
   FileSearch,
   ScanBarcode,
-  AlertCircle,
   Undo2,
 } from 'lucide-react';
 import type { POSReturnButtonProps } from '../types';
@@ -20,11 +18,9 @@ export const POSReturnButton: React.FC<POSReturnButtonProps> = ({
 }) => {
   const {
     isReturnActive,
-    returnContext,
     originalInvoiceNumber,
     returnItemsCount,
     returnLinesCount,
-    hasCartItems,
     handlePrimaryClick,
     handleOpenReturnsModal,
     handleExitReturnMode,

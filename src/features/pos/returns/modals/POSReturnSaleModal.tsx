@@ -1,5 +1,5 @@
 import React from 'react';
-import { RotateCcw, X, FileText, Search } from 'lucide-react';
+import { RotateCcw, X } from 'lucide-react';
 import type { Sale } from '@/types';
 import type { POSReturnSaleModalProps } from '../types';
 import { usePOSReturnSearch } from '../hooks/usePOSReturnSearch';

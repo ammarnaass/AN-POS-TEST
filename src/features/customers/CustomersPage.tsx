@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import type { Customer, Sale } from '@/types';
 import type { CustomerFormData, PaymentVoucherData } from './types';
 import { calculateCustomerStatement, calculateCustomerDebtAging } from './services/customerStatementService';
@@ -151,8 +151,11 @@ export default function CustomersPage() {
   const getCustomerSales = (customerId: string) =>
     sales.filter((s) => s.customerId === customerId && s.type === 'sale');
 
-  const getCustomerPayments = (customerId: string) =>
-    payments.filter((p) => (p as any).customerId === customerId || (p as any).partyId === customerId || (p as any).party_id === customerId);
+  const getCustomerPayments = useCallback(
+    (customerId: string) =>
+      payments.filter((p) => (p as any).customerId === customerId || (p as any).partyId === customerId || (p as any).party_id === customerId),
+    [payments]
+  );
 
   // Customer for active payment
   const activePaymentCustomer = customers.find((c) => c.id === showPaymentId) || null;
@@ -170,7 +173,7 @@ export default function CustomersPage() {
       statementDateFrom,
       statementDateTo
     );
-  }, [statementCustomer, sales, payments, statementFilterType, statementDateFrom, statementDateTo]);
+  }, [statementCustomer, sales, getCustomerPayments, statementFilterType, statementDateFrom, statementDateTo]);
 
   const statementEntries = statementCalculation?.entries || [];
 

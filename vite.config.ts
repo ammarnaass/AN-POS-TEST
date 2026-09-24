@@ -27,5 +27,7 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    exclude: ['**/node_modules/**', '**/dist/**', '**/out/**', '**/release/**', '**/.kilo/**', '**/.opencode/**', '**/.qoder/**'],
   },
 })

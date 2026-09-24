@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { db, type CashSessionEntity, type CapitalEntryEntity } from '@/infrastructure/database/dexie/db';
+import { db, type CashSessionEntity } from '@/infrastructure/database/dexie/db';
 import { generateId } from '@/utils';
 import { useAuthStore } from '@/store/authStore';
 import { useNotificationStore } from '@/store/notificationStore';
@@ -251,7 +251,7 @@ export function useCashSessionManager() {
     });
   };
 
-  const handlePrintZReport = (session: CashSessionEntity) => {
+  const handlePrintZReport = (_session: CashSessionEntity) => {
     window.print();
   };
 

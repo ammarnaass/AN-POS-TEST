@@ -9,6 +9,7 @@ import {
   FileText,
   FileCheck,
   Edit3,
+} from 'lucide-react';
 import { formatMoney } from '../utils/format';
 import { POSReturnButton } from '@/features/pos/returns';
 

@@ -3,11 +3,11 @@
  * المصدر الموحد الوحيد لإصدار النظام في كامل الواجهات والمكونات
  */
 export const APP_NAME = 'AN POS';
-export const APP_VERSION = '2.4.2';
+export const APP_VERSION = '2.4.3';
 export const APP_DISPLAY_VERSION = `v${APP_VERSION}`;
 export const APP_FULL_NAME = `${APP_NAME} ${APP_DISPLAY_VERSION} Pro`;
-export const APP_RELEASE_DATE = '2026-09-21';
-export const APP_BUILD_NUMBER = '20260921.1';
+export const APP_RELEASE_DATE = '2026-09-23';
+export const APP_BUILD_NUMBER = '20260923.1';
 export const APP_CHANNEL = 'مستقر (Production Stable)';
 
 export interface AppRelease {
@@ -20,9 +20,20 @@ export interface AppRelease {
 
 export const APP_CHANGELOG: AppRelease[] = [
   {
+    version: 'v2.4.3',
+    date: '2026-09-23',
+    badge: 'الإصدار الحالي',
+    title: 'إصلاحات التكامل الشامل وتمرير كافة الاختبارات الصارمة وتحزيم Windows Executable',
+    changes: [
+      'إصلاح استيراد مكون POSActionBar البرمجي لضمان تكامل أزرار الإجراءات ومرتجع المبيعات السريع.',
+      'اجتياز 100% من الاختبارات الصارمة والشاملة للنظام (90 جناح اختبار و 895 اختباراً بنجاح تام).',
+      'تحسين تكامل وسرعة محرك المرتجعات والحسابات المالية والطباعة والمخزون.',
+      'تحديث إعدادات بناء وحزم التطبيق كحزمة Windows التنفيذية (.exe / Portable / NSIS).',
+    ],
+  },
+  {
     version: 'v2.4.2',
     date: '2026-09-21',
-    badge: 'الإصدار الحالي',
     title: 'تحسين واجهة تصميم 7 وإصلاح ظهور السلع في البحث',
     changes: [
       'توحيد ألوان تصميم 7: عناوين سوداء على خلفية بيضاء في نافذة بحث السلع وبطاقات وتصنيفات المفضلة.',

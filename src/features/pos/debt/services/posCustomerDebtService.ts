@@ -353,7 +353,6 @@ export async function settleSpecificInvoiceDebtRecord(
   const {
     saleId,
     customerId,
-    customerName,
     amount,
     paymentMethod,
     note,

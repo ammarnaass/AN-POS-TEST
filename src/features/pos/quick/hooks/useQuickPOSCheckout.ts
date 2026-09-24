@@ -4,7 +4,6 @@ import type { CartItem, Product, Customer, Sale } from '@/types';
 import type { QuickPOSSettings } from '../types';
 import { useSaleCompletion } from '@/features/pos/hooks/useSaleCompletion';
 import { printDocument } from '@/services/print/printService';
-import { formatMoney } from '../../utils/format';
 
 interface UseQuickPOSCheckoutParams {
   cart: CartItem[];

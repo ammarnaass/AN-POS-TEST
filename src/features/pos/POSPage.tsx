@@ -173,7 +173,6 @@ export default function POSPage() {
     handleRemoveItem,
     handleClearCart,
     handleExternalScan,
-    handleApplyWeight,
   } = usePOSCartActions({
     products: products as any[],
     packs: packs as any,
