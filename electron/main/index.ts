@@ -85,18 +85,20 @@ async function createWindow() {
   try {
     const netSettings = getNetworkSettings();
     const lanEnabled = Boolean(netSettings?.lan_enabled);
-    const settingsRow = queryOne('SELECT sync_mode FROM settings WHERE id = \'default\' LIMIT 1');
+    const settingsRow = queryOne('SELECT sync_mode, terminal_role FROM settings WHERE id = \'default\' LIMIT 1');
     const syncMode = (settingsRow?.sync_mode as string) || 'single';
+    const terminalRole = (settingsRow?.terminal_role as string) || 'server';
 
     const isDev = isDeveloperModeActive();
 
-    if ((lanEnabled || isDev) && (syncMode !== 'single' || isDev)) {
+    // تشغيل خادم Fastify فقط إذا كان هذا الجهاز خادماً رئيسياً (terminalRole === 'server')
+    if (terminalRole === 'server' && (lanEnabled || isDev) && (syncMode !== 'single' || isDev)) {
       const port = Number(netSettings?.server_port) || 3000;
       // تأكد من وجود مفتاح اتصال (يُولّد تلقائياً عند الحاجة)
       getOrCreateConnectionKey();
       await startHttpServer({ port });
     } else {
-      console.log(`[main] خادم HTTP معطّل (lan_enabled = ${lanEnabled ? 1 : 0}, sync_mode = '${syncMode}')`);
+      console.log(`[main] خادم HTTP معطّل (role = '${terminalRole}', lan_enabled = ${lanEnabled ? 1 : 0}, sync_mode = '${syncMode}')`);
     }
   } catch (e) {
     console.error('[main] فشل تشغيل خادم HTTP:', e);

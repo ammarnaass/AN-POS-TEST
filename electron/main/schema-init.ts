@@ -96,6 +96,12 @@ export function initSchema(): void {
   try { execSql("ALTER TABLE settings ADD COLUMN default_role TEXT NOT NULL DEFAULT 'seller';"); } catch { /* موجود */ }
   try { execSql("ALTER TABLE settings ADD COLUMN design7_show_bottom_favorites INTEGER NOT NULL DEFAULT 1;"); } catch { /* موجود */ }
   try { execSql("ALTER TABLE settings ADD COLUMN terminal_favorites_mode INTEGER NOT NULL DEFAULT 1;"); } catch { /* موجود */ }
+  // حقول نمط التشغيل الموزع (خادم رئيسي / عميل محطة كاشير إضافية)
+  try { execSql("ALTER TABLE settings ADD COLUMN terminal_role TEXT NOT NULL DEFAULT 'server';"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE settings ADD COLUMN server_lan_url TEXT NOT NULL DEFAULT '';"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE settings ADD COLUMN terminal_code TEXT NOT NULL DEFAULT 'T01';"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE settings ADD COLUMN client_token TEXT NOT NULL DEFAULT '';"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE settings ADD COLUMN client_device_id TEXT NOT NULL DEFAULT '';"); } catch { /* موجود */ }
   try { execSql("ALTER TABLE connected_devices ADD COLUMN app_name TEXT DEFAULT '';"); } catch { /* موجود */ }
   try { execSql("ALTER TABLE connected_devices ADD COLUMN app_version TEXT DEFAULT '';"); } catch { /* موجود */ }
   try { execSql("ALTER TABLE connected_devices ADD COLUMN device_unique_id TEXT DEFAULT '';"); } catch { /* موجود */ }

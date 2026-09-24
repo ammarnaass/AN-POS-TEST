@@ -78,6 +78,56 @@ export default function NetworkTab(props: NetworkTabProps) {
   const [newIpInput, setNewIpInput] = useState('');
   const [whitelistMode, setWhitelistMode] = useState<'chips' | 'raw'>('chips');
 
+  // اختبار الاتصال بخادم الشبكة المحلية عند العمل كـ كاشير عميل (Client Terminal)
+  const [testClientUrlLoading, setTestClientUrlLoading] = useState(false);
+  const [testClientUrlResult, setTestClientUrlResult] = useState<{ success?: boolean; msg?: string } | null>(null);
+  const [clientUrlInput, setClientUrlInput] = useState(settings.serverLanUrl || '');
+  const [clientTermCodeInput, setClientTermCodeInput] = useState(settings.terminalCode || 'T02');
+
+  const handleTestServerConnection = async (targetUrl: string) => {
+    const cleanUrl = (targetUrl || '').trim().replace(/\/+$/, '');
+    if (!cleanUrl) {
+      setTestClientUrlResult({ success: false, msg: 'يرجى إدخال عنوان الخادم (مثال: http://192.168.1.100:3000)' });
+      return;
+    }
+    setTestClientUrlLoading(true);
+    setTestClientUrlResult(null);
+    try {
+      if (typeof window !== 'undefined' && window.electronAPI?.system?.testServerConnection) {
+        const res = await window.electronAPI.system.testServerConnection(cleanUrl);
+        if (res.success) {
+          setTestClientUrlResult({
+            success: true,
+            msg: `تم الاتصال بالخادم بنجاح! الإصدار: ${res.data?.version || '2.5.1'} — خادم المتجر متصل وجاهز للمزامنة`,
+          });
+        } else {
+          setTestClientUrlResult({
+            success: false,
+            msg: res.error || 'تعذر الاتصال بالخادم على هذا العنوان',
+          });
+        }
+      } else {
+        const controller = new AbortController();
+        const tid = setTimeout(() => controller.abort(), 4000);
+        const res = await fetch(`${cleanUrl}/api/health`, { signal: controller.signal });
+        clearTimeout(tid);
+        if (res.ok) {
+          const data = await res.json();
+          setTestClientUrlResult({
+            success: true,
+            msg: `تم الاتصال بالخادم بنجاح! الإصدار: ${data?.version || '2.5.1'}`,
+          });
+        } else {
+          setTestClientUrlResult({ success: false, msg: `استجاب الخادم برمز خطأ (${res.status})` });
+        }
+      }
+    } catch (e: any) {
+      setTestClientUrlResult({ success: false, msg: e.message || 'تعذر الاتصال بالخادم' });
+    } finally {
+      setTestClientUrlLoading(false);
+    }
+  };
+
   // نسخ النص مع تغذية بصرية راجعة
   const handleCopy = (text: string, keyName: string) => {
     if (!text) return;
@@ -486,6 +536,194 @@ export default function NetworkTab(props: NetworkTabProps) {
               );
             })}
           </div>
+
+          {/* =========================================================================
+              قسم 1.2: دور هذا الحاسوب في الشبكة (Terminal Role Selection)
+              متاح عند اختيار وضع الشبكة المحلية LAN أو الوضع الهجين Hybrid
+              ========================================================================= */}
+          {settings.syncMode !== 'single' && (
+            <div className="pt-5 border-t border-outline-variant/15 space-y-4 animate-fade-in">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h4 className="text-sm sm:text-base font-bold font-cairo text-on-surface flex items-center gap-2">
+                    <Server className="w-4 h-4 text-primary shrink-0" />
+                    دور هذا الحاسوب في الشبكة (Computer Role)
+                  </h4>
+                  <p className="text-xs text-on-surface-variant font-tajawal mt-0.5">
+                    حدد ما إذا كان هذا الجهاز يعمل كسيرفر رئيسي للمحل أم كنقطة كاشير فرعية إضافية
+                  </p>
+                </div>
+                <span className="self-start sm:self-auto px-2.5 py-1 rounded-full text-[11px] font-bold bg-primary/10 text-primary border border-primary/20">
+                  {settings.terminalRole === 'client' ? 'محطة كاشير فرعية (Client)' : 'سيرفر رئيسي (Server Master)'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4">
+                {/* بطاقة الخادم الرئيسي */}
+                <button
+                  type="button"
+                  onClick={() => handleSaveSettings({ terminalRole: 'server', terminal_role: 'server' })}
+                  className={`p-4 sm:p-5 rounded-3xl border-2 text-right transition-all flex flex-col justify-between gap-3 text-start cursor-pointer ${
+                    settings.terminalRole !== 'client'
+                      ? 'border-primary bg-primary/5 dark:bg-primary/10 shadow-sm ring-1 ring-primary/30'
+                      : 'border-outline-variant/15 bg-surface-container hover:border-primary/40'
+                  }`}
+                >
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className={`w-10 h-10 rounded-2xl flex items-center justify-center border shadow-inner ${
+                        settings.terminalRole !== 'client' ? 'bg-primary text-on-primary border-primary' : 'bg-surface-container-high text-primary border-outline-variant/20'
+                      }`}>
+                        <Server className="w-5 h-5" />
+                      </div>
+                      <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                        الخادم المركزي
+                      </span>
+                    </div>
+                    <div>
+                      <h5 className="text-sm font-bold font-cairo text-on-surface">خادم رئيسي (Server Master PC)</h5>
+                      <p className="text-xs text-on-surface-variant mt-1 leading-relaxed font-tajawal">
+                        يحتفظ بقاعدة البيانات الأساسية (SQLite WAL)، ويشغل خادم الشبكة المحلية Fastify على المنفذ 3000 لربط باقي الأجهزة والهواتف.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="pt-2.5 border-t border-outline-variant/15 flex items-center justify-between text-xs">
+                    <span className="text-primary font-bold">بادئة الترقيم: T01</span>
+                    {settings.terminalRole !== 'client' && (
+                      <span className="px-2 py-0.5 rounded-md bg-primary text-on-primary text-[10px] font-black">
+                        المعتمد لهذا الجهاز
+                      </span>
+                    )}
+                  </div>
+                </button>
+
+                {/* بطاقة الكاشير الفرعي */}
+                <button
+                  type="button"
+                  onClick={() => handleSaveSettings({ terminalRole: 'client', terminal_role: 'client' })}
+                  className={`p-4 sm:p-5 rounded-3xl border-2 text-right transition-all flex flex-col justify-between gap-3 text-start cursor-pointer ${
+                    settings.terminalRole === 'client'
+                      ? 'border-amber-500 bg-amber-500/5 dark:bg-amber-500/10 shadow-sm ring-1 ring-amber-500/30'
+                      : 'border-outline-variant/15 bg-surface-container hover:border-amber-500/40'
+                  }`}
+                >
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className={`w-10 h-10 rounded-2xl flex items-center justify-center border shadow-inner ${
+                        settings.terminalRole === 'client' ? 'bg-amber-500 text-white border-amber-500' : 'bg-surface-container-high text-amber-600 border-outline-variant/20'
+                      }`}>
+                        <Monitor className="w-5 h-5" />
+                      </div>
+                      <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                        كاشير إضافي
+                      </span>
+                    </div>
+                    <div>
+                      <h5 className="text-sm font-bold font-cairo text-on-surface">نقطة بيع فرعية (Client Terminal PC)</h5>
+                      <p className="text-xs text-on-surface-variant mt-1 leading-relaxed font-tajawal">
+                        يعمل كشاشة كاشير فرعية سريعة ترتبط بالسيرفر الرئيسي عبر الشبكة، وتنفذ عمليات البيع وتحدث المخزون لحظياً.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="pt-2.5 border-t border-outline-variant/15 flex items-center justify-between text-xs">
+                    <span className="text-amber-600 dark:text-amber-400 font-bold">بادئة الترقيم: {settings.terminalCode || 'T02'}</span>
+                    {settings.terminalRole === 'client' && (
+                      <span className="px-2 py-0.5 rounded-md bg-amber-500 text-white text-[10px] font-black">
+                        المعتمد لهذا الجهاز
+                      </span>
+                    )}
+                  </div>
+                </button>
+              </div>
+
+              {/* تفاصيل إعدادات اتصال الكاشير الفرعي بالخادم الرئيسي */}
+              {settings.terminalRole === 'client' && (
+                <div className="p-4 sm:p-5 rounded-2xl bg-amber-500/5 border border-amber-500/20 space-y-4 animate-fade-in">
+                  <div className="flex items-center gap-2.5 text-xs sm:text-sm font-bold font-cairo text-amber-900 dark:text-amber-200">
+                    <Zap className="w-4 h-4 text-amber-600" />
+                    إعدادات الاتصال بالسيرفر المركزي
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="md:col-span-2 space-y-1">
+                      <label className="text-xs font-bold text-on-surface-variant">عنوان الخادم على الشبكة (Server URL):</label>
+                      <input
+                        type="text"
+                        value={clientUrlInput}
+                        onChange={(e) => setClientUrlInput(e.target.value)}
+                        placeholder="http://192.168.1.100:3000"
+                        className="w-full h-11 px-3.5 rounded-xl border border-outline-variant/30 bg-surface text-on-surface font-mono text-xs sm:text-sm focus:border-amber-500 focus:outline-none"
+                      />
+                      <p className="text-[11px] text-on-surface-variant font-tajawal">
+                        اكتب عنوان IP الخاص بحاسوب الخادم متبوعاً بالمنفذ 3000 (يمكنك معرفته من شاشة السيرفر الرئيسي).
+                      </p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-on-surface-variant">رمز المحطة (Terminal Code):</label>
+                      <input
+                        type="text"
+                        value={clientTermCodeInput}
+                        onChange={(e) => setClientTermCodeInput(e.target.value.toUpperCase())}
+                        placeholder="T02"
+                        maxLength={5}
+                        className="w-full h-11 px-3.5 rounded-xl border border-outline-variant/30 bg-surface text-on-surface font-bold text-xs sm:text-sm focus:border-amber-500 focus:outline-none text-center uppercase"
+                      />
+                      <p className="text-[11px] text-on-surface-variant font-tajawal">
+                        لمنع تضارب أرقام الفواتير الرسمية.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      disabled={testClientUrlLoading || !clientUrlInput}
+                      onClick={() => handleTestServerConnection(clientUrlInput)}
+                      className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-xs font-bold font-cairo transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${testClientUrlLoading ? 'animate-spin' : ''}`} />
+                      {testClientUrlLoading ? 'جاري فحص الاتصال...' : 'اختبار الاتصال بالسيرفر'}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleSaveSettings({
+                          terminalRole: 'client',
+                          terminal_role: 'client',
+                          serverLanUrl: clientUrlInput,
+                          server_lan_url: clientUrlInput,
+                          terminalCode: clientTermCodeInput || 'T02',
+                          terminal_code: clientTermCodeInput || 'T02',
+                        });
+                        handleTestServerConnection(clientUrlInput);
+                      }}
+                      className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold font-cairo transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      حفظ واعتماد الاتصال
+                    </button>
+                  </div>
+
+                  {testClientUrlResult && (
+                    <div className={`p-3 rounded-xl border text-xs font-semibold flex items-center gap-2 animate-fade-in ${
+                      testClientUrlResult.success
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300'
+                        : 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300'
+                    }`}>
+                      {testClientUrlResult.success ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                      )}
+                      <span>{testClientUrlResult.msg}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

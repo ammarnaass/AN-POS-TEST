@@ -157,6 +157,7 @@ export interface ElectronAPI {
     getAutoLaunch: () => Promise<{ success: boolean; enabled: boolean; error?: string }>;
     setAutoLaunch: (enabled: boolean) => Promise<{ success: boolean; enabled: boolean; error?: string }>;
     getDatabasePath: () => Promise<{ success: boolean; path?: string; error?: string }>;
+    testServerConnection: (serverUrl: string) => Promise<{ success: boolean; status?: number; data?: any; error?: string }>;
   };
 }
 

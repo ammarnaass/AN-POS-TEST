@@ -7,6 +7,11 @@ import {
   createRow,
   updateRow,
   removeRow,
+  countRows,
+  bulkCreateRows,
+  bulkUpdateRows,
+  bulkGetRows,
+  clearTable,
 } from '../../handlers/crud';
 
 export async function registerCrudRoutes(server: FastifyInstance): Promise<void> {
@@ -23,6 +28,63 @@ export async function registerCrudRoutes(server: FastifyInstance): Promise<void>
     };
     try {
       const result = await listRows(table, normOpts);
+      return reply.send(result);
+    } catch (err) {
+      return reply.code(400).send({ error: { status: 400, detail: (err as Error).message } });
+    }
+  };
+
+  const handleCount = async (request: any, reply: any) => {
+    const { table } = request.params as { table: string };
+    const filter = (request.query || {}) as Record<string, unknown>;
+    try {
+      const result = await countRows(table, filter);
+      return reply.send(result);
+    } catch (err) {
+      return reply.code(400).send({ error: { status: 400, detail: (err as Error).message } });
+    }
+  };
+
+  const handleBulkGet = async (request: any, reply: any) => {
+    const { table } = request.params as { table: string };
+    const body = (request.body || {}) as { ids?: string[] } | string[];
+    const ids = Array.isArray(body) ? body : (body.ids || []);
+    try {
+      const result = await bulkGetRows(table, ids);
+      return reply.send(result);
+    } catch (err) {
+      return reply.code(400).send({ error: { status: 400, detail: (err as Error).message } });
+    }
+  };
+
+  const handleBulkCreate = async (request: any, reply: any) => {
+    const { table } = request.params as { table: string };
+    const body = (request.body || {}) as { items?: Record<string, unknown>[] } | Record<string, unknown>[];
+    const items = Array.isArray(body) ? body : (body.items || []);
+    try {
+      const result = await bulkCreateRows(table, items);
+      return reply.code(201).send(result);
+    } catch (err) {
+      return reply.code(400).send({ error: { status: 400, detail: (err as Error).message } });
+    }
+  };
+
+  const handleBulkUpdate = async (request: any, reply: any) => {
+    const { table } = request.params as { table: string };
+    const body = (request.body || {}) as { items?: Record<string, unknown>[] } | Record<string, unknown>[];
+    const items = Array.isArray(body) ? body : (body.items || []);
+    try {
+      const result = await bulkUpdateRows(table, items);
+      return reply.send(result);
+    } catch (err) {
+      return reply.code(400).send({ error: { status: 400, detail: (err as Error).message } });
+    }
+  };
+
+  const handleClear = async (request: any, reply: any) => {
+    const { table } = request.params as { table: string };
+    try {
+      const result = await clearTable(table);
       return reply.send(result);
     } catch (err) {
       return reply.code(400).send({ error: { status: 400, detail: (err as Error).message } });
@@ -70,6 +132,16 @@ export async function registerCrudRoutes(server: FastifyInstance): Promise<void>
       return reply.code(400).send({ error: { status: 400, detail: (err as Error).message } });
     }
   };
+
+  // GET /api/:table/count
+  server.get('/api/:table/count', handleCount);
+  server.get('/api/inventory/:table/count', handleCount);
+
+  // POST /api/:table/bulk-*
+  server.post('/api/:table/bulk-get', handleBulkGet);
+  server.post('/api/:table/bulk-create', handleBulkCreate);
+  server.post('/api/:table/bulk-update', handleBulkUpdate);
+  server.post('/api/:table/clear', handleClear);
 
   // GET /api/:table & /api/inventory/:table
   server.get('/api/:table', handleList);

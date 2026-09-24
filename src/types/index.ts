@@ -31,6 +31,9 @@ export interface Settings {
   tvaRate: number;
   printWidthMm: number;
   syncMode: 'single' | 'lan' | 'cloud' | 'hybrid';
+  terminalRole?: 'server' | 'client';
+  serverLanUrl?: string;
+  terminalCode?: string;
   currencies: Currency[];
   baseCurrency: string;
   invoicePrefix: string;

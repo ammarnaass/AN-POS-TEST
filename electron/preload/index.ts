@@ -286,6 +286,8 @@ const electronAPI = {
       ipcRenderer.invoke('system:setAutoLaunch', enabled),
     getDatabasePath: () =>
       ipcRenderer.invoke('system:getDatabasePath'),
+    testServerConnection: (serverUrl: string) =>
+      ipcRenderer.invoke('system:testServerConnection', serverUrl),
   },
 };
 

@@ -1,6 +1,8 @@
-// طبقة بيانات الواجهة — Proxy shim يحاكي واجهة Dexie لكن يستدعي IPC
+// طبقة بيانات الواجهة — Proxy shim يحاكي واجهة Dexie ويدعم نمط السيرفر المحلي (IPC) ونمط العميل (HTTP LAN)
 // يحل محل import { db } from '@/infrastructure/database/dexie/db'
 // الهدف: تقليل تغييرات ~43 ملف مستهلك — كلها تستمر بالعمل عبر هذا الـ shim
+
+import { getActiveTransportDb, getStoredTerminalRole } from '@/lib/transportGateway';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let _apiCache: any = null;
@@ -12,8 +14,14 @@ function getElectronAPIDb(): any {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function waitForAPI(timeoutMs?: number): Promise<any> {
+  // إذا كان الجهاز يعمل كـ عميل، استخدم خادم الشبكة المحلية مباشرة
+  if (typeof window !== 'undefined' && getStoredTerminalRole() === 'client') {
+    const clientApi = getActiveTransportDb();
+    if (clientApi) return clientApi;
+  }
+
   if (_apiCache) return _apiCache;
-  const cached = getElectronAPIDb();
+  const cached = getActiveTransportDb() || getElectronAPIDb();
   if (cached) { _apiCache = cached; return cached; }
 
   const isTest = (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test') ||
@@ -25,7 +33,7 @@ async function waitForAPI(timeoutMs?: number): Promise<any> {
 
     const handler = () => {
       document.removeEventListener('electronapi-ready', handler);
-      const api = getElectronAPIDb();
+      const api = getActiveTransportDb() || getElectronAPIDb();
       if (api) { _apiCache = api; resolve(api); return; }
     };
     document.addEventListener('electronapi-ready', handler);
@@ -33,7 +41,7 @@ async function waitForAPI(timeoutMs?: number): Promise<any> {
     let cancelled = false;
     (async () => {
       while (Date.now() - start < actualTimeout && !cancelled) {
-        const api = getElectronAPIDb();
+        const api = getActiveTransportDb() || getElectronAPIDb();
         if (api) {
           cancelled = true;
           document.removeEventListener('electronapi-ready', handler);
@@ -46,7 +54,7 @@ async function waitForAPI(timeoutMs?: number): Promise<any> {
       if (!cancelled) {
         cancelled = true;
         document.removeEventListener('electronapi-ready', handler);
-        reject(new Error('Electron API غير متاح — تأكد من تشغيل التطبيق عبر Electron (npm run dev)'));
+        reject(new Error('واجهة البيانات غير متاحة — تأكد من تشغيل التطبيق أو الاتصال بالسيرفر'));
       }
     })();
   });

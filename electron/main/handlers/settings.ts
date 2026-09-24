@@ -166,8 +166,37 @@ export function normalizeSettingsPayload(raw: Record<string, unknown>): Record<s
     normalized.terminal_favorites_mode = rawTermFav ? 1 : 0;
   }
 
+  const rawRole = data.terminal_role ?? data.terminalRole;
+  if (rawRole !== undefined && rawRole !== null) {
+    normalized.terminal_role = String(rawRole).trim();
+  }
+
+  const rawServerUrl = data.server_lan_url ?? data.serverLanUrl;
+  if (rawServerUrl !== undefined && rawServerUrl !== null) {
+    normalized.server_lan_url = String(rawServerUrl).trim();
+  }
+
+  const rawTermCode = data.terminal_code ?? data.terminalCode;
+  if (rawTermCode !== undefined && rawTermCode !== null) {
+    normalized.terminal_code = String(rawTermCode).trim();
+  }
+
+  const rawClientToken = data.client_token ?? data.clientToken;
+  if (rawClientToken !== undefined && rawClientToken !== null) {
+    normalized.client_token = String(rawClientToken).trim();
+  }
+
+  const rawClientDevId = data.client_device_id ?? data.clientDeviceId;
+  if (rawClientDevId !== undefined && rawClientDevId !== null) {
+    normalized.client_device_id = String(rawClientDevId).trim();
+  }
+
   // تمرير أي حقول أخرى تم ضبطها بالفعل مع استبعاد الحقول بصيغة camelCase التي تم تسويتها
-  const skippedCamelKeys = new Set(['design7ShowBottomFavorites', 'terminalFavoritesMode', 'shopName', 'shopAddress', 'shopPhone', 'shopPhone2', 'shopEmail', 'shopLogo', 'commercialRegister', 'taxNumber', 'taxArticle', 'printWidthMm', 'printLanguage', 'receiptFooter', 'baseCurrency', 'invoicePrefix', 'invoiceStartNumber', 'tvaRate']);
+  const skippedCamelKeys = new Set([
+    'design7ShowBottomFavorites', 'terminalFavoritesMode', 'terminalRole', 'serverLanUrl', 'terminalCode', 'clientToken', 'clientDeviceId',
+    'shopName', 'shopAddress', 'shopPhone', 'shopPhone2', 'shopEmail', 'shopLogo', 'commercialRegister', 'taxNumber', 'taxArticle',
+    'printWidthMm', 'printLanguage', 'receiptFooter', 'baseCurrency', 'invoicePrefix', 'invoiceStartNumber', 'tvaRate'
+  ]);
   for (const [key, val] of Object.entries(data)) {
     if (!(key in normalized) && !skippedCamelKeys.has(key)) {
       normalized[key] = val;

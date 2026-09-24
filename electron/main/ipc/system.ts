@@ -43,4 +43,32 @@ export function registerSystemIpc(): void {
       return { success: false, error: String(error) };
     }
   });
+
+  // 4. اختبار الاتصال بعنوان خادم محلي (LAN Server Ping)
+  ipcMain.handle('system:testServerConnection', async (_evt, serverUrl: string) => {
+    try {
+      const cleanUrl = (serverUrl || '').trim().replace(/\/+$/, '');
+      if (!cleanUrl) {
+        return { success: false, error: 'عنوان الخادم غير محدد' };
+      }
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch(`${cleanUrl}/api/health`, {
+        signal: controller.signal,
+        headers: { 'Accept': 'application/json' },
+      });
+      clearTimeout(timeoutId);
+      if (!res.ok) {
+        return { success: false, status: res.status, error: `استجاب الخادم برمز خطأ (${res.status})` };
+      }
+      const data = await res.json();
+      return { success: true, data };
+    } catch (err: any) {
+      const isTimeout = err.name === 'AbortError' || err.message?.includes('aborted');
+      return {
+        success: false,
+        error: isTimeout ? 'انتهت مهلة الاتصال بالخادم (4 ثوانٍ)' : (err.message || 'تعذر الوصول إلى الخادم على الشبكة'),
+      };
+    }
+  });
 }

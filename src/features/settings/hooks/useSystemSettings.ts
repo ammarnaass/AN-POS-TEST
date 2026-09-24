@@ -3,8 +3,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db, type SettingsEntity } from '@/infrastructure/database/dexie/db';
 import { usePOSSessionStore } from '@/features/pos/store/usePOSSessionStore';
 import type { Currency } from '@/types';
+import { setStoredTransportConfig, type TerminalRole } from '@/lib/transportGateway';
 
 export type SyncMode = 'single' | 'lan' | 'cloud' | 'hybrid';
+export type { TerminalRole };
 
 export interface ExtendedSettings {
   shopName: string;
@@ -16,6 +18,11 @@ export interface ExtendedSettings {
   printWidthMm: number;
   receiptFooter: string;
   syncMode: SyncMode;
+  terminalRole: TerminalRole;
+  serverLanUrl: string;
+  terminalCode: string;
+  clientToken: string;
+  clientDeviceId: string;
   zakatEnabled: boolean;
   nisabThreshold: number;
   invoiceTemplate: 'basic' | 'detailed';
@@ -66,6 +73,11 @@ export function useSystemSettings() {
     printWidthMm: (rawSettings as any)?.printWidthMm ?? (rawSettings as any)?.print_width_mm ?? 80,
     receiptFooter: (rawSettings as any)?.receiptFooter || (rawSettings as any)?.receipt_footer || '',
     syncMode: ((rawSettings as any)?.syncMode || (rawSettings as any)?.sync_mode || 'single') as SyncMode,
+    terminalRole: ((rawSettings as any)?.terminalRole || (rawSettings as any)?.terminal_role || 'server') as TerminalRole,
+    serverLanUrl: (rawSettings as any)?.serverLanUrl || (rawSettings as any)?.server_lan_url || '',
+    terminalCode: (rawSettings as any)?.terminalCode || (rawSettings as any)?.terminal_code || 'T01',
+    clientToken: (rawSettings as any)?.clientToken || (rawSettings as any)?.client_token || '',
+    clientDeviceId: (rawSettings as any)?.clientDeviceId || (rawSettings as any)?.client_device_id || '',
     zakatEnabled: Boolean((rawSettings as any)?.zakatEnabled ?? (rawSettings as any)?.zakat_enabled),
     nisabThreshold: (rawSettings as any)?.nisabThreshold ?? (rawSettings as any)?.nisab_threshold ?? 0,
     invoiceTemplate: ((rawSettings as any)?.invoiceTemplate || (rawSettings as any)?.invoice_template || 'basic') as 'basic' | 'detailed',
@@ -165,6 +177,35 @@ export function useSystemSettings() {
       const newMode = (updates.syncMode ?? updates.sync_mode) as string;
       mirrored.sync_mode = newMode;
       mirrored.syncMode = newMode;
+    }
+    if (updates.terminalRole !== undefined || updates.terminal_role !== undefined) {
+      const role = (updates.terminalRole ?? updates.terminal_role) as TerminalRole;
+      mirrored.terminalRole = role;
+      mirrored.terminal_role = role;
+      setStoredTransportConfig({ role });
+    }
+    if (updates.serverLanUrl !== undefined || updates.server_lan_url !== undefined) {
+      const url = String(updates.serverLanUrl ?? updates.server_lan_url);
+      mirrored.serverLanUrl = url;
+      mirrored.server_lan_url = url;
+      setStoredTransportConfig({ serverUrl: url });
+    }
+    if (updates.terminalCode !== undefined || updates.terminal_code !== undefined) {
+      const code = String(updates.terminalCode ?? updates.terminal_code);
+      mirrored.terminalCode = code;
+      mirrored.terminal_code = code;
+    }
+    if (updates.clientToken !== undefined || updates.client_token !== undefined) {
+      const token = String(updates.clientToken ?? updates.client_token);
+      mirrored.clientToken = token;
+      mirrored.client_token = token;
+      setStoredTransportConfig({ token });
+    }
+    if (updates.clientDeviceId !== undefined || updates.client_device_id !== undefined) {
+      const devId = String(updates.clientDeviceId ?? updates.client_device_id);
+      mirrored.clientDeviceId = devId;
+      mirrored.client_device_id = devId;
+      setStoredTransportConfig({ deviceId: devId });
     }
     if (updates.design7ShowBottomFavorites !== undefined || updates.design7_show_bottom_favorites !== undefined) {
       const showFav = Boolean(updates.design7ShowBottomFavorites ?? updates.design7_show_bottom_favorites);
