@@ -4,6 +4,8 @@
   "version": "2.5.1",
   "type": "module",
   "main": "out/main/index.js",
+  "description": "نظام نقاط البيع وإدارة المخزون والمبيعات AN POS",
+  "author": "Ammar Naass",
   "scripts": {
     "dev": "electron-vite dev --config electron.vite.config.ts",
     "build": "electron-vite build --config electron.vite.config.ts",
@@ -48,20 +50,7 @@
     },
     "win": {
       "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64",
-            "ia32"
-          ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64",
-            "ia32"
-          ]
-        }
+        "nsis"
       ],
       "icon": "public/an-pos-icon.ico",
       "signExecutable": false,
