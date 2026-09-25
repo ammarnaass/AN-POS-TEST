@@ -57,7 +57,7 @@ export default function ClientTerminalPairingTab() {
   const [isFlushingOutbox, setIsFlushingOutbox] = useState<boolean>(false);
 
   useEffect(() => {
-    const unsub = realtimeEventBus.subscribeToStatus((s) => {
+    const unsub = realtimeEventBus.onStatusChange((s) => {
       setLiveEventBusStatus({ ...s });
     });
     return () => unsub();

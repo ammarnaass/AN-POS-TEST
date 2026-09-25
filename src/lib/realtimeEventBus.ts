@@ -592,6 +592,13 @@ class RealtimeEventBusManager {
   }
 
   /**
+   * الاشتراك في تحديثات حالة الاتصال (اسم بديل متوافق لـ onStatusChange)
+   */
+  public subscribeToStatus(listener: StatusListener): () => void {
+    return this.onStatusChange(listener);
+  }
+
+  /**
    * الاشتراك في الأحداث اللحظية أو تحديثات الحالة بأسلوب EventEmitter المألوف
    */
   public on(type: 'status', listener: StatusListener): () => void;
