@@ -4,7 +4,7 @@ import {
   Activity, Trash2, KeyRound, Eye, EyeOff, CheckCircle2, Wifi,
   Clock, Check, HelpCircle, Laptop, Copy, Info, CheckCheck,
   ArrowRightLeft, Shield, HardDrive, WifiOff, CheckCircle, Sliders,
-  Network, Database, Cpu, Layers, Lock, Unlock, ExternalLink
+  QrCode, Key
 } from 'lucide-react';
 import { useSystemSettings } from '../hooks/useSystemSettings';
 import {
@@ -19,6 +19,8 @@ import { realtimeEventBus } from '@/lib/realtimeEventBus';
 import { getPendingOutboxCount, flushOutbox } from '@/lib/offlineOutbox';
 import { useNotificationStore } from '@/store/notificationStore';
 import NetworkSetupWizard from '@/features/network/components/NetworkSetupWizard';
+import PairingQR, { type PairingData } from '../components/PairingQR';
+import { BarcodeSvg } from '@/features/barcode/components/BarcodeSvg';
 
 interface DiscoveredServer {
   ip: string;
@@ -48,6 +50,7 @@ export default function ClientTerminalPairingTab() {
   });
   const [pairingKeyInput, setPairingKeyInput] = useState<string>('');
   const [showPairKeyInput, setShowPairKeyInput] = useState<boolean>(false);
+  const [showMasterServerKey, setShowMasterServerKey] = useState<boolean>(false);
   const [isPairingLoading, setIsPairingLoading] = useState<boolean>(false);
   const [isUnpairingLoading, setIsUnpairingLoading] = useState<boolean>(false);
   const [isScanningServers, setIsScanningServers] = useState<boolean>(false);
@@ -58,6 +61,9 @@ export default function ClientTerminalPairingTab() {
   const [pairingStatusResult, setPairingStatusResult] = useState<{ success: boolean; msg: string; deviceId?: string; sessionToken?: string } | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [showSetupWizard, setShowSetupWizard] = useState<boolean>(false);
+
+  // بيانات الخادم لرمز الاستجابة السريعة QR والمفتاح السري
+  const [serverPairingInfo, setServerPairingInfo] = useState<PairingData | null>(null);
 
   // حالة الاتصال اللحظية من محرك الأحداث
   const [liveEventBusStatus, setLiveEventBusStatus] = useState(() => realtimeEventBus.getStatus());
@@ -86,6 +92,25 @@ export default function ClientTerminalPairingTab() {
       active = false;
       clearInterval(interval);
     };
+  }, []);
+
+  // جلب معلومات الاقتران من الخادم (بما فيها المفتاح السري وبيانات QR)
+  useEffect(() => {
+    let active = true;
+    async function fetchPairingData() {
+      try {
+        if (typeof window !== 'undefined' && window.electronAPI?.server?.pairingInfo) {
+          const res = await window.electronAPI.server.pairingInfo();
+          if (active && res) {
+            setServerPairingInfo(res as PairingData);
+          }
+        }
+      } catch (err) {
+        console.warn('Could not fetch server pairing info:', err);
+      }
+    }
+    fetchPairingData();
+    return () => { active = false; };
   }, []);
 
   // مزامنة حالة الإعدادات المحفوظة عند تحميل الصفحة
@@ -396,133 +421,61 @@ export default function ClientTerminalPairingTab() {
   const activeDeviceId = settings.clientDeviceId || getStoredClientDeviceId();
   const isConnected = liveEventBusStatus.state === 'connected';
 
+  // المفتاح السري للخادم: إما من السيرفر المحلي أو المفتاح المدخل
+  const effectiveServerKey = serverPairingInfo?.key || settings.connectionKey || settings.connection_key || pairingKeyInput || '849201';
+
+  // إعداد بيانات الـ QR Code للعرض في قسم معلومات الخادم
+  const effectivePairingData: PairingData = {
+    ip: serverPairingInfo?.ip || activeServerUrl?.replace(/^https?:\/\//, '').split(':')[0] || '127.0.0.1',
+    port: serverPairingInfo?.port || (activeServerUrl ? parseInt(activeServerUrl.split(':')[2] || '3000', 10) : 3000),
+    key: effectiveServerKey,
+    shopName: serverPairingInfo?.shopName || settings.shopName || settings.shop_name || 'AN POS',
+    ips: serverPairingInfo?.ips || [serverPairingInfo?.ip || '127.0.0.1'],
+  };
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto w-full font-tajawal animate-fade-in pb-12" dir="rtl">
       
       {/* ========================================================= */}
-      {/* 1. HERO COCKPIT: Topology Bridge between Client and Server */}
+      {/* 1. COMPACT HEADER BAR                                     */}
       {/* ========================================================= */}
-      <section aria-label="حالة الجسر الشبكي بين الكاشير والخادم" className="relative overflow-hidden rounded-3xl bg-surface-container-low border border-outline-variant/30 shadow-sm p-5 sm:p-6 transition-all">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-outline-variant/15 pb-4">
-          <div className="space-y-1">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:p-5 rounded-3xl bg-surface-container-low border border-outline-variant/25 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border ${
+            isPaired
+              ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+              : 'bg-primary/10 border-primary/20 text-primary'
+          }`}>
+            <Monitor className="w-5 h-5" />
+          </div>
+          <div>
             <div className="flex items-center gap-2">
-              <span className={`w-2.5 h-2.5 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500 animate-ping'}`} />
-              <h2 className="text-lg sm:text-xl font-black font-cairo text-on-surface">
+              <h2 className="text-base sm:text-lg font-black font-cairo text-on-surface">
                 ربط نقطة البيع الفرعية (Client Terminal POS)
               </h2>
+              <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold font-cairo border ${
+                isPaired
+                  ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                  : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30'
+              }`}>
+                {isPaired ? 'مقترن ومعتمد' : 'بانتظار الاقتران'}
+              </span>
             </div>
-            <p className="text-xs text-on-surface-variant leading-relaxed">
-              إعداد هذا الحاسوب للعمل كشاشة كاشير فرعية سريعة مرتبطة بالخادم المركزي، مع صمود كامل أوفلاين أثناء انقطاع الشبكة.
+            <p className="text-xs text-on-surface-variant">
+              إدارة اتصال شاشة الكاشير الفرعية بالخادم المركزي وصمود العمليات في وضع أوفلاين.
             </p>
           </div>
-
-          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
-            {isPaired ? (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold font-cairo bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span>محطة موثقة ومعتمدة</span>
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold font-cairo bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30">
-                <AlertCircle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                <span>تحتاج إعداد والربط</span>
-              </span>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setShowSetupWizard(true)}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-bold font-cairo bg-primary text-on-primary hover:bg-primary-hover transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-98"
-            >
-              <Zap className="w-3.5 h-3.5 text-amber-300" />
-              <span>معالج الإعداد التفاعلي</span>
-            </button>
-          </div>
         </div>
 
-        {/* The Live Physical Bridge Layout */}
-        <div className="pt-5">
-          <div className="grid grid-cols-1 md:grid-cols-11 gap-4 items-center">
-            
-            {/* الطرف الأيمن: شاشة الكاشير (هذا الحاسوب) */}
-            <div className="md:col-span-4 rounded-2xl bg-surface border border-outline-variant/20 p-4 space-y-2.5 shadow-2xs">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-bold font-cairo text-on-surface-variant flex items-center gap-1">
-                  <Monitor className="w-3.5 h-3.5 text-primary" />
-                  <span>هذا الجهاز (شاشة الكاشير)</span>
-                </span>
-                <span className="px-2 py-0.5 rounded font-mono font-bold text-[11px] bg-primary/10 text-primary border border-primary/20">
-                  {clientTermCodeInput || 'T02'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-on-surface-variant font-cairo">الدور الحالي:</span>
-                <span className="text-xs font-bold font-cairo text-on-surface">
-                  {currentRole === 'client' ? 'نقطة بيع فرعية (Client)' : 'جهاز مستقل (Single)'}
-                </span>
-              </div>
-              <div className="text-[11px] font-mono text-on-surface-variant/80 truncate border-t border-outline-variant/10 pt-2">
-                ID: {activeDeviceId ? activeDeviceId.slice(0, 18) + '...' : 'جهاز غير مسجل بعد'}
-              </div>
-            </div>
-
-            {/* المركز: جسر الشبكة اللحظي Telemetry Bridge */}
-            <div className="md:col-span-3 flex flex-col items-center justify-center p-2 text-center space-y-2">
-              <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold font-cairo border shadow-2xs ${
-                isConnected
-                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
-                  : liveEventBusStatus.state === 'connecting'
-                  ? 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300'
-                  : 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-300'
-              }`}>
-                <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
-                <span>{isConnected ? 'متصل لحظياً' : liveEventBusStatus.state === 'connecting' ? 'جارٍ الاتصال...' : 'أوفلاين محلي'}</span>
-              </div>
-
-              <div className="w-full flex items-center justify-center gap-1.5 text-outline-variant">
-                <span className="h-0.5 flex-1 bg-outline-variant/30" />
-                <ArrowRightLeft className={`w-4 h-4 ${isConnected ? 'text-emerald-600 dark:text-emerald-400' : 'text-outline-variant'}`} />
-                <span className="h-0.5 flex-1 bg-outline-variant/30" />
-              </div>
-
-              <div className="flex items-center gap-2 text-xs font-mono">
-                <span className="px-2 py-0.5 rounded bg-surface border border-outline-variant/20 text-emerald-600 dark:text-emerald-400 font-bold">
-                  {testClientUrlResult?.pingMs ?? liveEventBusStatus.lastPingMs ?? 5} ms
-                </span>
-                <span className="text-outline-variant">•</span>
-                <span className="px-2 py-0.5 rounded bg-surface border border-outline-variant/20 font-bold text-on-surface">
-                  {liveEventBusStatus.transport?.toUpperCase() || 'WS'}
-                </span>
-              </div>
-            </div>
-
-            {/* الطرف الأيسر: خادم المتجر الرئيسي */}
-            <div className="md:col-span-4 rounded-2xl bg-surface border border-outline-variant/20 p-4 space-y-2.5 shadow-2xs">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-bold font-cairo text-on-surface-variant flex items-center gap-1">
-                  <Server className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                  <span>الخادم الرئيسي (Master Server)</span>
-                </span>
-                <span className={`px-2 py-0.5 rounded font-cairo font-bold text-[11px] ${
-                  isPaired ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20' : 'bg-surface-container text-on-surface-variant'
-                }`}>
-                  {isPaired ? 'مقترن' : 'غير مقترن'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-on-surface-variant font-cairo">العنوان المعتمد:</span>
-                <span className="text-xs font-mono font-bold text-primary truncate max-w-[150px]" dir="ltr">
-                  {activeServerUrl || '---'}
-                </span>
-              </div>
-              <div className="text-[11px] font-cairo text-on-surface-variant/80 truncate border-t border-outline-variant/10 pt-2">
-                قاعدة البيانات المركزية والمخزون الحي
-              </div>
-            </div>
-
-          </div>
-        </div>
-      </section>
+        <button
+          type="button"
+          onClick={() => setShowSetupWizard(true)}
+          className="px-3.5 py-2 rounded-xl text-xs font-bold font-cairo bg-primary text-on-primary hover:bg-primary-hover transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-98 self-start sm:self-auto shrink-0"
+        >
+          <Zap className="w-3.5 h-3.5 text-amber-300" />
+          <span>معالج الإعداد التفاعلي</span>
+        </button>
+      </div>
 
       {/* نافذة معالج الإعداد السريع */}
       <NetworkSetupWizard
@@ -554,7 +507,7 @@ export default function ClientTerminalPairingTab() {
           }`}
         >
           <KeyRound className="w-4 h-4" />
-          <span>القسم 1: اقتران نقطة البيع الفرعية</span>
+          <span>1. اقتران نقطة البيع الفرعية</span>
         </button>
 
         <button
@@ -567,7 +520,7 @@ export default function ClientTerminalPairingTab() {
           }`}
         >
           <Server className="w-4 h-4" />
-          <span>القسم 2: إعداد الخادم الرئيسي ومعلوماته</span>
+          <span>2. إعداد الخادم الرئيسي ومعلوماته</span>
         </button>
       </div>
 
@@ -840,7 +793,7 @@ export default function ClientTerminalPairingTab() {
                           type={showPairKeyInput ? 'text' : 'password'}
                           value={pairingKeyInput}
                           onChange={(e) => setPairingKeyInput(e.target.value)}
-                          placeholder="مثال: 849201"
+                          placeholder="مثال: 849201 أو A1B2-C3D4"
                           className="w-full h-11 px-3.5 pl-10 rounded-xl border border-outline-variant/30 bg-surface-container text-on-surface font-mono text-sm focus:border-primary focus:outline-none"
                         />
                         <button
@@ -852,7 +805,7 @@ export default function ClientTerminalPairingTab() {
                         </button>
                       </div>
                       <p className="text-[11px] text-on-surface-variant">
-                        تجد هذا الرمز في شاشة الخادم الرئيسي تحت: الإعدادات ➔ الشبكة والخادم المحلي.
+                        تجد هذا الرمز في شاشة الخادم الرئيسي تحت: الإعدادات ➔ الشبكة والخادم المحلي، أو في تبويب «إعداد الخادم ومعلوماته».
                       </p>
                     </div>
 
@@ -1044,7 +997,7 @@ export default function ClientTerminalPairingTab() {
                   </h3>
                 </div>
                 <p className="text-xs text-on-surface-variant">
-                  بيانات الخادم المركزي الذي يدير قاعدة البيانات المركزية، أسعار المنتجات والمخزون الحي.
+                  بيانات الخادم المركزي والرمز السري والباركود للربط الفوري مع شاشات الكاشير وهواتف الجرد.
                 </p>
               </div>
 
@@ -1055,7 +1008,7 @@ export default function ClientTerminalPairingTab() {
                 className="px-4 py-2 rounded-xl bg-primary hover:bg-primary-hover disabled:opacity-50 text-on-primary text-xs font-bold font-cairo transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs self-start sm:self-auto shrink-0"
               >
                 <Activity className={`w-3.5 h-3.5 ${testClientUrlLoading ? 'animate-spin' : ''}`} />
-                <span>فحص استجابة وسرعة السيرفر (Ping)</span>
+                <span>فحص استجابة الخادم (Ping)</span>
               </button>
             </div>
 
@@ -1146,42 +1099,101 @@ export default function ClientTerminalPairingTab() {
             )}
           </div>
 
-          {/* محرك مزامنة قاعدة البيانات والكتالوج (Database & Engine Architecture) */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* ========================================================= */}
+          {/* بطاقة الرمز السري للخادم ورمز الباركود / QR كود المباشر     */}
+          {/* ========================================================= */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-stretch">
             
-            <div className="p-5 rounded-3xl bg-surface-container-low border border-outline-variant/20 shadow-xs space-y-2">
-              <div className="flex items-center gap-2 text-xs font-bold font-cairo text-on-surface">
-                <Database className="w-4 h-4 text-primary" />
-                <span>قاعدة بيانات SQLite المركزية</span>
+            {/* بطاقة الرمز السري للخادم (PIN / Connection Key) */}
+            <div className="md:col-span-6 p-6 rounded-3xl bg-surface-container-low border border-outline-variant/25 shadow-xs flex flex-col justify-between space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Key className="w-5 h-5 text-amber-500" />
+                  <h4 className="text-sm font-bold font-cairo text-on-surface">
+                    رمز الاقتران السري للخادم (Connection Key / PIN)
+                  </h4>
+                </div>
+                <p className="text-xs text-on-surface-variant leading-relaxed">
+                  يُستخدم هذا الرمز السري لتوثيق محطات الكاشير الفرعية وهواتف تطبيق AN POS ومنع الأجهزة الغريبة من اختراق بيانات المتجر.
+                </p>
               </div>
-              <p className="text-xs text-on-surface-variant leading-relaxed">
-                تخزن وتدير كافة جداول المنتجات، الأسعار، حسابات الزبائن والموردين، والفواتير على القرص الصلب لحاسوب السيرفر.
-              </p>
+
+              {/* صندوق عرض المفتاح السري بأرقام عريضة */}
+              <div className="p-4 rounded-2xl bg-surface border border-outline-variant/20 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-on-surface-variant font-cairo">الرمز السري النشط:</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowMasterServerKey(!showMasterServerKey)}
+                    className="text-xs text-primary hover:text-primary-hover font-bold font-cairo flex items-center gap-1 cursor-pointer"
+                  >
+                    {showMasterServerKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    <span>{showMasterServerKey ? 'إخفاء الرمز' : 'إظهار الرمز'}</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-surface-container border border-outline-variant/20">
+                  <span className="font-mono font-black text-lg sm:text-xl tracking-widest text-on-surface" dir="ltr">
+                    {showMasterServerKey ? effectiveServerKey : '••••••••••••'}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(effectiveServerKey, 'master_key')}
+                    className="px-3 py-1.5 rounded-lg bg-primary hover:bg-primary-hover text-on-primary text-xs font-bold font-cairo transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0"
+                  >
+                    {copiedField === 'master_key' ? <CheckCheck className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedField === 'master_key' ? 'تم النسخ!' : 'نسخ الرمز'}</span>
+                  </button>
+                </div>
+
+                {/* باركود 1D خطي للرمز السري لمسحه بقارئ الباركود اليدوي */}
+                <div className="p-3 bg-white rounded-xl border border-outline-variant/20 flex flex-col items-center justify-center space-y-1">
+                  <BarcodeSvg
+                    value={effectiveServerKey}
+                    format="code128"
+                    height={38}
+                    width={1.6}
+                    className="py-0.5"
+                  />
+                  <span className="text-[10px] font-mono text-slate-700 font-bold" dir="ltr">
+                    *{effectiveServerKey}*
+                  </span>
+                </div>
+
+                <p className="text-[11px] text-on-surface-variant/80 text-center">
+                  امسح الباركود الخطي أعلاه مباشرة باستخدام قارئ الباركود اليدوي (Barcode Gun) أو أدخل الرمز في شاشة نقطة البيع الفرعية.
+                </p>
+              </div>
             </div>
 
-            <div className="p-5 rounded-3xl bg-surface-container-low border border-outline-variant/20 shadow-xs space-y-2">
-              <div className="flex items-center gap-2 text-xs font-bold font-cairo text-on-surface">
-                <Layers className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span>تحديثات الأسعار والمخزون الحي</span>
+            {/* بطاقة الباركود ورمز الاستجابة السريعة (QR Code) */}
+            <div className="md:col-span-6 p-6 rounded-3xl bg-surface-container-low border border-outline-variant/25 shadow-xs flex flex-col justify-between space-y-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <QrCode className="w-5 h-5 text-primary" />
+                  <h4 className="text-sm font-bold font-cairo text-on-surface">
+                    باركود ورمز الاستجابة السريعة (Pairing QR & Barcode)
+                  </h4>
+                </div>
+                <p className="text-xs text-on-surface-variant leading-relaxed">
+                  امسح الرمز بكاميرا تطبيق الهاتف أو قارئ الباركود للاقتران الفوري دون كتابة عناوين IP.
+                </p>
               </div>
-              <p className="text-xs text-on-surface-variant leading-relaxed">
-                أي تعديل يجريه المدير على سعر سلعة أو تصنيف ينعكس فورياً في شاشات الكاشير الفرعية في أقل من 20 ملي ثانية عبر WebSocket.
-              </p>
-            </div>
 
-            <div className="p-5 rounded-3xl bg-surface-container-low border border-outline-variant/20 shadow-xs space-y-2">
-              <div className="flex items-center gap-2 text-xs font-bold font-cairo text-on-surface">
-                <HardDrive className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                <span>الصمود في وضع عدم الاتصال</span>
+              {/* مكوّن عرض رمز الـ QR */}
+              <div className="p-3 rounded-2xl bg-surface border border-outline-variant/20 flex flex-col items-center justify-center">
+                <PairingQR
+                  data={effectivePairingData}
+                  title="رمز اقتران الخادم الرئيسي"
+                  subtitle="امسح الرمز عبر تطبيق AN POS للربط اللحظي"
+                />
               </div>
-              <p className="text-xs text-on-surface-variant leading-relaxed">
-                عند انقطاع كابل الشبكة يستمر الكاشير في إصدار الفواتير وطباعتها وتخزن العمليات محلياً حتى استعادة الاتصال تلقائياً.
-              </p>
             </div>
 
           </div>
 
-          {/* إرشادات تشخيص وضبط خادم المتجر (Diagnostics & Setup Guide) */}
+          {/* إرشادات تشخيص وضبط خادم المتجر */}
           <div className="p-6 rounded-3xl bg-surface-container-low border border-outline-variant/20 shadow-xs space-y-4">
             <h4 className="text-sm font-bold font-cairo text-on-surface flex items-center gap-2">
               <HelpCircle className="w-4 h-4 text-primary shrink-0" />
