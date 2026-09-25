@@ -3,7 +3,8 @@ import {
   Server, Monitor, Zap, Radio, RefreshCw, ShieldCheck, AlertCircle,
   Activity, Trash2, KeyRound, Eye, EyeOff, CheckCircle2, Wifi,
   Clock, Check, HelpCircle, Laptop, Copy, Info, CheckCheck,
-  ArrowRightLeft, ArrowLeft, Shield, HardDrive, WifiOff, CheckCircle
+  ArrowRightLeft, Shield, HardDrive, WifiOff, CheckCircle, Sliders,
+  CheckSquare
 } from 'lucide-react';
 import { useSystemSettings } from '../hooks/useSystemSettings';
 import {
@@ -119,7 +120,7 @@ export default function ClientTerminalPairingTab() {
         if (res.success) {
           setTestClientUrlResult({
             success: true,
-            msg: `الخادم الرئيسي متصل وجاهز للاستجابة فورياً (${elapsed} ms)`,
+            msg: `الخادم متصل وجاهز للاستجابة فورياً (${elapsed} ms)`,
             pingMs: elapsed,
           });
         } else {
@@ -140,7 +141,7 @@ export default function ClientTerminalPairingTab() {
         if (res.ok) {
           setTestClientUrlResult({
             success: true,
-            msg: `الخادم الرئيسي متصل ومستقر (${elapsed} ms)`,
+            msg: `الخادم متصل ومستقر (${elapsed} ms)`,
             pingMs: elapsed,
           });
         } else {
@@ -389,163 +390,132 @@ export default function ClientTerminalPairingTab() {
   const isConnected = liveEventBusStatus.state === 'connected';
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto w-full font-tajawal animate-fade-in pb-12" dir="rtl">
+    <div className="space-y-6 max-w-6xl mx-auto w-full font-tajawal animate-fade-in pb-12" dir="rtl">
       
       {/* ========================================================= */}
-      {/* SIGNATURE ELEMENT: Live Architectural Network Bridge Hero */}
+      {/* 1. HERO COCKPIT: Topology Bridge between Client and Server */}
       {/* ========================================================= */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 text-white border border-slate-800 shadow-xl p-5 sm:p-7">
-        {/* Subtle Ambient Backlights */}
-        <div className="absolute top-0 right-1/4 w-80 h-80 bg-primary/10 rounded-full blur-3xl pointer-events-none -translate-y-1/2" />
-        <div className={`absolute bottom-0 left-1/4 w-80 h-80 rounded-full blur-3xl pointer-events-none translate-y-1/2 ${
-          isConnected ? 'bg-emerald-500/10' : 'bg-amber-500/10'
-        }`} />
-
-        {/* Top Bar of the Cockpit: Title & Quick Wizard */}
-        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-5">
+      <section aria-label="حالة الجسر الشبكي بين الكاشير والخادم" className="relative overflow-hidden rounded-3xl bg-surface-container-low border border-outline-variant/30 shadow-sm p-5 sm:p-6 transition-all">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-outline-variant/15 pb-4">
           <div className="space-y-1">
-            <div className="flex items-center gap-2.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse" />
-              <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-400">
-                LAN Topology & Real-Time Sync Cockpit
-              </span>
+            <div className="flex items-center gap-2">
+              <span className={`w-2.5 h-2.5 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500 animate-ping'}`} />
+              <h2 className="text-lg sm:text-xl font-black font-cairo text-on-surface">
+                ربط نقطة البيع الفرعية (Client Terminal POS)
+              </h2>
             </div>
-            <h2 className="text-xl sm:text-2xl font-black font-cairo text-white">
-              ربط نقطة البيع الفرعية بالخادم الرئيسي
-            </h2>
+            <p className="text-xs text-on-surface-variant leading-relaxed">
+              إعداد هذا الحاسوب للعمل كشاشة كاشير فرعية سريعة مرتبطة بالخادم المركزي، مع صمود كامل أوفلاين أثناء انقطاع الشبكة.
+            </p>
           </div>
 
-          <div className="flex items-center gap-2.5 self-start sm:self-auto">
+          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+            {isPaired ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold font-cairo bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>محطة موثقة ومعتمدة</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold font-cairo bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                <AlertCircle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                <span>تحتاج إعداد والربط</span>
+              </span>
+            )}
+
             <button
               type="button"
               onClick={() => setShowSetupWizard(true)}
-              className="px-4 py-2 rounded-xl text-xs font-bold font-cairo bg-white/10 hover:bg-white/15 text-white border border-white/15 transition-all flex items-center gap-2 cursor-pointer shadow-xs active:scale-98"
+              className="px-3.5 py-1.5 rounded-xl text-xs font-bold font-cairo bg-primary text-on-primary hover:bg-primary-hover transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-98"
             >
-              <Zap className="w-3.5 h-3.5 text-amber-400" />
+              <Zap className="w-3.5 h-3.5 text-amber-300" />
               <span>معالج الإعداد التفاعلي</span>
             </button>
           </div>
         </div>
 
-        {/* The Live Physical Bridge: [Client PC] <==== Bridge ====> [Server PC] */}
-        <div className="relative z-10 pt-6 pb-2">
+        {/* The Live Physical Bridge Layout */}
+        <div className="pt-5">
           <div className="grid grid-cols-1 md:grid-cols-11 gap-4 items-center">
             
-            {/* 1. الطرف الأيمن: هذا الحاسوب (شاشة الكاشير) */}
-            <div className="md:col-span-4 rounded-2xl bg-slate-800/60 border border-slate-700/60 p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold font-cairo text-slate-400 uppercase tracking-wide">
-                  شاشة الكاشير (هذا الجهاز)
+            {/* الطرف الأيمن: شاشة الكاشير (هذا الحاسوب) */}
+            <div className="md:col-span-4 rounded-2xl bg-surface border border-outline-variant/20 p-4 space-y-2.5 shadow-2xs">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold font-cairo text-on-surface-variant flex items-center gap-1">
+                  <Monitor className="w-3.5 h-3.5 text-primary" />
+                  <span>هذا الجهاز (شاشة الكاشير)</span>
                 </span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-primary/20 text-primary-200 border border-primary/30">
+                <span className="px-2 py-0.5 rounded font-mono font-bold text-[11px] bg-primary/10 text-primary border border-primary/20">
                   {clientTermCodeInput || 'T02'}
                 </span>
               </div>
-
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-xl bg-slate-700/70 border border-slate-600/60 flex items-center justify-center text-primary shrink-0">
-                  <Monitor className="w-6 h-6 text-sky-400" />
-                </div>
-                <div className="min-w-0">
-                  <div className="font-bold font-cairo text-sm text-white truncate">
-                    نقطة بيع فرعية (Client POS)
-                  </div>
-                  <div className="text-xs font-mono text-slate-400 truncate">
-                    ID: {activeDeviceId ? activeDeviceId.slice(0, 14) + '...' : 'جهاز غير مسجل'}
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-1 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-700/40">
-                <span>دور الحاسوب:</span>
-                <span className="font-bold text-slate-200 font-cairo">
-                  {currentRole === 'client' ? 'محطة فرعية (Client)' : 'جهاز مستقل (Single)'}
-                </span>
-              </div>
-            </div>
-
-            {/* 2. المركز: جسر الشبكة اللحظي (The Live Wire / Telemetry Bridge) */}
-            <div className="md:col-span-3 flex flex-col items-center justify-center py-2 px-1 text-center space-y-2">
-              {/* Dynamic Status Pill */}
-              <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold font-cairo border shadow-sm transition-all ${
-                isConnected
-                  ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
-                  : liveEventBusStatus.state === 'connecting'
-                  ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
-                  : 'bg-rose-500/15 border-rose-500/40 text-rose-300'
-              }`}>
-                <span className={`w-2 h-2 rounded-full ${
-                  isConnected ? 'bg-emerald-400 animate-pulse' : liveEventBusStatus.state === 'connecting' ? 'bg-amber-400 animate-ping' : 'bg-rose-400'
-                }`} />
-                <span>
-                  {isConnected ? 'اتصال لحظي متزامن' : liveEventBusStatus.state === 'connecting' ? 'جارٍ الاتصال...' : 'انقطاع شبكة (أوفلاين)'}
-                </span>
-              </div>
-
-              {/* Physical Line with Pulsing Dots */}
-              <div className="w-full flex items-center justify-center gap-1.5 py-1 text-slate-500">
-                <span className="h-0.5 flex-1 bg-gradient-to-r from-transparent via-slate-600 to-slate-500" />
-                <ArrowRightLeft className={`w-4 h-4 ${isConnected ? 'text-emerald-400 animate-pulse' : 'text-slate-500'}`} />
-                <span className="h-0.5 flex-1 bg-gradient-to-l from-transparent via-slate-600 to-slate-500" />
-              </div>
-
-              {/* Ping & Outbox Telemetry Chips */}
-              <div className="flex items-center gap-2 text-[11px] font-mono">
-                <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-emerald-400 font-bold" title="زمن الاستجابة اللحظي">
-                  {testClientUrlResult?.pingMs ?? liveEventBusStatus.lastPingMs ?? 6} ms
-                </span>
-                <span className="text-slate-500">•</span>
-                <span className={`px-2 py-0.5 rounded border font-bold ${
-                  pendingOutboxCount > 0 ? 'bg-amber-500/20 border-amber-500/40 text-amber-300' : 'bg-slate-800 border-slate-700 text-slate-300'
-                }`} title="طابور المبيعات في وضع عدم الاتصال">
-                  {pendingOutboxCount} معلقة
-                </span>
-              </div>
-            </div>
-
-            {/* 3. الطرف الأيسر: خادم المتجر الرئيسي (Master Server) */}
-            <div className="md:col-span-4 rounded-2xl bg-slate-800/60 border border-slate-700/60 p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold font-cairo text-slate-400 uppercase tracking-wide">
-                  خادم المتجر الرئيسي (Master Server)
+                <span className="text-xs text-on-surface-variant font-cairo">الدور الحالي:</span>
+                <span className="text-xs font-bold font-cairo text-on-surface">
+                  {currentRole === 'client' ? 'نقطة بيع فرعية (Client)' : 'جهاز مستقل (Single)'}
                 </span>
-                {isPaired ? (
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold font-cairo bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                    معتمد
-                  </span>
-                ) : (
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold font-cairo bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                    غير مقترن
-                  </span>
-                )}
+              </div>
+              <div className="text-[11px] font-mono text-on-surface-variant/80 truncate border-t border-outline-variant/10 pt-2">
+                ID: {activeDeviceId ? activeDeviceId.slice(0, 18) + '...' : 'جهاز غير مسجل بعد'}
+              </div>
+            </div>
+
+            {/* المركز: جسر الشبكة اللحظي Telemetry Bridge */}
+            <div className="md:col-span-3 flex flex-col items-center justify-center p-2 text-center space-y-2">
+              <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold font-cairo border shadow-2xs ${
+                isConnected
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+                  : liveEventBusStatus.state === 'connecting'
+                  ? 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300'
+                  : 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-300'
+              }`}>
+                <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                <span>{isConnected ? 'متصل لحظياً' : liveEventBusStatus.state === 'connecting' ? 'جارٍ الاتصال...' : 'أوفلاين محلي'}</span>
               </div>
 
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-xl bg-slate-700/70 border border-slate-600/60 flex items-center justify-center text-primary shrink-0">
-                  <Server className="w-6 h-6 text-emerald-400" />
-                </div>
-                <div className="min-w-0">
-                  <div className="font-bold font-cairo text-sm text-white truncate">
-                    حاسوب السيرفر المركزي
-                  </div>
-                  <div className="text-xs font-mono text-emerald-300 truncate" dir="ltr">
-                    {activeServerUrl || 'لم يحدد الخادم بعد'}
-                  </div>
-                </div>
+              <div className="w-full flex items-center justify-center gap-1.5 text-outline-variant">
+                <span className="h-0.5 flex-1 bg-outline-variant/30" />
+                <ArrowRightLeft className={`w-4 h-4 ${isConnected ? 'text-emerald-600 dark:text-emerald-400' : 'text-outline-variant'}`} />
+                <span className="h-0.5 flex-1 bg-outline-variant/30" />
               </div>
 
-              <div className="pt-1 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-700/40">
-                <span>بروتوكول النقل:</span>
-                <span className="font-mono text-slate-200 uppercase font-bold">
-                  {liveEventBusStatus.transport || 'WebSocket'}
+              <div className="flex items-center gap-2 text-xs font-mono">
+                <span className="px-2 py-0.5 rounded bg-surface border border-outline-variant/20 text-emerald-600 dark:text-emerald-400 font-bold">
+                  {testClientUrlResult?.pingMs ?? liveEventBusStatus.lastPingMs ?? 5} ms
                 </span>
+                <span className="text-outline-variant">•</span>
+                <span className="px-2 py-0.5 rounded bg-surface border border-outline-variant/20 font-bold text-on-surface">
+                  {liveEventBusStatus.transport?.toUpperCase() || 'WS'}
+                </span>
+              </div>
+            </div>
+
+            {/* الطرف الأيسر: خادم المتجر الرئيسي */}
+            <div className="md:col-span-4 rounded-2xl bg-surface border border-outline-variant/20 p-4 space-y-2.5 shadow-2xs">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold font-cairo text-on-surface-variant flex items-center gap-1">
+                  <Server className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <span>الخادم الرئيسي (Master Server)</span>
+                </span>
+                <span className={`px-2 py-0.5 rounded font-cairo font-bold text-[11px] ${
+                  isPaired ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20' : 'bg-surface-container text-on-surface-variant'
+                }`}>
+                  {isPaired ? 'مقترن' : 'غير مقترن'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-on-surface-variant font-cairo">العنوان المعتمد:</span>
+                <span className="text-xs font-mono font-bold text-primary truncate max-w-[150px]" dir="ltr">
+                  {activeServerUrl || '---'}
+                </span>
+              </div>
+              <div className="text-[11px] font-cairo text-on-surface-variant/80 truncate border-t border-outline-variant/10 pt-2">
+                قاعدة البيانات المركزية والمخزون الحي
               </div>
             </div>
 
           </div>
         </div>
-      </div>
+      </section>
 
       {/* نافذة معالج الإعداد السريع */}
       <NetworkSetupWizard
@@ -564,362 +534,91 @@ export default function ClientTerminalPairingTab() {
       />
 
       {/* ========================================================= */}
-      {/* WORKSPACE AREA: Either Connected Details OR Step-by-Step Hub */}
+      {/* 2. MAIN 2-COLUMN STRUCTURE: Action Hub (Right) + Telemetry & Role (Left) */}
       {/* ========================================================= */}
-      {isPaired ? (
-        /* الحالة A: الجهاز مقترن ومعتمد بالفعل (Quiet, Disciplined & Clear) */
-        <div className="space-y-5">
-          <div className="p-6 rounded-3xl bg-surface-container-low border border-outline-variant/25 shadow-xs space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-outline-variant/15 pb-4">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse" />
-                  <h3 className="text-base font-bold font-cairo text-on-surface">
-                    بيانات الجلسة المعتمدة لدى الخادم الرئيسي
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        
+        {/* ======================================================= */}
+        {/* العمود الأيمن (7 أعمدة): نموذج الاتصال والربط والتحكم     */}
+        {/* ======================================================= */}
+        <div className="lg:col-span-7 space-y-5">
+          
+          {isPaired ? (
+            /* حالة المحطة المقترنة والمعتمدة */
+            <div className="p-5 sm:p-6 rounded-3xl bg-surface-container-low border border-outline-variant/25 shadow-xs space-y-5">
+              <div className="flex items-center justify-between border-b border-outline-variant/15 pb-4">
+                <div className="space-y-1">
+                  <h3 className="text-base font-bold font-cairo text-on-surface flex items-center gap-2">
+                    <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                    <span>جلسة الكاشير الموثقة والمعتمدة</span>
                   </h3>
+                  <p className="text-xs text-on-surface-variant">
+                    تم توثيق هذا الجهاز بمفتاح سري مشفر، وتتم مزامنة المبيعات والأسعار لحظياً.
+                  </p>
                 </div>
-                <p className="text-xs text-on-surface-variant">
-                  تتصل محطة الكاشير هذه بالخادم تلقائياً وتتلقى كافة تعديلات الأسعار والسلع والزبائن لحظياً.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2 self-start sm:self-auto">
-                <button
-                  type="button"
-                  disabled={testClientUrlLoading}
-                  onClick={() => handleTestServerConnection(activeServerUrl)}
-                  className="px-3.5 py-2 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 text-xs font-bold font-cairo text-on-surface transition-all flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Activity className={`w-3.5 h-3.5 text-primary ${testClientUrlLoading ? 'animate-spin' : ''}`} />
-                  <span>فحص Ping الآن</span>
-                </button>
 
                 <button
                   type="button"
                   disabled={isUnpairingLoading}
                   onClick={handleUnpairServer}
-                  className="px-3.5 py-2 rounded-xl bg-rose-600/10 hover:bg-rose-600 text-rose-700 hover:text-white border border-rose-500/25 text-xs font-bold font-cairo transition-all flex items-center gap-1.5 cursor-pointer"
+                  className="px-3 py-1.5 rounded-xl bg-rose-600/10 hover:bg-rose-600 text-rose-700 hover:text-white border border-rose-500/20 text-xs font-bold font-cairo transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  <span>{isUnpairingLoading ? 'جارٍ الإلغاء...' : 'إلغاء الاقتران / تغيير الخادم'}</span>
+                  <span>{isUnpairingLoading ? 'جارٍ الإلغاء...' : 'إلغاء الاقتران'}</span>
                 </button>
               </div>
-            </div>
 
-            {/* تفاصيل الاعتماد */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs font-mono">
-              <div className="p-3.5 rounded-2xl bg-surface border border-outline-variant/20 flex items-center justify-between">
-                <span className="font-cairo text-on-surface-variant font-bold">عنوان الخادم المعتمد:</span>
-                <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-primary" dir="ltr">{activeServerUrl || '---'}</span>
-                  {activeServerUrl && (
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(activeServerUrl, 'url')}
-                      className="p-1 text-on-surface-variant hover:text-primary cursor-pointer"
-                      title="نسخ العنوان"
-                    >
-                      {copiedField === 'url' ? <CheckCheck className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                    </button>
-                  )}
+              {/* بطاقات البيانات المعتمدة */}
+              <div className="space-y-3 text-xs font-mono">
+                <div className="p-3.5 rounded-2xl bg-surface border border-outline-variant/20 flex items-center justify-between">
+                  <span className="font-cairo font-bold text-on-surface-variant">عنوان الخادم المتصل:</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-primary text-sm" dir="ltr">{activeServerUrl || '---'}</span>
+                    {activeServerUrl && (
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(activeServerUrl, 'url')}
+                        className="p-1 rounded-md hover:bg-surface-container text-on-surface-variant hover:text-primary cursor-pointer transition-colors"
+                        title="نسخ عنوان الخادم"
+                      >
+                        {copiedField === 'url' ? <CheckCheck className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-surface border border-outline-variant/20 flex items-center justify-between">
+                  <span className="font-cairo font-bold text-on-surface-variant">معرف الجهاز (Device ID):</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-on-surface truncate max-w-[180px]">{activeDeviceId || '---'}</span>
+                    {activeDeviceId && (
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(activeDeviceId, 'device')}
+                        className="p-1 rounded-md hover:bg-surface-container text-on-surface-variant hover:text-primary cursor-pointer transition-colors"
+                        title="نسخ معرف الجهاز"
+                      >
+                        {copiedField === 'device' ? <CheckCheck className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <div className="p-3.5 rounded-2xl bg-surface border border-outline-variant/20 flex items-center justify-between">
-                <span className="font-cairo text-on-surface-variant font-bold">معرف الجهاز (Device ID):</span>
-                <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-on-surface truncate max-w-[160px]">{activeDeviceId || '---'}</span>
-                  {activeDeviceId && (
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(activeDeviceId, 'device')}
-                      className="p-1 text-on-surface-variant hover:text-primary cursor-pointer"
-                      title="نسخ المعرف"
-                    >
-                      {copiedField === 'device' ? <CheckCheck className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* نتيجة فحص الاستجابة إن وجد */}
-            {testClientUrlResult && (
-              <div className={`p-3 rounded-xl border text-xs font-semibold flex items-center gap-2 animate-fade-in ${
-                testClientUrlResult.success
-                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300'
-                  : 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300'
-              }`}>
-                {testClientUrlResult.success ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                ) : (
-                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                )}
-                <span>{testClientUrlResult.msg}</span>
-              </div>
-            )}
-          </div>
-
-          {/* محرك الصمود أوفلاين وطابور المزامنة */}
-          <div className="p-6 rounded-3xl bg-surface-container-low border border-outline-variant/25 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-sm font-bold font-cairo text-on-surface">
-                <Clock className="w-4 h-4 text-amber-600" />
-                <span>طابور المبيعات في وضع عدم الاتصال (Offline Outbox)</span>
-              </div>
-              <p className="text-xs text-on-surface-variant max-w-xl">
-                عند انقطاع كابل الشبكة أو فصل الراوتر، تُسجل الفواتير محلياً على هذا الجهاز بدون أي تعطيل، وترفع للخادم تلقائياً فور عودة الاتصال.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3 shrink-0 self-start sm:self-auto">
-              <div className="px-3.5 py-1.5 rounded-xl bg-surface border border-outline-variant/20 font-mono text-xs font-bold text-on-surface">
-                {pendingOutboxCount} فواتير معلقة
-              </div>
-              <button
-                type="button"
-                onClick={handleFlushOutboxNow}
-                disabled={isFlushingOutbox || pendingOutboxCount === 0}
-                className="px-4 py-2 rounded-xl bg-primary hover:bg-primary-hover disabled:opacity-40 text-on-primary text-xs font-bold font-cairo transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isFlushingOutbox ? 'animate-spin' : ''}`} />
-                <span>رفع ومزامنة الآن</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : (
-        /* الحالة B: إعداد وربط محطة جديدة (Guided 2-Step Pairing Hub) */
-        <div className="space-y-5">
-          {/* لوحة الربط المباشر */}
-          <div className="p-6 rounded-3xl bg-surface-container-low border border-outline-variant/25 shadow-xs space-y-6">
-            
-            {/* رأس اللوحة مع تبديل طريقة الربط */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-outline-variant/15 pb-4">
-              <div className="space-y-1">
-                <h3 className="text-base font-bold font-cairo text-on-surface flex items-center gap-2">
-                  <KeyRound className="w-4 h-4 text-primary" />
-                  <span>معلومات وخطوات إقران نقطة البيع</span>
-                </h3>
-                <p className="text-xs text-on-surface-variant">
-                  اختر طريقة تحديد عنوان الخادم في شبكة المتجر المحلية:
-                </p>
-              </div>
-
-              <div className="flex items-center p-1 rounded-xl bg-surface border border-outline-variant/20 self-start sm:self-auto">
+              {/* أزرار الفحص السريع والنتيجة */}
+              <div className="flex items-center gap-3 pt-1">
                 <button
                   type="button"
-                  onClick={() => setConnectionMethod('discovery')}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold font-cairo transition-all cursor-pointer flex items-center gap-1.5 ${
-                    connectionMethod === 'discovery'
-                      ? 'bg-primary text-on-primary shadow-xs'
-                      : 'text-on-surface-variant hover:text-on-surface'
-                  }`}
+                  disabled={testClientUrlLoading}
+                  onClick={() => handleTestServerConnection(activeServerUrl)}
+                  className="px-4 py-2 rounded-xl bg-primary hover:bg-primary-hover disabled:opacity-50 text-on-primary text-xs font-bold font-cairo transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
                 >
-                  <Radio className="w-3.5 h-3.5" />
-                  <span>البحث التلقائي الذكي</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConnectionMethod('manual')}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold font-cairo transition-all cursor-pointer flex items-center gap-1.5 ${
-                    connectionMethod === 'manual'
-                      ? 'bg-primary text-on-primary shadow-xs'
-                      : 'text-on-surface-variant hover:text-on-surface'
-                  }`}
-                >
-                  <Server className="w-3.5 h-3.5" />
-                  <span>إدخال يدوي</span>
+                  <Activity className={`w-3.5 h-3.5 ${testClientUrlLoading ? 'animate-spin' : ''}`} />
+                  <span>فحص استجابة الخادم (Ping Test)</span>
                 </button>
               </div>
-            </div>
 
-            {/* أسلوب البحث التلقائي الذكي */}
-            {connectionMethod === 'discovery' && (
-              <div className="space-y-4">
-                <div className="p-4 rounded-2xl bg-surface border border-outline-variant/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="space-y-1">
-                    <span className="text-xs font-bold font-cairo text-on-surface flex items-center gap-1.5">
-                      <Radio className="w-4 h-4 text-primary animate-pulse" />
-                      <span>الكشف التلقائي عن السيرفر (Zero-Config Discovery)</span>
-                    </span>
-                    <p className="text-xs text-on-surface-variant">
-                      يبحث تلقائياً عن حواسيب الخادم النشطة على نفس الراوتر أو كابل الشبكة دون كتابة عنوان IP.
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    disabled={isScanningServers}
-                    onClick={handleScanLanServers}
-                    className="px-4 py-2.5 rounded-xl bg-primary hover:bg-primary-hover disabled:opacity-50 text-on-primary text-xs font-bold font-cairo transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer shrink-0"
-                  >
-                    <RefreshCw className={`w-4 h-4 ${isScanningServers ? 'animate-spin' : ''}`} />
-                    <span>{isScanningServers ? 'جارٍ المسح...' : '🔍 مسح الشبكة الآن'}</span>
-                  </button>
-                </div>
-
-                {discoveredServers.length > 0 ? (
-                  <div className="space-y-2 pt-1">
-                    <span className="text-xs font-bold font-cairo text-on-surface block">
-                      الخوادم المكتشفة في الشبكة (انقر لاختيار الخادم والربط معه):
-                    </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {discoveredServers.map((srv, idx) => {
-                        const isSelected = clientUrlInput === srv.serverUrl;
-                        return (
-                          <div
-                            key={`${srv.ip}-${idx}`}
-                            onClick={() => {
-                              setClientUrlInput(srv.serverUrl);
-                              handleTestServerConnection(srv.serverUrl);
-                            }}
-                            className={`p-4 rounded-2xl border text-right transition-all flex items-center justify-between gap-3 cursor-pointer ${
-                              isSelected
-                                ? 'border-primary bg-primary/10 ring-2 ring-primary/25 shadow-xs'
-                                : 'border-outline-variant/25 bg-surface hover:bg-surface-container'
-                            }`}
-                          >
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-1.5 font-bold font-cairo text-xs sm:text-sm text-on-surface">
-                                <Server className="w-4 h-4 text-primary" />
-                                <span>{srv.shopName || srv.deviceName || 'خادم AN POS الرئيسي'}</span>
-                              </div>
-                              <div className="text-xs font-mono font-bold text-primary" dir="ltr">
-                                {srv.serverUrl}
-                              </div>
-                            </div>
-                            <div className="text-left shrink-0 space-y-1">
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 block">
-                                {srv.pingMs ? `${srv.pingMs} ms` : 'متاح'}
-                              </span>
-                              {isSelected && (
-                                <span className="text-[10px] text-primary font-bold font-cairo flex items-center gap-1 justify-end">
-                                  <Check className="w-3 h-3" /> تم الاختيار
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : scanPerformed && !isScanningServers ? (
-                  <div className="p-4 rounded-2xl bg-surface border border-outline-variant/15 text-center space-y-1.5">
-                    <Info className="w-5 h-5 text-amber-500 mx-auto" />
-                    <p className="text-xs font-bold font-cairo text-on-surface">
-                      لم يتم العثور على خادم تلقائياً عبر بث الشبكة
-                    </p>
-                    <p className="text-xs text-on-surface-variant max-w-md mx-auto">
-                      يمكنك التبديل إلى خيار «إدخال يدوي» وكتابة عنوان IP الخادم مباشرة من شاشة السيرفر.
-                    </p>
-                  </div>
-                ) : null}
-              </div>
-            )}
-
-            {/* نموذج الإدخال والاقتران المشفر */}
-            <div className="space-y-4 pt-2">
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
-                <div className="md:col-span-8 space-y-1.5">
-                  <label className="text-xs font-bold text-on-surface font-cairo flex items-center justify-between">
-                    <span>عنوان الخادم الرئيسي (Master Server URL):</span>
-                    <span className="text-[11px] text-on-surface-variant font-mono">http://IP_SERVER:3000</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      dir="ltr"
-                      value={clientUrlInput}
-                      onChange={(e) => setClientUrlInput(e.target.value)}
-                      placeholder="http://192.168.1.50:3000"
-                      className="w-full h-11 px-3.5 pl-28 rounded-xl border border-outline-variant/30 bg-surface text-on-surface font-mono text-xs sm:text-sm focus:border-primary focus:outline-none"
-                    />
-                    <button
-                      type="button"
-                      disabled={testClientUrlLoading || !clientUrlInput}
-                      onClick={() => handleTestServerConnection(clientUrlInput)}
-                      className="absolute left-1.5 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-primary text-xs font-bold font-cairo transition-all disabled:opacity-50 cursor-pointer flex items-center gap-1 border border-outline-variant/20"
-                    >
-                      <Activity className={`w-3.5 h-3.5 ${testClientUrlLoading ? 'animate-spin' : ''}`} />
-                      <span>فحص Ping</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="md:col-span-4 space-y-1.5">
-                  <label className="text-xs font-bold text-on-surface font-cairo">
-                    بادئة ترقيم الكاشير (Terminal Code):
-                  </label>
-                  <input
-                    type="text"
-                    value={clientTermCodeInput}
-                    onChange={(e) => setClientTermCodeInput(e.target.value.toUpperCase())}
-                    placeholder="T02"
-                    maxLength={6}
-                    className="w-full h-11 px-3.5 rounded-xl border border-outline-variant/30 bg-surface text-on-surface font-mono font-bold text-sm focus:border-primary focus:outline-none text-center"
-                  />
-                </div>
-              </div>
-
-              {/* حقل رمز الاقتران السري PIN */}
-              <div className="p-4 rounded-2xl bg-surface border border-outline-variant/20 space-y-3">
-                <div className="space-y-1.5 max-w-lg">
-                  <label className="text-xs font-bold text-on-surface flex items-center gap-1.5 font-cairo">
-                    <KeyRound className="w-4 h-4 text-primary" />
-                    <span>مفتاح الاقتران السري (Connection PIN من شاشة السيرفر):</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showPairKeyInput ? 'text' : 'password'}
-                      value={pairingKeyInput}
-                      onChange={(e) => setPairingKeyInput(e.target.value)}
-                      placeholder="مثال: 849201"
-                      className="w-full h-11 px-3.5 pl-10 rounded-xl border border-outline-variant/30 bg-surface-container text-on-surface font-mono text-sm focus:border-primary focus:outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPairKeyInput(!showPairKeyInput)}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface cursor-pointer p-1"
-                    >
-                      {showPairKeyInput ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  <p className="text-[11px] text-on-surface-variant">
-                    تجد هذا الرمز في شاشة الخادم الرئيسي تحت: الإعدادات ➔ الشبكة والخادم المحلي.
-                  </p>
-                </div>
-
-                <div className="pt-2">
-                  <button
-                    type="button"
-                    disabled={isPairingLoading || !clientUrlInput || !pairingKeyInput}
-                    onClick={handlePairWithServer}
-                    className="w-full sm:w-auto px-7 py-3 rounded-xl bg-primary hover:bg-primary-hover disabled:opacity-50 text-on-primary text-xs sm:text-sm font-bold font-cairo transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
-                  >
-                    <ShieldCheck className={`w-4 h-4 ${isPairingLoading ? 'animate-spin' : ''}`} />
-                    <span>{isPairingLoading ? 'جارٍ التحقق وتوثيق الجهاز...' : '🔐 ربط وتوثيق نقطة البيع الآن'}</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* بطاقة رسائل النتيجة */}
-              {pairingStatusResult && (
-                <div className={`p-3.5 rounded-xl border text-xs font-semibold flex items-center gap-2 animate-fade-in ${
-                  pairingStatusResult.success
-                    ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-900 dark:text-emerald-200'
-                    : 'bg-rose-500/15 border-rose-500/40 text-rose-900 dark:text-rose-200'
-                }`}>
-                  {pairingStatusResult.success ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  ) : (
-                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                  )}
-                  <span>{pairingStatusResult.msg}</span>
-                </div>
-              )}
-
-              {testClientUrlResult && !pairingStatusResult && (
+              {testClientUrlResult && (
                 <div className={`p-3 rounded-xl border text-xs font-semibold flex items-center gap-2 animate-fade-in ${
                   testClientUrlResult.success
                     ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300'
@@ -934,33 +633,391 @@ export default function ClientTerminalPairingTab() {
                 </div>
               )}
             </div>
+          ) : (
+            /* نموذج إعداد واقتران محطة جديدة (Structured Wizard Card) */
+            <div className="p-5 sm:p-6 rounded-3xl bg-surface-container-low border border-outline-variant/25 shadow-xs space-y-5">
+              
+              {/* تبديل طريقة الربط */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-outline-variant/15 pb-4">
+                <div className="space-y-0.5">
+                  <h3 className="text-base font-bold font-cairo text-on-surface flex items-center gap-2">
+                    <KeyRound className="w-4 h-4 text-primary" />
+                    <span>إعداد والاقتران بالخادم الرئيسي</span>
+                  </h3>
+                  <p className="text-xs text-on-surface-variant">
+                    حدد طريقة العثور على خادم المتجر الرئيسي:
+                  </p>
+                </div>
 
-          </div>
-        </div>
-      )}
+                <div className="flex items-center p-1 rounded-xl bg-surface border border-outline-variant/20 self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setConnectionMethod('discovery')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold font-cairo transition-all cursor-pointer flex items-center gap-1.5 ${
+                      connectionMethod === 'discovery'
+                        ? 'bg-primary text-on-primary shadow-xs'
+                        : 'text-on-surface-variant hover:text-on-surface'
+                    }`}
+                  >
+                    <Radio className="w-3.5 h-3.5" />
+                    <span>البحث التلقائي</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConnectionMethod('manual')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold font-cairo transition-all cursor-pointer flex items-center gap-1.5 ${
+                      connectionMethod === 'manual'
+                        ? 'bg-primary text-on-primary shadow-xs'
+                        : 'text-on-surface-variant hover:text-on-surface'
+                    }`}
+                  >
+                    <Server className="w-3.5 h-3.5" />
+                    <span>إدخال يدوي</span>
+                  </button>
+                </div>
+              </div>
 
-      {/* ========================================================= */}
-      {/* GUIDANCE & ARCHITECTURE GUARANTEES                        */}
-      {/* ========================================================= */}
-      <div className="p-5 rounded-3xl bg-surface-container-low border border-outline-variant/20 shadow-xs space-y-3">
-        <h4 className="text-xs sm:text-sm font-bold font-cairo text-on-surface flex items-center gap-2">
-          <HelpCircle className="w-4 h-4 text-primary shrink-0" />
-          <span>إرشادات وضمانات العمل الشبكي في المتجر:</span>
-        </h4>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-on-surface-variant leading-relaxed">
-          <div className="p-3.5 rounded-2xl bg-surface border border-outline-variant/15 space-y-1">
-            <span className="font-bold font-cairo text-on-surface block">1. شبكة موحدة عبر الراوتر:</span>
-            يجب أن يتصل هذا الحاسوب وخادم المتجر بنفس الراوتر إما عبر كابل Ethernet أو نفس شبكة Wi-Fi 5GHz.
-          </div>
-          <div className="p-3.5 rounded-2xl bg-surface border border-outline-variant/15 space-y-1">
-            <span className="font-bold font-cairo text-on-surface block">2. جدار الحماية (Firewall):</span>
-            في حال تعذر الوصول، تأكد من أن جدار حماية ويندوز على جهاز الخادم يسمح لتطبيق AN POS بالمرور.
-          </div>
-          <div className="p-3.5 rounded-2xl bg-surface border border-outline-variant/15 space-y-1">
-            <span className="font-bold font-cairo text-on-surface block">3. صمود أوفلاين بلا توقف:</span>
-            إذا تعطل الراوتر أو انقطع الكابل، يستمر الكاشير بالبيع وإصدار الفواتير فورياً وتخزن العمليات في SQLite المحلي.
-          </div>
+              {/* وضع البحث التلقائي الذكي */}
+              {connectionMethod === 'discovery' && (
+                <div className="space-y-3.5">
+                  <div className="p-4 rounded-2xl bg-surface border border-outline-variant/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <span className="text-xs font-bold font-cairo text-on-surface flex items-center gap-1.5">
+                        <Radio className="w-3.5 h-3.5 text-primary animate-pulse" />
+                        <span>كشف خوادم الشبكة المحلية (mDNS / UDP)</span>
+                      </span>
+                      <p className="text-[11px] text-on-surface-variant">
+                        يبحث عن أي حاسوب خادم AN POS على نفس الراوتر دون الحاجة لمعرفة عنوان IP.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={isScanningServers}
+                      onClick={handleScanLanServers}
+                      className="px-4 py-2 rounded-xl bg-primary hover:bg-primary-hover disabled:opacity-50 text-on-primary text-xs font-bold font-cairo transition-all flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer shrink-0"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isScanningServers ? 'animate-spin' : ''}`} />
+                      <span>{isScanningServers ? 'جارٍ المسح...' : 'مسح الشبكة الآن'}</span>
+                    </button>
+                  </div>
+
+                  {/* قائمة الخوادم المكتشفة */}
+                  {discoveredServers.length > 0 ? (
+                    <div className="space-y-2 pt-1">
+                      <span className="text-xs font-bold font-cairo text-on-surface block">
+                        الخوادم المتاحة (انقر لاختيار الخادم):
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        {discoveredServers.map((srv, idx) => {
+                          const isSelected = clientUrlInput === srv.serverUrl;
+                          return (
+                            <div
+                              key={`${srv.ip}-${idx}`}
+                              onClick={() => {
+                                setClientUrlInput(srv.serverUrl);
+                                handleTestServerConnection(srv.serverUrl);
+                              }}
+                              className={`p-3.5 rounded-2xl border text-right transition-all flex items-center justify-between gap-3 cursor-pointer ${
+                                isSelected
+                                  ? 'border-primary bg-primary/10 ring-2 ring-primary/25 shadow-xs'
+                                  : 'border-outline-variant/25 bg-surface hover:bg-surface-container'
+                              }`}
+                            >
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-1.5 font-bold font-cairo text-xs text-on-surface">
+                                  <Server className="w-3.5 h-3.5 text-primary" />
+                                  <span>{srv.shopName || srv.deviceName || 'خادم AN POS'}</span>
+                                </div>
+                                <div className="text-xs font-mono font-bold text-primary" dir="ltr">
+                                  {srv.serverUrl}
+                                </div>
+                              </div>
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25">
+                                {srv.pingMs ? `${srv.pingMs} ms` : 'متاح'}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : scanPerformed && !isScanningServers ? (
+                    <div className="p-3.5 rounded-2xl bg-surface border border-outline-variant/15 text-center text-xs text-on-surface-variant">
+                      لم يتم العثور على خادم تلقائياً. يرجى التبديل لـ «إدخال يدوي» وكتابة عنوان IP مباشرة.
+                    </div>
+                  ) : null}
+                </div>
+              )}
+
+              {/* حقول إدخال العنوان ورمز نقطة البيع */}
+              <div className="space-y-3 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                  <div className="sm:col-span-8 space-y-1.5">
+                    <label className="text-xs font-bold text-on-surface font-cairo flex items-center justify-between">
+                      <span>عنوان الخادم الرئيسي (Server URL):</span>
+                      <span className="text-[11px] text-on-surface-variant font-mono">http://IP:3000</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        dir="ltr"
+                        value={clientUrlInput}
+                        onChange={(e) => setClientUrlInput(e.target.value)}
+                        placeholder="http://192.168.1.50:3000"
+                        className="w-full h-11 px-3.5 pl-24 rounded-xl border border-outline-variant/30 bg-surface text-on-surface font-mono text-xs sm:text-sm focus:border-primary focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        disabled={testClientUrlLoading || !clientUrlInput}
+                        onClick={() => handleTestServerConnection(clientUrlInput)}
+                        className="absolute left-1.5 top-1/2 -translate-y-1/2 px-2.5 py-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-primary text-xs font-bold font-cairo transition-all disabled:opacity-50 cursor-pointer flex items-center gap-1 border border-outline-variant/20"
+                      >
+                        <Activity className={`w-3 h-3 ${testClientUrlLoading ? 'animate-spin' : ''}`} />
+                        <span>Ping</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="sm:col-span-4 space-y-1.5">
+                    <label className="text-xs font-bold text-on-surface font-cairo">
+                      رمز الكاشير (Code):
+                    </label>
+                    <input
+                      type="text"
+                      value={clientTermCodeInput}
+                      onChange={(e) => setClientTermCodeInput(e.target.value.toUpperCase())}
+                      placeholder="T02"
+                      maxLength={6}
+                      className="w-full h-11 px-3.5 rounded-xl border border-outline-variant/30 bg-surface text-on-surface font-mono font-bold text-sm focus:border-primary focus:outline-none text-center"
+                    />
+                  </div>
+                </div>
+
+                {/* حقل رمز الاقتران السري PIN */}
+                <div className="p-4 rounded-2xl bg-surface border border-outline-variant/20 space-y-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-on-surface flex items-center gap-1.5 font-cairo">
+                      <KeyRound className="w-3.5 h-3.5 text-primary" />
+                      <span>مفتاح الربط السري (Connection PIN من شاشة السيرفر):</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showPairKeyInput ? 'text' : 'password'}
+                        value={pairingKeyInput}
+                        onChange={(e) => setPairingKeyInput(e.target.value)}
+                        placeholder="مثال: 849201"
+                        className="w-full h-11 px-3.5 pl-10 rounded-xl border border-outline-variant/30 bg-surface-container text-on-surface font-mono text-sm focus:border-primary focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPairKeyInput(!showPairKeyInput)}
+                        className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface cursor-pointer p-1"
+                      >
+                        {showPairKeyInput ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-on-surface-variant">
+                      تجد هذا الرمز في شاشة الخادم الرئيسي تحت: الإعدادات ➔ الشبكة والخادم المحلي.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={isPairingLoading || !clientUrlInput || !pairingKeyInput}
+                    onClick={handlePairWithServer}
+                    className="w-full py-2.5 px-4 rounded-xl bg-primary hover:bg-primary-hover disabled:opacity-50 text-on-primary text-xs sm:text-sm font-bold font-cairo transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
+                  >
+                    <ShieldCheck className={`w-4 h-4 ${isPairingLoading ? 'animate-spin' : ''}`} />
+                    <span>{isPairingLoading ? 'جارٍ التحقق وتوثيق الجهاز...' : 'ربط وتوثيق نقطة البيع الآن'}</span>
+                  </button>
+                </div>
+
+                {/* رسائل نتائج الاقتران أو الفحص */}
+                {pairingStatusResult && (
+                  <div className={`p-3 rounded-xl border text-xs font-semibold flex items-center gap-2 animate-fade-in ${
+                    pairingStatusResult.success
+                      ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-900 dark:text-emerald-200'
+                      : 'bg-rose-500/15 border-rose-500/40 text-rose-900 dark:text-rose-200'
+                  }`}>
+                    {pairingStatusResult.success ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    )}
+                    <span>{pairingStatusResult.msg}</span>
+                  </div>
+                )}
+
+                {testClientUrlResult && !pairingStatusResult && (
+                  <div className={`p-3 rounded-xl border text-xs font-semibold flex items-center gap-2 animate-fade-in ${
+                    testClientUrlResult.success
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300'
+                      : 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300'
+                  }`}>
+                    {testClientUrlResult.success ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    )}
+                    <span>{testClientUrlResult.msg}</span>
+                  </div>
+                )}
+              </div>
+
+            </div>
+          )}
+
         </div>
+
+        {/* ======================================================= */}
+        {/* العمود الأيسر (5 أعمدة): مؤشرات الأداء، دور الجهاز، الدعم */}
+        {/* ======================================================= */}
+        <div className="lg:col-span-5 space-y-5">
+          
+          {/* 1. بطاقة دور هذا الحاسوب في الشبكة (Computer Role) */}
+          <div className="p-5 rounded-3xl bg-surface-container-low border border-outline-variant/25 shadow-xs space-y-3.5">
+            <div className="flex items-center justify-between border-b border-outline-variant/15 pb-2.5">
+              <span className="text-xs font-bold font-cairo text-on-surface flex items-center gap-1.5">
+                <Sliders className="w-3.5 h-3.5 text-primary" />
+                <span>دور هذا الحاسوب في المتجر</span>
+              </span>
+              <span className="text-[11px] font-mono font-bold text-primary px-2 py-0.5 rounded bg-primary/10">
+                {currentRole === 'client' ? 'Client POS' : currentRole === 'server' ? 'Server' : 'Single'}
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              {/* خيار نقطة بيع فرعية */}
+              <button
+                type="button"
+                onClick={() => {
+                  handleSaveSettings({
+                    terminalRole: 'client',
+                    terminal_role: 'client',
+                    syncMode: 'lan',
+                    sync_mode: 'lan',
+                  });
+                  setStoredTransportConfig({ role: 'client', syncMode: 'lan' });
+                  addNotification({
+                    title: 'تم ضبط الدور',
+                    message: 'تم تعيين هذا الحاسوب كنقطة بيع فرعية (Client POS)',
+                    type: 'success',
+                  });
+                }}
+                className={`w-full p-3 rounded-2xl border text-right transition-all flex items-center justify-between gap-3 cursor-pointer ${
+                  currentRole === 'client'
+                    ? 'border-primary bg-primary/10 ring-1 ring-primary/30 shadow-2xs'
+                    : 'border-outline-variant/20 bg-surface hover:bg-surface-container'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className={`p-1.5 rounded-lg ${currentRole === 'client' ? 'bg-primary text-on-primary' : 'bg-surface-container text-on-surface-variant'}`}>
+                    <Monitor className="w-4 h-4" />
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs font-bold font-cairo text-on-surface block">
+                      نقطة بيع فرعية (Client POS)
+                    </span>
+                    <span className="text-[11px] text-on-surface-variant">
+                      شاشة كاشير إضافية مرتبطة بالخادم
+                    </span>
+                  </div>
+                </div>
+                {currentRole === 'client' && <Check className="w-4 h-4 text-primary shrink-0" />}
+              </button>
+
+              {/* خيار حاسوب مستقل */}
+              <button
+                type="button"
+                onClick={() => {
+                  handleSaveSettings({
+                    terminalRole: 'standalone',
+                    terminal_role: 'standalone',
+                    syncMode: 'single',
+                    sync_mode: 'single',
+                  });
+                  setStoredTransportConfig({ role: 'standalone', syncMode: 'single' });
+                  addNotification({
+                    title: 'تم ضبط الدور',
+                    message: 'تم تعيين هذا الحاسوب كجهاز مستقل يعمل محلياً فقط',
+                    type: 'info',
+                  });
+                }}
+                className={`w-full p-3 rounded-2xl border text-right transition-all flex items-center justify-between gap-3 cursor-pointer ${
+                  currentRole === 'standalone'
+                    ? 'border-primary bg-primary/10 ring-1 ring-primary/30 shadow-2xs'
+                    : 'border-outline-variant/20 bg-surface hover:bg-surface-container'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className={`p-1.5 rounded-lg ${currentRole === 'standalone' ? 'bg-primary text-on-primary' : 'bg-surface-container text-on-surface-variant'}`}>
+                    <Laptop className="w-4 h-4" />
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs font-bold font-cairo text-on-surface block">
+                      جهاز مستقل محلي (Standalone)
+                    </span>
+                    <span className="text-[11px] text-on-surface-variant">
+                      يعمل بقاعدة بياناته الخاصة دون ربط
+                    </span>
+                  </div>
+                </div>
+                {currentRole === 'standalone' && <Check className="w-4 h-4 text-primary shrink-0" />}
+              </button>
+            </div>
+          </div>
+
+          {/* 2. بطاقة طابور المبيعات الأوفلاين (Offline Outbox Resilience) */}
+          <div className="p-5 rounded-3xl bg-surface-container-low border border-outline-variant/25 shadow-xs space-y-3">
+            <div className="flex items-center justify-between border-b border-outline-variant/15 pb-2.5">
+              <span className="text-xs font-bold font-cairo text-on-surface flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                <span>محرك الصمود أوفلاين (Offline Outbox)</span>
+              </span>
+              <span className="text-xs font-mono font-bold text-on-surface px-2 py-0.5 rounded bg-surface border border-outline-variant/20">
+                {pendingOutboxCount} معلقة
+              </span>
+            </div>
+
+            <p className="text-xs text-on-surface-variant leading-relaxed">
+              عند انقطاع كابل الشبكة يستمر الكاشير في البيع والطباعة بلا توقف. الفواتير تحفظ فورياً وترفع للخادم بمجرد عودة الاتصال.
+            </p>
+
+            <button
+              type="button"
+              onClick={handleFlushOutboxNow}
+              disabled={isFlushingOutbox || pendingOutboxCount === 0}
+              className="w-full py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white text-xs font-bold font-cairo transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isFlushingOutbox ? 'animate-spin' : ''}`} />
+              <span>{isFlushingOutbox ? 'جارٍ التفريغ...' : 'مزامنة ورفع المعاملات الآن'}</span>
+            </button>
+          </div>
+
+          {/* 3. بطاقة إرشادات وتأكيدات الشبكة (Network Checklist) */}
+          <div className="p-5 rounded-3xl bg-surface-container-low border border-outline-variant/20 shadow-xs space-y-2.5">
+            <span className="text-xs font-bold font-cairo text-on-surface flex items-center gap-1.5">
+              <HelpCircle className="w-3.5 h-3.5 text-primary" />
+              <span>إرشادات الاستقرار الشبكي</span>
+            </span>
+            <ul className="space-y-2 text-xs text-on-surface-variant leading-relaxed">
+              <li className="flex items-start gap-2">
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                <span>تأكد من اتصال كاشير الفرع والخادم بنفس الراوتر (يفضل كابل LAN مباشر).</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                <span>تأكد من السماح لتطبيق AN POS في جدار حماية ويندوز على جهاز الخادم.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                <span>المنفذ الافتراضي للاتصال هو <strong className="font-mono text-primary">3000</strong>.</span>
+              </li>
+            </ul>
+          </div>
+
+        </div>
+
       </div>
 
     </div>
