@@ -137,6 +137,14 @@ export async function startHttpServer(config: ServerConfig = {}): Promise<{ url:
     }
     const token = request.headers['x-session-token'] as string | undefined;
     if (!token) {
+      let clientIp = request.ip;
+      if (clientIp.startsWith('::ffff:')) {
+        clientIp = clientIp.substring(7);
+      }
+      // استثناء localhost للطلبات المحلية من نفس الجهاز (المتصفح المحلي / التطوير)
+      if (clientIp === '127.0.0.1' || clientIp === '::1' || clientIp === 'localhost') {
+        return;
+      }
       return reply.code(401).send({ error: { status: 401, detail: 'رمز الجلسة مطلوب (x-session-token)' } });
     }
     // التحقق من أن الجلسة موجودة في connected_devices

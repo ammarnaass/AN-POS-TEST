@@ -59,7 +59,13 @@ export function isClientNode(): boolean {
 
 export function getStoredServerLanUrl(): string {
   if (typeof window === 'undefined') return '';
-  return (localStorage.getItem('anpos_server_lan_url') || '').trim().replace(/\/+$/, '');
+  const stored = (localStorage.getItem('anpos_server_lan_url') || '').trim().replace(/\/+$/, '');
+  if (stored) return stored;
+  // في بيئة المتصفح دون وجود Electron، الاتصال بخادم Fastify المحلي على المنفذ 3000 تلقائياً
+  if (!(window as any).electronAPI && typeof window.location !== 'undefined' && window.location.hostname) {
+    return `${window.location.protocol}//${window.location.hostname}:3000`;
+  }
+  return '';
 }
 
 export function getStoredClientToken(): string {
@@ -604,6 +610,11 @@ export function getActiveTransportDb(): TransportDbApi | null {
   // الافتراضي: استخدام Electron IPC المحلي
   if (typeof window !== 'undefined' && (window as any).electronAPI?.db) {
     return (window as any).electronAPI.db as TransportDbApi;
+  }
+
+  // في بيئة المتصفح المباشر دون Electron، استخدام خادم HTTP المحلي
+  if (typeof window !== 'undefined' && !(window as any).electronAPI) {
+    return httpTransportDb;
   }
 
   return null;

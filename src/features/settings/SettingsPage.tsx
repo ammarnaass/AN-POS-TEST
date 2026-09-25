@@ -60,6 +60,15 @@ export default function SettingsPage() {
     }
   }, [isExpiredAndLocked, activeTab]);
 
+  // Sync active tab with location.state changes (e.g. from top bar badge)
+  useEffect(() => {
+    const t = (location.state as { tab?: string } | null)?.tab;
+    const known = ['activation', 'general', 'pos', 'invoices', 'users', 'network', 'export', 'mobile', 'updates', 'account'];
+    if (t && known.includes(t)) {
+      setActiveTab(t);
+    }
+  }, [location.state]);
+
   const handleSelectTab = (tabId: string) => {
     if (isRestrictedTabOnClient(tabId) && !isManagerUnlocked()) {
       setPendingTab(tabId);

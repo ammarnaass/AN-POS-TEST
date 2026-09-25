@@ -518,17 +518,11 @@ export const RealtimeSyncBadge: React.FC<RealtimeSyncBadgeProps> = ({
                   setShowDetails(false);
                   navigate('/settings', { state: { tab: 'network' } });
                 }}
-                className={`py-1.5 px-3 rounded-xl bg-surface hover:bg-surface-container-highest border border-outline-variant/25 text-on-surface text-xs font-bold font-cairo flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                  status.role === 'server' || status.state === 'standalone' ? 'w-full bg-primary/10 text-primary border-primary/20 hover:bg-primary/20' : ''
-                }`}
-                title="إعدادات الشبكة والخادم"
+                className="w-full py-2 px-3 rounded-xl bg-primary/10 hover:bg-primary/20 border border-primary/25 text-primary text-xs font-bold font-cairo flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                title="الانتقال إلى صفحة دور هذا الحاسوب في الشبكة وإعدادات الخادم"
               >
-                <Globe className="w-3.5 h-3.5" />
-                <span>
-                  {status.state === 'standalone'
-                    ? 'تفعيل وضع الشبكة وربط الأجهزة'
-                    : 'إعدادات الشبكة والأجهزة'}
-                </span>
+                <Server className="w-3.5 h-3.5 shrink-0" />
+                <span>معلومات الخادم ودور هذا الحاسوب في الشبكة (Computer Role)</span>
               </button>
             </div>
           </div>

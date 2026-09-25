@@ -5,7 +5,7 @@ import {
   AlertCircle, CheckCircle2, Monitor, Wifi, Cloud, HardDrive, Usb,
   Bluetooth, Cable, Copy, Check, Server, Database,
   Lock, Eye, EyeOff, Sparkles, CornerDownLeft, FileText, Radio,
-  Plus, Trash2, X
+  Plus, Trash2, X, Info
 } from 'lucide-react';
 import PairingQR from '../components/PairingQR';
 import ConnectedDevicesManager from '../components/ConnectedDevicesManager';
@@ -775,100 +775,142 @@ export default function NetworkTab(props: NetworkTabProps) {
 
           {/* =========================================================================
               قسم 1.2: دور هذا الحاسوب في الشبكة (Terminal Role Selection)
-              متاح عند اختيار وضع الشبكة المحلية LAN أو الوضع الهجين Hybrid
               ========================================================================= */}
-          {settings.syncMode !== 'single' && (
-            <div className="pt-5 border-t border-outline-variant/15 space-y-4 animate-fade-in">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div>
-                  <h4 className="text-sm sm:text-base font-bold font-cairo text-on-surface flex items-center gap-2">
-                    <Server className="w-4 h-4 text-primary shrink-0" />
-                    دور هذا الحاسوب في الشبكة (Computer Role)
-                  </h4>
-                  <p className="text-xs text-on-surface-variant font-tajawal mt-0.5">
-                    حدد ما إذا كان هذا الجهاز يعمل كسيرفر رئيسي للمحل أم كنقطة كاشير فرعية إضافية
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 self-start sm:self-auto">
-                  <button
-                    type="button"
-                    onClick={() => setShowSetupWizard(true)}
-                    className="py-1 px-3 rounded-full text-[11px] font-bold bg-primary text-on-primary shadow-sm hover:bg-primary-hover active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Zap className="w-3.5 h-3.5" />
-                    <span>معالج الإعداد السريع (Setup Wizard)</span>
-                  </button>
-                  <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-primary/10 text-primary border border-primary/20">
-                    {settings.terminalRole === 'client' ? 'محطة كاشير فرعية (Client)' : 'سيرفر رئيسي (Server Master)'}
+          <div className="pt-5 border-t border-outline-variant/15 space-y-4 animate-fade-in" id="terminal-role-section">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h4 className="text-sm sm:text-base font-bold font-cairo text-on-surface flex items-center gap-2">
+                  <Server className="w-4 h-4 text-primary shrink-0" />
+                  دور هذا الحاسوب في الشبكة (Computer Role)
+                </h4>
+                <p className="text-xs text-on-surface-variant font-tajawal mt-0.5">
+                  حدد ما إذا كان هذا الجهاز يعمل كسيرفر رئيسي للمحل أم كنقطة كاشير فرعية إضافية
+                </p>
+              </div>
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => setShowSetupWizard(true)}
+                  className="py-1 px-3 rounded-full text-[11px] font-bold bg-primary text-on-primary shadow-sm hover:bg-primary-hover active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  <span>معالج الإعداد السريع (Setup Wizard)</span>
+                </button>
+                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-primary/10 text-primary border border-primary/20">
+                  {settings.terminalRole === 'client' ? 'محطة كاشير فرعية (Client)' : 'سيرفر رئيسي (Server Master)'}
+                </span>
+              </div>
+            </div>
+
+            {settings.syncMode === 'single' && (
+              <div className="p-3.5 rounded-2xl bg-primary/10 border border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-fade-in">
+                <div className="flex items-center gap-2">
+                  <Info className="w-4 h-4 text-primary shrink-0" />
+                  <span className="text-on-surface font-medium font-cairo">
+                    هذا الجهاز يعمل حالياً في «وضع الجهاز المنفرد». باختيارك «خادم رئيسي» أو «نقطة بيع فرعية» سيتم تفعيل وضع الشبكة المحلية (LAN) تلقائياً لتسهيل الربط.
                   </span>
                 </div>
-              </div>
-
-              {/* نافذة معالج الإعداد السريع للشبكة ودور الحاسوب */}
-              <NetworkSetupWizard
-                isOpen={showSetupWizard}
-                onClose={() => setShowSetupWizard(false)}
-                onCompleted={(newRole) => {
-                  handleSaveSettings({ terminalRole: newRole, terminal_role: newRole });
-                }}
-              />
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4">
-                {/* بطاقة الخادم الرئيسي */}
                 <button
                   type="button"
-                  onClick={() => handleSaveSettings({ terminalRole: 'server', terminal_role: 'server' })}
-                  className={`p-4 sm:p-5 rounded-3xl border-2 text-right transition-all flex flex-col justify-between gap-3 text-start cursor-pointer ${
-                    settings.terminalRole !== 'client'
-                      ? 'border-primary bg-primary/5 dark:bg-primary/10 shadow-sm ring-1 ring-primary/30'
-                      : 'border-outline-variant/15 bg-surface-container hover:border-primary/40'
-                  }`}
+                  onClick={() => setShowSetupWizard(true)}
+                  className="px-3 py-1.5 rounded-xl bg-primary text-on-primary font-bold font-cairo shrink-0 hover:bg-primary-hover transition-colors flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
                 >
-                  <div className="space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <div className={`w-10 h-10 rounded-2xl flex items-center justify-center border shadow-inner ${
-                        settings.terminalRole !== 'client' ? 'bg-primary text-on-primary border-primary' : 'bg-surface-container-high text-primary border-outline-variant/20'
-                      }`}>
-                        <Server className="w-5 h-5" />
-                      </div>
-                      <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                        الخادم المركزي
-                      </span>
-                    </div>
-                    <div>
-                      <h5 className="text-sm font-bold font-cairo text-on-surface">خادم رئيسي (Server Master PC)</h5>
-                      <p className="text-xs text-on-surface-variant mt-1 leading-relaxed font-tajawal">
-                        يحتفظ بقاعدة البيانات الأساسية (SQLite WAL)، ويشغل خادم الشبكة المحلية Fastify على المنفذ 3000 لربط باقي الأجهزة والهواتف.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="pt-2.5 border-t border-outline-variant/15 flex items-center justify-between text-xs">
-                    <span className="text-primary font-bold">بادئة الترقيم: T01</span>
-                    {settings.terminalRole !== 'client' && (
-                      <span className="px-2 py-0.5 rounded-md bg-primary text-on-primary text-[10px] font-black">
-                        المعتمد لهذا الجهاز
-                      </span>
-                    )}
-                  </div>
+                  <Zap className="w-3.5 h-3.5" />
+                  <span>بدء معالج الإعداد السريع</span>
                 </button>
+              </div>
+            )}
 
-                {/* بطاقة الكاشير الفرعي */}
-                <button
-                  type="button"
-                  onClick={() => handleSaveSettings({ terminalRole: 'client', terminal_role: 'client' })}
-                  className={`p-4 sm:p-5 rounded-3xl border-2 text-right transition-all flex flex-col justify-between gap-3 text-start cursor-pointer ${
-                    settings.terminalRole === 'client'
-                      ? 'border-amber-500 bg-amber-500/5 dark:bg-amber-500/10 shadow-sm ring-1 ring-amber-500/30'
-                      : 'border-outline-variant/15 bg-surface-container hover:border-amber-500/40'
-                  }`}
-                >
-                  <div className="space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <div className={`w-10 h-10 rounded-2xl flex items-center justify-center border shadow-inner ${
-                        settings.terminalRole === 'client' ? 'bg-amber-500 text-white border-amber-500' : 'bg-surface-container-high text-amber-600 border-outline-variant/20'
-                      }`}>
-                        <Monitor className="w-5 h-5" />
-                      </div>
+            {/* نافذة معالج الإعداد السريع للشبكة ودور الحاسوب */}
+            <NetworkSetupWizard
+              isOpen={showSetupWizard}
+              onClose={() => setShowSetupWizard(false)}
+              onCompleted={(newRole) => {
+                const nextSyncMode = settings.syncMode === 'single' ? 'lan' : settings.syncMode;
+                handleSaveSettings({
+                  terminalRole: newRole,
+                  terminal_role: newRole,
+                  syncMode: nextSyncMode,
+                  sync_mode: nextSyncMode,
+                });
+                setStoredTransportConfig({ role: newRole, syncMode: nextSyncMode });
+              }}
+            />
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4">
+              {/* بطاقة الخادم الرئيسي */}
+              <button
+                type="button"
+                onClick={() => {
+                  const nextSyncMode = settings.syncMode === 'single' ? 'lan' : settings.syncMode;
+                  handleSaveSettings({
+                    terminalRole: 'server',
+                    terminal_role: 'server',
+                    syncMode: nextSyncMode,
+                    sync_mode: nextSyncMode,
+                  });
+                  setStoredTransportConfig({ role: 'server', syncMode: nextSyncMode });
+                }}
+                className={`p-4 sm:p-5 rounded-3xl border-2 text-right transition-all flex flex-col justify-between gap-3 text-start cursor-pointer ${
+                  settings.terminalRole !== 'client'
+                    ? 'border-primary bg-primary/5 dark:bg-primary/10 shadow-sm ring-1 ring-primary/30'
+                    : 'border-outline-variant/15 bg-surface-container hover:border-primary/40'
+                }`}
+              >
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center border shadow-inner ${
+                      settings.terminalRole !== 'client' ? 'bg-primary text-on-primary border-primary' : 'bg-surface-container-high text-primary border-outline-variant/20'
+                    }`}>
+                      <Server className="w-5 h-5" />
+                    </div>
+                    <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                      الخادم المركزي
+                    </span>
+                  </div>
+                  <div>
+                    <h5 className="text-sm font-bold font-cairo text-on-surface">خادم رئيسي (Server Master PC)</h5>
+                    <p className="text-xs text-on-surface-variant mt-1 leading-relaxed font-tajawal">
+                      يحتفظ بقاعدة البيانات الأساسية (SQLite WAL)، ويشغل خادم الشبكة المحلية Fastify على المنفذ 3000 لربط باقي الأجهزة والهواتف.
+                    </p>
+                  </div>
+                </div>
+                <div className="pt-2.5 border-t border-outline-variant/15 flex items-center justify-between text-xs">
+                  <span className="text-primary font-bold">بادئة الترقيم: T01</span>
+                  {settings.terminalRole !== 'client' && (
+                    <span className="px-2 py-0.5 rounded-md bg-primary text-on-primary text-[10px] font-black">
+                      المعتمد لهذا الجهاز
+                    </span>
+                  )}
+                </div>
+              </button>
+
+              {/* بطاقة الكاشير الفرعي */}
+              <button
+                type="button"
+                onClick={() => {
+                  const nextSyncMode = settings.syncMode === 'single' ? 'lan' : settings.syncMode;
+                  handleSaveSettings({
+                    terminalRole: 'client',
+                    terminal_role: 'client',
+                    syncMode: nextSyncMode,
+                    sync_mode: nextSyncMode,
+                  });
+                  setStoredTransportConfig({ role: 'client', syncMode: nextSyncMode });
+                }}
+                className={`p-4 sm:p-5 rounded-3xl border-2 text-right transition-all flex flex-col justify-between gap-3 text-start cursor-pointer ${
+                  settings.terminalRole === 'client'
+                    ? 'border-amber-500 bg-amber-500/5 dark:bg-amber-500/10 shadow-sm ring-1 ring-amber-500/30'
+                    : 'border-outline-variant/15 bg-surface-container hover:border-amber-500/40'
+                }`}
+              >
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center border shadow-inner ${
+                      settings.terminalRole === 'client' ? 'bg-amber-500 text-white border-amber-500' : 'bg-surface-container-high text-amber-600 border-outline-variant/20'
+                    }`}>
+                      <Monitor className="w-5 h-5" />
+                    </div>
                       <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
                         كاشير إضافي
                       </span>
@@ -1217,7 +1259,6 @@ export default function NetworkTab(props: NetworkTabProps) {
                 </div>
               )}
             </div>
-          )}
         </div>
       )}
 

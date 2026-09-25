@@ -37,7 +37,13 @@ export function useCashSessionManager() {
     queryKey: ['cashSessions'],
     queryFn: () => db.cash_sessions.toArray(),
   });
-  const currentSession = sessions.find((s) => s.status === 'open') || null;
+  const currentSession = useMemo(() => {
+    const openSessions = sessions.filter((s) => s.status === 'open');
+    if (openSessions.length === 0) return null;
+    return [...openSessions].sort(
+      (a, b) => new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime()
+    )[0];
+  }, [sessions]);
 
   const { data: capitalEntries = [] } = useQuery({
     queryKey: ['capitalEntries'],
@@ -101,6 +107,16 @@ export function useCashSessionManager() {
   // Mutations
   const openSessionMutation = useMutation({
     mutationFn: async (data: { openedBy: string; openingBalance: number }) => {
+      // إغلاق أي جلسات سابقة كانت مفتوحة لمنع التضارب
+      const openSessions = sessions.filter((s) => s.status === 'open');
+      for (const oldSess of openSessions) {
+        await db.cash_sessions.update(oldSess.id, {
+          status: 'closed',
+          closedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }).catch(() => {});
+      }
+
       const sessionNumber = sessions.length + 1;
       await db.cash_sessions.add({
         id: generateId(),
@@ -108,6 +124,7 @@ export function useCashSessionManager() {
         sessionNumber,
         openedBy: data.openedBy,
         openedAt: new Date().toISOString(),
+        closedAt: '',
         openingBalance: data.openingBalance,
         status: 'open',
         totalSales: 0,
@@ -119,7 +136,17 @@ export function useCashSessionManager() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cashSessions'] });
+      queryClient.invalidateQueries({ queryKey: ['cash_sessions'] });
+      setOpeningBalance(0);
       addNotification({ title: 'تم الفتح بنجاح', message: 'تم فتح مناوبة الصندوق بنجاح', type: 'success' });
+    },
+    onError: (err: any) => {
+      console.error('[useCashSessionManager] Failed to open session:', err);
+      addNotification({
+        title: 'تعذر فتح مناوبة الصندوق',
+        message: err?.message || 'حدث خطأ أثناء فتح المناوبة',
+        type: 'error',
+      });
     },
   });
 
@@ -138,7 +165,11 @@ export function useCashSessionManager() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cashSessions'] });
+      queryClient.invalidateQueries({ queryKey: ['cash_sessions'] });
       addNotification({ title: 'تم الإغلاق', message: 'تم إغلاق مناوبة الصندوق وتوثيق الجرد بنجاح', type: 'success' });
+    },
+    onError: (err: any) => {
+      addNotification({ title: 'خطأ', message: err?.message || 'تعذر إغلاق مناوبة الصندوق', type: 'error' });
     },
   });
 
@@ -154,7 +185,11 @@ export function useCashSessionManager() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cashSessions'] });
+      queryClient.invalidateQueries({ queryKey: ['cash_sessions'] });
       addNotification({ title: 'إيداع نقدي', message: 'تم إيداع المبلغ في الصندوق بنجاح', type: 'success' });
+    },
+    onError: (err: any) => {
+      addNotification({ title: 'خطأ', message: err?.message || 'تعذر إيداع المبلغ', type: 'error' });
     },
   });
 
@@ -170,7 +205,11 @@ export function useCashSessionManager() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cashSessions'] });
+      queryClient.invalidateQueries({ queryKey: ['cash_sessions'] });
       addNotification({ title: 'سحب نقدي', message: 'تم سحب المبلغ وتحديث رصيد الصندوق بنجاح', type: 'warning' });
+    },
+    onError: (err: any) => {
+      addNotification({ title: 'خطأ', message: err?.message || 'تعذر سحب المبلغ', type: 'error' });
     },
   });
 
@@ -189,16 +228,17 @@ export function useCashSessionManager() {
       queryClient.invalidateQueries({ queryKey: ['capitalEntries'] });
       addNotification({ title: 'حركة رأس مال', message: 'تم تسجيل حركة رأس المال بنجاح', type: 'success' });
     },
+    onError: (err: any) => {
+      addNotification({ title: 'خطأ', message: err?.message || 'تعذر تسجيل حركة رأس المال', type: 'error' });
+    },
   });
 
   // Handlers
   const handleOpenSession = () => {
-    if (!currentUser) return;
     openSessionMutation.mutate({
-      openedBy: currentUser.name || currentUser.username || 'المسؤول',
+      openedBy: currentUser?.name || currentUser?.username || 'المسؤول',
       openingBalance: Number(openingBalance) || 0,
     });
-    setOpeningBalance(0);
   };
 
   const handlePrepareCloseSession = () => {
