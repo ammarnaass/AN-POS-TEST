@@ -117,6 +117,26 @@ export function initSchema(): void {
   try { execSql("ALTER TABLE customers ADD COLUMN nis TEXT DEFAULT '';"); } catch { /* موجود */ }
   try { execSql("ALTER TABLE suppliers ADD COLUMN address TEXT DEFAULT '';"); } catch { /* موجود */ }
   try { execSql("ALTER TABLE suppliers ADD COLUMN email TEXT DEFAULT '';"); } catch { /* موجود */ }
-  try { execSql("ALTER TABLE suppliers ADD COLUMN notes TEXT DEFAULT '';"); } catch { /* موجود */ }
+  // جدول طابور العمليات المعلقة دون اتصال (Offline-First Outbox Queue)
+  try {
+    execSql(`
+      CREATE TABLE IF NOT EXISTS offline_sync_outbox (
+        id TEXT PRIMARY KEY,
+        entity TEXT NOT NULL,
+        operation TEXT NOT NULL,
+        local_id TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        attempts INTEGER NOT NULL DEFAULT 0,
+        last_attempt_at TEXT,
+        error_message TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `);
+    execSql("CREATE INDEX IF NOT EXISTS idx_offline_sync_outbox_status ON offline_sync_outbox(status);");
+  } catch { /* موجود */ }
+
   clearTableColumnsCache();
 }
+

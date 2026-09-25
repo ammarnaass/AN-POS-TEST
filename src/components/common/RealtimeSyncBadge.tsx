@@ -10,8 +10,10 @@ import {
   ChevronDown,
   X,
   ExternalLink,
+  Clock,
 } from 'lucide-react';
 import { useRealtimeStatus } from '@/lib/realtimeEventBus';
+import { useOutboxStatus } from '@/lib/offlineOutbox';
 
 interface RealtimeSyncBadgeProps {
   compact?: boolean;
@@ -24,6 +26,7 @@ export const RealtimeSyncBadge: React.FC<RealtimeSyncBadgeProps> = ({
 }) => {
   const navigate = useNavigate();
   const { status, isConnected, reconnect } = useRealtimeStatus();
+  const { pendingCount, isSyncing, flushNow } = useOutboxStatus();
   const [showDetails, setShowDetails] = useState(false);
   const [isManualReconnecting, setIsManualReconnecting] = useState(false);
 
@@ -131,6 +134,17 @@ export const RealtimeSyncBadge: React.FC<RealtimeSyncBadgeProps> = ({
           </span>
         )}
 
+        {/* عدد المعاملات المعلقة دون اتصال إن وُجدت */}
+        {pendingCount > 0 && (
+          <span
+            title={`${pendingCount} عمليات أوفلاين معلقة تنتظر المزامنة`}
+            className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-500 text-white font-mono text-[10px] font-black shadow-xs animate-pulse"
+          >
+            <Clock className="w-2.5 h-2.5" />
+            <span>{pendingCount}</span>
+          </span>
+        )}
+
         <ChevronDown className="w-3 h-3 opacity-60 group-hover:opacity-100 transition-opacity hidden sm:inline" />
       </button>
 
@@ -154,10 +168,10 @@ export const RealtimeSyncBadge: React.FC<RealtimeSyncBadgeProps> = ({
                 </span>
                 <div>
                   <h4 className="text-xs font-black text-on-surface font-cairo">
-                    حالة ناقل الأحداث المباشر
+                    حالة ناقل الأحداث والمزامنة
                   </h4>
                   <p className="text-[10px] text-on-surface-variant/70 font-mono">
-                    Live Event Bus (Phase 3)
+                    Offline Outbox & Realtime Bus (Phase 4)
                   </p>
                 </div>
               </div>
@@ -201,6 +215,21 @@ export const RealtimeSyncBadge: React.FC<RealtimeSyncBadgeProps> = ({
                 </div>
               )}
 
+              {status.role === 'client' && (
+                <div className="flex items-center justify-between">
+                  <span className="text-on-surface-variant font-cairo">طابور الأوفلاين (Outbox):</span>
+                  <span
+                    className={`font-mono text-[11px] font-bold px-2 py-0.5 rounded border ${
+                      pendingCount > 0
+                        ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
+                        : 'bg-surface border-outline-variant/20 text-on-surface'
+                    }`}
+                  >
+                    {pendingCount > 0 ? `${pendingCount} معلقة` : 'فارغ (مكتمل)'}
+                  </span>
+                </div>
+              )}
+
               {status.lastPingMs !== null && status.lastPingMs > 0 && (
                 <div className="flex items-center justify-between">
                   <span className="text-on-surface-variant font-cairo">زمن الاستجابة (Latency):</span>
@@ -219,6 +248,36 @@ export const RealtimeSyncBadge: React.FC<RealtimeSyncBadgeProps> = ({
                 </div>
               )}
             </div>
+
+            {/* بطاقة العمليات المعلقة وزر المزامنة الفورية إن وُجدت */}
+            {pendingCount > 0 && (
+              <div className="mb-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-900 dark:text-amber-200">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="font-bold flex items-center gap-1.5 font-cairo text-xs">
+                    <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                    معاملات أوفلاين معلقة
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-amber-500/20 font-bold font-mono text-xs">
+                    {pendingCount}
+                  </span>
+                </div>
+                <p className="text-[11px] text-amber-700 dark:text-amber-300/90 leading-relaxed font-cairo mb-2.5">
+                  تم حفظ العمليات محلياً وستُرفع تلقائياً فور الاتصال بالخادم.
+                </p>
+                <button
+                  type="button"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    await flushNow();
+                  }}
+                  disabled={isSyncing}
+                  className="w-full py-1.5 px-3 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold font-cairo flex items-center justify-center gap-1.5 transition-all shadow-2xs disabled:opacity-50 cursor-pointer"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                  <span>{isSyncing ? 'جارٍ تفريغ العمليات...' : 'مزامنة العمليات المعلقة الآن'}</span>
+                </button>
+              </div>
+            )}
 
             {/* Actions */}
             <div className="pt-3 border-t border-outline-variant/20 dark:border-slate-800 flex items-center gap-2">

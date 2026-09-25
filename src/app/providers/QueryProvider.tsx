@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, type ReactNode } from "react";
 import { initSyncBridge } from "@/lib/syncBridge";
 import { realtimeEventBus } from "@/lib/realtimeEventBus";
+import { initOutboxDispatcher } from "@/lib/offlineOutbox";
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -24,9 +25,13 @@ export default function QueryProvider({ children }: { children: ReactNode }) {
     // تشغيل محرك الأحداث اللحظية المباشرة (WebSockets & SSE Event Bus)
     const cleanupRealtimeBus = realtimeEventBus.init(queryClient);
 
+    // تشغيل عامل تفريغ طابور العمليات المعلقة دون اتصال (Offline Outbox Dispatcher)
+    const cleanupOutbox = initOutboxDispatcher();
+
     return () => {
       if (typeof cleanupSyncBridge === "function") cleanupSyncBridge();
       if (typeof cleanupRealtimeBus === "function") cleanupRealtimeBus();
+      if (typeof cleanupOutbox === "function") cleanupOutbox();
     };
   }, []);
 

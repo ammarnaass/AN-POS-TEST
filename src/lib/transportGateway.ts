@@ -5,17 +5,26 @@
 //
 // جميع الشاشات والمخازن في الواجهة تستخدم هذه الطبقة عبر src/lib/db.ts بدون أي تعديل في منطق الأعمال.
 
+import {
+  saveReplicaItem,
+  saveReplicaBatch,
+  getReplicaItem,
+  listReplicaItems,
+  removeReplicaItem,
+} from './offlineReplica';
+import { enqueueOutboxItem } from './offlineOutbox';
+
 export type TerminalRole = 'server' | 'client';
 
 export interface TransportDbApi {
-  list: (table: string, opts?: { search?: string; from?: string; to?: string; limit?: number; offset?: number; filter?: Record<string, unknown>; orderBy?: string; orderDir?: 'ASC' | 'DESC' | 'asc' | 'desc' }) => Promise<{ data: any[]; total: number }>;
-  get: (table: string, id: string) => Promise<{ data: any } | null>;
-  bulkGet: (table: string, ids: string[]) => Promise<{ data: any[] }>;
-  create: (table: string, data: Record<string, unknown>) => Promise<{ data: any }>;
-  bulkCreate: (table: string, items: Record<string, unknown>[]) => Promise<{ success: boolean; insertedCount: number }>;
-  update: (table: string, id: string, data: Record<string, unknown>) => Promise<{ data: any }>;
-  bulkUpdate: (table: string, items: Record<string, unknown>[]) => Promise<{ success: boolean; updatedCount: number }>;
-  remove: (table: string, id: string) => Promise<{ success: boolean }>;
+  list: (table: string, opts?: { search?: string; from?: string; to?: string; limit?: number; offset?: number; filter?: Record<string, unknown>; orderBy?: string; orderDir?: 'ASC' | 'DESC' | 'asc' | 'desc' }) => Promise<{ data: any[]; total: number; offlineReplica?: boolean }>;
+  get: (table: string, id: string) => Promise<{ data: any; offlineReplica?: boolean } | null>;
+  bulkGet: (table: string, ids: string[]) => Promise<{ data: any[]; offlineReplica?: boolean }>;
+  create: (table: string, data: Record<string, unknown>) => Promise<{ data: any; queuedOffline?: boolean }>;
+  bulkCreate: (table: string, items: Record<string, unknown>[]) => Promise<{ success: boolean; insertedCount: number; queuedOffline?: boolean }>;
+  update: (table: string, id: string, data: Record<string, unknown>) => Promise<{ data: any; queuedOffline?: boolean }>;
+  bulkUpdate: (table: string, items: Record<string, unknown>[]) => Promise<{ success: boolean; updatedCount: number; queuedOffline?: boolean }>;
+  remove: (table: string, id: string) => Promise<{ success: boolean; queuedOffline?: boolean }>;
   count: (table: string, filter?: Record<string, unknown>) => Promise<{ count: number }>;
   clear: (table: string) => Promise<{ success: boolean }>;
   onTableUpdated: (callback: (data: { table: string; action?: string; id?: string }) => void) => () => void;
@@ -81,182 +90,449 @@ function toQueryString(params: Record<string, unknown> = {}): string {
 }
 
 /**
- * عميل HTTP لنقل البيانات إلى خادم AN POS على الشبكة المحلية (Client Mode)
+ * التحقق مما إذا كان الخطأ ناتجاً عن انقطاع الشبكة أو تعذر الوصول للخادم
+ */
+function isNetworkFailure(err: any): boolean {
+  if (!err) return false;
+  const msg = String(err.message || err).toLowerCase();
+  return (
+    msg.includes('failed to fetch') ||
+    msg.includes('networkerror') ||
+    msg.includes('econnrefused') ||
+    msg.includes('enetunreach') ||
+    msg.includes('etimedout') ||
+    msg.includes('aborterror') ||
+    msg.includes('غير محدد') ||
+    (typeof navigator !== 'undefined' && !navigator.onLine)
+  );
+}
+
+/**
+ * معالجة إنشاء سجل في وضع عدم الاتصال (حفظ بالنسخة المحلية + طابور Outbox)
+ */
+async function handleOfflineCreate(table: string, data: Record<string, unknown>) {
+  const id = String(
+    data.id ||
+      (typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `off_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`)
+  );
+  const record = { ...data, id };
+
+  // 1. الحفظ في النسخة المحلية فورياً
+  await saveReplicaItem(table, record);
+
+  // 2. الإدراج في طابور الـ Outbox
+  await enqueueOutboxItem({
+    entity: table,
+    operation: 'create',
+    localId: id,
+    payload: record,
+    id,
+  });
+
+  // 3. إشعار المستمعين بالواجهة
+  TABLE_LISTENERS.forEach((cb) => {
+    try {
+      cb({ table, action: 'create', id });
+    } catch {}
+  });
+
+  console.log(`[transportGateway] 📴 تم تسجيل عملية إنشاء محلياً في الـ Outbox (${table}: ${id})`);
+  return { data: record, queuedOffline: true };
+}
+
+/**
+ * معالجة تعديل سجل في وضع عدم الاتصال
+ */
+async function handleOfflineUpdate(table: string, id: string, data: Record<string, unknown>) {
+  const existing = (await getReplicaItem(table, id)) || {};
+  const updatedRecord = { ...existing, ...data, id };
+
+  await saveReplicaItem(table, updatedRecord);
+  await enqueueOutboxItem({
+    entity: table,
+    operation: 'update',
+    localId: id,
+    payload: data,
+  });
+
+  TABLE_LISTENERS.forEach((cb) => {
+    try {
+      cb({ table, action: 'update', id });
+    } catch {}
+  });
+
+  console.log(`[transportGateway] 📴 تم تسجيل عملية تعديل محلياً في الـ Outbox (${table}: ${id})`);
+  return { data: updatedRecord, queuedOffline: true };
+}
+
+/**
+ * معالجة حذف سجل في وضع عدم الاتصال
+ */
+async function handleOfflineRemove(table: string, id: string) {
+  await removeReplicaItem(table, id);
+  await enqueueOutboxItem({
+    entity: table,
+    operation: 'delete',
+    localId: id,
+    payload: {},
+  });
+
+  TABLE_LISTENERS.forEach((cb) => {
+    try {
+      cb({ table, action: 'delete', id });
+    } catch {}
+  });
+
+  console.log(`[transportGateway] 📴 تم تسجيل عملية حذف محلياً في الـ Outbox (${table}: ${id})`);
+  return { success: true, queuedOffline: true };
+}
+
+/**
+ * عميل HTTP لنقل البيانات إلى خادم AN POS على الشبكة المحلية مع حماية الصمود دون اتصال
  */
 export const httpTransportDb: TransportDbApi = {
   list: async (table, opts = {}) => {
     const baseUrl = getStoredServerLanUrl();
-    if (!baseUrl) throw new Error('عنوان خادم الشبكة المحلية غير محدد. يرجى ضبطه في إعدادات الشبكة.');
-    const url = `${baseUrl}/api/${encodeURIComponent(table)}${toQueryString(opts as Record<string, unknown>)}`;
-    const res = await fetch(url, { headers: buildHeaders() });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: { detail: res.statusText } }));
-      throw new Error(err?.error?.detail || `HTTP Error ${res.status}`);
+    if (!baseUrl) {
+      const rep = await listReplicaItems(table, opts);
+      return { ...rep, offlineReplica: true };
     }
-    const json = await res.json();
-    return { data: Array.isArray(json?.data) ? json.data : (Array.isArray(json) ? json : []), total: json?.total ?? 0 };
+
+    const url = `${baseUrl}/api/${encodeURIComponent(table)}${toQueryString(opts as Record<string, unknown>)}`;
+    try {
+      const res = await fetch(url, { headers: buildHeaders() });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: { detail: res.statusText } }));
+        throw new Error(err?.error?.detail || `HTTP Error ${res.status}`);
+      }
+      const json = await res.json();
+      const data = Array.isArray(json?.data) ? json.data : (Array.isArray(json) ? json : []);
+      // حفظ في النسخة المحلية في الخلفية لتكون جاهزة دائماً
+      if (data.length > 0) {
+        saveReplicaBatch(table, data).catch(() => {});
+      }
+      return { data, total: json?.total ?? data.length };
+    } catch (err: any) {
+      if (isNetworkFailure(err)) {
+        console.warn(`[transportGateway] ⚠️ انقطاع اتصال الخادم — قراءة الجدول (${table}) من النسخة المحلية Offline Replica`);
+        const rep = await listReplicaItems(table, opts);
+        return { ...rep, offlineReplica: true };
+      }
+      throw err;
+    }
   },
 
   get: async (table, id) => {
     const baseUrl = getStoredServerLanUrl();
-    if (!baseUrl) throw new Error('عنوان خادم الشبكة المحلية غير محدد.');
-    const url = `${baseUrl}/api/${encodeURIComponent(table)}/${encodeURIComponent(id)}`;
-    const res = await fetch(url, { headers: buildHeaders() });
-    if (res.status === 404) return null;
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: { detail: res.statusText } }));
-      throw new Error(err?.error?.detail || `HTTP Error ${res.status}`);
+    if (!baseUrl) {
+      const local = await getReplicaItem(table, id);
+      return local ? { data: local, offlineReplica: true } : null;
     }
-    const json = await res.json();
-    return { data: json?.data ?? json };
+
+    const url = `${baseUrl}/api/${encodeURIComponent(table)}/${encodeURIComponent(id)}`;
+    try {
+      const res = await fetch(url, { headers: buildHeaders() });
+      if (res.status === 404) return null;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: { detail: res.statusText } }));
+        throw new Error(err?.error?.detail || `HTTP Error ${res.status}`);
+      }
+      const json = await res.json();
+      const data = json?.data ?? json;
+      if (data) {
+        saveReplicaItem(table, data).catch(() => {});
+      }
+      return { data };
+    } catch (err: any) {
+      if (isNetworkFailure(err)) {
+        console.warn(`[transportGateway] ⚠️ انقطاع اتصال الخادم — استرجاع العنصر (${table}/${id}) من النسخة المحلية Offline Replica`);
+        const local = await getReplicaItem(table, id);
+        return local ? { data: local, offlineReplica: true } : null;
+      }
+      throw err;
+    }
   },
 
   bulkGet: async (table, ids) => {
     const baseUrl = getStoredServerLanUrl();
-    if (!baseUrl) throw new Error('عنوان خادم الشبكة المحلية غير محدد.');
-    const url = `${baseUrl}/api/${encodeURIComponent(table)}/bulk-get`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: buildHeaders(),
-      body: JSON.stringify({ ids }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: { detail: res.statusText } }));
-      throw new Error(err?.error?.detail || `HTTP Error ${res.status}`);
+    if (!baseUrl) {
+      const results: any[] = [];
+      for (const id of ids) {
+        const item = await getReplicaItem(table, id);
+        if (item) results.push(item);
+      }
+      return { data: results, offlineReplica: true };
     }
-    const json = await res.json();
-    return { data: Array.isArray(json?.data) ? json.data : [] };
+
+    const url = `${baseUrl}/api/${encodeURIComponent(table)}/bulk-get`;
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: buildHeaders(),
+        body: JSON.stringify({ ids }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: { detail: res.statusText } }));
+        throw new Error(err?.error?.detail || `HTTP Error ${res.status}`);
+      }
+      const json = await res.json();
+      const list = Array.isArray(json?.data) ? json.data : [];
+      if (list.length > 0) {
+        saveReplicaBatch(table, list).catch(() => {});
+      }
+      return { data: list };
+    } catch (err: any) {
+      if (isNetworkFailure(err)) {
+        const results: any[] = [];
+        for (const id of ids) {
+          const item = await getReplicaItem(table, id);
+          if (item) results.push(item);
+        }
+        return { data: results, offlineReplica: true };
+      }
+      throw err;
+    }
   },
 
   create: async (table, data) => {
     const baseUrl = getStoredServerLanUrl();
-    if (!baseUrl) throw new Error('عنوان خادم الشبكة المحلية غير محدد.');
-    const url = `${baseUrl}/api/${encodeURIComponent(table)}`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: buildHeaders(),
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: { detail: res.statusText } }));
-      throw new Error(err?.error?.detail || `HTTP Error ${res.status}`);
+    if (!baseUrl) {
+      return handleOfflineCreate(table, data);
     }
-    const json = await res.json();
-    // إشعار المستمعين محلياً
-    TABLE_LISTENERS.forEach((cb) => {
-      try { cb({ table, action: 'create', id: (json?.data?.id || (data.id as string)) }); } catch {}
-    });
-    return { data: json?.data ?? json };
+
+    const url = `${baseUrl}/api/${encodeURIComponent(table)}`;
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: buildHeaders(),
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: { detail: res.statusText } }));
+        throw new Error(err?.error?.detail || `HTTP Error ${res.status}`);
+      }
+      const json = await res.json();
+      const createdItem = json?.data ?? json;
+      saveReplicaItem(table, createdItem).catch(() => {});
+      TABLE_LISTENERS.forEach((cb) => {
+        try {
+          cb({ table, action: 'create', id: createdItem?.id || (data.id as string) });
+        } catch {}
+      });
+      return { data: createdItem };
+    } catch (err: any) {
+      if (isNetworkFailure(err)) {
+        return handleOfflineCreate(table, data);
+      }
+      throw err;
+    }
   },
 
   bulkCreate: async (table, items) => {
     const baseUrl = getStoredServerLanUrl();
-    if (!baseUrl) throw new Error('عنوان خادم الشبكة المحلية غير محدد.');
-    const url = `${baseUrl}/api/${encodeURIComponent(table)}/bulk-create`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: buildHeaders(),
-      body: JSON.stringify({ items }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: { detail: res.statusText } }));
-      throw new Error(err?.error?.detail || `HTTP Error ${res.status}`);
+    if (!baseUrl) {
+      for (const item of items) {
+        await handleOfflineCreate(table, item);
+      }
+      return { success: true, insertedCount: items.length, queuedOffline: true };
     }
-    const json = await res.json();
-    TABLE_LISTENERS.forEach((cb) => {
-      try { cb({ table, action: 'bulkCreate' }); } catch {}
-    });
-    return json;
+
+    const url = `${baseUrl}/api/${encodeURIComponent(table)}/bulk-create`;
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: buildHeaders(),
+        body: JSON.stringify({ items }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: { detail: res.statusText } }));
+        throw new Error(err?.error?.detail || `HTTP Error ${res.status}`);
+      }
+      const json = await res.json();
+      saveReplicaBatch(table, items).catch(() => {});
+      TABLE_LISTENERS.forEach((cb) => {
+        try {
+          cb({ table, action: 'bulkCreate' });
+        } catch {}
+      });
+      return json;
+    } catch (err: any) {
+      if (isNetworkFailure(err)) {
+        for (const item of items) {
+          await handleOfflineCreate(table, item);
+        }
+        return { success: true, insertedCount: items.length, queuedOffline: true };
+      }
+      throw err;
+    }
   },
 
   update: async (table, id, data) => {
     const baseUrl = getStoredServerLanUrl();
-    if (!baseUrl) throw new Error('عنوان خادم الشبكة المحلية غير محدد.');
-    const url = `${baseUrl}/api/${encodeURIComponent(table)}/${encodeURIComponent(id)}`;
-    const res = await fetch(url, {
-      method: 'PUT',
-      headers: buildHeaders(),
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: { detail: res.statusText } }));
-      throw new Error(err?.error?.detail || `HTTP Error ${res.status}`);
+    if (!baseUrl) {
+      return handleOfflineUpdate(table, id, data);
     }
-    const json = await res.json();
-    TABLE_LISTENERS.forEach((cb) => {
-      try { cb({ table, action: 'update', id }); } catch {}
-    });
-    return { data: json?.data ?? json };
+
+    const url = `${baseUrl}/api/${encodeURIComponent(table)}/${encodeURIComponent(id)}`;
+    try {
+      const res = await fetch(url, {
+        method: 'PUT',
+        headers: buildHeaders(),
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: { detail: res.statusText } }));
+        throw new Error(err?.error?.detail || `HTTP Error ${res.status}`);
+      }
+      const json = await res.json();
+      const updatedItem = json?.data ?? json;
+      saveReplicaItem(table, updatedItem).catch(() => {});
+      TABLE_LISTENERS.forEach((cb) => {
+        try {
+          cb({ table, action: 'update', id });
+        } catch {}
+      });
+      return { data: updatedItem };
+    } catch (err: any) {
+      if (isNetworkFailure(err)) {
+        return handleOfflineUpdate(table, id, data);
+      }
+      throw err;
+    }
   },
 
   bulkUpdate: async (table, items) => {
     const baseUrl = getStoredServerLanUrl();
-    if (!baseUrl) throw new Error('عنوان خادم الشبكة المحلية غير محدد.');
-    const url = `${baseUrl}/api/${encodeURIComponent(table)}/bulk-update`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: buildHeaders(),
-      body: JSON.stringify({ items }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: { detail: res.statusText } }));
-      throw new Error(err?.error?.detail || `HTTP Error ${res.status}`);
+    if (!baseUrl) {
+      for (const item of items) {
+        const id = String(item.id || '');
+        if (id) await handleOfflineUpdate(table, id, item);
+      }
+      return { success: true, updatedCount: items.length, queuedOffline: true };
     }
-    const json = await res.json();
-    TABLE_LISTENERS.forEach((cb) => {
-      try { cb({ table, action: 'bulkUpdate' }); } catch {}
-    });
-    return json;
+
+    const url = `${baseUrl}/api/${encodeURIComponent(table)}/bulk-update`;
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: buildHeaders(),
+        body: JSON.stringify({ items }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: { detail: res.statusText } }));
+        throw new Error(err?.error?.detail || `HTTP Error ${res.status}`);
+      }
+      const json = await res.json();
+      TABLE_LISTENERS.forEach((cb) => {
+        try {
+          cb({ table, action: 'bulkUpdate' });
+        } catch {}
+      });
+      return json;
+    } catch (err: any) {
+      if (isNetworkFailure(err)) {
+        for (const item of items) {
+          const id = String(item.id || '');
+          if (id) await handleOfflineUpdate(table, id, item);
+        }
+        return { success: true, updatedCount: items.length, queuedOffline: true };
+      }
+      throw err;
+    }
   },
 
   remove: async (table, id) => {
     const baseUrl = getStoredServerLanUrl();
-    if (!baseUrl) throw new Error('عنوان خادم الشبكة المحلية غير محدد.');
-    const url = `${baseUrl}/api/${encodeURIComponent(table)}/${encodeURIComponent(id)}`;
-    const res = await fetch(url, {
-      method: 'DELETE',
-      headers: buildHeaders(),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: { detail: res.statusText } }));
-      throw new Error(err?.error?.detail || `HTTP Error ${res.status}`);
+    if (!baseUrl) {
+      return handleOfflineRemove(table, id);
     }
-    const json = await res.json();
-    TABLE_LISTENERS.forEach((cb) => {
-      try { cb({ table, action: 'delete', id }); } catch {}
-    });
-    return { success: json?.success ?? true };
+
+    const url = `${baseUrl}/api/${encodeURIComponent(table)}/${encodeURIComponent(id)}`;
+    try {
+      const res = await fetch(url, {
+        method: 'DELETE',
+        headers: buildHeaders(),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: { detail: res.statusText } }));
+        throw new Error(err?.error?.detail || `HTTP Error ${res.status}`);
+      }
+      const json = await res.json();
+      removeReplicaItem(table, id).catch(() => {});
+      TABLE_LISTENERS.forEach((cb) => {
+        try {
+          cb({ table, action: 'delete', id });
+        } catch {}
+      });
+      return { success: json?.success ?? true };
+    } catch (err: any) {
+      if (isNetworkFailure(err)) {
+        return handleOfflineRemove(table, id);
+      }
+      throw err;
+    }
   },
 
   count: async (table, filter = {}) => {
     const baseUrl = getStoredServerLanUrl();
-    if (!baseUrl) throw new Error('عنوان خادم الشبكة المحلية غير محدد.');
-    const url = `${baseUrl}/api/${encodeURIComponent(table)}/count${toQueryString(filter)}`;
-    const res = await fetch(url, { headers: buildHeaders() });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: { detail: res.statusText } }));
-      throw new Error(err?.error?.detail || `HTTP Error ${res.status}`);
+    if (!baseUrl) {
+      const rep = await listReplicaItems(table, { filter });
+      return { count: rep.total };
     }
-    const json = await res.json();
-    return { count: Number(json?.count ?? 0) };
+
+    const url = `${baseUrl}/api/${encodeURIComponent(table)}/count${toQueryString(filter)}`;
+    try {
+      const res = await fetch(url, { headers: buildHeaders() });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: { detail: res.statusText } }));
+        throw new Error(err?.error?.detail || `HTTP Error ${res.status}`);
+      }
+      const json = await res.json();
+      return { count: Number(json?.count ?? 0) };
+    } catch (err: any) {
+      if (isNetworkFailure(err)) {
+        const rep = await listReplicaItems(table, { filter });
+        return { count: rep.total };
+      }
+      throw err;
+    }
   },
 
   clear: async (table) => {
     const baseUrl = getStoredServerLanUrl();
-    if (!baseUrl) throw new Error('عنوان خادم الشبكة المحلية غير محدد.');
-    const url = `${baseUrl}/api/${encodeURIComponent(table)}/clear`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: buildHeaders(),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: { detail: res.statusText } }));
-      throw new Error(err?.error?.detail || `HTTP Error ${res.status}`);
+    if (!baseUrl) {
+      return { success: true };
     }
-    TABLE_LISTENERS.forEach((cb) => {
-      try { cb({ table, action: 'clear' }); } catch {}
-    });
-    return { success: true };
+
+    const url = `${baseUrl}/api/${encodeURIComponent(table)}/clear`;
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: buildHeaders(),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: { detail: res.statusText } }));
+        throw new Error(err?.error?.detail || `HTTP Error ${res.status}`);
+      }
+      TABLE_LISTENERS.forEach((cb) => {
+        try {
+          cb({ table, action: 'clear' });
+        } catch {}
+      });
+      return { success: true };
+    } catch (err: any) {
+      if (isNetworkFailure(err)) {
+        TABLE_LISTENERS.forEach((cb) => {
+          try {
+            cb({ table, action: 'clear' });
+          } catch {}
+        });
+        return { success: true };
+      }
+      throw err;
+    }
   },
 
   onTableUpdated: (callback) => {
