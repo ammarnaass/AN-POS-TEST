@@ -5,6 +5,7 @@
 import { randomUUID } from 'node:crypto';
 import {
   queryOne,
+  queryAll,
   execute,
   type Row,
 } from './db-utils';
@@ -311,3 +312,39 @@ export async function logoutUser(userId: string): Promise<{ success: boolean }> 
   }
   return { success: true };
 }
+
+/**
+ * التحقق من رمز المدير (Manager PIN) لفك قفل الشاشات والعمليات المحمية
+ * يبحث عن أي مستخدم بدور مسؤول/مدير/مالك/مطور نشط ويطابق الرمز
+ */
+export async function verifyManagerPin(
+  pin: string
+): Promise<{ success: boolean; error?: string; managerName?: string; role?: string }> {
+  if (!pin || typeof pin !== 'string') {
+    return { success: false, error: 'رمز المدير مطلوب' };
+  }
+
+  const cleanPin = pin.trim();
+  const managerUsers = queryAll(
+    "SELECT id, username, name, pin, role, status FROM users WHERE role IN ('admin', 'manager', 'owner', 'developer') AND status = 'active'"
+  );
+
+  if (!managerUsers || managerUsers.length === 0) {
+    // في حال عدم وجود أي حساب مدير نشط مسجل بعد
+    return { success: false, error: 'لا يوجد حساب مدير نشط مسجل في النظام' };
+  }
+
+  for (const user of managerUsers) {
+    if (user.pin && verifyPassword(cleanPin, user.pin as string)) {
+      logActivity(user.id as string, 'manager_pin_auth', 'system', undefined, 'مصادقة رمز المدير بنجاح');
+      return {
+        success: true,
+        managerName: (user.name as string) || (user.username as string),
+        role: user.role as string,
+      };
+    }
+  }
+
+  return { success: false, error: 'رمز المدير غير صحيح' };
+}
+

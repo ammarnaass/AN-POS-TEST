@@ -13,6 +13,7 @@ import { useNetworkServer } from '../hooks/useNetworkServer';
 import { useSystemSettings } from '../hooks/useSystemSettings';
 import { setStoredTransportConfig } from '@/lib/transportGateway';
 import { useCloudSyncStatus } from '@/lib/cloudSyncEngine';
+import NetworkSetupWizard from '@/features/network/components/NetworkSetupWizard';
 
 interface NetworkTabProps {
   [key: string]: any;
@@ -56,6 +57,7 @@ export default function NetworkTab(props: NetworkTabProps) {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [showConnectionKey, setShowConnectionKey] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [showSetupWizard, setShowSetupWizard] = useState(false);
 
   // حالة منصة اختبار قارئ الباركود الحي (Live Scanner Test Bench)
   const [scannerTestInput, setScannerTestInput] = useState('');
@@ -787,10 +789,29 @@ export default function NetworkTab(props: NetworkTabProps) {
                     حدد ما إذا كان هذا الجهاز يعمل كسيرفر رئيسي للمحل أم كنقطة كاشير فرعية إضافية
                   </p>
                 </div>
-                <span className="self-start sm:self-auto px-2.5 py-1 rounded-full text-[11px] font-bold bg-primary/10 text-primary border border-primary/20">
-                  {settings.terminalRole === 'client' ? 'محطة كاشير فرعية (Client)' : 'سيرفر رئيسي (Server Master)'}
-                </span>
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setShowSetupWizard(true)}
+                    className="py-1 px-3 rounded-full text-[11px] font-bold bg-primary text-on-primary shadow-sm hover:bg-primary-hover active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Zap className="w-3.5 h-3.5" />
+                    <span>معالج الإعداد السريع (Setup Wizard)</span>
+                  </button>
+                  <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-primary/10 text-primary border border-primary/20">
+                    {settings.terminalRole === 'client' ? 'محطة كاشير فرعية (Client)' : 'سيرفر رئيسي (Server Master)'}
+                  </span>
+                </div>
               </div>
+
+              {/* نافذة معالج الإعداد السريع للشبكة ودور الحاسوب */}
+              <NetworkSetupWizard
+                isOpen={showSetupWizard}
+                onClose={() => setShowSetupWizard(false)}
+                onCompleted={(newRole) => {
+                  handleSaveSettings({ terminalRole: newRole, terminal_role: newRole });
+                }}
+              />
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4">
                 {/* بطاقة الخادم الرئيسي */}

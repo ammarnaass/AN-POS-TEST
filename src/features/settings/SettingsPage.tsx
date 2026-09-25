@@ -11,6 +11,8 @@ import { useUsersAndRoles } from './hooks/useUsersAndRoles';
 import SettingsHeader from './components/navigation/SettingsHeader';
 import CategoryGroupsNav, { type TabGroup } from './components/navigation/CategoryGroupsNav';
 import SubTabsRibbon from './components/navigation/SubTabsRibbon';
+import { isRestrictedTabOnClient, isManagerUnlocked } from '@/lib/clientAccessControl';
+import ManagerPinModal from '@/features/auth/components/ManagerPinModal';
 
 // Lazy-loaded tab components for maximum performance and fast initial rendering
 const ActivationTab = lazy(() => import('./tabs/ActivationTab'));
@@ -48,6 +50,8 @@ export default function SettingsPage() {
   });
 
   const [navMode, setNavMode] = useState<'grouped' | 'all'>('grouped');
+  const [pendingTab, setPendingTab] = useState<string | null>(null);
+  const [showPinModal, setShowPinModal] = useState(false);
 
   // Enforce license lock redirection if trial expired
   useEffect(() => {
@@ -55,6 +59,27 @@ export default function SettingsPage() {
       setActiveTab('activation');
     }
   }, [isExpiredAndLocked, activeTab]);
+
+  const handleSelectTab = (tabId: string) => {
+    if (isRestrictedTabOnClient(tabId) && !isManagerUnlocked()) {
+      setPendingTab(tabId);
+      setShowPinModal(true);
+      return;
+    }
+    setActiveTab(tabId);
+  };
+
+  const handlePinSuccess = () => {
+    if (pendingTab) {
+      setActiveTab(pendingTab);
+      setPendingTab(null);
+    }
+    addNotification({
+      title: 'تم فك القفل بنجاح',
+      message: 'تم التحقق من صلاحيات المدير ومنح الإذن المؤقت للوصول لهذا القسم',
+      type: 'success',
+    });
+  };
 
   const handleBlockedTabClick = () => {
     addNotification({
@@ -129,7 +154,7 @@ export default function SettingsPage() {
           tabGroups={tabGroups}
           activeGroup={activeGroup}
           activeTab={activeTab}
-          setActiveTab={setActiveTab}
+          setActiveTab={handleSelectTab}
           navMode={navMode}
           setNavMode={setNavMode}
           isExpiredAndLocked={isExpiredAndLocked}
@@ -140,11 +165,21 @@ export default function SettingsPage() {
         <SubTabsRibbon
           displayedTabs={displayedTabs}
           activeTab={activeTab}
-          setActiveTab={setActiveTab}
+          setActiveTab={handleSelectTab}
           isExpiredAndLocked={isExpiredAndLocked}
           onBlockedTabClick={handleBlockedTabClick}
         />
       </nav>
+
+      {/* نافذة طلب رمز المدير للأقسام الحساسة على أجهزة الكاشير الفرعية */}
+      <ManagerPinModal
+        isOpen={showPinModal}
+        onClose={() => {
+          setShowPinModal(false);
+          setPendingTab(null);
+        }}
+        onSuccess={handlePinSuccess}
+      />
 
       {/* Active Section Breadcrumbs */}
       <div className="flex items-center justify-between px-2 text-xs text-on-surface-variant font-tajawal">

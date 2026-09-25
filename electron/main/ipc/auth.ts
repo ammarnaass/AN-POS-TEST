@@ -9,6 +9,7 @@ import {
   logoutUser,
   resetUserPassword,
   checkRegistrationAllowed,
+  verifyManagerPin,
   type RegisterUserData,
 } from '../handlers/auth';
 
@@ -16,6 +17,11 @@ export function registerAuthIpc(): void {
   // auth:login
   ipcMain.handle('auth:login', async (_evt, username: string, pin: string) =>
     loginUser(username, pin)
+  );
+
+  // auth:verify-manager-pin
+  ipcMain.handle('auth:verify-manager-pin', async (_evt, pin: string) =>
+    verifyManagerPin(pin)
   );
 
   // auth:register

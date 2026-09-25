@@ -9,7 +9,7 @@
 // الجلسات محفوظة في قاعدة البيانات (device_sessions) وتُحمّل إلى الذاكرة عند بدء التشغيل.
 
 import type { FastifyInstance } from 'fastify';
-import { randomUUID, randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomUUID, randomBytes, timingSafeEqual, createHmac } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as child_process from 'node:child_process';
 import {
@@ -25,6 +25,50 @@ import { isDeveloperModeActive } from '../../handlers/auth';
  * Key = session_token, Value = { deviceId, userId, pairedAt }
  */
 const activeSessions = new Map<string, { deviceId: string; userId: string | null; pairedAt: string }>();
+
+// حماية ضد هجمات التخمين والإغراق (Rate Limiting على طلبات الاقتران الفاشلة)
+interface FailedAttemptRecord {
+  count: number;
+  firstAttemptAt: number;
+  blockedUntil: number;
+}
+const failedPairingAttempts = new Map<string, FailedAttemptRecord>();
+
+export function checkPairingRateLimit(clientIp: string): { allowed: boolean; retryAfterSeconds?: number } {
+  const now = Date.now();
+  const record = failedPairingAttempts.get(clientIp);
+  if (!record) return { allowed: true };
+
+  if (record.blockedUntil > now) {
+    const retryAfterSeconds = Math.ceil((record.blockedUntil - now) / 1000);
+    return { allowed: false, retryAfterSeconds };
+  }
+
+  if (now - record.firstAttemptAt > 60000 && record.blockedUntil <= now) {
+    failedPairingAttempts.delete(clientIp);
+    return { allowed: true };
+  }
+
+  return { allowed: true };
+}
+
+export function recordFailedPairing(clientIp: string): void {
+  const now = Date.now();
+  const record = failedPairingAttempts.get(clientIp);
+  if (!record || (now - record.firstAttemptAt > 60000 && record.blockedUntil <= now)) {
+    failedPairingAttempts.set(clientIp, { count: 1, firstAttemptAt: now, blockedUntil: 0 });
+  } else {
+    record.count++;
+    if (record.count >= 5) {
+      record.blockedUntil = now + 60000;
+      console.warn(`[pair] ⚠️ تم حظر طلبات الاقتران مؤقتاً لـ ${clientIp} لمدة 60 ثانية بسبب تكرار المفاتيح الخاطئة`);
+    }
+  }
+}
+
+export function resetPairingFailures(clientIp: string): void {
+  failedPairingAttempts.delete(clientIp);
+}
 
 /**
  * تحميل الجلسات من قاعدة البيانات عند بدء التشغيل
@@ -249,18 +293,6 @@ async function pairDevice(
   appVersion?: string;
   error?: { status: number; detail: string };
 }> {
-  // مفتاح الاتصال المخزّن
-  const settings = queryOne("SELECT connection_key FROM network_settings WHERE id = 'default'");
-  if (!settings?.connection_key) {
-    return { error: { status: 500, detail: 'مفتاح الاتصال غير مهيّأ على سطح المكتب' } };
-  }
-  if (!payload.connectionKey || !safeEqual(payload.connectionKey, settings.connection_key as string)) {
-    return { error: { status: 401, detail: 'مفتاح الاتصال غير صحيح' } };
-  }
-  if (!payload.deviceName) {
-    return { error: { status: 422, detail: 'اسم الجهاز مطلوب' } };
-  }
-
   // 1. تحديد عنوان IP الفعلي
   let resolvedIp = (payload.ipAddress || clientIp || '').trim();
   if (resolvedIp.startsWith('::ffff:')) {
@@ -268,6 +300,34 @@ async function pairDevice(
   }
   if (resolvedIp === '::1' || resolvedIp === 'localhost') {
     resolvedIp = '127.0.0.1';
+  }
+
+  // فحص معدل المحاولات الفاشلة (Rate Limiter)
+  const clientIpClean = resolvedIp || clientIp || '127.0.0.1';
+  const rateLimit = checkPairingRateLimit(clientIpClean);
+  if (!rateLimit.allowed) {
+    return {
+      error: {
+        status: 429,
+        detail: `تم تجاوز الحد المسموح لمحاولات الاقتران. يرجى الانتظار ${rateLimit.retryAfterSeconds} ثانية.`,
+      },
+    };
+  }
+
+  // مفتاح الاتصال المخزّن
+  const settings = queryOne("SELECT connection_key FROM network_settings WHERE id = 'default'");
+  if (!settings?.connection_key) {
+    return { error: { status: 500, detail: 'مفتاح الاتصال غير مهيّأ على سطح المكتب' } };
+  }
+  if (!payload.connectionKey || !safeEqual(payload.connectionKey, settings.connection_key as string)) {
+    recordFailedPairing(clientIpClean);
+    return { error: { status: 401, detail: 'مفتاح الاتصال غير صحيح' } };
+  }
+  // تم التحقق بنجاح من المفتاح، تصفير أي سجلات فشل سابقة
+  resetPairingFailures(clientIpClean);
+
+  if (!payload.deviceName) {
+    return { error: { status: 422, detail: 'اسم الجهاز مطلوب' } };
   }
 
   // 2. تحديد عنوان MAC الفعلي (من الحمولة أولاً، أو من جدول الـ ARP)
@@ -415,8 +475,13 @@ async function pairDevice(
     );
   }
 
-  // توليد session_token آمن 32 بايت = 64 hex
-  const sessionToken = randomBytes(32).toString('hex');
+  // توليد رمز جلسة آمن ومربوط بعتاد الجهاز عبر توقيع HMAC مشفر
+  const secretKey = (settings.connection_key as string) || 'anpos_hw_secret';
+  const salt = randomBytes(16).toString('hex');
+  const hwBinding = deviceUniqueId || payload.hardwareId || resolvedMac || resolvedIp || 'terminal';
+  const sessionToken = createHmac('sha256', secretKey)
+    .update(`${hwBinding}:${deviceId}:${salt}:${now}`)
+    .digest('hex');
 
   // حفظ في الذاكرة + قاعدة البيانات
   activeSessions.set(sessionToken, { deviceId, userId: null, pairedAt: now });

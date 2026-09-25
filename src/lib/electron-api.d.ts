@@ -14,6 +14,7 @@ export interface ElectronAPI {
     register: (data: { username: string; name: string; pin: string; phone?: string; email?: string }) => Promise<{ user?: unknown; error?: { status: number; detail: string } }>;
     getCurrentUser: (userId: string) => Promise<{ user?: unknown; error?: { status: number; detail: string } }>;
     logout: (userId: string) => Promise<{ success: boolean }>;
+    verifyManagerPin?: (pin: string) => Promise<{ success: boolean; error?: string; managerName?: string; role?: string }>;
   };
   products: {
     list: (opts?: { search?: string; categoryId?: string; status?: string; limit?: number; offset?: number; orderBy?: string; orderDir?: 'ASC' | 'DESC' | 'asc' | 'desc' }) => Promise<{ data: Record<string, unknown>[] }>;

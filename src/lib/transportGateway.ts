@@ -38,6 +38,10 @@ export function getStoredTerminalRole(): TerminalRole {
   return role === 'client' ? 'client' : 'server';
 }
 
+export function isClientNode(): boolean {
+  return getStoredTerminalRole() === 'client';
+}
+
 export function getStoredServerLanUrl(): string {
   if (typeof window === 'undefined') return '';
   return (localStorage.getItem('anpos_server_lan_url') || '').trim().replace(/\/+$/, '');
@@ -69,6 +73,20 @@ export function setStoredTransportConfig(config: {
   if (config.serverUrl !== undefined) localStorage.setItem('anpos_server_lan_url', config.serverUrl.trim().replace(/\/+$/, ''));
   if (config.token !== undefined) localStorage.setItem('anpos_client_token', config.token);
   if (config.deviceId !== undefined) localStorage.setItem('anpos_client_device_id', config.deviceId);
+}
+
+export function getStoredTransportConfig(): {
+  role: TerminalRole;
+  serverUrl: string;
+  token: string;
+  deviceId: string;
+} {
+  return {
+    role: getStoredTerminalRole(),
+    serverUrl: getStoredServerLanUrl(),
+    token: getStoredClientToken(),
+    deviceId: getStoredClientDeviceId(),
+  };
 }
 
 function buildHeaders(): Record<string, string> {

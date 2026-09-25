@@ -51,6 +51,8 @@ const electronAPI = {
       ipcRenderer.invoke('auth:reset-password', userId, newPin),
     checkRegistrationAllowed: () =>
       ipcRenderer.invoke('auth:check-registration-allowed'),
+    verifyManagerPin: (pin: string) =>
+      ipcRenderer.invoke('auth:verify-manager-pin', pin),
   },
 
   // ===== المنتجات (مسارات مخصصة) =====
