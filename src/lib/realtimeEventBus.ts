@@ -537,6 +537,22 @@ class RealtimeEventBusManager {
   }
 
   /**
+   * الاشتراك في الأحداث اللحظية أو تحديثات الحالة بأسلوب EventEmitter المألوف
+   */
+  public on(type: 'status', listener: StatusListener): () => void;
+  public on(type: string, listener: EventListener): () => void;
+  public on(type: string, listener: any): () => void {
+    if (type === 'status') {
+      return this.onStatusChange(listener);
+    }
+    return this.subscribe((event) => {
+      if (event.type === type || type === '*') {
+        listener(event);
+      }
+    });
+  }
+
+  /**
    * إجبار إعادة الاتصال فوراً يدوياً
    */
   public reconnect(): void {

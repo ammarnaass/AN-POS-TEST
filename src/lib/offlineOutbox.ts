@@ -493,12 +493,26 @@ export function initOutboxDispatcher(): () => void {
   window.addEventListener('online', handleOnline);
 
   // 2. الاستماع لأحداث ناقل الأحداث الحية عند تحول الحالة إلى connected
-  const unsubscribeBus = realtimeEventBus.on('status', (st) => {
-    if (st.state === 'connected') {
-      console.log('[offlineOutbox] ⚡ تم الاتصال بالخادم (realtimeEventBus connected)، بدء التفريغ...');
-      flushOutbox().catch(() => {});
+  let unsubscribeBus = () => {};
+  try {
+    if (realtimeEventBus && typeof realtimeEventBus.onStatusChange === 'function') {
+      unsubscribeBus = realtimeEventBus.onStatusChange((st) => {
+        if (st?.state === 'connected') {
+          console.log('[offlineOutbox] ⚡ تم الاتصال بالخادم (realtimeEventBus connected)، بدء التفريغ...');
+          flushOutbox().catch(() => {});
+        }
+      });
+    } else if (realtimeEventBus && typeof (realtimeEventBus as any).on === 'function') {
+      unsubscribeBus = (realtimeEventBus as any).on('status', (st: any) => {
+        if (st?.state === 'connected') {
+          console.log('[offlineOutbox] ⚡ تم الاتصال بالخادم (realtimeEventBus connected)، بدء التفريغ...');
+          flushOutbox().catch(() => {});
+        }
+      });
     }
-  });
+  } catch (err) {
+    console.warn('[offlineOutbox] تعذر ربط مستمع الأحداث الحية:', err);
+  }
 
   // 3. فحص دوري كل 25 ثانية إذا كانت هناك عناصر معلقة
   if (!periodicInterval) {
@@ -512,7 +526,9 @@ export function initOutboxDispatcher(): () => void {
 
   return () => {
     window.removeEventListener('online', handleOnline);
-    unsubscribeBus();
+    if (typeof unsubscribeBus === 'function') {
+      unsubscribeBus();
+    }
     if (periodicInterval) {
       clearInterval(periodicInterval);
       periodicInterval = null;
