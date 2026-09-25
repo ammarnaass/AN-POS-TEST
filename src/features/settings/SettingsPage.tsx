@@ -2,7 +2,7 @@ import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   Store, ShoppingCart, FileText, Users, Globe, Smartphone,
-  HardDrive, Key, RefreshCw, User as UserIcon, Shield, Wifi,
+  HardDrive, Key, RefreshCw, User as UserIcon, Shield, Wifi, Monitor,
 } from 'lucide-react';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useLicenseActivation } from './hooks/useLicenseActivation';
@@ -21,6 +21,7 @@ const PosSettingsTab = lazy(() => import('./tabs/PosSettingsTab'));
 const InvoicesTab = lazy(() => import('./tabs/InvoicesTab'));
 const UsersRolesTab = lazy(() => import('./tabs/UsersRolesTab'));
 const NetworkTab = lazy(() => import('./tabs/NetworkTab'));
+const ClientTerminalPairingTab = lazy(() => import('./tabs/ClientTerminalPairingTab'));
 const ExportBackupTab = lazy(() => import('./tabs/ExportBackupTab'));
 const MobileDevicesTab = lazy(() => import('./tabs/MobileDevicesTab'));
 const UpdatesTab = lazy(() => import('./tabs/UpdatesTab'));
@@ -45,7 +46,7 @@ export default function SettingsPage() {
 
   const [activeTab, setActiveTab] = useState<string>(() => {
     const t = (location.state as { tab?: string } | null)?.tab;
-    const known = ['activation', 'general', 'pos', 'invoices', 'users', 'network', 'export', 'mobile', 'updates', 'account'];
+    const known = ['activation', 'general', 'pos', 'invoices', 'users', 'network', 'client_terminal', 'export', 'mobile', 'updates', 'account'];
     return t && known.includes(t) ? t : 'activation';
   });
 
@@ -63,7 +64,7 @@ export default function SettingsPage() {
   // Sync active tab with location.state changes (e.g. from top bar badge)
   useEffect(() => {
     const t = (location.state as { tab?: string } | null)?.tab;
-    const known = ['activation', 'general', 'pos', 'invoices', 'users', 'network', 'export', 'mobile', 'updates', 'account'];
+    const known = ['activation', 'general', 'pos', 'invoices', 'users', 'network', 'client_terminal', 'export', 'mobile', 'updates', 'account'];
     if (t && known.includes(t)) {
       setActiveTab(t);
     }
@@ -126,6 +127,7 @@ export default function SettingsPage() {
       badge: mobilePhones.length > 0 ? `${mobilePhones.length}` : '2',
       items: [
         { id: 'network', label: 'الشبكة والخادم المحلي', icon: Globe, badge: serverStatus?.running ? 'نشط' : undefined },
+        { id: 'client_terminal', label: 'ربط نقطة البيع الفرعية (Client POS)', icon: Monitor, badge: undefined },
         { id: 'mobile', label: 'تطبيق الهاتف المقترن', icon: Smartphone, badge: mobilePhones.length > 0 ? `${mobilePhones.length}` : '2' },
       ],
     },
@@ -213,6 +215,7 @@ export default function SettingsPage() {
           {activeTab === 'invoices' && <InvoicesTab />}
           {activeTab === 'users' && <UsersRolesTab />}
           {activeTab === 'network' && <NetworkTab />}
+          {activeTab === 'client_terminal' && <ClientTerminalPairingTab />}
           {activeTab === 'export' && <ExportBackupTab />}
           {activeTab === 'mobile' && <MobileDevicesTab />}
           {activeTab === 'updates' && <UpdatesTab addNotification={addNotification} />}

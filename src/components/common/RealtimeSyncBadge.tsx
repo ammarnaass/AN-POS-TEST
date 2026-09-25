@@ -17,6 +17,7 @@ import {
   HardDrive,
   Radio,
   SlidersHorizontal,
+  Monitor,
 } from 'lucide-react';
 import { useRealtimeStatus } from '@/lib/realtimeEventBus';
 import { useOutboxStatus } from '@/lib/offlineOutbox';
@@ -499,18 +500,33 @@ export const RealtimeSyncBadge: React.FC<RealtimeSyncBadgeProps> = ({
             )}
 
             {/* أزرار الإجراءات والانتقال */}
-            <div className="shrink-0 pt-3 border-t border-outline-variant/20 dark:border-slate-800 flex items-center gap-2">
-              {status.role === 'client' && (
+            <div className="shrink-0 pt-3 border-t border-outline-variant/20 dark:border-slate-800 flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                {status.role === 'client' && (
+                  <button
+                    type="button"
+                    onClick={handleManualReconnect}
+                    disabled={isManualReconnecting}
+                    className="py-1.5 px-3 rounded-xl bg-primary text-on-primary hover:bg-primary/90 text-xs font-bold font-cairo flex items-center justify-center gap-1.5 transition-all shadow-xs disabled:opacity-50 cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isManualReconnecting ? 'animate-spin' : ''}`} />
+                    <span>إعادة المحاولة</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
-                  onClick={handleManualReconnect}
-                  disabled={isManualReconnecting}
-                  className="flex-1 py-1.5 px-3 rounded-xl bg-primary text-on-primary hover:bg-primary/90 text-xs font-bold font-cairo flex items-center justify-center gap-1.5 transition-all shadow-xs disabled:opacity-50 cursor-pointer"
+                  onClick={() => {
+                    setShowDetails(false);
+                    navigate('/settings', { state: { tab: 'client_terminal' } });
+                  }}
+                  className="flex-1 py-2 px-3 rounded-xl bg-primary/10 hover:bg-primary/20 border border-primary/25 text-primary text-xs font-bold font-cairo flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                  title="صفحة ربط نقطة البيع ومعلومات الخادم الرئيسي"
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isManualReconnecting ? 'animate-spin' : ''}`} />
-                  <span>إعادة المحاولة الآن</span>
+                  <Monitor className="w-3.5 h-3.5 shrink-0" />
+                  <span>ربط نقطة البيع الفرعية (Client POS)</span>
                 </button>
-              )}
+              </div>
 
               <button
                 type="button"
@@ -518,11 +534,10 @@ export const RealtimeSyncBadge: React.FC<RealtimeSyncBadgeProps> = ({
                   setShowDetails(false);
                   navigate('/settings', { state: { tab: 'network' } });
                 }}
-                className="w-full py-2 px-3 rounded-xl bg-primary/10 hover:bg-primary/20 border border-primary/25 text-primary text-xs font-bold font-cairo flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-                title="الانتقال إلى صفحة دور هذا الحاسوب في الشبكة وإعدادات الخادم"
+                className="w-full py-1.5 px-3 rounded-lg hover:bg-surface-variant/40 text-on-surface-variant text-[11px] font-medium font-cairo flex items-center justify-center gap-1 transition-all cursor-pointer"
               >
-                <Server className="w-3.5 h-3.5 shrink-0" />
-                <span>معلومات الخادم ودور هذا الحاسوب في الشبكة (Computer Role)</span>
+                <Server className="w-3 h-3 text-on-surface-variant/70" />
+                <span>إعدادات الشبكة ودور الحاسوب (Network) ←</span>
               </button>
             </div>
           </div>

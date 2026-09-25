@@ -184,6 +184,9 @@ export async function getPendingOutboxCount(): Promise<number> {
   ).length;
 }
 
+/** اسم بديل متوافق لعدد العمليات المعلقة */
+export const getOutboxPendingCount = getPendingOutboxCount;
+
 /**
  * جلب قائمة العمليات المعلقة لرفعها دفعة واحدة
  */
