@@ -284,6 +284,21 @@ const electronAPI = {
     },
   },
 
+  // ===== محرك الأحداث اللحظية المباشرة (WebSockets & SSE Event Bus) =====
+  realtime: {
+    onEvent: (callback: (event: { id: string; type: string; data: any; timestamp: string; senderDeviceId?: string }) => void) => {
+      const listener = (_event: any, data: any) => callback(data);
+      ipcRenderer.on('realtime:event', listener);
+      return () => {
+        ipcRenderer.removeListener('realtime:event', listener);
+      };
+    },
+    emit: (type: string, data?: any) =>
+      ipcRenderer.invoke('realtime:emit', { type, data }),
+    getStatus: () =>
+      ipcRenderer.invoke('realtime:status'),
+  },
+
   // ===== تكامل النظام وتكوين ويندوز (System Integration) =====
   system: {
     getAutoLaunch: () =>
@@ -296,6 +311,7 @@ const electronAPI = {
       ipcRenderer.invoke('system:testServerConnection', serverUrl),
   },
 };
+
 
 try {
   contextBridge.exposeInMainWorld('electronAPI', electronAPI);

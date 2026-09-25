@@ -10,6 +10,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { QuickPOSClock } from './QuickPOSClock';
+import { RealtimeSyncBadge } from '@/components/common/RealtimeSyncBadge';
 import { formatMoney } from '../../utils/format';
 import { APP_DISPLAY_VERSION } from '@/constants/app';
 
@@ -88,6 +89,7 @@ export const QuickPOSHeader: React.FC<QuickPOSHeaderProps> = React.memo(({
 
         {/* Left / End (in RTL) */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <RealtimeSyncBadge compact />
           <QuickPOSClock />
           <span className="text-slate-600 hidden sm:inline">|</span>
 

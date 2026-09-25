@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import NotificationDropdown from '@/components/notifications/NotificationDropdown';
 import { POSReturnButton } from '@/features/pos/returns';
+import { RealtimeSyncBadge } from '@/components/common/RealtimeSyncBadge';
 import type { Product, CashSession, User } from '@/types';
 
 export interface POSTopBarProps {
@@ -288,13 +289,8 @@ export const POSTopBar: React.FC<POSTopBarProps> = ({
             <Smartphone className="w-4 h-4" />
           </button>
 
-          {/* Cloud Sync */}
-          <div
-            className="hidden sm:flex group relative w-8.5 h-8.5 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 items-center justify-center shadow-2xs transition-all duration-200 cursor-default"
-            title="المزامنة السحابية مكتملة"
-          >
-            <CloudCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-          </div>
+          {/* Live LAN Realtime Sync Event Bus */}
+          <RealtimeSyncBadge />
 
           {/* Theme Toggle */}
           <button

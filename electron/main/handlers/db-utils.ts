@@ -131,6 +131,19 @@ export function tableHasColumn(tableName: string, columnName: string): boolean {
 }
 
 
+export type TableChangeSubscriber = (tableName: string, action: string, id?: string) => void;
+const tableChangeSubscribers = new Set<TableChangeSubscriber>();
+
+/**
+ * تسجيل مستمع للأحداث الداخلية لتغييرات جداول SQLite (مثل خادم بث الأحداث Event Bus للشبكة المحلية)
+ */
+export function subscribeToTableChanges(subscriber: TableChangeSubscriber): () => void {
+  tableChangeSubscribers.add(subscriber);
+  return () => {
+    tableChangeSubscribers.delete(subscriber);
+  };
+}
+
 /**
  * إشعار واجهة React (Renderer) فوراً بأي تعديل أو كتابة تمت على جدول في SQLite
  */
@@ -139,14 +152,25 @@ export function notifyTableChange(tableName: string, action: string = "update", 
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const electron = require("electron");
     const BrowserWindow = electron?.BrowserWindow;
-    if (!BrowserWindow || typeof BrowserWindow.getAllWindows !== "function") return;
-    const windows = BrowserWindow.getAllWindows();
-    for (const win of windows) {
-      if (!win.isDestroyed() && win.webContents) {
-        win.webContents.send("db:table-updated", { table: tableName, action, id });
+    if (BrowserWindow && typeof BrowserWindow.getAllWindows === "function") {
+      const windows = BrowserWindow.getAllWindows();
+      for (const win of windows) {
+        if (!win.isDestroyed() && win.webContents) {
+          win.webContents.send("db:table-updated", { table: tableName, action, id });
+        }
       }
     }
   } catch {
     // non-blocking
   }
+
+  // إشعار المشتركين الداخليين (مثل محرك بث الأحداث Event Bus للشبكة المحلية)
+  for (const sub of tableChangeSubscribers) {
+    try {
+      sub(tableName, action, id);
+    } catch (subErr) {
+      console.warn('[db-utils] خطأ في معالج تغيير الجدول المشترك:', subErr);
+    }
+  }
 }
+

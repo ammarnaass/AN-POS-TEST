@@ -183,6 +183,11 @@ export interface ElectronAPI {
     ) => Promise<{ success: boolean; error?: string }>;
     getPrinters: () => Promise<SystemPrinterInfo[]>;
   };
+  realtime?: {
+    onEvent: (callback: (event: { id: string; type: string; data: any; timestamp: string; senderDeviceId?: string }) => void) => () => void;
+    emit: (type: string, data?: any) => Promise<{ success: boolean; clientsNotified?: number; error?: string }>;
+    getStatus: () => Promise<{ ok: boolean; isServer: boolean; activeWs: number; activeSse: number; totalActive: number }>;
+  };
   system?: {
     getAutoLaunch: () => Promise<{ success: boolean; enabled: boolean; error?: string }>;
     setAutoLaunch: (enabled: boolean) => Promise<{ success: boolean; enabled: boolean; error?: string }>;
@@ -190,6 +195,7 @@ export interface ElectronAPI {
     testServerConnection: (serverUrl: string) => Promise<{ success: boolean; status?: number; data?: any; error?: string }>;
   };
 }
+
 
 export interface SystemPrinterInfo {
   name: string;

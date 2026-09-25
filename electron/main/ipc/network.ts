@@ -10,6 +10,8 @@ import {
   getOrCreateConnectionKey,
   invalidateDeviceSessions,
   invalidateAllSessions,
+  broadcastRealtimeEvent,
+  getRealtimeClientsCount,
 } from '../server';
 import { execute, queryAll, queryOne } from '../handlers/db-utils';
 import { isDeveloperModeActive } from '../handlers/auth';
@@ -339,5 +341,32 @@ export function registerNetworkIpc(): void {
     } catch (err: any) {
       return { success: false, error: err?.message || 'تعذر إلغاء الاقتران' };
     }
+  });
+
+  // =========================================================================
+  // المرحلة 3: محرك الأحداث اللحظية المباشرة (Real-time Event Bus)
+  // =========================================================================
+
+  // realtime:status — حالة محرك الأحداث اللحظية وعدد الأجهزة المتصلة
+  ipcMain.handle('realtime:status', async () => {
+    const isRunning = isHttpServerRunning();
+    const count = getRealtimeClientsCount();
+    return {
+      ok: true,
+      isServer: isRunning,
+      activeWs: count.ws,
+      activeSse: count.sse,
+      totalActive: count.total,
+    };
+  });
+
+  // realtime:emit — بث حدث لحظي للمحطات الأخرى
+  ipcMain.handle('realtime:emit', async (_evt, payload: { type: string; data?: any }) => {
+    if (!payload?.type) {
+      return { success: false, error: 'نوع الحدث type مطلوب' };
+    }
+    broadcastRealtimeEvent(payload.type, payload.data);
+    const count = getRealtimeClientsCount();
+    return { success: true, clientsNotified: count.total };
   });
 }

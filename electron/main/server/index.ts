@@ -28,6 +28,7 @@ import { registerDevicesRoutes } from './routes/devices';
 import { registerPosRoutes } from './routes/pos';
 import { startDiscoveryListener, stopDiscoveryListener } from '../discoveryUdp';
 import { startBonjourAdvertising, stopBonjourAdvertising } from '../discoveryBonjour';
+import { initEventBus, closeEventBus, broadcastRealtimeEvent, getRealtimeClientsCount } from './eventBus';
 
 export interface ServerConfig {
   port?: number;
@@ -223,6 +224,7 @@ export async function startHttpServer(config: ServerConfig = {}): Promise<{ url:
 
   try { startDiscoveryListener(); } catch (e) { console.warn('[http] فشل تشغيل مستمع UDP:', e); }
   try { startBonjourAdvertising(); } catch (e) { console.warn('[http] فشل تشغيل إعلان Bonjour:', e); }
+  try { initEventBus(server); } catch (e) { console.warn('[http] فشل تشغيل محرك الأحداث اللحظية:', e); }
   console.log(`[http] 🚀 خادم AN-POS يعمل على http://${host}:${activePort}`);
   console.log(`[http] عناوين الوصول: ${getLocalIpAddresses().map((ip) => `http://${ip}:${activePort}`).join(', ')}`);
 
@@ -236,6 +238,7 @@ export async function stopHttpServer(): Promise<void> {
   if (!serverInstance) return;
   try { stopDiscoveryListener(); } catch {}
   try { stopBonjourAdvertising(); } catch {} 
+  try { closeEventBus(); } catch {}
   await serverInstance.close();
   serverInstance = null;
   console.log('[http] 🛑 تم إيقاف خادم HTTP');
@@ -271,4 +274,5 @@ export function getPairingInfo(): { ip: string; port: number; key: string; shopN
 }
 
 export { invalidateDeviceSessions, invalidateAllSessions } from './routes/pair';
+export { broadcastRealtimeEvent, getRealtimeClientsCount } from './eventBus';
 

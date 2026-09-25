@@ -6,6 +6,7 @@ import { useThemeStore } from '@/store/themeStore';
 import { getTrialState } from '@/services/trialService';
 import NotificationDropdown from '@/components/notifications/NotificationDropdown';
 import { useSidebarStore } from '@/store/sidebarStore';
+import { RealtimeSyncBadge } from '@/components/common/RealtimeSyncBadge';
 import {
   Menu,
   Search,
@@ -131,6 +132,9 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
             <span className="truncate">متبقي {trial.remainingSales} فواتير</span>
           </div>
         )}
+
+        {/* شارة ناقل الأحداث اللحظية والمزامنة المباشرة */}
+        <RealtimeSyncBadge />
 
         {/* زر الإشعارات */}
         <NotificationDropdown>
