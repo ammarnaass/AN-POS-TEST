@@ -1,12 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db, type SettingsEntity } from '@/infrastructure/database/dexie/db';
 import { usePOSSessionStore } from '@/features/pos/store/usePOSSessionStore';
 import type { Currency } from '@/types';
-import { setStoredTransportConfig, type TerminalRole } from '@/lib/transportGateway';
+import { setStoredTransportConfig, type TerminalRole, type SyncMode } from '@/lib/transportGateway';
 
-export type SyncMode = 'single' | 'lan' | 'cloud' | 'hybrid';
-export type { TerminalRole };
+export type { SyncMode, TerminalRole };
 
 export interface ExtendedSettings {
   shopName: string;
@@ -113,6 +112,26 @@ export function useSystemSettings() {
     expenseCategories: Array.isArray((rawSettings as unknown as Record<string, unknown> | undefined)?.expenseCategories) ? (rawSettings as unknown as Record<string, string[]>).expenseCategories : ['ايجار', 'كهرباء', 'ماء', 'رواتب', 'نقل', 'صيانة'],
   };
 
+  // مزامنة الإعدادات المحفوظة في قاعدة البيانات مع إعدادات الشبكة والنقل
+  useEffect(() => {
+    if (!rawSettings) return;
+    const dbRole = (rawSettings as any).terminalRole || (rawSettings as any).terminal_role;
+    const dbSyncMode = (rawSettings as any).syncMode || (rawSettings as any).sync_mode;
+    const dbServerUrl = (rawSettings as any).serverLanUrl || (rawSettings as any).server_lan_url;
+    const dbToken = (rawSettings as any).clientToken || (rawSettings as any).client_token;
+    const dbDeviceId = (rawSettings as any).clientDeviceId || (rawSettings as any).client_device_id;
+
+    if (dbRole || dbSyncMode || dbServerUrl || dbToken || dbDeviceId) {
+      setStoredTransportConfig({
+        role: dbRole,
+        syncMode: dbSyncMode,
+        serverUrl: dbServerUrl,
+        token: dbToken,
+        deviceId: dbDeviceId,
+      });
+    }
+  }, [rawSettings]);
+
   const settingsMutation = useMutation({
     mutationFn: async (updates: Record<string, unknown>) => {
       const current = await db.settings.get('default').catch(() => ({}));
@@ -174,9 +193,10 @@ export function useSystemSettings() {
       mirrored.defaultRole = updates.defaultRole;
     }
     if (updates.syncMode !== undefined || updates.sync_mode !== undefined) {
-      const newMode = (updates.syncMode ?? updates.sync_mode) as string;
+      const newMode = (updates.syncMode ?? updates.sync_mode) as SyncMode;
       mirrored.sync_mode = newMode;
       mirrored.syncMode = newMode;
+      setStoredTransportConfig({ syncMode: newMode });
     }
     if (updates.terminalRole !== undefined || updates.terminal_role !== undefined) {
       const role = (updates.terminalRole ?? updates.terminal_role) as TerminalRole;

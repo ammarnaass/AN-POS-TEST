@@ -231,6 +231,32 @@ describe('المرحلة 3: محرك الأحداث اللحظية المباش�
       expect(['connecting', 'reconnecting', 'connected']).toContain(status.state);
       expect(status.serverUrl).toBe('http://192.168.1.100:3000');
     });
+
+    it('يعمل في وضع Standalone عند تعيين نمط المزامنة كـ single (جهاز واحد مستقل)', () => {
+      setStoredTransportConfig({ role: 'server', syncMode: 'single' });
+      realtimeEventBus.init();
+
+      const status = realtimeEventBus.getStatus();
+      expect(status.state).toBe('standalone');
+      expect(status.transport).toBe('none');
+    });
+
+    it('يتفاعل تلقائياً ولحظياً عند تغيير دور الجهاز أو نمط المزامنة دون إعادة تحميل الصفحة', () => {
+      // 1. نبدأ في وضع Single Standalone
+      setStoredTransportConfig({ role: 'server', syncMode: 'single' });
+      realtimeEventBus.init();
+      expect(realtimeEventBus.getStatus().state).toBe('standalone');
+
+      // 2. يغير المستخدم الإعدادات إلى خادم رئيسي في شبكة LAN
+      setStoredTransportConfig({ role: 'server', syncMode: 'lan' });
+      expect(realtimeEventBus.getStatus().state).toBe('server_master');
+      expect(realtimeEventBus.getStatus().role).toBe('server');
+
+      // 3. يغير المستخدم الجهاز ليعمل كـ نقطة كاشير فرعية (Client)
+      setStoredTransportConfig({ role: 'client', syncMode: 'lan', serverUrl: '' });
+      expect(realtimeEventBus.getStatus().role).toBe('client');
+      expect(realtimeEventBus.getStatus().state).toBe('disconnected');
+    });
   });
 
   describe('4. ربط تغييرات جداول SQLite بمحرك بث الأحداث (Database Hooking)', () => {

@@ -173,6 +173,15 @@ export const RealtimeSyncBadge: React.FC<RealtimeSyncBadgeProps> = ({
           icon: <WifiOff className="w-3.5 h-3.5" />,
           tooltip: 'غير متصل بالخادم المحلي — انقر للمحاولة مجدداً',
         };
+      case 'standalone':
+        return {
+          bg: 'bg-slate-500/10 hover:bg-slate-500/20 text-slate-700 dark:text-slate-300 border-slate-500/30',
+          dot: 'bg-slate-400',
+          pulse: false,
+          label: 'جهاز مستقل',
+          icon: <HardDrive className="w-3.5 h-3.5" />,
+          tooltip: 'وضع نقطة البيع المستقلة (محلي فقط دون شبكة)',
+        };
       default:
         return {
           bg: 'bg-slate-500/10 hover:bg-slate-500/20 text-slate-600 dark:text-slate-400 border-slate-500/30',
@@ -180,7 +189,7 @@ export const RealtimeSyncBadge: React.FC<RealtimeSyncBadgeProps> = ({
           pulse: false,
           label: 'محلي',
           icon: <Activity className="w-3.5 h-3.5" />,
-          tooltip: 'وضع الجهاز الواحد المستقل',
+          tooltip: 'وضع الجهاز المستقل',
         };
     }
   };
@@ -286,10 +295,14 @@ export const RealtimeSyncBadge: React.FC<RealtimeSyncBadgeProps> = ({
                 </span>
                 <div>
                   <h4 className="text-xs font-black text-on-surface font-cairo">
-                    حالة ناقل الأحداث والشبكة
+                    حالة نقطة البيع والشبكة
                   </h4>
                   <p className="text-[10px] text-on-surface-variant/70 font-mono">
-                    {status.role === 'server' ? 'Server Master PC (Local & Cloud)' : 'Client Terminal (LAN Node)'}
+                    {status.state === 'standalone'
+                      ? 'Standalone POS Terminal (Local Only)'
+                      : status.role === 'server'
+                      ? 'Server Master PC (Local & Cloud)'
+                      : 'Client Terminal (LAN Node)'}
                   </p>
                 </div>
               </div>
@@ -308,11 +321,33 @@ export const RealtimeSyncBadge: React.FC<RealtimeSyncBadgeProps> = ({
               <div className="flex items-center justify-between">
                 <span className="text-on-surface-variant font-cairo">دور الجهاز:</span>
                 <span className="font-bold font-cairo text-on-surface px-2 py-0.5 rounded bg-surface border border-outline-variant/20">
-                  {status.role === 'server' ? '🖥️ حاسوب الخادم الرئيسي (Master)' : '💻 محطة كاشير فرعية (Client)'}
+                  {status.state === 'standalone'
+                    ? '💻 جهاز نقطة بيع مستقل (Single PC)'
+                    : status.role === 'server'
+                    ? '🖥️ حاسوب الخادم الرئيسي (Master)'
+                    : '💻 محطة كاشير فرعية (Client)'}
                 </span>
               </div>
 
-              {status.role === 'server' ? (
+              {status.state === 'standalone' ? (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-on-surface-variant font-cairo">نمط العمل:</span>
+                    <span className="font-mono text-[11px] font-bold text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded bg-surface border border-outline-variant/20">
+                      محلي فقط (دون اتصال بالشبكة)
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-on-surface-variant font-cairo">خادم الشبكة المحلية:</span>
+                    <span className="font-mono text-[11px] text-on-surface-variant px-2 py-0.5 rounded bg-surface/50 border border-outline-variant/15">
+                      غير مفعّل (وضع الجهاز الواحد)
+                    </span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-surface border border-outline-variant/20 text-on-surface-variant text-[11px] leading-relaxed">
+                    يعمل هذا الجهاز حالياً بشكل مستقل ومكتفٍ ذاتياً. لربطه مع أجهزة كاشير إضافية أو شاشات، يمكنك تفعيل وضع الشبكة المحلية في أي وقت.
+                  </div>
+                </>
+              ) : status.role === 'server' ? (
                 <>
                   <div className="flex items-center justify-between">
                     <span className="text-on-surface-variant font-cairo">خادم الشبكة المحلية:</span>
@@ -484,12 +519,16 @@ export const RealtimeSyncBadge: React.FC<RealtimeSyncBadgeProps> = ({
                   navigate('/settings', { state: { tab: 'network' } });
                 }}
                 className={`py-1.5 px-3 rounded-xl bg-surface hover:bg-surface-container-highest border border-outline-variant/25 text-on-surface text-xs font-bold font-cairo flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                  status.role === 'server' ? 'w-full bg-primary/10 text-primary border-primary/20 hover:bg-primary/20' : ''
+                  status.role === 'server' || status.state === 'standalone' ? 'w-full bg-primary/10 text-primary border-primary/20 hover:bg-primary/20' : ''
                 }`}
                 title="إعدادات الشبكة والخادم"
               >
                 <Globe className="w-3.5 h-3.5" />
-                <span>إعدادات الشبكة والأجهزة</span>
+                <span>
+                  {status.state === 'standalone'
+                    ? 'تفعيل وضع الشبكة وربط الأجهزة'
+                    : 'إعدادات الشبكة والأجهزة'}
+                </span>
               </button>
             </div>
           </div>

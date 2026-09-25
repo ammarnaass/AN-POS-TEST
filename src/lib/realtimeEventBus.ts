@@ -18,10 +18,13 @@ import { useState, useEffect } from 'react';
 import type { QueryClient } from '@tanstack/react-query';
 import {
   getStoredTerminalRole,
+  getStoredSyncMode,
   getStoredServerLanUrl,
   getStoredClientToken,
   getStoredClientDeviceId,
+  setStoredTransportConfig,
   type TerminalRole,
+  type SyncMode,
 } from './transportGateway';
 
 export type RealtimeEventType =
@@ -109,22 +112,57 @@ class RealtimeEventBusManager {
     };
     window.addEventListener('online', onOnline);
 
-    // الاستماع لتغييرات التخزين المحلي (في حال تم تغيير عنوان الخادم أو الدور من نافذة الإعدادات)
+    // الاستماع الفوري لتغييرات إعدادات الشبكة والدور في نفس النافذة
+    const onConfigChanged = () => {
+      console.log('[realtimeEventBus] 🔄 رصد تعديل في إعدادات الشبكة ودور الجهاز، إعادة تهيئة محرك الأحداث...');
+      this.configureAndConnect();
+    };
+    window.addEventListener('anpos:transport-config-changed', onConfigChanged);
+
+    // الاستماع لتغييرات التخزين المحلي من النوافذ الأخرى
     const onStorage = (e: StorageEvent) => {
       if (
         e.key === 'anpos_terminal_role' ||
+        e.key === 'anpos_sync_mode' ||
         e.key === 'anpos_server_lan_url' ||
         e.key === 'anpos_client_token'
       ) {
-        console.log('[realtimeEventBus] 🔄 رصد تعديل في إعدادات الشبكة، إعادة تهيئة محرك الأحداث...');
-        this.configureAndConnect();
+        onConfigChanged();
       }
     };
     window.addEventListener('storage', onStorage);
 
+    // اشتراك في تحديثات كاش React Query لجدول settings
+    let unsubscribeQueryCache: (() => void) | null = null;
+    if (this.queryClient && typeof this.queryClient.getQueryCache === 'function') {
+      unsubscribeQueryCache = this.queryClient.getQueryCache().subscribe((event) => {
+        if (event?.query?.queryKey?.[0] === 'settings' && event.type === 'updated') {
+          const settingsData = event.query.state.data as any;
+          if (settingsData) {
+            const role = settingsData.terminalRole || settingsData.terminal_role;
+            const syncMode = settingsData.syncMode || settingsData.sync_mode;
+            const serverUrl = settingsData.serverLanUrl || settingsData.server_lan_url;
+            const token = settingsData.clientToken || settingsData.client_token;
+            const deviceId = settingsData.clientDeviceId || settingsData.client_device_id;
+
+            setStoredTransportConfig({
+              role,
+              syncMode,
+              serverUrl,
+              token,
+              deviceId,
+            });
+            this.configureAndConnect();
+          }
+        }
+      });
+    }
+
     return () => {
       window.removeEventListener('online', onOnline);
+      window.removeEventListener('anpos:transport-config-changed', onConfigChanged);
       window.removeEventListener('storage', onStorage);
+      if (unsubscribeQueryCache) unsubscribeQueryCache();
       this.close();
     };
   }
@@ -148,14 +186,30 @@ class RealtimeEventBusManager {
    */
   public configureAndConnect(): void {
     const role = getStoredTerminalRole();
+    const syncMode = getStoredSyncMode();
     const serverUrl = getStoredServerLanUrl();
     const token = getStoredClientToken();
     const deviceId = getStoredClientDeviceId();
 
     this.cleanupTransports();
 
+    // 1. إذا كان وضع الجهاز الواحد المستقل (Standalone - دون ربط شبكي):
+    if (syncMode === 'single') {
+      this.setStatus({
+        state: 'standalone',
+        role: role,
+        transport: 'none',
+        serverUrl: '',
+        lastConnectedAt: null,
+        reconnectAttempts: 0,
+        lastPingMs: null,
+      });
+      console.log('[realtimeEventBus] ⚙️ محرك الأحداث يعمل في وضع نقطة البيع المستقلة (Standalone)');
+      return;
+    }
+
+    // 2. إذا كان الجهاز هو حاسوب الخادم الرئيسي في الشبكة (Server Master):
     if (role === 'server') {
-      // الجهاز هو حاسوب الخادم الرئيسي:
       // يستمع لأحداث Electron IPC المحلية المرسلة عبر BrowserWindow
       const api = (window as any).electronAPI;
       if (api?.realtime?.onEvent) {
@@ -177,7 +231,7 @@ class RealtimeEventBusManager {
       return;
     }
 
-    // الجهاز هو جهاز عميل (Client Terminal):
+    // 3. إذا كان الجهاز محطة كاشير فرعية (Client Terminal):
     if (!serverUrl) {
       this.setStatus({
         state: 'disconnected',
@@ -185,6 +239,7 @@ class RealtimeEventBusManager {
         transport: 'none',
         serverUrl: '',
         reconnectAttempts: 0,
+        lastPingMs: null,
       });
       console.log('[realtimeEventBus] ⚠️ عنوان خادم الشبكة غير محدد في جهاز العميل');
       return;

@@ -15,6 +15,7 @@ import {
 import { enqueueOutboxItem } from './offlineOutbox';
 
 export type TerminalRole = 'server' | 'client';
+export type SyncMode = 'single' | 'lan' | 'cloud' | 'hybrid';
 
 export interface TransportDbApi {
   list: (table: string, opts?: { search?: string; from?: string; to?: string; limit?: number; offset?: number; filter?: Record<string, unknown>; orderBy?: string; orderDir?: 'ASC' | 'DESC' | 'asc' | 'desc' }) => Promise<{ data: any[]; total: number; offlineReplica?: boolean }>;
@@ -32,6 +33,19 @@ export interface TransportDbApi {
 
 const TABLE_LISTENERS = new Set<(data: { table: string; action?: string; id?: string }) => void>();
 
+export function getStoredSyncMode(): SyncMode {
+  if (typeof window === 'undefined') return 'single';
+  const mode = localStorage.getItem('anpos_sync_mode');
+  if (mode === 'lan' || mode === 'cloud' || mode === 'hybrid' || mode === 'single') {
+    return mode;
+  }
+  // إذا لم يُخزن نمط المزامنة وكان الجهاز عميلاً، فالنمط شبكي حتماً
+  if (localStorage.getItem('anpos_terminal_role') === 'client') {
+    return 'lan';
+  }
+  return 'single';
+}
+
 export function getStoredTerminalRole(): TerminalRole {
   if (typeof window === 'undefined') return 'server';
   const role = localStorage.getItem('anpos_terminal_role');
@@ -39,6 +53,7 @@ export function getStoredTerminalRole(): TerminalRole {
 }
 
 export function isClientNode(): boolean {
+  if (getStoredSyncMode() === 'single') return false;
   return getStoredTerminalRole() === 'client';
 }
 
@@ -64,25 +79,38 @@ export function getStoredClientDeviceId(): string {
 
 export function setStoredTransportConfig(config: {
   role?: TerminalRole;
+  syncMode?: SyncMode;
   serverUrl?: string;
   token?: string;
   deviceId?: string;
 }): void {
   if (typeof window === 'undefined') return;
   if (config.role) localStorage.setItem('anpos_terminal_role', config.role);
+  if (config.syncMode) {
+    localStorage.setItem('anpos_sync_mode', config.syncMode);
+  } else if (config.role === 'server' && !localStorage.getItem('anpos_sync_mode')) {
+    // التوافق مع بيئة الاختبارات عند تعيين السيرفر دون تحديد syncMode
+    localStorage.setItem('anpos_sync_mode', 'lan');
+  }
   if (config.serverUrl !== undefined) localStorage.setItem('anpos_server_lan_url', config.serverUrl.trim().replace(/\/+$/, ''));
   if (config.token !== undefined) localStorage.setItem('anpos_client_token', config.token);
   if (config.deviceId !== undefined) localStorage.setItem('anpos_client_device_id', config.deviceId);
+
+  try {
+    window.dispatchEvent(new CustomEvent('anpos:transport-config-changed', { detail: config }));
+  } catch {}
 }
 
 export function getStoredTransportConfig(): {
   role: TerminalRole;
+  syncMode: SyncMode;
   serverUrl: string;
   token: string;
   deviceId: string;
 } {
   return {
     role: getStoredTerminalRole(),
+    syncMode: getStoredSyncMode(),
     serverUrl: getStoredServerLanUrl(),
     token: getStoredClientToken(),
     deviceId: getStoredClientDeviceId(),
