@@ -137,6 +137,28 @@ export function initSchema(): void {
     execSql("CREATE INDEX IF NOT EXISTS idx_offline_sync_outbox_status ON offline_sync_outbox(status);");
   } catch { /* موجود */ }
 
+  // جدول حالة المزامنة السحابية المركزية (Cloud Sync State & CDC)
+  try {
+    execSql(`
+      CREATE TABLE IF NOT EXISTS cloud_sync_state (
+        id TEXT PRIMARY KEY,
+        last_sync_at TEXT,
+        last_push_at TEXT,
+        last_pull_at TEXT,
+        status TEXT NOT NULL DEFAULT 'idle',
+        error_message TEXT,
+        pushed_count INTEGER NOT NULL DEFAULT 0,
+        pulled_count INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `);
+    execSql(`
+      INSERT OR IGNORE INTO cloud_sync_state (id, status, created_at, updated_at)
+      VALUES ('default', 'idle', datetime('now'), datetime('now'));
+    `);
+  } catch { /* موجود */ }
+
   clearTableColumnsCache();
 }
 

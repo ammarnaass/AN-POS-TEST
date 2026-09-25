@@ -194,6 +194,11 @@ export interface ElectronAPI {
     getDatabasePath: () => Promise<{ success: boolean; path?: string; error?: string }>;
     testServerConnection: (serverUrl: string) => Promise<{ success: boolean; status?: number; data?: any; error?: string }>;
   };
+  cloud?: {
+    getStatus: () => Promise<any>;
+    syncNow: (opts?: { forceFull?: boolean }) => Promise<{ success: boolean; pushed: number; pulled: number; error?: string; state?: string }>;
+    restartScheduler: () => Promise<{ success: boolean }>;
+  };
 }
 
 

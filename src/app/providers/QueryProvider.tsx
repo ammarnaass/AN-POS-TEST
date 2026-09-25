@@ -3,6 +3,7 @@ import { useEffect, type ReactNode } from "react";
 import { initSyncBridge } from "@/lib/syncBridge";
 import { realtimeEventBus } from "@/lib/realtimeEventBus";
 import { initOutboxDispatcher } from "@/lib/offlineOutbox";
+import { initCloudSyncEngine } from "@/lib/cloudSyncEngine";
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -28,10 +29,14 @@ export default function QueryProvider({ children }: { children: ReactNode }) {
     // تشغيل عامل تفريغ طابور العمليات المعلقة دون اتصال (Offline Outbox Dispatcher)
     const cleanupOutbox = initOutboxDispatcher();
 
+    // تشغيل محرك المزامنة السحابية المزدوج (Cloud Sync Engine)
+    const cleanupCloud = initCloudSyncEngine();
+
     return () => {
       if (typeof cleanupSyncBridge === "function") cleanupSyncBridge();
       if (typeof cleanupRealtimeBus === "function") cleanupRealtimeBus();
       if (typeof cleanupOutbox === "function") cleanupOutbox();
+      if (typeof cleanupCloud === "function") cleanupCloud();
     };
   }, []);
 

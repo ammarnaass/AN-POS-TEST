@@ -3,7 +3,7 @@ import {
   Shield, Printer, Smartphone, RefreshCw, Zap,
   Network, ScanLine, ShieldCheck, KeyRound, Activity, Plug,
   AlertCircle, CheckCircle2, Monitor, Wifi, Cloud, HardDrive, Usb,
-  Bluetooth, Cable, Copy, Check, Server,
+  Bluetooth, Cable, Copy, Check, Server, Database,
   Lock, Eye, EyeOff, Sparkles, CornerDownLeft, FileText, Radio,
   Plus, Trash2, X
 } from 'lucide-react';
@@ -12,6 +12,7 @@ import ConnectedDevicesManager from '../components/ConnectedDevicesManager';
 import { useNetworkServer } from '../hooks/useNetworkServer';
 import { useSystemSettings } from '../hooks/useSystemSettings';
 import { setStoredTransportConfig } from '@/lib/transportGateway';
+import { useCloudSyncStatus } from '@/lib/cloudSyncEngine';
 
 interface NetworkTabProps {
   [key: string]: any;
@@ -110,6 +111,30 @@ export default function NetworkTab(props: NetworkTabProps) {
     deviceId?: string;
     sessionToken?: string;
   } | null>(null);
+
+  // محرك المزامنة السحابية المزدوج (Cloud Sync Engine & CDC)
+  const {
+    status: cloudStatus,
+    isSyncing: isCloudSyncing,
+    syncNow: triggerManualCloudSync,
+  } = useCloudSyncStatus();
+  const [cloudSyncMsg, setCloudSyncMsg] = useState<{ success: boolean; text: string } | null>(null);
+
+  const handleCloudSyncNow = async (forceFull = false) => {
+    setCloudSyncMsg(null);
+    const res = await triggerManualCloudSync({ forceFull });
+    if (res.success) {
+      setCloudSyncMsg({
+        success: true,
+        text: `تمت المزامنة السحابية بنجاح: تم رفع ${res.pushed} حركة واستلام ${res.pulled} تحديث`,
+      });
+    } else {
+      setCloudSyncMsg({
+        success: false,
+        text: res.error || 'تعذر الاتصال بالسحابة',
+      });
+    }
+  };
 
   const handleTestServerConnection = async (targetUrl: string) => {
     const cleanUrl = (targetUrl || '').trim().replace(/\/+$/, '');
@@ -1497,16 +1522,204 @@ export default function NetworkTab(props: NetworkTabProps) {
           ========================================================================= */}
       {netSubTab === 'cloud' && (
         <div className="p-4 sm:p-6 rounded-3xl bg-surface-container border border-outline-variant/15 space-y-5 sm:space-y-6 animate-fade-in">
-          <div className="pb-1">
-            <h4 className="text-sm sm:text-base font-bold font-cairo text-on-surface">إعدادات الربط السحابي ومزامنة الفروع</h4>
-            <p className="text-xs text-on-surface-variant mt-0.5">
-              ربط نقطة البيع بقاعدة بيانات سحابية مركزية وبوابات Webhooks لمتابعة المبيعات في الوقت الفعلي
-            </p>
+          {/* رأس التبويب وزر التفعيل الرئيسي */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-outline-variant/15">
+            <div>
+              <div className="flex items-center gap-2">
+                <Cloud className="w-5 h-5 text-primary" />
+                <h4 className="text-sm sm:text-base font-bold font-cairo text-on-surface">
+                  إعدادات الربط السحابي ومزامنة الفروع (Cloud Sync Engine & CDC)
+                </h4>
+              </div>
+              <p className="text-xs text-on-surface-variant mt-1">
+                ربط المتجر بقاعدة بيانات سحابية مركزية لمزامنة المبيعات، الأسعار، والمخزون مع الصمود التام أمام انقطاع الإنترنت
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-bold font-cairo text-on-surface">
+                {netSettings.cloudEnabled ? 'الربط السحابي مفعّل' : 'الربط السحابي معطّل'}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const nextVal = !netSettings.cloudEnabled;
+                  saveNet({ cloudEnabled: nextVal });
+                  setTimeout(() => {
+                    (window as any).electronAPI?.cloud?.restartScheduler?.();
+                  }, 200);
+                }}
+                className={`relative w-12 h-6 rounded-full transition-all cursor-pointer shrink-0 ${
+                  netSettings.cloudEnabled ? 'bg-primary' : 'bg-surface-container-highest'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${
+                    netSettings.cloudEnabled ? 'left-0.5' : 'right-0.5'
+                  }`}
+                />
+              </button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
+          {/* تنبيه معمارية حصرية المزامنة عبر الخادم (Single Egress Master Node) */}
+          {!cloudStatus.isMasterNode ? (
+            <div className="p-4 rounded-2xl bg-blue-500/10 border border-blue-500/25 text-blue-900 dark:text-blue-200 space-y-1">
+              <div className="flex items-center gap-2 font-bold text-xs font-cairo">
+                <ShieldCheck className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <span>حصرية المزامنة عبر الخادم الرئيسي (Single Egress Master Node Rule)</span>
+              </div>
+              <p className="text-[11px] leading-relaxed opacity-90 font-cairo">
+                هذا الجهاز يعمل في وضع <strong>كاشير عميل (Client Terminal)</strong>. وفقاً لمعمارية AN POS، تتم المزامنة السحابية حصرياً عبر <strong>حاسوب الخادم الرئيسي (Master Node)</strong> لمنع تضارب البيانات، وتنتقل جميع مبيعات هذا الجهاز إلى الخادم المحلي الذي يتولى رفعها تلقائياً للسحابة.
+              </p>
+            </div>
+          ) : (
+            <div className="p-3.5 rounded-2xl bg-surface-container-low border border-outline-variant/15 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <span className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <Server className="w-4 h-4" />
+                </span>
+                <div>
+                  <span className="text-xs font-bold font-cairo text-on-surface block">
+                    عقدة المزامنة الرئيسية المعتمدة (Master Egress Node)
+                  </span>
+                  <span className="text-[11px] text-on-surface-variant font-cairo">
+                    هذا الحاسوب هو المسؤول المركزي عن رفع حركات المتجر وسحب تعديلات الأسعار من السحابة
+                  </span>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold text-[11px] font-cairo border border-emerald-500/20">
+                خادم رئيسي نشط
+              </span>
+            </div>
+          )}
+
+          {/* بطاقات المؤشرات اللحظية وإحصائيات الـ CDC */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            {/* الحالة الحالية */}
+            <div className="p-3.5 sm:p-4 rounded-2xl bg-surface-container-low border border-outline-variant/15">
+              <span className="text-[11px] font-cairo text-on-surface-variant block mb-1.5">حالة المزامنة السحابية</span>
+              <div className="flex items-center gap-2">
+                <span
+                  className={`w-2.5 h-2.5 rounded-full ${
+                    cloudStatus.state === 'syncing'
+                      ? 'bg-amber-500 animate-ping'
+                      : cloudStatus.state === 'offline'
+                      ? 'bg-slate-400'
+                      : cloudStatus.state === 'error'
+                      ? 'bg-rose-500'
+                      : cloudStatus.state === 'idle'
+                      ? 'bg-emerald-500'
+                      : 'bg-slate-300'
+                  }`}
+                />
+                <span className="text-xs sm:text-sm font-bold font-cairo text-on-surface">
+                  {cloudStatus.state === 'syncing'
+                    ? 'جارٍ المزامنة...'
+                    : cloudStatus.state === 'offline'
+                    ? 'محلي (انقطاع نت)'
+                    : cloudStatus.state === 'error'
+                    ? 'خطأ اتصال'
+                    : cloudStatus.state === 'idle'
+                    ? 'متزامن وجاهز'
+                    : 'معطّل'}
+                </span>
+              </div>
+            </div>
+
+            {/* توقيت آخر مزامنة */}
+            <div className="p-3.5 sm:p-4 rounded-2xl bg-surface-container-low border border-outline-variant/15">
+              <span className="text-[11px] font-cairo text-on-surface-variant block mb-1.5">آخر مزامنة ناجحة</span>
+              <span className="text-xs sm:text-sm font-mono font-bold text-primary block truncate">
+                {cloudStatus.lastSyncAt
+                  ? new Date(cloudStatus.lastSyncAt).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                  : 'لم تتم بعد'}
+              </span>
+            </div>
+
+            {/* حركات مرفوعة CDC Push */}
+            <div className="p-3.5 sm:p-4 rounded-2xl bg-surface-container-low border border-outline-variant/15">
+              <span className="text-[11px] font-cairo text-on-surface-variant block mb-1.5">حركات مرفوعة (CDC Push)</span>
+              <span className="text-xs sm:text-sm font-mono font-bold text-on-surface">
+                {cloudStatus.pushedCount} سجل
+              </span>
+            </div>
+
+            {/* تحديثات مستلمة Cloud Pull */}
+            <div className="p-3.5 sm:p-4 rounded-2xl bg-surface-container-low border border-outline-variant/15">
+              <span className="text-[11px] font-cairo text-on-surface-variant block mb-1.5">تحديثات مستلمة (Pull)</span>
+              <span className="text-xs sm:text-sm font-mono font-bold text-on-surface">
+                {cloudStatus.pulledCount} سجل
+              </span>
+            </div>
+          </div>
+
+          {/* تنبيه الصمود الصامت أمام انقطاع الإنترنت */}
+          <div className="p-3 rounded-xl bg-surface-container-low border border-outline-variant/10 flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-amber-500 shrink-0" />
+              <span className="text-on-surface-variant font-cairo text-[11px]">
+                نظام الصمود الصامت: انقطاع الإنترنت الخارجي لا يوقف الكاشير إطلاقاً، وتستمر المبيعات محلياً حتى استعادة الاتصال.
+              </span>
+            </div>
+            {cloudStatus.syncFailCount > 0 && (
+              <span className="text-[10px] font-mono text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full shrink-0">
+                تعذر سابق #{cloudStatus.syncFailCount}
+              </span>
+            )}
+          </div>
+
+          {/* رسالة إشعار بنتيجة المزامنة اليدوية */}
+          {cloudSyncMsg && (
+            <div
+              className={`p-3 rounded-2xl border text-xs font-bold font-cairo flex items-center justify-between animate-fade-in ${
+                cloudSyncMsg.success
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300'
+                  : 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300'
+              }`}
+            >
+              <span>{cloudSyncMsg.text}</span>
+              <button
+                type="button"
+                onClick={() => setCloudSyncMsg(null)}
+                className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* أزرار التشغيل الفوري للمزامنة السحابية */}
+          {cloudStatus.isMasterNode && netSettings.cloudEnabled && (
+            <div className="flex flex-wrap items-center gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => handleCloudSyncNow(false)}
+                disabled={isCloudSyncing}
+                className="py-2 px-4 rounded-xl bg-primary text-on-primary hover:bg-primary/90 text-xs font-bold font-cairo flex items-center gap-2 transition-all shadow-xs disabled:opacity-50 cursor-pointer"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isCloudSyncing ? 'animate-spin' : ''}`} />
+                <span>{isCloudSyncing ? 'جارٍ المزامنة السحابية...' : 'مزامنة تدريجية الآن (CDC Push & Pull)'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleCloudSyncNow(true)}
+                disabled={isCloudSyncing}
+                className="py-2 px-4 rounded-xl bg-surface hover:bg-surface-container-highest border border-outline-variant/25 text-on-surface text-xs font-bold font-cairo flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+              >
+                <Database className="w-3.5 h-3.5 opacity-70" />
+                <span>مزامنة شاملة كاملة (Full Sync)</span>
+              </button>
+            </div>
+          )}
+
+          {/* حقول إعدادات API السحابي */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4 pt-2">
             <div className="sm:col-span-2">
-              <label className="block text-xs font-bold text-on-surface mb-1.5">عنوان API السحابي (Base API URL)</label>
+              <label className="block text-xs font-bold text-on-surface mb-1.5 font-cairo">
+                عنوان API السحابي (Base API URL)
+              </label>
               <input
                 type="text"
                 value={netSettings.apiUrl ?? ''}
@@ -1517,7 +1730,9 @@ export default function NetworkTab(props: NetworkTabProps) {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-on-surface mb-1.5">مفتاح API السري (API Key)</label>
+              <label className="block text-xs font-bold text-on-surface mb-1.5 font-cairo">
+                مفتاح API السري (API Key)
+              </label>
               <div className="relative">
                 <input
                   type={showApiKey ? 'text' : 'password'}
@@ -1537,7 +1752,9 @@ export default function NetworkTab(props: NetworkTabProps) {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-on-surface mb-1.5">رابط Webhook الإشعارات اللحظية</label>
+              <label className="block text-xs font-bold text-on-surface mb-1.5 font-cairo">
+                رابط Webhook الإشعارات اللحظية
+              </label>
               <input
                 type="text"
                 value={netSettings.webhookUrl ?? ''}
@@ -1550,7 +1767,7 @@ export default function NetworkTab(props: NetworkTabProps) {
 
           {/* جدولة المزامنة التلقائية */}
           <div className="p-4 sm:p-5 bg-surface-container-low rounded-2xl border border-outline-variant/15 space-y-4">
-            <h5 className="text-xs sm:text-sm font-bold text-on-surface flex items-center gap-2">
+            <h5 className="text-xs sm:text-sm font-bold text-on-surface flex items-center gap-2 font-cairo">
               <RefreshCw className="w-4 h-4 text-primary shrink-0" />
               <span>جدولة المزامنة التلقائية وسياسة الرفع السحابي</span>
             </h5>
@@ -1558,12 +1775,18 @@ export default function NetworkTab(props: NetworkTabProps) {
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3.5 sm:gap-4">
               <div className="flex items-center justify-between p-3.5 bg-surface-container rounded-xl border border-outline-variant/15">
                 <div>
-                  <span className="text-xs font-bold text-on-surface block">المزامنة التلقائية</span>
-                  <span className="text-[10px] text-on-surface-variant">رفع دوري في الخلفية</span>
+                  <span className="text-xs font-bold text-on-surface block font-cairo">المزامنة التلقائية</span>
+                  <span className="text-[10px] text-on-surface-variant font-cairo">رفع دوري متكرر في الخلفية</span>
                 </div>
                 <button
                   type="button"
-                  onClick={() => saveNet({ syncAuto: !netSettings.syncAuto })}
+                  onClick={() => {
+                    const nextVal = !netSettings.syncAuto;
+                    saveNet({ syncAuto: nextVal });
+                    setTimeout(() => {
+                      (window as any).electronAPI?.cloud?.restartScheduler?.();
+                    }, 200);
+                  }}
                   className={`relative w-12 h-6 rounded-full transition-all cursor-pointer shrink-0 ${
                     netSettings.syncAuto ? 'bg-primary' : 'bg-surface-container-highest'
                   }`}
@@ -1577,14 +1800,20 @@ export default function NetworkTab(props: NetworkTabProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-on-surface mb-1">فترة التكرار (بالدقائق)</label>
+                <label className="block text-xs font-bold text-on-surface mb-1 font-cairo">فترة التكرار (بالدقائق)</label>
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
                     min={1}
                     max={120}
                     value={netSettings.syncInterval}
-                    onChange={(e) => saveNet({ syncInterval: Number(e.target.value) })}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      saveNet({ syncInterval: val });
+                      setTimeout(() => {
+                        (window as any).electronAPI?.cloud?.restartScheduler?.();
+                      }, 300);
+                    }}
                     className="w-full px-3 py-2 rounded-xl bg-surface-container border border-outline-variant/20 text-xs font-mono font-bold text-on-surface"
                   />
                   <div className="flex gap-1 shrink-0">
@@ -1592,7 +1821,12 @@ export default function NetworkTab(props: NetworkTabProps) {
                       <button
                         key={val}
                         type="button"
-                        onClick={() => saveNet({ syncInterval: val })}
+                        onClick={() => {
+                          saveNet({ syncInterval: val });
+                          setTimeout(() => {
+                            (window as any).electronAPI?.cloud?.restartScheduler?.();
+                          }, 200);
+                        }}
                         className={`px-2 py-1 rounded-lg text-[10px] font-mono font-bold border transition-colors cursor-pointer ${
                           netSettings.syncInterval === val
                             ? 'bg-primary text-on-primary border-primary'
@@ -1607,13 +1841,13 @@ export default function NetworkTab(props: NetworkTabProps) {
               </div>
 
               <div className="sm:col-span-2 xl:col-span-1">
-                <label className="block text-xs font-bold text-on-surface mb-1">نوع المزامنة السحابية</label>
+                <label className="block text-xs font-bold text-on-surface mb-1 font-cairo">نوع المزامنة السحابية</label>
                 <select
                   value={netSettings.syncType}
                   onChange={(e) => saveNet({ syncType: e.target.value as 'full' | 'incremental' })}
-                  className="w-full px-3 py-2.5 rounded-xl bg-surface-container border border-outline-variant/20 text-xs font-bold text-on-surface cursor-pointer"
+                  className="w-full px-3 py-2.5 rounded-xl bg-surface-container border border-outline-variant/20 text-xs font-bold text-on-surface cursor-pointer font-cairo"
                 >
-                  <option value="incremental">مزامنة تدريجية (سريعة واقتصادية)</option>
+                  <option value="incremental">مزامنة تدريجية (سريعة واقتصادية CDC)</option>
                   <option value="full">مزامنة كاملة (شاملة لجميع السجلات)</option>
                 </select>
               </div>

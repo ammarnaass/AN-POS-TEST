@@ -310,6 +310,16 @@ const electronAPI = {
     testServerConnection: (serverUrl: string) =>
       ipcRenderer.invoke('system:testServerConnection', serverUrl),
   },
+
+  // ===== محرك المزامنة السحابية المزدوج (Cloud Sync Engine & CDC) =====
+  cloud: {
+    getStatus: () =>
+      ipcRenderer.invoke('cloud:status'),
+    syncNow: (opts?: { forceFull?: boolean }) =>
+      ipcRenderer.invoke('cloud:sync-now', opts),
+    restartScheduler: () =>
+      ipcRenderer.invoke('cloud:restart-scheduler'),
+  },
 };
 
 

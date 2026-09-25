@@ -18,6 +18,11 @@ import { isDeveloperModeActive } from '../handlers/auth';
 import { refreshAdvertisement } from '../discoveryBonjour';
 import { generateUniqueDeviceName } from '../server/routes/pair';
 import { scanLocalServers } from '../discoveryScanner';
+import {
+  getCloudSyncStatus,
+  executeCloudSync,
+  restartCloudSyncScheduler,
+} from '../handlers/cloudSync';
 
 /**
  * تفعيل/تعطيل خادم HTTP + إعداد network_settings
@@ -368,5 +373,25 @@ export function registerNetworkIpc(): void {
     broadcastRealtimeEvent(payload.type, payload.data);
     const count = getRealtimeClientsCount();
     return { success: true, clientsNotified: count.total };
+  });
+
+  // =========================================================================
+  // المرحلة 5: محرك المزامنة السحابية المزدوج (Cloud Sync Engine & CDC)
+  // =========================================================================
+
+  // cloud:status — استعلام حالة المزامنة السحابية المركزية
+  ipcMain.handle('cloud:status', async () => {
+    return getCloudSyncStatus();
+  });
+
+  // cloud:sync-now — إطلاق عملية مزامنة سحابية فورية
+  ipcMain.handle('cloud:sync-now', async (_evt, opts?: { forceFull?: boolean }) => {
+    return executeCloudSync(opts);
+  });
+
+  // cloud:restart-scheduler — إعادة تشغيل الجدولة التلقائية بعد تعديل الإعدادات
+  ipcMain.handle('cloud:restart-scheduler', async () => {
+    restartCloudSyncScheduler();
+    return { success: true };
   });
 }
