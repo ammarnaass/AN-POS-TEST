@@ -59,6 +59,7 @@ export interface AssistantMessage {
 
 export const SUPPORT_CATEGORIES = [
   'الكل',
+  'الشبكة والربط المحلي (LAN)',
   'العبوات والمفضلة (تصميم 5)',
   'نقطة البيع (POS) والتصاميم',
   'الطباعة الحرارية وفاتورة الجملة',

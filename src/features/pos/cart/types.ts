@@ -24,6 +24,7 @@ export interface UsePOSCartActionsParams {
   quickMode?: boolean;
   scanInputRef?: React.RefObject<HTMLInputElement | null>;
   setSearchQuery?: (q: string) => void;
+  setBarcodeInput?: (q: string) => void;
 }
 
 export interface POSCartContainerProps {

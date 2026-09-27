@@ -116,6 +116,20 @@ export const getProductTierPrice = (
   }
 };
 
+export const getEnabledPriceTiers = (
+  settings?: {
+    enablePriceTier2?: boolean;
+    enablePriceTier3?: boolean;
+    enablePriceTier4?: boolean;
+  }
+): Array<'1' | '2' | '3' | '4'> => {
+  const tiers: Array<'1' | '2' | '3' | '4'> = ['1'];
+  if (settings?.enablePriceTier2 !== false) tiers.push('2');
+  if (settings?.enablePriceTier3 !== false) tiers.push('3');
+  if (settings?.enablePriceTier4 !== false) tiers.push('4');
+  return tiers;
+};
+
 export const resolveUnitPrice = (
   product: Product,
   qty: number,

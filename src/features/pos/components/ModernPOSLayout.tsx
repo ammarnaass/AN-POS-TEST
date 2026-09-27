@@ -14,6 +14,8 @@ import NotificationDropdown from '@/components/notifications/NotificationDropdow
 import { useNotificationStore } from '@/store/notificationStore';
 import type { CartItem, Product, Category } from '@/types';
 import { useThemeStore } from '@/store/themeStore';
+import { getEnabledPriceTiers } from '@/services';
+import type { POSSettings } from '../hooks/usePOSData';
 import { usePOSLayoutShortcuts } from '../hooks/usePOSLayoutShortcuts';
 import { POSCartContainer } from './common/POSCartContainer';
 import { POSSearchBarcodeHeader } from './common/POSSearchBarcodeHeader';
@@ -79,6 +81,8 @@ export interface ModernPOSLayoutProps {
   onOpenKeypadForQty?: (item: CartItem) => void;
   viewMode?: 'grid' | 'list';
   showProductImages?: boolean;
+  posSettings?: POSSettings;
+  enabledPriceTiers?: Array<'1' | '2' | '3' | '4'>;
 }
 
 const ITEMS_PER_PAGE = 20;
@@ -132,7 +136,13 @@ export const ModernPOSLayout: React.FC<ModernPOSLayoutProps> = ({
   onOpenKeypadForQty,
   viewMode = 'grid',
   showProductImages = true,
+  posSettings,
+  enabledPriceTiers: propEnabledPriceTiers,
 }) => {
+  const enabledPriceTiers = useMemo(
+    () => propEnabledPriceTiers || getEnabledPriceTiers(posSettings),
+    [propEnabledPriceTiers, posSettings]
+  );
   const { theme, toggleTheme } = useThemeStore();
   const unreadCount = useNotificationStore((s) => s.notifications.filter((n) => !n.read).length);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
@@ -161,6 +171,7 @@ export const ModernPOSLayout: React.FC<ModernPOSLayoutProps> = ({
     onOpenFreeProduct,
     onOpenReturns,
     onSelectPriceTier: handleSelectPriceTier,
+    enabledPriceTiers,
   });
 
   const totalPages = Math.max(1, Math.ceil(products.length / ITEMS_PER_PAGE));
@@ -346,6 +357,7 @@ export const ModernPOSLayout: React.FC<ModernPOSLayoutProps> = ({
               setCurrentPage(1);
             }}
             totalProductsCount={products.length}
+            enabledPriceTiers={enabledPriceTiers}
           />
 
           <POSProductsCatalog

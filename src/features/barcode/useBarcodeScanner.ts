@@ -135,9 +135,25 @@ export function useBarcodeScanner(opts: UseScannerOptions) {
         if (!inForm || (isFastBurst && isMinLength)) {
           e.preventDefault();
           e.stopPropagation();
+          const scannedCode = buf.map((k) => k.key).join('');
           flush('terminator');
           if (inForm && document.activeElement instanceof HTMLInputElement) {
-            document.activeElement.value = '';
+            const nativeSetter = typeof window !== 'undefined'
+              ? Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
+              : undefined;
+            if (nativeSetter) {
+              nativeSetter.call(document.activeElement, '');
+            } else {
+              document.activeElement.value = '';
+            }
+            document.activeElement.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(
+              new CustomEvent('pos:clear_barcode_input', {
+                detail: { code: scannedCode },
+              })
+            );
           }
           return;
         } else {

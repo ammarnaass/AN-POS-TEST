@@ -20,6 +20,7 @@ export interface Design6SalesDataTableProps {
   onEditPrice?: (productId: string, newPrice: number) => void;
   priceTier?: '1' | '2' | '3' | '4';
   onSelectPriceTier?: (tier: '1' | '2' | '3' | '4') => void;
+  enabledPriceTiers?: Array<'1' | '2' | '3' | '4'>;
 }
 
 export const Design6SalesDataTable: React.FC<Design6SalesDataTableProps> = ({
@@ -37,6 +38,7 @@ export const Design6SalesDataTable: React.FC<Design6SalesDataTableProps> = ({
   editingPriceItemId,
   setEditingPriceItemId,
   onEditPrice,
+  enabledPriceTiers,
 }) => {
   const [editingPriceVal, setEditingPriceVal] = useState<string>('');
 
@@ -176,56 +178,68 @@ export const Design6SalesDataTable: React.FC<Design6SalesDataTableProps> = ({
                           const p2 = getProductTierPrice(matched, '2');
                           const p3 = getProductTierPrice(matched, '3');
                           const p4 = getProductTierPrice(matched, '4');
+                          const showT1 = !enabledPriceTiers || enabledPriceTiers.includes('1');
+                          const showT2 = !enabledPriceTiers || enabledPriceTiers.includes('2');
+                          const showT3 = !enabledPriceTiers || enabledPriceTiers.includes('3');
+                          const showT4 = !enabledPriceTiers || enabledPriceTiers.includes('4');
                           return (
                             <>
-                              <button
-                                type="button"
-                                onClick={() => onEditPrice && onEditPrice(item.productId, p1)}
-                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
-                                  item.unitPrice === p1
-                                    ? 'bg-blue-600 text-white shadow-xs'
-                                    : 'bg-slate-100 dark:bg-slate-800 hover:bg-blue-100 text-slate-700 dark:text-slate-300'
-                                }`}
-                                title="سعر 1 (تجزئة)"
-                              >
-                                س1: {formatMoney(p1)}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => onEditPrice && onEditPrice(item.productId, p2)}
-                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
-                                  item.unitPrice === p2
-                                    ? 'bg-blue-600 text-white shadow-xs'
-                                    : 'bg-slate-100 dark:bg-slate-800 hover:bg-blue-100 text-slate-700 dark:text-slate-300'
-                                }`}
-                                title="سعر 2 (نصف جملة)"
-                              >
-                                س2: {formatMoney(p2)}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => onEditPrice && onEditPrice(item.productId, p3)}
-                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
-                                  item.unitPrice === p3
-                                    ? 'bg-purple-600 text-white shadow-xs'
-                                    : 'bg-slate-100 dark:bg-slate-800 hover:bg-purple-100 text-slate-700 dark:text-slate-300'
-                                }`}
-                                title="سعر 3 (جملة)"
-                              >
-                                س3: {formatMoney(p3)}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => onEditPrice && onEditPrice(item.productId, p4)}
-                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
-                                  item.unitPrice === p4
-                                    ? 'bg-blue-600 text-white shadow-xs'
-                                    : 'bg-slate-100 dark:bg-slate-800 hover:bg-blue-100 text-slate-700 dark:text-slate-300'
-                                }`}
-                                title="سعر 4 (خاص)"
-                              >
-                                س4: {formatMoney(p4)}
-                              </button>
+                              {showT1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => onEditPrice && onEditPrice(item.productId, p1)}
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
+                                    item.unitPrice === p1
+                                      ? 'bg-blue-600 text-white shadow-xs'
+                                      : 'bg-slate-100 dark:bg-slate-800 hover:bg-blue-100 text-slate-700 dark:text-slate-300'
+                                  }`}
+                                  title="سعر 1 (تجزئة)"
+                                >
+                                  س1: {formatMoney(p1)}
+                                </button>
+                              )}
+                              {showT2 && (
+                                <button
+                                  type="button"
+                                  onClick={() => onEditPrice && onEditPrice(item.productId, p2)}
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
+                                    item.unitPrice === p2
+                                      ? 'bg-blue-600 text-white shadow-xs'
+                                      : 'bg-slate-100 dark:bg-slate-800 hover:bg-blue-100 text-slate-700 dark:text-slate-300'
+                                  }`}
+                                  title="سعر 2 (نصف جملة)"
+                                >
+                                  س2: {formatMoney(p2)}
+                                </button>
+                              )}
+                              {showT3 && (
+                                <button
+                                  type="button"
+                                  onClick={() => onEditPrice && onEditPrice(item.productId, p3)}
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
+                                    item.unitPrice === p3
+                                      ? 'bg-purple-600 text-white shadow-xs'
+                                      : 'bg-slate-100 dark:bg-slate-800 hover:bg-purple-100 text-slate-700 dark:text-slate-300'
+                                  }`}
+                                  title="سعر 3 (جملة)"
+                                >
+                                  س3: {formatMoney(p3)}
+                                </button>
+                              )}
+                              {showT4 && (
+                                <button
+                                  type="button"
+                                  onClick={() => onEditPrice && onEditPrice(item.productId, p4)}
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
+                                    item.unitPrice === p4
+                                      ? 'bg-blue-600 text-white shadow-xs'
+                                      : 'bg-slate-100 dark:bg-slate-800 hover:bg-blue-100 text-slate-700 dark:text-slate-300'
+                                  }`}
+                                  title="سعر 4 (خاص)"
+                                >
+                                  س4: {formatMoney(p4)}
+                                </button>
+                              )}
                             </>
                           );
                         })()}

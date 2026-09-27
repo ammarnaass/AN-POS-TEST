@@ -37,9 +37,11 @@ import { useDesign6CashCalculator } from './hooks/useDesign6CashCalculator';
 import { useFavoritesStore } from '@/features/favorites/store/useFavoritesStore';
 import { usePOSSessionStore } from '@/features/pos/store/usePOSSessionStore';
 import { readWeightFromSerial } from '@/services/hardware/scaleService';
+import { getEnabledPriceTiers } from '@/services';
 import { APP_DISPLAY_VERSION } from '@/constants/app';
 
 export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps> = ({
+  posSettings,
   cart,
   onAddToCart,
   onUpdateQty,
@@ -122,13 +124,14 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
     onSettleSale,
   });
 
+  const enabledTiers = useMemo(() => getEnabledPriceTiers(posSettings), [posSettings]);
+
   // Cycle price tier
   const handleCyclePriceTier = useCallback(() => {
     if (!onSelectPriceTier) return;
-    const tiers: Array<'1' | '2' | '3' | '4'> = ['1', '2', '3', '4'];
-    const nextIdx = (tiers.indexOf(priceTier) + 1) % tiers.length;
-    onSelectPriceTier(tiers[nextIdx]);
-  }, [priceTier, onSelectPriceTier]);
+    const nextIdx = (enabledTiers.indexOf(priceTier) + 1) % enabledTiers.length;
+    onSelectPriceTier(enabledTiers[nextIdx] || '1');
+  }, [priceTier, enabledTiers, onSelectPriceTier]);
 
   // Quick cash settle (F7)
   const handleQuickSettle = useCallback(() => {
@@ -213,6 +216,7 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
     onCloseModals: handleCloseModals,
     onSelectPriceTier,
     onOpenAddCustomer,
+    enabledPriceTiers: enabledTiers,
   });
 
   // Favorites & Category Mode Integration (from useFavoritesStore and usePOSSessionStore)
@@ -331,6 +335,10 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
     if (!barcodeInput.trim()) return;
 
     onBarcodeSubmit(e);
+    setBarcodeInput('');
+    if (barcodeInputRef.current) {
+      barcodeInputRef.current.value = '';
+    }
     // Reset pending quantity after submission
     setPendingQty(1);
     barcodeInputRef.current?.focus();
@@ -380,6 +388,8 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
           onLockTerminal={() => setIsLocked(true)}
           priceTier={priceTier}
           onCyclePriceTier={handleCyclePriceTier}
+          onSelectPriceTier={onSelectPriceTier}
+          enabledPriceTiers={enabledTiers}
           onOpenFlexyModal={() => setIsFlexyOpen(true)}
           stationName="S19C150-POS"
           isOnline={true}
@@ -593,6 +603,7 @@ export const AdvancedTerminalPOSLayout: React.FC<AdvancedTerminalPOSLayoutProps>
             onEditPrice={onEditPrice}
             priceTier={priceTier}
             onSelectPriceTier={onSelectPriceTier}
+            enabledPriceTiers={enabledTiers}
           />
         </main>
 

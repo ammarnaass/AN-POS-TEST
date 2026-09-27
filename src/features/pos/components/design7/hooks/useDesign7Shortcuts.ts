@@ -25,6 +25,7 @@ interface UseDesign7ShortcutsProps {
   onUpdateQty: (productId: string, qty: number) => void;
   onRemoveFromCart: (productId: string) => void;
   onSelectPriceTier?: (tier: '1' | '2' | '3' | '4') => void;
+  enabledPriceTiers?: Array<'1' | '2' | '3' | '4'>;
   enabled?: boolean;
   /** Global (POSPage-level) modal state — Esc closes those before navigating back */
   isAnyModalOpen?: boolean;
@@ -54,6 +55,7 @@ export function useDesign7Shortcuts({
   onUpdateQty,
   onRemoveFromCart,
   onSelectPriceTier,
+  enabledPriceTiers = ['1', '2', '3', '4'],
   enabled = true,
   isAnyModalOpen = false,
   onCloseModals,
@@ -76,7 +78,9 @@ export function useDesign7Shortcuts({
       if ((e.altKey || e.ctrlKey) && ['1', '2', '3', '4'].includes(e.key)) {
         e.preventDefault();
         e.stopPropagation();
-        onSelectPriceTier?.(e.key as '1' | '2' | '3' | '4');
+        if (!enabledPriceTiers || enabledPriceTiers.includes(e.key as '1' | '2' | '3' | '4')) {
+          onSelectPriceTier?.(e.key as '1' | '2' | '3' | '4');
+        }
         return;
       }
 
@@ -294,5 +298,7 @@ export function useDesign7Shortcuts({
     onUpdateQty,
     onRemoveFromCart,
     onSelectPriceTier,
+    onSuspendSale,
+    enabledPriceTiers,
   ]);
 }

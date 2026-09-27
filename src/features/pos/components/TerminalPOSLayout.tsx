@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import type { CartItem, Product, Category } from '@/types';
 import { useThemeStore } from '@/store/themeStore';
-import { getProductTierPrice } from '@/services';
+import { getProductTierPrice, getEnabledPriceTiers } from '@/services';
+import type { POSSettings } from '@/features/pos/hooks/usePOSData';
 import { useFavoritesStore } from '@/features/favorites/store/useFavoritesStore';
 import { usePOSSessionStore } from '../store/usePOSSessionStore';
 import { TerminalPriceCheckerModal } from './terminal/TerminalPriceCheckerModal';
@@ -74,6 +75,8 @@ export interface TerminalPOSLayoutProps {
   showProductImages?: boolean;
   /** Global (POSPage-level) modal state — Esc skips navigation while a modal is open (the global hook closes it) */
   isAnyModalOpen?: boolean;
+  posSettings?: POSSettings;
+  enabledPriceTiers?: Array<'1' | '2' | '3' | '4'>;
 }
 
 export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
@@ -130,7 +133,13 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
   onOpenKeypad,
   onOpenKeypadForQty,
   isAnyModalOpen = false,
+  posSettings,
+  enabledPriceTiers: propEnabledPriceTiers,
 }) => {
+  const enabledPriceTiers = useMemo(
+    () => propEnabledPriceTiers || getEnabledPriceTiers(posSettings),
+    [propEnabledPriceTiers, posSettings]
+  );
   const { theme, toggleTheme } = useThemeStore();
 
   // Price tier: 1 = retail, 2 = semi-wholesale, 3 = wholesale, 4 = special
@@ -317,17 +326,25 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
           onOpenKeypad();
         }
       } else if ((e.altKey || e.ctrlKey) && e.key === '1') {
-        e.preventDefault();
-        handleSelectPriceTier('1');
+        if (enabledPriceTiers.includes('1')) {
+          e.preventDefault();
+          handleSelectPriceTier('1');
+        }
       } else if ((e.altKey || e.ctrlKey) && e.key === '2') {
-        e.preventDefault();
-        handleSelectPriceTier('2');
+        if (enabledPriceTiers.includes('2')) {
+          e.preventDefault();
+          handleSelectPriceTier('2');
+        }
       } else if ((e.altKey || e.ctrlKey) && e.key === '3') {
-        e.preventDefault();
-        handleSelectPriceTier('3');
+        if (enabledPriceTiers.includes('3')) {
+          e.preventDefault();
+          handleSelectPriceTier('3');
+        }
       } else if ((e.altKey || e.ctrlKey) && e.key === '4') {
-        e.preventDefault();
-        handleSelectPriceTier('4');
+        if (enabledPriceTiers.includes('4')) {
+          e.preventDefault();
+          handleSelectPriceTier('4');
+        }
       }
     };
 
@@ -511,6 +528,7 @@ export const TerminalPOSLayout: React.FC<TerminalPOSLayoutProps> = ({
           <TerminalPOSNeonBar
             priceTier={priceTier}
             handleSelectPriceTier={handleSelectPriceTier}
+            enabledPriceTiers={enabledPriceTiers}
             isLockedBarcode={isLockedBarcode}
             setIsLockedBarcode={setIsLockedBarcode}
             autoPrintReceipt={autoPrintReceipt}

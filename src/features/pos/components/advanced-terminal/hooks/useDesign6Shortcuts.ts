@@ -28,6 +28,7 @@ export interface UseDesign6ShortcutsProps {
   onCloseModals?: () => void;
   onSelectPriceTier?: (tier: '1' | '2' | '3' | '4') => void;
   onOpenAddCustomer?: () => void;
+  enabledPriceTiers?: Array<'1' | '2' | '3' | '4'>;
 }
 
 export const useDesign6Shortcuts = ({
@@ -58,6 +59,7 @@ export const useDesign6Shortcuts = ({
   onCloseModals,
   onSelectPriceTier,
   onOpenAddCustomer,
+  enabledPriceTiers,
 }: UseDesign6ShortcutsProps) => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -91,9 +93,11 @@ export const useDesign6Shortcuts = ({
 
       // 2. فئات الأسعار السريعة (س1-س4 عبر Alt+1..4 أو Ctrl+1..4)
       if ((e.altKey || e.ctrlKey) && ['1', '2', '3', '4'].includes(e.key)) {
-        e.preventDefault();
-        e.stopPropagation();
-        onSelectPriceTier?.(e.key as '1' | '2' | '3' | '4');
+        if (!enabledPriceTiers || enabledPriceTiers.includes(e.key as '1' | '2' | '3' | '4')) {
+          e.preventDefault();
+          e.stopPropagation();
+          onSelectPriceTier?.(e.key as '1' | '2' | '3' | '4');
+        }
         return;
       }
 
@@ -259,5 +263,7 @@ export const useDesign6Shortcuts = ({
     isAnyModalOpen,
     onCloseModals,
     onSelectPriceTier,
+    onOpenAddCustomer,
+    enabledPriceTiers,
   ]);
 };

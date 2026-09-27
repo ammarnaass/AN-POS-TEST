@@ -1,7 +1,7 @@
 {
   "name": "an-pos",
   "private": true,
-  "version": "2.5.1",
+  "version": "2.5.3",
   "type": "module",
   "main": "out/main/index.js",
   "description": "نظام نقاط البيع وإدارة المخزون والمبيعات AN POS",
@@ -42,6 +42,14 @@
       {
         "from": "public/an-pos-icon.png",
         "to": "an-pos-icon.png"
+      },
+      {
+        "from": "build/icon.ico",
+        "to": "icon.ico"
+      },
+      {
+        "from": "electron/drizzle/migrations",
+        "to": "drizzle"
       }
     ],
     "mac": {
@@ -50,9 +58,10 @@
     },
     "win": {
       "target": [
-        "nsis"
+        "nsis",
+        "portable"
       ],
-      "icon": "public/an-pos-icon.ico",
+      "icon": "build/icon.ico",
       "signExecutable": false,
       "requestedExecutionLevel": "requireAdministrator"
     },
@@ -61,6 +70,12 @@
       "perMachine": true,
       "allowToChangeInstallationDirectory": true,
       "allowElevation": true,
+      "installerIcon": "build/installer.ico",
+      "uninstallerIcon": "build/uninstaller.ico",
+      "installerHeaderIcon": "build/installer.ico",
+      "installerHeader": "build/installerHeader.bmp",
+      "installerSidebar": "build/installerSidebar.bmp",
+      "uninstallerSidebar": "build/installerSidebar.bmp",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "AN POS",

@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import type { CartItem, Product, Category } from '@/types';
+import { getEnabledPriceTiers } from '@/services';
+import type { POSSettings } from '@/features/pos/hooks/usePOSData';
 import { ClassicPOSTopBar } from './classic/ClassicPOSTopBar';
 import { ClassicPOSSearchBar } from './classic/ClassicPOSSearchBar';
 import { ClassicPOSCartTable } from './classic/ClassicPOSCartTable';
@@ -54,6 +56,8 @@ interface ClassicPOSLayoutProps {
   onNavigateBack?: () => void;
   onOpenSalesHistory?: () => void;
   onOpenCustomize?: () => void;
+  posSettings?: POSSettings;
+  enabledPriceTiers?: Array<'1' | '2' | '3' | '4'>;
 }
 
 const MAX_QUICK_PRODUCTS = 60;
@@ -103,7 +107,13 @@ export const ClassicPOSLayout: React.FC<ClassicPOSLayoutProps> = ({
   onOpenKeypadForQty,
   onSaveAsProforma,
   onSaveAsOrder,
+  posSettings,
+  enabledPriceTiers: propEnabledPriceTiers,
 }) => {
+  const enabledPriceTiers = useMemo(
+    () => propEnabledPriceTiers || getEnabledPriceTiers(posSettings),
+    [propEnabledPriceTiers, posSettings]
+  );
   const [selectedCartRowId, setSelectedCartRowId] = useState<string | null>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
 
@@ -125,22 +135,30 @@ export const ClassicPOSLayout: React.FC<ClassicPOSLayoutProps> = ({
           onRemoveFromCart(cart[cart.length - 1].productId);
         }
       } else if (e.altKey && e.key === '1') {
-        e.preventDefault();
-        onSelectPriceTier?.('1');
+        if (enabledPriceTiers.includes('1')) {
+          e.preventDefault();
+          onSelectPriceTier?.('1');
+        }
       } else if (e.altKey && e.key === '2') {
-        e.preventDefault();
-        onSelectPriceTier?.('2');
+        if (enabledPriceTiers.includes('2')) {
+          e.preventDefault();
+          onSelectPriceTier?.('2');
+        }
       } else if (e.altKey && e.key === '3') {
-        e.preventDefault();
-        onSelectPriceTier?.('3');
+        if (enabledPriceTiers.includes('3')) {
+          e.preventDefault();
+          onSelectPriceTier?.('3');
+        }
       } else if (e.altKey && e.key === '4') {
-        e.preventDefault();
-        onSelectPriceTier?.('4');
+        if (enabledPriceTiers.includes('4')) {
+          e.preventDefault();
+          onSelectPriceTier?.('4');
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedCartRowId, cart, onRemoveFromCart, onSelectPriceTier]);
+  }, [selectedCartRowId, cart, onRemoveFromCart, onSelectPriceTier, enabledPriceTiers]);
 
   const handleDeleteSelectedOrLast = useCallback(() => {
     if (selectedCartRowId) {
@@ -203,6 +221,7 @@ export const ClassicPOSLayout: React.FC<ClassicPOSLayoutProps> = ({
         onSaveAsOrder={onSaveAsOrder}
         priceTier={priceTier}
         onSelectPriceTier={onSelectPriceTier}
+        enabledPriceTiers={enabledPriceTiers}
       />
 
       {/* 2. BARCODE & PRODUCT SEARCH BAR */}

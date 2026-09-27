@@ -14,6 +14,7 @@ import { useSystemSettings } from '../hooks/useSystemSettings';
 import { setStoredTransportConfig } from '@/lib/transportGateway';
 import { useCloudSyncStatus } from '@/lib/cloudSyncEngine';
 import NetworkSetupWizard from '@/features/network/components/NetworkSetupWizard';
+import { APP_VERSION } from '@/constants/app';
 
 interface NetworkTabProps {
   [key: string]: any;
@@ -152,7 +153,7 @@ export default function NetworkTab(props: NetworkTabProps) {
         if (res.success) {
           setTestClientUrlResult({
             success: true,
-            msg: `تم الاتصال بالخادم بنجاح! الإصدار: ${res.data?.version || '2.5.1'} — خادم المتجر متصل وجاهز للمزامنة`,
+            msg: `تم الاتصال بالخادم بنجاح! الإصدار: ${res.data?.version || APP_VERSION} — خادم المتجر متصل وجاهز للمزامنة`,
           });
         } else {
           setTestClientUrlResult({
@@ -169,7 +170,7 @@ export default function NetworkTab(props: NetworkTabProps) {
           const data = await res.json();
           setTestClientUrlResult({
             success: true,
-            msg: `تم الاتصال بالخادم بنجاح! الإصدار: ${data?.version || '2.5.1'}`,
+            msg: `تم الاتصال بالخادم بنجاح! الإصدار: ${data?.version || APP_VERSION}`,
           });
         } else {
           setTestClientUrlResult({ success: false, msg: `استجاب الخادم برمز خطأ (${res.status})` });
@@ -214,7 +215,7 @@ export default function NetworkTab(props: NetworkTabProps) {
               deviceName: 'المحطة الرئيسية',
               protocol: 'udp+mdns',
               pingMs: 4,
-              version: info?.version || '2.5.1',
+              version: info?.version || APP_VERSION,
             },
           ]);
         }

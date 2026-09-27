@@ -5,6 +5,7 @@ import type { CartItem } from '@/types';
 export interface TerminalPOSNeonBarProps {
   priceTier: '1' | '2' | '3' | '4';
   handleSelectPriceTier: (tier: '1' | '2' | '3' | '4') => void;
+  enabledPriceTiers?: Array<'1' | '2' | '3' | '4'>;
   isLockedBarcode: boolean;
   setIsLockedBarcode: (val: boolean) => void;
   autoPrintReceipt: boolean;
@@ -31,6 +32,7 @@ export interface TerminalPOSNeonBarProps {
 export const TerminalPOSNeonBar: React.FC<TerminalPOSNeonBarProps> = ({
   priceTier,
   handleSelectPriceTier,
+  enabledPriceTiers = ['1', '2', '3', '4'],
   isLockedBarcode,
   setIsLockedBarcode,
   autoPrintReceipt,
@@ -60,61 +62,69 @@ export const TerminalPOSNeonBar: React.FC<TerminalPOSNeonBarProps> = ({
             <span className="font-mono text-[10px] text-slate-400">Alt + 1..4</span>
           </div>
           <div className="flex items-center justify-between gap-1 p-1 bg-slate-100 dark:bg-slate-800/90 rounded-xl border border-slate-200 dark:border-slate-700 select-none">
-            <button
-              type="button"
-              onClick={() => handleSelectPriceTier('1')}
-              className={`flex-1 h-9 flex items-center justify-center gap-1.5 px-2 rounded-lg transition-all cursor-pointer text-xs font-bold ${
-                priceTier === '1'
-                  ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-400/30'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700/60'
-              }`}
-              title="سعر التجزئة القياسي س1 (Alt+1)"
-            >
-              <span className={`w-2 h-2 rounded-full ${priceTier === '1' ? 'bg-white' : 'bg-blue-500'}`} />
-              <span>س1 تجزئة</span>
-            </button>
+            {enabledPriceTiers.includes('1') && (
+              <button
+                type="button"
+                onClick={() => handleSelectPriceTier('1')}
+                className={`flex-1 h-9 flex items-center justify-center gap-1.5 px-2 rounded-lg transition-all cursor-pointer text-xs font-bold ${
+                  priceTier === '1'
+                    ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-400/30'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700/60'
+                }`}
+                title="سعر التجزئة القياسي س1 (Alt+1)"
+              >
+                <span className={`w-2 h-2 rounded-full ${priceTier === '1' ? 'bg-white' : 'bg-blue-500'}`} />
+                <span>س1 تجزئة</span>
+              </button>
+            )}
 
-            <button
-              type="button"
-              onClick={() => handleSelectPriceTier('2')}
-              className={`flex-1 h-9 flex items-center justify-center gap-1.5 px-2 rounded-lg transition-all cursor-pointer text-xs font-bold ${
-                priceTier === '2'
-                  ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-400/30'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700/60'
-              }`}
-              title="سعر نصف الجملة س2 (Alt+2)"
-            >
-              <span className={`w-2 h-2 rounded-full ${priceTier === '2' ? 'bg-white' : 'bg-emerald-500'}`} />
-              <span>س2 نصف</span>
-            </button>
+            {enabledPriceTiers.includes('2') && (
+              <button
+                type="button"
+                onClick={() => handleSelectPriceTier('2')}
+                className={`flex-1 h-9 flex items-center justify-center gap-1.5 px-2 rounded-lg transition-all cursor-pointer text-xs font-bold ${
+                  priceTier === '2'
+                    ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-400/30'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700/60'
+                }`}
+                title="سعر نصف الجملة س2 (Alt+2)"
+              >
+                <span className={`w-2 h-2 rounded-full ${priceTier === '2' ? 'bg-white' : 'bg-emerald-500'}`} />
+                <span>س2 نصف</span>
+              </button>
+            )}
 
-            <button
-              type="button"
-              onClick={() => handleSelectPriceTier('3')}
-              className={`flex-1 h-9 flex items-center justify-center gap-1.5 px-2 rounded-lg transition-all cursor-pointer text-xs font-bold ${
-                priceTier === '3'
-                  ? 'bg-purple-600 text-white shadow-xs ring-2 ring-purple-400/30'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700/60'
-              }`}
-              title="سعر الجملة س3 (Alt+3)"
-            >
-              <span className={`w-2 h-2 rounded-full ${priceTier === '3' ? 'bg-white' : 'bg-purple-500'}`} />
-              <span>س3 جملة</span>
-            </button>
+            {enabledPriceTiers.includes('3') && (
+              <button
+                type="button"
+                onClick={() => handleSelectPriceTier('3')}
+                className={`flex-1 h-9 flex items-center justify-center gap-1.5 px-2 rounded-lg transition-all cursor-pointer text-xs font-bold ${
+                  priceTier === '3'
+                    ? 'bg-purple-600 text-white shadow-xs ring-2 ring-purple-400/30'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700/60'
+                }`}
+                title="سعر الجملة س3 (Alt+3)"
+              >
+                <span className={`w-2 h-2 rounded-full ${priceTier === '3' ? 'bg-white' : 'bg-purple-500'}`} />
+                <span>س3 جملة</span>
+              </button>
+            )}
 
-            <button
-              type="button"
-              onClick={() => handleSelectPriceTier('4')}
-              className={`flex-1 h-9 flex items-center justify-center gap-1.5 px-2 rounded-lg transition-all cursor-pointer text-xs font-bold ${
-                priceTier === '4'
-                  ? 'bg-amber-600 text-white shadow-xs ring-2 ring-amber-400/30'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700/60'
-              }`}
-              title="سعر خاص للزبائن المعتمدين س4 (Alt+4)"
-            >
-              <span className={`w-2 h-2 rounded-full ${priceTier === '4' ? 'bg-white' : 'bg-amber-500'}`} />
-              <span>س4 خاص</span>
-            </button>
+            {enabledPriceTiers.includes('4') && (
+              <button
+                type="button"
+                onClick={() => handleSelectPriceTier('4')}
+                className={`flex-1 h-9 flex items-center justify-center gap-1.5 px-2 rounded-lg transition-all cursor-pointer text-xs font-bold ${
+                  priceTier === '4'
+                    ? 'bg-amber-600 text-white shadow-xs ring-2 ring-amber-400/30'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700/60'
+                }`}
+                title="سعر خاص للزبائن المعتمدين س4 (Alt+4)"
+              >
+                <span className={`w-2 h-2 rounded-full ${priceTier === '4' ? 'bg-white' : 'bg-amber-500'}`} />
+                <span>س4 خاص</span>
+              </button>
+            )}
           </div>
         </div>
 

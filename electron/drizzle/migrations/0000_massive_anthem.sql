@@ -5,7 +5,7 @@ CREATE TABLE `audit_logs` (
 	`entity_id` text DEFAULT '',
 	`user_id` text NOT NULL,
 	`details` text DEFAULT '',
-	`timestamp` text DEFAULT datetime('now') NOT NULL
+	`timestamp` text DEFAULT (datetime('now')) NOT NULL
 );
 --> statement-breakpoint
 CREATE INDEX `idx_audit_logs_action` ON `audit_logs` (`action`);--> statement-breakpoint
@@ -24,7 +24,7 @@ CREATE TABLE `barcode_prints` (
 	`show_barcode` integer DEFAULT 1 NOT NULL,
 	`enlarge_price` integer DEFAULT 0 NOT NULL,
 	`print_options` text DEFAULT '{}' NOT NULL,
-	`created_at` text DEFAULT datetime('now') NOT NULL
+	`created_at` text DEFAULT (datetime('now')) NOT NULL
 );
 --> statement-breakpoint
 CREATE INDEX `idx_barcode_prints_product` ON `barcode_prints` (`product_id`);--> statement-breakpoint
@@ -35,7 +35,7 @@ CREATE TABLE `capital_entries` (
 	`type` text NOT NULL,
 	`amount` real DEFAULT 0 NOT NULL,
 	`note` text DEFAULT '' NOT NULL,
-	`created_at` text DEFAULT datetime('now')
+	`created_at` text DEFAULT (datetime('now'))
 );
 --> statement-breakpoint
 CREATE INDEX `idx_capital_entries_type` ON `capital_entries` (`type`);--> statement-breakpoint
@@ -57,8 +57,8 @@ CREATE TABLE `cash_sessions` (
 	`total_returns` real DEFAULT 0 NOT NULL,
 	`status` text DEFAULT 'open' NOT NULL,
 	`note` text DEFAULT '',
-	`created_at` text DEFAULT datetime('now'),
-	`updated_at` text DEFAULT datetime('now')
+	`created_at` text DEFAULT (datetime('now')),
+	`updated_at` text DEFAULT (datetime('now'))
 );
 --> statement-breakpoint
 CREATE INDEX `idx_cash_sessions_status` ON `cash_sessions` (`status`);--> statement-breakpoint
@@ -68,8 +68,8 @@ CREATE TABLE `categories` (
 	`name` text NOT NULL,
 	`parent_id` text,
 	`description` text DEFAULT '' NOT NULL,
-	`created_at` text DEFAULT datetime('now') NOT NULL,
-	`updated_at` text DEFAULT datetime('now') NOT NULL
+	`created_at` text DEFAULT (datetime('now')) NOT NULL,
+	`updated_at` text DEFAULT (datetime('now')) NOT NULL
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `categories_name_unique` ON `categories` (`name`);--> statement-breakpoint
@@ -86,8 +86,8 @@ CREATE TABLE `connected_devices` (
 	`last_seen` text DEFAULT '',
 	`vendor` text DEFAULT '',
 	`model` text DEFAULT '',
-	`created_at` text DEFAULT datetime('now') NOT NULL,
-	`updated_at` text DEFAULT datetime('now') NOT NULL
+	`created_at` text DEFAULT (datetime('now')) NOT NULL,
+	`updated_at` text DEFAULT (datetime('now')) NOT NULL
 );
 --> statement-breakpoint
 CREATE INDEX `idx_connected_devices_type` ON `connected_devices` (`device_type`);--> statement-breakpoint
@@ -98,8 +98,8 @@ CREATE TABLE `customers` (
 	`phone` text DEFAULT '' NOT NULL,
 	`credit_limit` real DEFAULT 0 NOT NULL,
 	`balance` real DEFAULT 0 NOT NULL,
-	`created_at` text DEFAULT datetime('now'),
-	`updated_at` text DEFAULT datetime('now')
+	`created_at` text DEFAULT (datetime('now')),
+	`updated_at` text DEFAULT (datetime('now'))
 );
 --> statement-breakpoint
 CREATE TABLE `device_sessions` (
@@ -108,10 +108,10 @@ CREATE TABLE `device_sessions` (
 	`device_id` text NOT NULL,
 	`device_name` text DEFAULT '',
 	`user_id` text,
-	`paired_at` text DEFAULT datetime('now') NOT NULL,
-	`last_seen` text DEFAULT datetime('now') NOT NULL,
+	`paired_at` text DEFAULT (datetime('now')) NOT NULL,
+	`last_seen` text DEFAULT (datetime('now')) NOT NULL,
 	`expires_at` text,
-	`created_at` text DEFAULT datetime('now') NOT NULL
+	`created_at` text DEFAULT (datetime('now')) NOT NULL
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `device_sessions_session_token_unique` ON `device_sessions` (`session_token`);--> statement-breakpoint
@@ -125,7 +125,7 @@ CREATE TABLE `expenses` (
 	`amount` real DEFAULT 0 NOT NULL,
 	`note` text DEFAULT '',
 	`created_by` text DEFAULT '',
-	`created_at` text DEFAULT datetime('now')
+	`created_at` text DEFAULT (datetime('now'))
 );
 --> statement-breakpoint
 CREATE INDEX `idx_expenses_date` ON `expenses` (`date`);--> statement-breakpoint
@@ -152,7 +152,7 @@ CREATE TABLE `inventory_counts` (
 	`closed_by` text DEFAULT '',
 	`closed_at` text DEFAULT '',
 	`created_by` text DEFAULT '',
-	`created_at` text DEFAULT datetime('now') NOT NULL
+	`created_at` text DEFAULT (datetime('now')) NOT NULL
 );
 --> statement-breakpoint
 CREATE INDEX `idx_ic_number` ON `inventory_counts` (`count_number`);--> statement-breakpoint
@@ -205,8 +205,8 @@ CREATE TABLE `network_settings` (
 	`scanner_min_length` integer DEFAULT 6 NOT NULL,
 	`scanner_allow_manual_types` integer DEFAULT 1 NOT NULL,
 	`last_connected_at` text DEFAULT '',
-	`created_at` text DEFAULT datetime('now') NOT NULL,
-	`updated_at` text DEFAULT datetime('now') NOT NULL
+	`created_at` text DEFAULT (datetime('now')) NOT NULL,
+	`updated_at` text DEFAULT (datetime('now')) NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE `packs` (
@@ -223,8 +223,8 @@ CREATE TABLE `packs` (
 	`items` text DEFAULT '[]' NOT NULL,
 	`status` text DEFAULT 'active' NOT NULL,
 	`is_active` integer DEFAULT 1 NOT NULL,
-	`created_at` text DEFAULT datetime('now') NOT NULL,
-	`updated_at` text DEFAULT datetime('now') NOT NULL
+	`created_at` text DEFAULT (datetime('now')) NOT NULL,
+	`updated_at` text DEFAULT (datetime('now')) NOT NULL
 );
 --> statement-breakpoint
 CREATE INDEX `idx_packs_barcode` ON `packs` (`barcode`);--> statement-breakpoint
@@ -240,7 +240,7 @@ CREATE TABLE `payments` (
 	`method` text DEFAULT 'cash',
 	`note` text DEFAULT '',
 	`created_by` text DEFAULT '',
-	`created_at` text DEFAULT datetime('now')
+	`created_at` text DEFAULT (datetime('now'))
 );
 --> statement-breakpoint
 CREATE INDEX `idx_payments_customer` ON `payments` (`customer_id`);--> statement-breakpoint
@@ -251,11 +251,11 @@ CREATE TABLE `print_failure_counter` (
 	`printer_id` text,
 	`template_id` text,
 	`consecutive_failures` integer DEFAULT 0 NOT NULL,
-	`last_failure_at` text DEFAULT datetime('now') NOT NULL,
+	`last_failure_at` text DEFAULT (datetime('now')) NOT NULL,
 	`last_error` text DEFAULT '',
 	`notified` integer DEFAULT 0 NOT NULL,
-	`created_at` text DEFAULT datetime('now') NOT NULL,
-	`updated_at` text DEFAULT datetime('now') NOT NULL
+	`created_at` text DEFAULT (datetime('now')) NOT NULL,
+	`updated_at` text DEFAULT (datetime('now')) NOT NULL
 );
 --> statement-breakpoint
 CREATE INDEX `idx_pfc_printer` ON `print_failure_counter` (`printer_id`);--> statement-breakpoint
@@ -267,7 +267,7 @@ CREATE TABLE `print_history` (
 	`doc_type_key` text NOT NULL,
 	`template_id` text NOT NULL,
 	`printed_by` text NOT NULL,
-	`printed_at` text DEFAULT datetime('now') NOT NULL,
+	`printed_at` text DEFAULT (datetime('now')) NOT NULL,
 	`copies` integer DEFAULT 1 NOT NULL,
 	`printer_name` text DEFAULT '' NOT NULL,
 	`is_reprint` integer DEFAULT 0 NOT NULL,
@@ -286,7 +286,7 @@ CREATE TABLE `print_jobs` (
 	`copies` integer DEFAULT 1 NOT NULL,
 	`payload` text DEFAULT '{}' NOT NULL,
 	`error_message` text DEFAULT '',
-	`created_at` text DEFAULT datetime('now') NOT NULL,
+	`created_at` text DEFAULT (datetime('now')) NOT NULL,
 	`processed_at` text
 );
 --> statement-breakpoint
@@ -311,8 +311,8 @@ CREATE TABLE `print_templates` (
 	`is_default` integer DEFAULT 0 NOT NULL,
 	`is_system` integer DEFAULT 0 NOT NULL,
 	`created_by` text DEFAULT '' NOT NULL,
-	`created_at` text DEFAULT datetime('now') NOT NULL,
-	`updated_at` text DEFAULT datetime('now') NOT NULL
+	`created_at` text DEFAULT (datetime('now')) NOT NULL,
+	`updated_at` text DEFAULT (datetime('now')) NOT NULL
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `print_templates_name_unique` ON `print_templates` (`name`);--> statement-breakpoint
@@ -361,8 +361,8 @@ CREATE TABLE `product_barcodes` (
 	`variant_label` text DEFAULT '',
 	`batch_number` text DEFAULT '',
 	`expiry_date` text DEFAULT '',
-	`created_at` text DEFAULT datetime('now') NOT NULL,
-	`updated_at` text DEFAULT datetime('now') NOT NULL
+	`created_at` text DEFAULT (datetime('now')) NOT NULL,
+	`updated_at` text DEFAULT (datetime('now')) NOT NULL
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `product_barcodes_barcode_unique` ON `product_barcodes` (`barcode`);--> statement-breakpoint
@@ -410,8 +410,8 @@ CREATE TABLE `products` (
 	`ask_price` integer DEFAULT 0 NOT NULL,
 	`ask_quantity` integer DEFAULT 0 NOT NULL,
 	`point_price` integer DEFAULT 0 NOT NULL,
-	`created_at` text DEFAULT datetime('now') NOT NULL,
-	`updated_at` text DEFAULT datetime('now') NOT NULL,
+	`created_at` text DEFAULT (datetime('now')) NOT NULL,
+	`updated_at` text DEFAULT (datetime('now')) NOT NULL,
 	`created_by` text DEFAULT '' NOT NULL
 );
 --> statement-breakpoint
@@ -434,7 +434,7 @@ CREATE TABLE `promotions` (
 	`active` integer DEFAULT 1 NOT NULL,
 	`status` text DEFAULT 'active',
 	`max_quantity` integer DEFAULT 0 NOT NULL,
-	`created_at` text DEFAULT datetime('now')
+	`created_at` text DEFAULT (datetime('now'))
 );
 --> statement-breakpoint
 CREATE INDEX `idx_promotions_product` ON `promotions` (`product_id`);--> statement-breakpoint
@@ -460,8 +460,8 @@ CREATE TABLE `purchases` (
 	`tva_amount` real DEFAULT 0 NOT NULL,
 	`total` real DEFAULT 0 NOT NULL,
 	`status` text DEFAULT 'draft' NOT NULL,
-	`created_at` text DEFAULT datetime('now'),
-	`updated_at` text DEFAULT datetime('now')
+	`created_at` text DEFAULT (datetime('now')),
+	`updated_at` text DEFAULT (datetime('now'))
 );
 --> statement-breakpoint
 CREATE INDEX `idx_purchases_number` ON `purchases` (`number`);--> statement-breakpoint
@@ -473,7 +473,7 @@ CREATE TABLE `refresh_tokens` (
 	`user_id` text NOT NULL,
 	`token` text NOT NULL,
 	`expires_at` text NOT NULL,
-	`created_at` text DEFAULT datetime('now') NOT NULL
+	`created_at` text DEFAULT (datetime('now')) NOT NULL
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `refresh_tokens_token_unique` ON `refresh_tokens` (`token`);--> statement-breakpoint
@@ -483,7 +483,7 @@ CREATE TABLE `roles` (
 	`description` text DEFAULT '',
 	`permissions` text DEFAULT '{}' NOT NULL,
 	`is_system` integer DEFAULT 0 NOT NULL,
-	`created_at` text DEFAULT datetime('now') NOT NULL
+	`created_at` text DEFAULT (datetime('now')) NOT NULL
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `roles_name_unique` ON `roles` (`name`);--> statement-breakpoint
@@ -523,8 +523,8 @@ CREATE TABLE `sales` (
 	`session_id` text DEFAULT '',
 	`note` text DEFAULT '',
 	`last_printed_at` text DEFAULT '',
-	`created_at` text DEFAULT datetime('now'),
-	`updated_at` text DEFAULT datetime('now')
+	`created_at` text DEFAULT (datetime('now')),
+	`updated_at` text DEFAULT (datetime('now'))
 );
 --> statement-breakpoint
 CREATE INDEX `idx_sales_date` ON `sales` (`date`);--> statement-breakpoint
@@ -609,7 +609,7 @@ CREATE TABLE `stock_movements` (
 	`reference` text DEFAULT '',
 	`reason` text DEFAULT '',
 	`created_by` text DEFAULT '' NOT NULL,
-	`created_at` text DEFAULT datetime('now') NOT NULL,
+	`created_at` text DEFAULT (datetime('now')) NOT NULL,
 	`date` text DEFAULT '',
 	`updated_at` text DEFAULT ''
 );
@@ -633,7 +633,7 @@ CREATE TABLE `stock_movements_v2` (
 	`reviewed_by` text DEFAULT '',
 	`reviewed_at` text DEFAULT '',
 	`created_by` text DEFAULT '',
-	`created_at` text DEFAULT datetime('now') NOT NULL
+	`created_at` text DEFAULT (datetime('now')) NOT NULL
 );
 --> statement-breakpoint
 CREATE INDEX `idx_smv2_number` ON `stock_movements_v2` (`movement_number`);--> statement-breakpoint
@@ -660,8 +660,8 @@ CREATE TABLE `suppliers` (
 	`name` text NOT NULL,
 	`phone` text DEFAULT '' NOT NULL,
 	`balance` real DEFAULT 0 NOT NULL,
-	`created_at` text DEFAULT datetime('now'),
-	`updated_at` text DEFAULT datetime('now')
+	`created_at` text DEFAULT (datetime('now')),
+	`updated_at` text DEFAULT (datetime('now'))
 );
 --> statement-breakpoint
 CREATE TABLE `suspended_orders` (
@@ -670,7 +670,7 @@ CREATE TABLE `suspended_orders` (
 	`customer_id` text DEFAULT '' NOT NULL,
 	`discount` real DEFAULT 0 NOT NULL,
 	`discount_type` text DEFAULT 'percent' NOT NULL,
-	`created_at` text DEFAULT datetime('now') NOT NULL,
+	`created_at` text DEFAULT (datetime('now')) NOT NULL,
 	`note` text DEFAULT '' NOT NULL,
 	`created_by` text DEFAULT ''
 );
@@ -680,7 +680,7 @@ CREATE TABLE `sync_tombstones` (
 	`id` text PRIMARY KEY NOT NULL,
 	`table_name` text NOT NULL,
 	`record_id` text NOT NULL,
-	`deleted_at` text DEFAULT datetime('now') NOT NULL
+	`deleted_at` text DEFAULT (datetime('now')) NOT NULL
 );
 --> statement-breakpoint
 CREATE INDEX `idx_tombstones_lookup` ON `sync_tombstones` (`table_name`,`deleted_at`);--> statement-breakpoint
@@ -701,7 +701,7 @@ CREATE TABLE `user_activities` (
 	`new_value` text DEFAULT '',
 	`ip_address` text DEFAULT '',
 	`device_info` text DEFAULT '',
-	`performed_at` text DEFAULT datetime('now') NOT NULL
+	`performed_at` text DEFAULT (datetime('now')) NOT NULL
 );
 --> statement-breakpoint
 CREATE INDEX `idx_user_activities_user` ON `user_activities` (`user_id`);--> statement-breakpoint
@@ -722,8 +722,8 @@ CREATE TABLE `users` (
 	`login_attempts` integer DEFAULT 0 NOT NULL,
 	`locked_until` text DEFAULT '',
 	`password_changed_at` text DEFAULT '',
-	`created_at` text DEFAULT datetime('now') NOT NULL,
-	`updated_at` text DEFAULT datetime('now') NOT NULL
+	`created_at` text DEFAULT (datetime('now')) NOT NULL,
+	`updated_at` text DEFAULT (datetime('now')) NOT NULL
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `users_username_unique` ON `users` (`username`);--> statement-breakpoint
@@ -741,8 +741,8 @@ CREATE TABLE `warehouses` (
 	`is_active` integer DEFAULT 1 NOT NULL,
 	`parent_id` text,
 	`created_by` text DEFAULT '',
-	`created_at` text DEFAULT datetime('now') NOT NULL,
-	`updated_at` text DEFAULT datetime('now') NOT NULL
+	`created_at` text DEFAULT (datetime('now')) NOT NULL,
+	`updated_at` text DEFAULT (datetime('now')) NOT NULL
 );
 --> statement-breakpoint
 CREATE INDEX `idx_warehouses_type` ON `warehouses` (`type`);--> statement-breakpoint

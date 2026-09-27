@@ -4,10 +4,12 @@
 
 import { DatabaseSync } from 'node:sqlite';
 import { drizzle, type SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
+import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import * as schema from '../drizzle/schema';
 import path from 'node:path';
 import { app } from 'electron';
 import fs from 'node:fs';
+import { initSchema } from './schema-init';
 
 export type DB = SqliteRemoteDatabase<typeof schema>;
 
@@ -82,7 +84,20 @@ function executeQuery(sql: string, params: unknown[], method: 'run' | 'all' | 'v
   const stmt = getCachedStatement(sql);
 
   if (method === 'run') {
-    stmt.run(...params);
+    try {
+      stmt.run(...params);
+    } catch (err: any) {
+      const msg = String(err?.message || err);
+      // في قواعد البيانات القائمة: إذا كان العمود أو الجدول موجوداً مسبقاً، نتجاوزه بأمان
+      if (
+        msg.includes('duplicate column name') ||
+        (msg.includes('already exists') && (/CREATE\s+(TABLE|INDEX|UNIQUE\s+INDEX)/i.test(sql) || /ALTER\s+TABLE/i.test(sql)))
+      ) {
+        console.warn('[database] تجاوز آمن لكائن أو عمود موجود مسبقاً:', msg);
+        return { rows: [] };
+      }
+      throw err;
+    }
     return { rows: [] };
   }
 
@@ -96,18 +111,16 @@ function executeQuery(sql: string, params: unknown[], method: 'run' | 'all' | 'v
     return { rows: row ? [normalizeRow(row)] : [] };
   }
 
-  // method === 'values' — تُرجع صفوف كـ arrays وليس objects
+  // method === 'values' — تُرجع صفوف كـ arrays مصفوفات قيم متطابقة مع متطلبات Drizzle migrator
   const rows = stmt.all(...params);
-  return { rows: rows.map(normalizeRow) };
+  return { rows: rows.map((row) => Object.values(row as Record<string, unknown>)) };
 }
 
 let activeDbPath: string = '';
 
 /**
- * تحديد مسار قاعدة البيانات وفق هرمية مرنة:
- * 1. متغير البيئة AN_POS_DB_PATH (للاختبار والتشغيل المخصص)
- * 2. ملف تهيئة البيئة an-pos-env.json (المولد بواسطة مثبت NSIS أو لوحة الإعدادات)
- * 3. المسار الافتراضي المعزول في userData: %APPDATA%\an-pos\an-pos.db
+ * تحديد مسار قاعدة البيانات بشكل ثابت على %APPDATA%\anpos.db (أو app.getPath('userData')/anpos.db)
+ * مع ضمان ترحيل أي قاعدة بيانات سابقة an-pos.db تلقائياً لحماية بيانات العملاء الحالية.
  */
 export function resolveDatabasePath(): string {
   if (process.env.AN_POS_DB_PATH && process.env.AN_POS_DB_PATH.trim()) {
@@ -115,24 +128,51 @@ export function resolveDatabasePath(): string {
   }
 
   const userDataPath = app.getPath('userData');
-  const envConfigPath = path.join(userDataPath, 'an-pos-env.json');
+  const targetDbPath = path.join(userDataPath, 'anpos.db');
+  const legacyDbPath = path.join(userDataPath, 'an-pos.db');
 
-  if (fs.existsSync(envConfigPath)) {
+  // ضمان عدم فقدان البيانات: إذا كان يوجد ملف an-pos.db قديم ولم ينشأ anpos.db بعد
+  if (!fs.existsSync(targetDbPath) && fs.existsSync(legacyDbPath)) {
     try {
-      const raw = fs.readFileSync(envConfigPath, 'utf-8');
-      const cfg = JSON.parse(raw);
-      if (cfg.dbPath && typeof cfg.dbPath === 'string' && cfg.dbPath.trim()) {
-        return path.resolve(cfg.dbPath.trim());
-      }
-      if (cfg.dataDirectory && typeof cfg.dataDirectory === 'string' && cfg.dataDirectory.trim()) {
-        return path.join(path.resolve(cfg.dataDirectory.trim()), 'an-pos.db');
-      }
+      fs.copyFileSync(legacyDbPath, targetDbPath);
+      console.log(`[database] تم ترحيل قاعدة البيانات القائمة بأمان من ${legacyDbPath} إلى ${targetDbPath}`);
     } catch (e) {
-      console.warn('[database] تعذر قراءة an-pos-env.json، الاعتماد على المسار الافتراضي:', e);
+      console.warn('[database] تعذر نسخ قاعدة البيانات القديمة:', e);
     }
   }
 
-  return path.join(userDataPath, 'an-pos.db');
+  return targetDbPath;
+}
+
+/**
+ * تحديد مسار مجلد هجرات Drizzle سواء في بيئة التطوير أو داخل حزمة الإنتاج
+ */
+export function resolveMigrationsFolder(): string {
+  // 1. وضع الإنتاج (مُضمن ضمن extraResources في resources/drizzle)
+  if (app.isPackaged) {
+    const packagedDrizzle = path.join(process.resourcesPath, 'drizzle');
+    if (fs.existsSync(packagedDrizzle)) {
+      return packagedDrizzle;
+    }
+  }
+
+  // 2. وضع التطوير
+  const devFolderAppPath = path.join(app.getAppPath(), 'electron/drizzle/migrations');
+  if (fs.existsSync(devFolderAppPath)) {
+    return devFolderAppPath;
+  }
+
+  const devFolderRel = path.resolve(__dirname, '../../electron/drizzle/migrations');
+  if (fs.existsSync(devFolderRel)) {
+    return devFolderRel;
+  }
+
+  const cwdFolder = path.resolve(process.cwd(), 'electron/drizzle/migrations');
+  if (fs.existsSync(cwdFolder)) {
+    return cwdFolder;
+  }
+
+  return path.join(app.getAppPath(), 'electron/drizzle/migrations');
 }
 
 /**
@@ -144,12 +184,55 @@ export function getDatabasePath(): string {
 }
 
 /**
- * تهيئة قاعدة البيانات:
- * 1. تحديد مسار ملف SQLite (من البيئة أو الإعدادات أو userData)
- * 2. فتح الاتصال + ضبط PRAGMAs فائقة السرعة والأمان
- * 3. تهيئة Drizzle مع callback التنفيذ
+ * تشغيل الهجرة التلقائية (Auto-Migration) باستخدام migrate() من drizzle-orm/better-sqlite3/migrator
  */
-export function initDatabase(): DB {
+export async function runAutoMigration(): Promise<void> {
+  const startTime = new Date();
+  const folder = resolveMigrationsFolder();
+  console.log(`[database] [migration] 🚀 بدء تشغيل الهجرة التلقائية من: ${folder} (${startTime.toISOString()})`);
+
+  try {
+    const db = getDb();
+    const origMigrate = db.dialect.migrate.bind(db.dialect);
+    let migrationPromise: Promise<void> | undefined;
+
+    db.dialect.migrate = (migrations, session, config) => {
+      // حماية استباقية: تنقيح أي تعبيرات غير محاطة بأقواس في SQLite مثل DEFAULT datetime('now')
+      for (const m of migrations) {
+        m.sql = m.sql.map((s) => s.replace(/DEFAULT\s+datetime\('now'\)/g, "DEFAULT (datetime('now'))"));
+      }
+      migrationPromise = origMigrate(migrations, session, config);
+      return migrationPromise;
+    };
+
+    // استدعاء migrate من Drizzle
+    migrate(db, { migrationsFolder: folder });
+
+    if (migrationPromise) {
+      await migrationPromise;
+    }
+
+    // ترقيات تكميلية للأعمدة والجداول الخاصة بالتزامن وقوائم الانتظار
+    initSchema();
+
+    const endTime = new Date();
+    const durationMs = endTime.getTime() - startTime.getTime();
+    console.log(`[database] [migration] ✅ اكتملت الهجرات بنجاح في ${durationMs}ms (${endTime.toISOString()})`);
+  } catch (err) {
+    const failTime = new Date();
+    console.error(`[database] [migration] ❌ فشلت عملية الترحيل في ${failTime.toISOString()}:`, err);
+    throw err;
+  }
+}
+
+/**
+ * تهيئة قاعدة البيانات الموحدة:
+ * 1. تحديد مسار ملف SQLite الثابت (%APPDATA%\anpos.db)
+ * 2. فتح الاتصال + ضبط PRAGMAs فائقة السرعة والأمان
+ * 3. تهيئة Drizzle
+ * 4. تطبيق Auto-Migration فوراً قبل أي تسجيل IPC
+ */
+export async function initDatabase(): Promise<DB> {
   if (dbInstance) return dbInstance;
 
   activeDbPath = resolveDatabasePath();
@@ -161,7 +244,6 @@ export function initDatabase(): DB {
   console.log(`[database] تم الاتصال بقاعدة البيانات في: ${activeDbPath}`);
 
   // فتح قاعدة البيانات
-  // node:sqlite: DatabaseSync(path, options)
   sqliteInstance = new DatabaseSync(activeDbPath);
 
   // PRAGMAs — حزمة تسريع فائقة لبيئة الإنتاج والـ POS
@@ -175,6 +257,9 @@ export function initDatabase(): DB {
 
   // إنشاء Drizzle مع callback التنفيذ
   dbInstance = drizzle(executeQuery, { schema });
+
+  // تطبيق الهجرة التلقائية فوراً
+  await runAutoMigration();
 
   return dbInstance;
 }

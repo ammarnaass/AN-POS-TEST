@@ -4,13 +4,14 @@
 import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron';
 import path from 'node:path';
 import os from 'node:os';
+import fs from 'node:fs';
 import { initDatabase, closeDatabase } from './database';
-import { initSchema } from './schema-init';
 import { seedDatabase } from './seed';
 import { registerIpcHandlers } from './ipc/register';
 import { startHttpServer, stopHttpServer, getNetworkSettings, getOrCreateConnectionKey } from './server/index';
 import { queryOne } from './handlers/db-utils';
 import { isDeveloperModeActive } from './handlers/auth';
+import { getOrCreateConfigFile } from './ipc/system';
 
 // إخفاء شريط القوائم الافتراضي بالكامل (File, Edit, View, Window, etc.)
 Menu.setApplicationMenu(null);
@@ -59,12 +60,30 @@ if (process.env.HEADLESS === 'true' || process.env.DISABLE_GPU === 'true') {
 let mainWindow: BrowserWindow | null = null;
 
 async function createWindow() {
-  // 1. تهيئة قاعدة البيانات + إنشاء الجداول
-  console.log('[main] تهيئة قاعدة البيانات...');
-  initDatabase();
-  initSchema();
+  // 0. تجهيز بيئة العمل وملف الإعدادات الافتراضي (config.json)
+  console.log('[main] تجهيز بيئة التشغيل وملف الإعدادات الافتراضي (config.json)...');
+  try {
+    getOrCreateConfigFile();
+  } catch (cfgErr) {
+    console.warn('[main] تعذر تجهيز config.json:', cfgErr);
+  }
 
-  // 2. تسجيل معالجات IPC
+  // 1. تهيئة قاعدة البيانات وتشغيل الهجرات التلقائية (Auto-Migration)
+  console.log('[main] تهيئة قاعدة البيانات وتشغيل الهجرات التلقائية...');
+  try {
+    await initDatabase();
+  } catch (dbErr: any) {
+    console.error('[main] فشل فادح في تهيئة قاعدة البيانات:', dbErr);
+    const { dialog } = await import('electron');
+    dialog.showErrorBox(
+      'خطأ في تشغيل قاعدة البيانات (AN POS)',
+      `تعذر على البرنامج فتح قاعدة البيانات أو تهيئة مجلد التخزين.\n\nالسبب المحتمل:\n- عدم وجود صلاحيات كتابة كافية في مسار البيانات.\n- ملف قاعدة البيانات قيد الاستخدام بواسطة برنامج آخر.\n\nالتفاصيل: ${dbErr?.message || dbErr}`
+    );
+    app.quit();
+    return;
+  }
+
+  // 2. تسجيل معالجات IPC (فقط وحصرياً بعد اكتمال تهيئة قاعدة البيانات)
   console.log('[main] تسجيل معالجات IPC...');
   registerIpcHandlers();
 
@@ -107,9 +126,14 @@ async function createWindow() {
   // 6. إنشاء النافذة
   // ملاحظة: على Wayland/ozone قد لا يُطلق ready-to-show دائماً، لذا نُظهر فوراً
   const isDevMode = !app.isPackaged;
-  const iconPath = isDevMode
+  const isWin = process.platform === 'win32';
+  const icoCandidate = isDevMode
+    ? path.join(__dirname, '../../build/icon.ico')
+    : path.join(process.resourcesPath, 'icon.ico');
+  const pngCandidate = isDevMode
     ? path.join(__dirname, '../../public/an-pos-icon.png')
     : path.join(process.resourcesPath, 'an-pos-icon.png');
+  const iconPath = (isWin && fs.existsSync(icoCandidate)) ? icoCandidate : pngCandidate;
 
   mainWindow = new BrowserWindow({
     width: 1400,

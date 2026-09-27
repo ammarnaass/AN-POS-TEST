@@ -13,6 +13,7 @@ interface Design7BasketTableProps {
   formatMoney: (amount?: number | null) => string;
   onOpenItemEdit?: (item: CartItem, mode?: 'qty' | 'price') => void;
   priceTier?: '1' | '2' | '3' | '4';
+  enabledPriceTiers?: Array<'1' | '2' | '3' | '4'>;
   products?: any[];
   allProducts?: any[];
   onEditPrice?: (productId: string, price: number) => void;
@@ -27,6 +28,7 @@ export const Design7BasketTable: React.FC<Design7BasketTableProps> = ({
   formatMoney,
   onOpenItemEdit,
   priceTier = '1',
+  enabledPriceTiers = ['1', '2', '3', '4'],
   products = [],
   allProducts = [],
   onEditPrice,
@@ -153,54 +155,62 @@ export const Design7BasketTable: React.FC<Design7BasketTableProps> = ({
                             const p4 = getProductTierPrice(prod, '4');
                             return (
                               <div className="flex items-center gap-0.5">
-                                <button
-                                  type="button"
-                                  onClick={() => onEditPrice(item.productId, p1)}
-                                  className={`px-1.5 py-0.2 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
-                                    item.unitPrice === p1
-                                      ? 'bg-sky-600 text-white'
-                                      : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
-                                  }`}
-                                  title={`سعر تجزئة س1: ${formatMoney(p1)}`}
-                                >
-                                  س1
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => onEditPrice(item.productId, p2)}
-                                  className={`px-1.5 py-0.2 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
-                                    item.unitPrice === p2
-                                      ? 'bg-amber-600 text-white'
-                                      : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
-                                  }`}
-                                  title={`سعر نصف جملة س2: ${formatMoney(p2)}`}
-                                >
-                                  س2
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => onEditPrice(item.productId, p3)}
-                                  className={`px-1.5 py-0.2 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
-                                    item.unitPrice === p3
-                                      ? 'bg-purple-600 text-white'
-                                      : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
-                                  }`}
-                                  title={`سعر جملة س3: ${formatMoney(p3)}`}
-                                >
-                                  س3
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => onEditPrice(item.productId, p4)}
-                                  className={`px-1.5 py-0.2 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
-                                    item.unitPrice === p4
-                                      ? 'bg-indigo-600 text-white'
-                                      : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
-                                  }`}
-                                  title={`سعر خاص س4: ${formatMoney(p4)}`}
-                                >
-                                  س4
-                                </button>
+                                {enabledPriceTiers.includes('1') && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onEditPrice(item.productId, p1)}
+                                    className={`px-1.5 py-0.2 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
+                                      item.unitPrice === p1
+                                        ? 'bg-sky-600 text-white'
+                                        : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                                    }`}
+                                    title={`سعر تجزئة س1: ${formatMoney(p1)}`}
+                                  >
+                                    س1
+                                  </button>
+                                )}
+                                {enabledPriceTiers.includes('2') && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onEditPrice(item.productId, p2)}
+                                    className={`px-1.5 py-0.2 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
+                                      item.unitPrice === p2
+                                        ? 'bg-amber-600 text-white'
+                                        : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                                    }`}
+                                    title={`سعر نصف جملة س2: ${formatMoney(p2)}`}
+                                  >
+                                    س2
+                                  </button>
+                                )}
+                                {enabledPriceTiers.includes('3') && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onEditPrice(item.productId, p3)}
+                                    className={`px-1.5 py-0.2 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
+                                      item.unitPrice === p3
+                                        ? 'bg-purple-600 text-white'
+                                        : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                                    }`}
+                                    title={`سعر جملة س3: ${formatMoney(p3)}`}
+                                  >
+                                    س3
+                                  </button>
+                                )}
+                                {enabledPriceTiers.includes('4') && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onEditPrice(item.productId, p4)}
+                                    className={`px-1.5 py-0.2 rounded text-[10px] font-bold font-mono transition cursor-pointer ${
+                                      item.unitPrice === p4
+                                        ? 'bg-indigo-600 text-white'
+                                        : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                                    }`}
+                                    title={`سعر خاص س4: ${formatMoney(p4)}`}
+                                  >
+                                    س4
+                                  </button>
+                                )}
                               </div>
                             );
                           })()}

@@ -3,35 +3,89 @@
 // الهدف: تجنب تكرار queryAll/queryOne/execute + التحويلات في كل ملف.
 
 import { getSqlite, getCachedStatement } from '../database';
+import { initSchema } from '../schema-init';
 
 export type Row = Record<string, string | number | null>;
 
+let isRecoveringMissingTable = false;
+
 /**
- * تنفيذ SELECT متعدد الصفوف
+ * فحص أمان واسترداد ذاتي: إذا تم رصد خطأ "no such table" أثناء التشغيل،
+ * يتم استدعاء initSchema تلقائياً مرة واحدة لإنشاء الجداول المفقودة وإعادة المحاولة.
+ */
+function handleMissingTableError(err: unknown): boolean {
+  const errMsg = String((err as Error)?.message || err || '');
+  if (errMsg.includes('no such table:') && !isRecoveringMissingTable) {
+    try {
+      isRecoveringMissingTable = true;
+      console.warn(`[db-utils] ⚠️ تم رصد جدول غير موجود (${errMsg}). جاري محاولة الاستعادة التلقائية وتطبيق الهجرات...`);
+      initSchema();
+      console.log('[db-utils] ✅ تمت محاولة استعادة المخطط بنجاح.');
+      return true;
+    } catch (recErr) {
+      console.error('[db-utils] ❌ فشلت محاولة استعادة المخطط التلقائية:', recErr);
+    } finally {
+      isRecoveringMissingTable = false;
+    }
+  }
+  return false;
+}
+
+/**
+ * تنفيذ SELECT متعدد الصفوف مع استرداد ذاتي
  */
 export function queryAll(sql: string, params: unknown[] = []): Row[] {
-  const stmt = getCachedStatement(sql);
-  const safeParams = params.map(serializeValue);
-  return stmt.all(...safeParams) as Row[];
+  try {
+    const stmt = getCachedStatement(sql);
+    const safeParams = params.map(serializeValue);
+    return stmt.all(...safeParams) as Row[];
+  } catch (err) {
+    if (handleMissingTableError(err)) {
+      const stmt = getCachedStatement(sql);
+      const safeParams = params.map(serializeValue);
+      return stmt.all(...safeParams) as Row[];
+    }
+    throw err;
+  }
 }
 
 /**
- * تنفيذ SELECT صف واحد
+ * تنفيذ SELECT صف واحد مع استرداد ذاتي
  */
 export function queryOne(sql: string, params: unknown[] = []): Row | null {
-  const stmt = getCachedStatement(sql);
-  const safeParams = params.map(serializeValue);
-  const row = stmt.get(...safeParams) as Row | null;
-  return row ?? null;
+  try {
+    const stmt = getCachedStatement(sql);
+    const safeParams = params.map(serializeValue);
+    const row = stmt.get(...safeParams) as Row | null;
+    return row ?? null;
+  } catch (err) {
+    if (handleMissingTableError(err)) {
+      const stmt = getCachedStatement(sql);
+      const safeParams = params.map(serializeValue);
+      const row = stmt.get(...safeParams) as Row | null;
+      return row ?? null;
+    }
+    throw err;
+  }
 }
 
 /**
- * تنفيذ INSERT/UPDATE/DELETE
+ * تنفيذ INSERT/UPDATE/DELETE مع استرداد ذاتي
  */
 export function execute(sql: string, params: unknown[] = []): void {
-  const stmt = getCachedStatement(sql);
-  const safeParams = params.map(serializeValue);
-  stmt.run(...safeParams);
+  try {
+    const stmt = getCachedStatement(sql);
+    const safeParams = params.map(serializeValue);
+    stmt.run(...safeParams);
+  } catch (err) {
+    if (handleMissingTableError(err)) {
+      const stmt = getCachedStatement(sql);
+      const safeParams = params.map(serializeValue);
+      stmt.run(...safeParams);
+      return;
+    }
+    throw err;
+  }
 }
 
 /**

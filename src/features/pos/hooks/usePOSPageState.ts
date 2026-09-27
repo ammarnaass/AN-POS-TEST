@@ -95,6 +95,10 @@ export function usePOSPageState({
 
   const handleSelectPriceTier = useCallback(
     (tier: '1' | '2' | '3' | '4') => {
+      if (tier === '2' && posSettings.enablePriceTier2 === false) return;
+      if (tier === '3' && posSettings.enablePriceTier3 === false) return;
+      if (tier === '4' && posSettings.enablePriceTier4 === false) return;
+
       setPriceTier(tier);
       if (tier === '3') {
         if (!wholesaleMode) toggleWholesaleMode();
@@ -146,8 +150,36 @@ export function usePOSPageState({
         });
       }
     },
-    [wholesaleMode, toggleWholesaleMode, products, cart, updatePrice, updateQty, posLayout]
+    [
+      wholesaleMode,
+      toggleWholesaleMode,
+      products,
+      cart,
+      updatePrice,
+      updateQty,
+      posLayout,
+      posSettings.enablePriceTier2,
+      posSettings.enablePriceTier3,
+      posSettings.enablePriceTier4,
+    ]
   );
+
+  // Auto-reset price tier to '1' (retail) if currently selected tier is disabled in settings
+  useEffect(() => {
+    if (
+      (priceTier === '2' && posSettings.enablePriceTier2 === false) ||
+      (priceTier === '3' && posSettings.enablePriceTier3 === false) ||
+      (priceTier === '4' && posSettings.enablePriceTier4 === false)
+    ) {
+      handleSelectPriceTier('1');
+    }
+  }, [
+    priceTier,
+    posSettings.enablePriceTier2,
+    posSettings.enablePriceTier3,
+    posSettings.enablePriceTier4,
+    handleSelectPriceTier,
+  ]);
 
   const settingsOrDefault = useMemo(
     () => ({

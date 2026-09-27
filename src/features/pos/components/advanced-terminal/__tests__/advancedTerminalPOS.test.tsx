@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { AdvancedTerminalPOSLayout } from '../AdvancedTerminalPOSLayout';
 import type { CartItem, Product } from '@/types';
 import { APP_DISPLAY_VERSION } from '@/constants/app';
@@ -512,5 +512,53 @@ describe('AdvancedTerminalPOSLayout (تصميم 6 - نقطة البيع المت
 
     expect(onSettleSale).toHaveBeenCalledTimes(1);
     expect(onOpenAddProduct).not.toHaveBeenCalled();
+  });
+
+  it('clears barcode input immediately upon submission preventing barcode remnants accumulation', () => {
+    const onBarcodeSubmit = vi.fn();
+    const setBarcodeInput = vi.fn();
+
+    render(
+      <AdvancedTerminalPOSLayout
+        {...defaultProps}
+        barcodeInput="613000123456"
+        setBarcodeInput={setBarcodeInput}
+        onBarcodeSubmit={onBarcodeSubmit}
+      />
+    );
+
+    const barcodeField = screen.getByPlaceholderText('مسح الباركود أو ادخل اسم السلعة...');
+    fireEvent.submit(barcodeField.closest('form')!);
+
+    expect(onBarcodeSubmit).toHaveBeenCalledTimes(1);
+    expect(setBarcodeInput).toHaveBeenCalledWith('');
+  });
+
+  it('resets barcodeInput and clears DOM input value when pos:clear_barcode_input event is dispatched', () => {
+    const TestWrapper = () => {
+      const [code, setCode] = React.useState('613000999999');
+      return (
+        <AdvancedTerminalPOSLayout
+          {...defaultProps}
+          barcodeInput={code}
+          setBarcodeInput={setCode}
+        />
+      );
+    };
+
+    render(<TestWrapper />);
+
+    const barcodeField = screen.getByPlaceholderText('مسح الباركود أو ادخل اسم السلعة...') as HTMLInputElement;
+    expect(barcodeField.value).toBe('613000999999');
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('pos:clear_barcode_input', {
+          detail: { code: '613000999999' },
+        })
+      );
+    });
+
+    expect(barcodeField.value).toBe('');
   });
 });

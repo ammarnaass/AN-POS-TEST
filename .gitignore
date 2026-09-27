@@ -17,10 +17,13 @@ node_modules
 dist
 dist-ssr
 out
-build
 release
 release/
-**/build
+!build/
+!build/**
+android/app/build/
+mobile-rn/android/app/build/
+**/android/**/build/
 .gradle
 **/.gradle
 *.apk
@@ -76,3 +79,8 @@ license-generator/licenses-history.json
 license-generator/*.csv
 .license-dev
 
+# SQLite Databases & Local Storage
+*.db
+*.db-wal
+*.db-shm
+anpos.db

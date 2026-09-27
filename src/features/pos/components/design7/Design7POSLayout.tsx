@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { Design7POSLayoutProps } from './types';
 import { usePOSSessionStore } from '@/features/pos/store/usePOSSessionStore';
+import { getEnabledPriceTiers } from '@/services';
 import './design7.css';
 
 import { Design7TopRibbon } from './components/Design7TopRibbon';
@@ -91,7 +92,14 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
   onCloseAllModals,
   showBottomFavorites: propShowBottomFavorites,
   onToggleBottomFavorites,
+  posSettings,
+  enabledPriceTiers: propEnabledPriceTiers,
 }) => {
+  const enabledPriceTiers = useMemo(
+    () => propEnabledPriceTiers || getEnabledPriceTiers(posSettings),
+    [propEnabledPriceTiers, posSettings]
+  );
+
   const activeCustomer =
     selectedCustomerObj ||
     (selectedCustomer && customers ? customers.find((c) => c.id === selectedCustomer) || null : null);
@@ -242,6 +250,7 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
     onUpdateQty,
     onRemoveFromCart,
     onSelectPriceTier,
+    enabledPriceTiers,
   });
 
   return (
@@ -276,6 +285,7 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
           isFullscreen={isFullscreen}
           priceTier={priceTier}
           onSelectPriceTier={onSelectPriceTier}
+          enabledPriceTiers={enabledPriceTiers}
           isBottomFavoritesVisible={isFavoritesPadVisible}
           onToggleBottomFavorites={handleToggleBottomFavorites}
         />
@@ -347,6 +357,7 @@ export const Design7POSLayout: React.FC<Design7POSLayoutProps> = ({
               onRemoveFromCart={onRemoveFromCart}
               formatMoney={formatMoney}
               priceTier={priceTier}
+              enabledPriceTiers={enabledPriceTiers}
               products={products}
               allProducts={allProducts}
               onEditPrice={onEditPrice}

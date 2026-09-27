@@ -72,6 +72,7 @@ export interface POSTopBarProps {
   onNavigateBack?: () => void;
   onOpenSalesHistory?: () => void;
   onNotify?: (n: { title: string; message: string; type: 'info' | 'success' | 'warning' | 'error' }) => void;
+  enabledPriceTiers?: Array<'1' | '2' | '3' | '4'>;
 }
 
 export const POSTopBar: React.FC<POSTopBarProps> = ({
@@ -100,6 +101,7 @@ export const POSTopBar: React.FC<POSTopBarProps> = ({
   onSelectPriceTier,
   isWholesaleActive,
   currentPriceTier = '1',
+  enabledPriceTiers,
   onOpenShortcuts,
   onOpenFilters,
   activeFiltersCount,
@@ -325,7 +327,9 @@ export const POSTopBar: React.FC<POSTopBarProps> = ({
               { tier: '2' as const, label: 'نصف جملة', badge: 'س2', color: 'sky'     },
               { tier: '3' as const, label: 'جملة',     badge: 'س3', color: 'blue'    },
               { tier: '4' as const, label: 'فاتورة',   badge: 'س4', color: 'violet'  },
-            ] as const).map(({ tier, label, badge, color }) => {
+            ] as const)
+              .filter(({ tier }) => !enabledPriceTiers || enabledPriceTiers.includes(tier))
+              .map(({ tier, label, badge, color }) => {
               const isActive = currentPriceTier === tier;
               const colorMap: Record<string, { active: string; idle: string }> = {
                 emerald: {

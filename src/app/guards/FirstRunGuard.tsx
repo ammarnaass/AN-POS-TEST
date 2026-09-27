@@ -8,6 +8,24 @@ export function isFirstRun(): boolean {
   return !localStorage.getItem(SETUP_FLAG);
 }
 
+export async function checkDesktopFirstRun(): Promise<boolean> {
+  if (typeof window !== 'undefined' && window.electronAPI?.system?.isFirstRun) {
+    try {
+      const res = await window.electronAPI.system.isFirstRun();
+      if (res && res.success) {
+        if (!res.isFirstRun) {
+          localStorage.setItem(SETUP_FLAG, 'true');
+          return false;
+        }
+        return true;
+      }
+    } catch {
+      // fallback
+    }
+  }
+  return !localStorage.getItem(SETUP_FLAG);
+}
+
 export function completeFirstRun(): void {
   localStorage.setItem(SETUP_FLAG, 'true');
 }

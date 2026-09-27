@@ -11,6 +11,7 @@ export interface UsePOSLayoutShortcutsOptions {
   onOpenFreeProduct: () => void;
   onOpenReturns: () => void;
   onSelectPriceTier?: (tier: '1' | '2' | '3' | '4') => void;
+  enabledPriceTiers?: Array<'1' | '2' | '3' | '4'>;
 }
 
 export function usePOSLayoutShortcuts({
@@ -24,6 +25,7 @@ export function usePOSLayoutShortcuts({
   onOpenFreeProduct,
   onOpenReturns,
   onSelectPriceTier,
+  enabledPriceTiers = ['1', '2', '3', '4'],
 }: UsePOSLayoutShortcutsOptions) {
   // Keep barcode input focused on cart changes
   useEffect(() => {
@@ -58,17 +60,25 @@ export function usePOSLayoutShortcuts({
         e.preventDefault();
         onOpenReturns();
       } else if (e.altKey && e.key === '1') {
-        e.preventDefault();
-        onSelectPriceTier?.('1');
+        if (enabledPriceTiers.includes('1')) {
+          e.preventDefault();
+          onSelectPriceTier?.('1');
+        }
       } else if (e.altKey && e.key === '2') {
-        e.preventDefault();
-        onSelectPriceTier?.('2');
+        if (enabledPriceTiers.includes('2')) {
+          e.preventDefault();
+          onSelectPriceTier?.('2');
+        }
       } else if (e.altKey && e.key === '3') {
-        e.preventDefault();
-        onSelectPriceTier?.('3');
+        if (enabledPriceTiers.includes('3')) {
+          e.preventDefault();
+          onSelectPriceTier?.('3');
+        }
       } else if (e.altKey && e.key === '4') {
-        e.preventDefault();
-        onSelectPriceTier?.('4');
+        if (enabledPriceTiers.includes('4')) {
+          e.preventDefault();
+          onSelectPriceTier?.('4');
+        }
       }
     };
 
@@ -83,6 +93,7 @@ export function usePOSLayoutShortcuts({
     onOpenFreeProduct,
     onOpenReturns,
     onSelectPriceTier,
+    enabledPriceTiers,
     cartLength,
     barcodeInputRef,
   ]);

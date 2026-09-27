@@ -3,11 +3,11 @@
  * المصدر الموحد الوحيد لإصدار النظام في كامل الواجهات والمكونات
  */
 export const APP_NAME = 'AN POS';
-export const APP_VERSION = '2.5.1';
+export const APP_VERSION = '2.5.3';
 export const APP_DISPLAY_VERSION = `v${APP_VERSION}`;
 export const APP_FULL_NAME = `${APP_NAME} ${APP_DISPLAY_VERSION} Pro`;
-export const APP_RELEASE_DATE = '2026-09-24';
-export const APP_BUILD_NUMBER = '20260924.2';
+export const APP_RELEASE_DATE = '2026-09-25';
+export const APP_BUILD_NUMBER = '20260925.1';
 export const APP_CHANNEL = 'مستقر (Production Stable)';
 
 export interface AppRelease {
@@ -20,9 +20,23 @@ export interface AppRelease {
 
 export const APP_CHANGELOG: AppRelease[] = [
   {
+    version: 'v2.5.3',
+    date: '2026-09-25',
+    badge: 'الإصدار الحالي',
+    title: 'توليد ملفات EXE v2.5.3، دعم كاشير الشبكة المحلية (Client Terminal POS)، صمود صندوق الإرسال، وتحديث المساعد الذكي',
+    changes: [
+      'تحديث معمارية حزم Windows EXE لتوليد مثبتات NSIS ونسخ محمولة للإصدار v2.5.3 لمعماريتي x64 و ia32 (32-bit).',
+      'دعم كامل لربط حواسيب الكاشير الفرعية بالخادم المركزي عبر الشبكة المحلية (LAN Client Terminal Pairing).',
+      'معمارية صندوق الإرسال والصمود بدون اتصال (Offline Outbox Resilience) لضمان استمرار عمليات البيع عند انقطاع كابل الشبكة.',
+      'عرض تفاصيل وهوية الخادم الرئيسي مع رمز PIN السري، باركود خطي Code128، ورمز QR لسرعة الاقتران.',
+      'إدارة ورديات الكاشير وتفقيط النقدية والرصيد الافتتاحي وتصفير الصندوق مع تقرير نهاية الوردية Z-Report.',
+      'إدارة تعدد الباركودات للمنتج الواحد مع تسعير معاملات التعبئة التلقائية (حبة، علبة، كرتون).',
+      'تحديث مركز الدعم الفني وشريط الفحص والتشخيص والمساعد الذكي بنظام معرفة شامل للميزات الجديدة.',
+    ],
+  },
+  {
     version: 'v2.5.1',
     date: '2026-09-24',
-    badge: 'الإصدار الحالي',
     title: 'معمارية حزم وتثبيت Windows EXE الفائقة، دعم Windows 7/8/10/11 x64 و x86، والتشغيل التلقائي مع النظام',
     changes: [
       'تحديث معمارية حزم وتثبيت التطبيق لتوليد مثبتات NSIS ونسخ محمولة لمعماريتي x64 و x86 (ia32).',

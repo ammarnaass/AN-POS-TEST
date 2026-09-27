@@ -35,7 +35,7 @@ export const SupportHeroHeader: React.FC<SupportHeroHeaderProps> = ({
         </h1>
 
         <p className="text-sm md:text-base text-on-surface-variant max-w-2xl mx-auto leading-relaxed">
-          دليلك الشامل لتعلم أسرار تشغيل الكاشير، بيع العبوات والكراتين في تصميم 5، فواتير الجملة، إعدادات الطابعات الحرارية، وربط الهواتف بالشبكة المحلية دون إنترنت.
+          دليلك الشامل لتعلم أسرار تشغيل الكاشير، ربط نقطة البيع الفرعية (Client Terminal POS)، محرك الصمود أوفلاين، مناوبات الصندوق (Cash Shifts)، الباركودات المتعددة، بيع العبوات، وفواتير الجملة.
         </p>
 
         {/* Global Search Bar */}
@@ -45,7 +45,7 @@ export const SupportHeroHeader: React.FC<SupportHeroHeaderProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="ابحث عن ميزة، اختصار كيبورد، أو حل مشكلة (مثلاً: بيع عبوة، طابعة حرارية، F1)..."
+              placeholder="ابحث عن ميزة، اختصار، أو حل مشكلة (مثلاً: ربط نقطة بيع فرعية، مناوبة الصندوق، باركود كرتونة، F1)..."
               className="w-full bg-surface-container-lowest/90 border-2 border-outline-variant/30 rounded-2xl pr-12 pl-12 py-3.5 text-sm md:text-base text-on-surface placeholder:text-on-surface-variant/50 focus:border-primary focus:ring-4 focus:ring-primary/15 outline-none transition-all shadow-lg"
             />
             <Search className="w-5 h-5 text-primary absolute right-4 pointer-events-none" />

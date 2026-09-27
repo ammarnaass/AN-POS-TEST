@@ -52,6 +52,7 @@ interface ClassicPOSTopBarProps {
   formatMoney: (amount?: number) => string;
   priceTier?: '1' | '2' | '3' | '4';
   onSelectPriceTier?: (tier: '1' | '2' | '3' | '4') => void;
+  enabledPriceTiers?: Array<'1' | '2' | '3' | '4'>;
 }
 
 export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
@@ -83,6 +84,7 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
   formatMoney,
   priceTier = '1',
   onSelectPriceTier,
+  enabledPriceTiers = ['1', '2', '3', '4'],
 }) => {
   const { theme, toggleTheme } = useThemeStore();
   const unreadCount = useNotificationStore((s) => s.notifications.filter((n) => !n.read).length);
@@ -276,65 +278,69 @@ export const ClassicPOSTopBar: React.FC<ClassicPOSTopBarProps> = React.memo(({
       {/* 3. ACTION STRIP 2 (شريط الأزرار الثاني: مرتب وظيفياً: فئات الأسعار -> عمليات الفاتورة -> المستندات -> الأدوات) */}
       <div className="w-full flex items-stretch gap-1.5 overflow-x-auto no-scrollbar py-0.5 min-w-0 border-t border-outline-variant/15 pt-1">
         {/* المجموعة 1: فئات الأسعار السريعة */}
-        {/* فئة س1 (تجزئة) */}
-        <button
-          type="button"
-          onClick={() => onSelectPriceTier?.('1')}
-          className={`h-9 flex-1 min-w-0 px-1 rounded-xl border text-xs sm:text-sm font-black flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 ${
-            priceTier === '1'
-              ? 'bg-blue-600 text-white border-blue-700 shadow-md ring-2 ring-blue-400/50'
-              : 'bg-blue-500/15 dark:bg-blue-950/40 hover:bg-blue-500/25 border-blue-500/40 text-slate-900 dark:text-white'
-          }`}
-          title="سعر التجزئة س1 (Alt+1)"
-        >
-          <span className={`w-2 h-2 rounded-full shrink-0 ${priceTier === '1' ? 'bg-white' : 'bg-blue-500'}`} />
-          <span className="truncate font-black">س1</span>
-        </button>
+        {enabledPriceTiers.includes('1') && (
+          <button
+            type="button"
+            onClick={() => onSelectPriceTier?.('1')}
+            className={`h-9 flex-1 min-w-0 px-1 rounded-xl border text-xs sm:text-sm font-black flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 ${
+              priceTier === '1'
+                ? 'bg-blue-600 text-white border-blue-700 shadow-md ring-2 ring-blue-400/50'
+                : 'bg-blue-500/15 dark:bg-blue-950/40 hover:bg-blue-500/25 border-blue-500/40 text-slate-900 dark:text-white'
+            }`}
+            title="سعر التجزئة س1 (Alt+1)"
+          >
+            <span className={`w-2 h-2 rounded-full shrink-0 ${priceTier === '1' ? 'bg-white' : 'bg-blue-500'}`} />
+            <span className="truncate font-black">س1</span>
+          </button>
+        )}
 
-        {/* فئة س2 (نصف جملة) */}
-        <button
-          type="button"
-          onClick={() => onSelectPriceTier?.('2')}
-          className={`h-9 flex-1 min-w-0 px-1 rounded-xl border text-xs sm:text-sm font-black flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 ${
-            priceTier === '2'
-              ? 'bg-emerald-600 text-white border-emerald-700 shadow-md ring-2 ring-emerald-400/50'
-              : 'bg-emerald-500/15 dark:bg-emerald-950/40 hover:bg-emerald-500/25 border-emerald-500/40 text-slate-900 dark:text-white'
-          }`}
-          title="سعر نصف الجملة س2 (Alt+2)"
-        >
-          <span className={`w-2 h-2 rounded-full shrink-0 ${priceTier === '2' ? 'bg-white' : 'bg-emerald-500'}`} />
-          <span className="truncate font-black">س2</span>
-        </button>
+        {enabledPriceTiers.includes('2') && (
+          <button
+            type="button"
+            onClick={() => onSelectPriceTier?.('2')}
+            className={`h-9 flex-1 min-w-0 px-1 rounded-xl border text-xs sm:text-sm font-black flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 ${
+              priceTier === '2'
+                ? 'bg-emerald-600 text-white border-emerald-700 shadow-md ring-2 ring-emerald-400/50'
+                : 'bg-emerald-500/15 dark:bg-emerald-950/40 hover:bg-emerald-500/25 border-emerald-500/40 text-slate-900 dark:text-white'
+            }`}
+            title="سعر نصف الجملة س2 (Alt+2)"
+          >
+            <span className={`w-2 h-2 rounded-full shrink-0 ${priceTier === '2' ? 'bg-white' : 'bg-emerald-500'}`} />
+            <span className="truncate font-black">س2</span>
+          </button>
+        )}
 
-        {/* فئة س3 (جملة) */}
-        <button
-          type="button"
-          onClick={() => onSelectPriceTier?.('3')}
-          className={`h-9 flex-1 min-w-0 px-1 rounded-xl border text-xs sm:text-sm font-black flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 ${
-            priceTier === '3'
-              ? 'bg-purple-600 text-white border-purple-700 shadow-md ring-2 ring-purple-400/50'
-              : 'bg-purple-500/15 dark:bg-purple-950/40 hover:bg-purple-500/25 border-purple-500/40 text-slate-900 dark:text-white'
-          }`}
-          title="سعر الجملة س3 (Alt+3)"
-        >
-          <span className={`w-2 h-2 rounded-full shrink-0 ${priceTier === '3' ? 'bg-white' : 'bg-purple-500'}`} />
-          <span className="truncate font-black">س3</span>
-        </button>
+        {enabledPriceTiers.includes('3') && (
+          <button
+            type="button"
+            onClick={() => onSelectPriceTier?.('3')}
+            className={`h-9 flex-1 min-w-0 px-1 rounded-xl border text-xs sm:text-sm font-black flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 ${
+              priceTier === '3'
+                ? 'bg-purple-600 text-white border-purple-700 shadow-md ring-2 ring-purple-400/50'
+                : 'bg-purple-500/15 dark:bg-purple-950/40 hover:bg-purple-500/25 border-purple-500/40 text-slate-900 dark:text-white'
+            }`}
+            title="سعر الجملة س3 (Alt+3)"
+          >
+            <span className={`w-2 h-2 rounded-full shrink-0 ${priceTier === '3' ? 'bg-white' : 'bg-purple-500'}`} />
+            <span className="truncate font-black">س3</span>
+          </button>
+        )}
 
-        {/* فئة س4 (خاص) */}
-        <button
-          type="button"
-          onClick={() => onSelectPriceTier?.('4')}
-          className={`h-9 flex-1 min-w-0 px-1 rounded-xl border text-xs sm:text-sm font-black flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 ${
-            priceTier === '4'
-              ? 'bg-amber-600 text-white border-amber-700 shadow-md ring-2 ring-amber-400/50'
-              : 'bg-amber-500/15 dark:bg-amber-950/40 hover:bg-amber-500/25 border-amber-500/40 text-slate-900 dark:text-white'
-          }`}
-          title="سعر خاص س4 (Alt+4)"
-        >
-          <span className={`w-2 h-2 rounded-full shrink-0 ${priceTier === '4' ? 'bg-white' : 'bg-amber-500'}`} />
-          <span className="truncate font-black">س4</span>
-        </button>
+        {enabledPriceTiers.includes('4') && (
+          <button
+            type="button"
+            onClick={() => onSelectPriceTier?.('4')}
+            className={`h-9 flex-1 min-w-0 px-1 rounded-xl border text-xs sm:text-sm font-black flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 ${
+              priceTier === '4'
+                ? 'bg-amber-600 text-white border-amber-700 shadow-md ring-2 ring-amber-400/50'
+                : 'bg-amber-500/15 dark:bg-amber-950/40 hover:bg-amber-500/25 border-amber-500/40 text-slate-900 dark:text-white'
+            }`}
+            title="سعر خاص س4 (Alt+4)"
+          >
+            <span className={`w-2 h-2 rounded-full shrink-0 ${priceTier === '4' ? 'bg-white' : 'bg-amber-500'}`} />
+            <span className="truncate font-black">س4</span>
+          </button>
+        )}
 
         {/* فاصل تباين بين فئات الأسعار وعمليات الفاتورة */}
         <div className="w-px h-6 bg-outline-variant/40 shrink-0 self-center mx-0.5" />

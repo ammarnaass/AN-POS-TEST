@@ -42,7 +42,7 @@ export function initSchema(): void {
       if (!statement.trim()) continue;
       try {
         // تحويل CREATE TABLE / CREATE INDEX إلى صيغة IF NOT EXISTS لضمان أمان التشغيل على قواعد البيانات القائمة
-        let safeSql = statement;
+        let safeSql = statement.replace(/DEFAULT\s+datetime\('now'\)/g, "DEFAULT (datetime('now'))");
         if (/^CREATE\s+TABLE\s+(?!IF\s+NOT\s+EXISTS)/i.test(safeSql)) {
           safeSql = safeSql.replace(/^CREATE\s+TABLE/i, 'CREATE TABLE IF NOT EXISTS');
         }
@@ -94,6 +94,7 @@ export function initSchema(): void {
   try { execSql("ALTER TABLE suspended_orders ADD COLUMN total REAL DEFAULT 0;"); } catch { /* موجود */ }
   try { execSql("ALTER TABLE settings ADD COLUMN allow_self_registration INTEGER NOT NULL DEFAULT 1;"); } catch { /* موجود */ }
   try { execSql("ALTER TABLE settings ADD COLUMN default_role TEXT NOT NULL DEFAULT 'seller';"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE settings ADD COLUMN first_run_completed INTEGER NOT NULL DEFAULT 0;"); } catch { /* موجود */ }
   try { execSql("ALTER TABLE settings ADD COLUMN design7_show_bottom_favorites INTEGER NOT NULL DEFAULT 1;"); } catch { /* موجود */ }
   try { execSql("ALTER TABLE settings ADD COLUMN terminal_favorites_mode INTEGER NOT NULL DEFAULT 1;"); } catch { /* موجود */ }
   // حقول نمط التشغيل الموزع (خادم رئيسي / عميل محطة كاشير إضافية)

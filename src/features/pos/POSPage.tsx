@@ -22,6 +22,7 @@ import { POSModalsContainer } from './components/POSModalsContainer';
 import { usePOSSessionStore } from './store/usePOSSessionStore';
 import { getTrialState } from '@/services/trialService';
 import { isLicensed } from '@/services/licenseService';
+import { getEnabledPriceTiers } from '@/services';
 
 const formatMoney = (val: number | null | undefined, decimals = 2) => {
   const num = typeof val === 'number' && !isNaN(val) ? val : 0;
@@ -185,6 +186,7 @@ export default function POSPage() {
     quickMode,
     scanInputRef: pageState.scanInputRef,
     setSearchQuery,
+    setBarcodeInput: pageState.setBarcodeHeaderInput,
   });
 
   // 7. Extracted Payment Flow Hook
@@ -428,6 +430,7 @@ export default function POSPage() {
               });
             }}
             onSelectPriceTier={pageState.handleSelectPriceTier}
+            enabledPriceTiers={getEnabledPriceTiers(posSettings)}
             isWholesaleActive={pageState.isWholesaleActive}
             currentPriceTier={pageState.priceTier}
             onOpenShortcuts={() => modals.setShowShortcutsModal(true)}

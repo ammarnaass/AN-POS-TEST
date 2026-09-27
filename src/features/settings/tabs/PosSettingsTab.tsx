@@ -101,10 +101,41 @@ export default function PosSettingsTab(props: PosSettingsTabProps) {
                     icon: ArrowLeftRight,
                     color: 'text-cyan-500 bg-cyan-500/10',
                   },
+                  {
+                    key: 'enablePriceTier2',
+                    title: 'تفعيل سعر نصف الجملة (س2)',
+                    desc: 'إظهار فئة سعر نصف الجملة س2 في شاشات نقطة البيع وتمكين التبديل إليها بالزر واختصار Alt+2 (افتراضياً: مفعّل)',
+                    icon: Layers,
+                    color: 'text-emerald-500 bg-emerald-500/10',
+                  },
+                  {
+                    key: 'enablePriceTier3',
+                    title: 'تفعيل سعر الجملة (س3)',
+                    desc: 'إظهار فئة سعر الجملة س3 وفواتير الجملة في نقطة البيع والتبديل إليها بالزر واختصار Alt+3 (افتراضياً: مفعّل)',
+                    icon: Layers,
+                    color: 'text-purple-500 bg-purple-500/10',
+                  },
+                  {
+                    key: 'enablePriceTier4',
+                    title: 'تفعيل سعر الفاتورة / الخاص (س4)',
+                    desc: 'إظهار فئة سعر الفاتورة أو التسعير الخاص س4 في نقطة البيع والتبديل إليها بالزر واختصار Alt+4 (افتراضياً: مفعّل)',
+                    icon: Layers,
+                    color: 'text-amber-500 bg-amber-500/10',
+                  },
                 ].map((item) => {
-                  const isChecked = item.key === 'design7ShowBottomFavorites'
-                    ? sessionD7ShowFav
-                    : Boolean(settings[item.key as keyof typeof settings]);
+                  const isChecked = (() => {
+                    if (item.key === 'design7ShowBottomFavorites') return sessionD7ShowFav;
+                    if (
+                      item.key === 'enablePriceTier2' ||
+                      item.key === 'enablePriceTier3' ||
+                      item.key === 'enablePriceTier4'
+                    ) {
+                      return settings[item.key] !== undefined && settings[item.key] !== null
+                        ? Boolean(settings[item.key])
+                        : true;
+                    }
+                    return Boolean(settings[item.key as keyof typeof settings]);
+                  })();
 
                   return (
                     <div

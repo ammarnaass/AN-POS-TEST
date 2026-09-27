@@ -244,6 +244,7 @@ export const POSLayoutDispatcher: React.FC<POSLayoutDispatcherProps> = ({
         onOpenKeypadForQty={onOpenKeypadForQty}
         viewMode={viewMode}
         showProductImages={showProductImages}
+        posSettings={posSettings}
       />
     );
   }
@@ -295,6 +296,7 @@ export const POSLayoutDispatcher: React.FC<POSLayoutDispatcherProps> = ({
         onOpenCustomize={onOpenCustomize}
         onSaveAsProforma={onSaveAsProforma}
         onSaveAsOrder={onSaveAsOrder}
+        posSettings={posSettings}
       />
     );
   }
@@ -354,6 +356,7 @@ export const POSLayoutDispatcher: React.FC<POSLayoutDispatcherProps> = ({
         onOpenKeypadForQty={onOpenKeypadForQty}
         viewMode={viewMode}
         showProductImages={showProductImages}
+        posSettings={posSettings}
       />
     );
   }
@@ -414,6 +417,7 @@ export const POSLayoutDispatcher: React.FC<POSLayoutDispatcherProps> = ({
         onOpenKeypad={onOpenKeypad}
         onOpenKeypadForQty={onOpenKeypadForQty}
         isAnyModalOpen={isAnyModalOpen}
+        posSettings={posSettings}
       />
     );
   }
@@ -477,6 +481,7 @@ export const POSLayoutDispatcher: React.FC<POSLayoutDispatcherProps> = ({
         onOpenFavoritesManagement={onOpenFavoritesManagement}
         isAnyModalOpen={isAnyModalOpen}
         onCloseAllModals={onCloseAllModals}
+        posSettings={posSettings}
       />
     );
   }
@@ -541,6 +546,7 @@ export const POSLayoutDispatcher: React.FC<POSLayoutDispatcherProps> = ({
         isAnyModalOpen={isAnyModalOpen}
         onCloseAllModals={onCloseAllModals}
         showBottomFavorites={posSettings?.design7ShowBottomFavorites}
+        posSettings={posSettings}
       />
     );
   }

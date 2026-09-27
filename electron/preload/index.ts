@@ -311,6 +311,12 @@ const electronAPI = {
       ipcRenderer.invoke('system:getDatabasePath'),
     testServerConnection: (serverUrl: string) =>
       ipcRenderer.invoke('system:testServerConnection', serverUrl),
+    isFirstRun: () =>
+      ipcRenderer.invoke('system:isFirstRun'),
+    getConfig: () =>
+      ipcRenderer.invoke('system:getConfig'),
+    saveFirstRunSetup: (data: { shopName: string; phone?: string; baseCurrency?: string; language?: string; adminPin?: string }) =>
+      ipcRenderer.invoke('system:saveFirstRunSetup', data),
   },
 
   // ===== محرك المزامنة السحابية المزدوج (Cloud Sync Engine & CDC) =====

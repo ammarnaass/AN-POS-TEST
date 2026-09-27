@@ -104,7 +104,7 @@ export async function exportFullBackup(): Promise<ComprehensiveBackup> {
 
   const metadata: BackupMetadata = {
     appName: 'AN POS',
-    appVersion: app.getVersion() || '2.5.0',
+    appVersion: app.getVersion() || '2.5.3',
     exportDate: new Date().toISOString(),
     environment: 'electron',
     stats: {

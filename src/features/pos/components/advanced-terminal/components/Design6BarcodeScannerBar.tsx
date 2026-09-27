@@ -81,6 +81,20 @@ export const Design6BarcodeScannerBar: React.FC<Design6BarcodeScannerBarProps> =
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Listen to broadcast clear events (from HID scanners, Mobile Scanners, and Cart additions)
+  useEffect(() => {
+    const handleClear = () => {
+      setBarcodeInput('');
+      setIsSuggestionsOpen(false);
+      setHighlightedIndex(-1);
+      if (activeBarcodeRef.current) {
+        activeBarcodeRef.current.value = '';
+      }
+    };
+    window.addEventListener('pos:clear_barcode_input', handleClear);
+    return () => window.removeEventListener('pos:clear_barcode_input', handleClear);
+  }, [setBarcodeInput, activeBarcodeRef]);
+
   const handleSelectSuggestion = (product: Product) => {
     if (onSelectProduct) {
       onSelectProduct(product, pendingQty);
@@ -88,6 +102,9 @@ export const Design6BarcodeScannerBar: React.FC<Design6BarcodeScannerBarProps> =
     setBarcodeInput('');
     setIsSuggestionsOpen(false);
     setHighlightedIndex(-1);
+    if (activeBarcodeRef.current) {
+      activeBarcodeRef.current.value = '';
+    }
     activeBarcodeRef.current?.focus();
   };
 
@@ -132,7 +149,13 @@ export const Design6BarcodeScannerBar: React.FC<Design6BarcodeScannerBarProps> =
 
     // Fallback to barcode submission (IndexedDB / Server barcode scanner)
     onBarcodeSubmit(e);
+    setBarcodeInput('');
     setIsSuggestionsOpen(false);
+    setHighlightedIndex(-1);
+    if (activeBarcodeRef.current) {
+      activeBarcodeRef.current.value = '';
+      activeBarcodeRef.current.focus();
+    }
   };
 
   return (

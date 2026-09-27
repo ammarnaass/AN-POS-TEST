@@ -3,6 +3,7 @@
 // مما يضمن عملها داخل حزمة Electron دون الحاجة لقراءة ملفات خارجية في وقت التشغيل.
 
 import sql0000 from './migrations/0000_massive_anthem.sql?raw';
+import sql0001 from './migrations/0001_dusty_red_wolf.sql?raw';
 import journal from './migrations/meta/_journal.json';
 
 export interface MigrationEntry {
@@ -27,6 +28,7 @@ function parseMigrationStatements(rawSql: string): string[] {
  */
 const migrationSqlMap: Record<string, string> = {
   '0000_massive_anthem': sql0000,
+  '0001_dusty_red_wolf': sql0001,
 };
 
 export const bundledMigrations: MigrationEntry[] = (journal.entries || []).map((entry) => {

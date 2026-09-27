@@ -12,6 +12,9 @@ export interface POSSettings {
   allowCardPayment: boolean;
   allowTransferPayment: boolean;
   design7ShowBottomFavorites?: boolean;
+  enablePriceTier2?: boolean;
+  enablePriceTier3?: boolean;
+  enablePriceTier4?: boolean;
 }
 
 export function usePOSData() {
@@ -87,6 +90,7 @@ export function usePOSData() {
     confirmNoStock: settings?.confirmNoStock ?? true,
     averagePricing: settings?.averagePricing ?? false,
     allowCardPayment: Boolean((settings as any)?.allowCardPayment ?? false),
+    allowTransferPayment: Boolean((settings as any)?.allowTransferPayment ?? false),
     design7ShowBottomFavorites: (() => {
       const dbVal = (settings as any)?.design7ShowBottomFavorites ?? (settings as any)?.design7_show_bottom_favorites;
       if (dbVal !== undefined && dbVal !== null) return Boolean(dbVal);
@@ -96,6 +100,21 @@ export function usePOSData() {
       } catch {}
       return true;
     })(),
+    enablePriceTier2: (settings as any)?.enablePriceTier2 !== undefined
+      ? Boolean((settings as any)?.enablePriceTier2)
+      : (settings as any)?.enable_price_tier_2 !== undefined
+      ? Boolean((settings as any)?.enable_price_tier_2)
+      : true,
+    enablePriceTier3: (settings as any)?.enablePriceTier3 !== undefined
+      ? Boolean((settings as any)?.enablePriceTier3)
+      : (settings as any)?.enable_price_tier_3 !== undefined
+      ? Boolean((settings as any)?.enable_price_tier_3)
+      : true,
+    enablePriceTier4: (settings as any)?.enablePriceTier4 !== undefined
+      ? Boolean((settings as any)?.enablePriceTier4)
+      : (settings as any)?.enable_price_tier_4 !== undefined
+      ? Boolean((settings as any)?.enable_price_tier_4)
+      : true,
   }), [settings]);
 
   const { data: allSessions = [] } = useQuery<CashSession[]>({

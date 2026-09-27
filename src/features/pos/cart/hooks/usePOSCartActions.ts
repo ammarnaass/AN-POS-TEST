@@ -17,6 +17,7 @@ export function usePOSCartActions({
   quickMode,
   scanInputRef,
   setSearchQuery,
+  setBarcodeInput,
 }: UsePOSCartActionsParams) {
   const { addItem, updateQty, removeItem, clear: clearCart } = useCartStore();
 
@@ -284,6 +285,10 @@ export function usePOSCartActions({
 
       unlockAudio();
       if (setSearchQuery) setSearchQuery('');
+      if (setBarcodeInput) setBarcodeInput('');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('pos:clear_barcode_input', { detail: { code: trimmedCode } }));
+      }
 
       const effectiveQty = Math.max(1, Number(scanQty) || 1);
       const result = await parseAndAddScannedCode(trimmedCode, {
@@ -339,6 +344,7 @@ export function usePOSCartActions({
       posSettings,
       posLayout,
       setSearchQuery,
+      setBarcodeInput,
       scanInputRef,
     ]
   );

@@ -1,7 +1,10 @@
 import type React from 'react';
 import type { CartItem, Product, Category, Customer } from '@/types';
+import type { POSSettings } from '@/features/pos/hooks/usePOSData';
 
 export interface Design7POSLayoutProps {
+  posSettings?: POSSettings;
+  enabledPriceTiers?: Array<'1' | '2' | '3' | '4'>;
   cart: CartItem[];
   onAddToCart: (product: Product, customPrice?: number) => void;
   onUpdateQty: (productId: string, qty: number) => void;

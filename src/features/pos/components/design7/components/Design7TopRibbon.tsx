@@ -25,6 +25,7 @@ interface Design7TopRibbonProps {
   isFullscreen?: boolean;
   priceTier?: '1' | '2' | '3' | '4';
   onSelectPriceTier?: (tier: '1' | '2' | '3' | '4') => void;
+  enabledPriceTiers?: Array<'1' | '2' | '3' | '4'>;
   isBottomFavoritesVisible?: boolean;
   onToggleBottomFavorites?: () => void;
 }
@@ -49,6 +50,7 @@ export const Design7TopRibbon: React.FC<Design7TopRibbonProps> = ({
   isFullscreen = false,
   priceTier = '1',
   onSelectPriceTier,
+  enabledPriceTiers = ['1', '2', '3', '4'],
   isBottomFavoritesVisible = true,
   onToggleBottomFavorites,
 }) => {
@@ -223,7 +225,9 @@ export const Design7TopRibbon: React.FC<Design7TopRibbonProps> = ({
               { id: '3', name: 'س3', label: 'جملة', shortcut: 'Alt+3', sub: 'فاتورة جملة مخصصة', isWholesale: true },
               { id: '4', name: 'س4', label: 'خاص', shortcut: 'Alt+4', sub: 'فاتورة بيع عادية' },
             ] as const
-          ).map((t) => {
+          )
+            .filter((t) => !enabledPriceTiers || enabledPriceTiers.includes(t.id))
+            .map((t) => {
             const isActive = (priceTier || '1') === t.id;
             return (
               <button

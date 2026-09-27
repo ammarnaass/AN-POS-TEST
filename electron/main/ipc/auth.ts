@@ -15,19 +15,44 @@ import {
 
 export function registerAuthIpc(): void {
   // auth:login
-  ipcMain.handle('auth:login', async (_evt, username: string, pin: string) =>
-    loginUser(username, pin)
-  );
+  ipcMain.handle('auth:login', async (_evt, username: string, pin: string) => {
+    try {
+      return await loginUser(username, pin);
+    } catch (err: any) {
+      console.error('[ipc:auth:login] خطأ أثناء تسجيل الدخول:', err);
+      return {
+        error: {
+          status: 500,
+          detail: 'تعذر إتمام تسجيل الدخول بسبب خطأ في قاعدة البيانات، يرجى إعادة المحاولة.',
+        },
+      };
+    }
+  });
 
   // auth:verify-manager-pin
-  ipcMain.handle('auth:verify-manager-pin', async (_evt, pin: string) =>
-    verifyManagerPin(pin)
-  );
+  ipcMain.handle('auth:verify-manager-pin', async (_evt, pin: string) => {
+    try {
+      return await verifyManagerPin(pin);
+    } catch (err: any) {
+      console.error('[ipc:auth:verify-manager-pin] خطأ:', err);
+      return { valid: false, error: 'تعذر التحقق من رمز المدير' };
+    }
+  });
 
   // auth:register
-  ipcMain.handle('auth:register', async (_evt, data: RegisterUserData) =>
-    registerUser(data)
-  );
+  ipcMain.handle('auth:register', async (_evt, data: RegisterUserData) => {
+    try {
+      return await registerUser(data);
+    } catch (err: any) {
+      console.error('[ipc:auth:register] خطأ أثناء تسجيل المستخدم:', err);
+      return {
+        error: {
+          status: 500,
+          detail: 'تعذر إنشاء الحساب بسبب خطأ في قاعدة البيانات، يرجى إعادة المحاولة.',
+        },
+      };
+    }
+  });
 
   // auth:me
   ipcMain.handle('auth:me', async (_evt, userId: string) =>

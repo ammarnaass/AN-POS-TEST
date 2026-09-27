@@ -1,4 +1,5 @@
 import type { CartItem, Product, Category } from '@/types';
+import type { POSSettings } from '@/features/pos/hooks/usePOSData';
 
 export interface AdvancedTerminalFavoriteItem {
   id: string;
@@ -13,6 +14,7 @@ export interface AdvancedTerminalFavoriteItem {
 export type TouchPadDirection = 'up' | 'down' | 'left' | 'right' | 'confirm';
 
 export interface AdvancedTerminalPOSLayoutProps {
+  posSettings?: POSSettings;
   cart: CartItem[];
   onAddToCart: (product: Product, customPrice?: number) => void;
   onUpdateQty: (productId: string, qty: number) => void;

@@ -43,6 +43,9 @@ export interface ExtendedSettings {
   design7ShowBottomFavorites: boolean;
   allowCardPayment: boolean;
   allowTransferPayment: boolean;
+  enablePriceTier2: boolean;
+  enablePriceTier3: boolean;
+  enablePriceTier4: boolean;
   allowSelfRegistration: boolean;
   defaultRole: string;
   currencies: Currency[];
@@ -106,6 +109,9 @@ export function useSystemSettings() {
     })(),
     allowCardPayment: Boolean((rawSettings as any)?.allowCardPayment ?? (rawSettings as any)?.allow_card_payment),
     allowTransferPayment: Boolean((rawSettings as any)?.allowTransferPayment ?? (rawSettings as any)?.allow_transfer_payment),
+    enablePriceTier2: Boolean((rawSettings as any)?.enablePriceTier2 ?? (rawSettings as any)?.enable_price_tier_2 ?? true),
+    enablePriceTier3: Boolean((rawSettings as any)?.enablePriceTier3 ?? (rawSettings as any)?.enable_price_tier_3 ?? true),
+    enablePriceTier4: Boolean((rawSettings as any)?.enablePriceTier4 ?? (rawSettings as any)?.enable_price_tier_4 ?? true),
     allowSelfRegistration: ((rawSettings as any)?.allowSelfRegistration ?? (rawSettings as any)?.allow_self_registration ?? 1) !== 0 && ((rawSettings as any)?.allowSelfRegistration ?? (rawSettings as any)?.allow_self_registration) !== false,
     defaultRole: (rawSettings as any)?.defaultRole || (rawSettings as any)?.default_role || 'seller',
     currencies: Array.isArray((rawSettings as unknown as Record<string, unknown> | undefined)?.currencies) ? (rawSettings as unknown as Record<string, Currency[]>).currencies : ([] as Currency[]),
@@ -184,6 +190,12 @@ export function useSystemSettings() {
       mirrored.tax_article = updates.taxArticle;
       mirrored.company_art = updates.taxArticle;
     }
+    if (updates.enablePriceTier2 !== undefined) mirrored.enable_price_tier_2 = updates.enablePriceTier2;
+    if (updates.enable_price_tier_2 !== undefined) mirrored.enablePriceTier2 = updates.enable_price_tier_2;
+    if (updates.enablePriceTier3 !== undefined) mirrored.enable_price_tier_3 = updates.enablePriceTier3;
+    if (updates.enable_price_tier_3 !== undefined) mirrored.enablePriceTier3 = updates.enable_price_tier_3;
+    if (updates.enablePriceTier4 !== undefined) mirrored.enable_price_tier_4 = updates.enablePriceTier4;
+    if (updates.enable_price_tier_4 !== undefined) mirrored.enablePriceTier4 = updates.enable_price_tier_4;
     if (updates.allowSelfRegistration !== undefined) {
       mirrored.allow_self_registration = updates.allowSelfRegistration ? 1 : 0;
       mirrored.allowSelfRegistration = updates.allowSelfRegistration;

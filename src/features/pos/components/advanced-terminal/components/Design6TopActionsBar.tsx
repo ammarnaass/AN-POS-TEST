@@ -40,6 +40,7 @@ export interface Design6TopActionsBarProps {
   priceTier: '1' | '2' | '3' | '4';
   onCyclePriceTier: () => void;
   onSelectPriceTier?: (tier: '1' | '2' | '3' | '4') => void;
+  enabledPriceTiers?: Array<'1' | '2' | '3' | '4'>;
   onOpenFlexyModal?: () => void;
   stationName?: string;
   isOnline?: boolean;
@@ -69,6 +70,7 @@ export const Design6TopActionsBar: React.FC<Design6TopActionsBarProps> = ({
   priceTier,
   onCyclePriceTier,
   onSelectPriceTier,
+  enabledPriceTiers,
   onOpenFlexyModal,
   stationName = 'S19C150-POS',
   isOnline = true,
@@ -247,7 +249,9 @@ export const Design6TopActionsBar: React.FC<Design6TopActionsBarProps> = ({
               { id: '3', name: 'س3', sub: 'فاتورة جملة', shortcut: 'Alt+3' },
               { id: '4', name: 'س4', sub: 'وصل عادي', shortcut: 'Alt+4' },
             ] as const
-          ).map((t) => {
+          )
+            .filter((t) => !enabledPriceTiers || enabledPriceTiers.includes(t.id))
+            .map((t) => {
             const isActive = priceTier === t.id;
             const isWholesale = t.id === '3';
             return (

@@ -156,6 +156,49 @@ describe('assistantKnowledgeEngine', () => {
       expect(answer.route).toBe('/settings');
     });
 
+    it('accurately answers LAN Client Terminal pairing question', () => {
+      const q = 'كيف أربط نقطة بيع فرعية (Client Terminal) بالخادم الرئيسي للمتجر؟';
+      const answer = findBestAssistantAnswer(q);
+
+      expect(answer.badge).toContain('ربط نقطة البيع الفرعية');
+      expect(answer.steps?.some(s => s.includes('Client Terminal'))).toBe(true);
+      expect(answer.route).toBe('/settings');
+    });
+
+    it('accurately answers Offline Outbox resilience question', () => {
+      const q = 'كيف يعمل محرك الصمود أوفلاين (Offline Outbox) عند انقطاع كابل الشبكة؟';
+      const answer = findBestAssistantAnswer(q);
+
+      expect(answer.badge).toContain('الصمود أوفلاين');
+      expect(answer.steps?.some(s => s.includes('Outbox') || s.includes('انقطاع'))).toBe(true);
+    });
+
+    it('accurately answers Master Server PIN and Barcode questions', () => {
+      const q = 'أين أجد الرمز السري للخادم الرئيسي ورمز الباركود للاقتران؟';
+      const answer = findBestAssistantAnswer(q);
+
+      expect(answer.badge).toContain('الرمز السري');
+      expect(answer.steps?.some(s => s.includes('PIN') || s.includes('باركود'))).toBe(true);
+    });
+
+    it('accurately answers Cash Shifts and opening balance questions', () => {
+      const q = 'كيف أفتح مناوبة صندوق جديدة وأدخل رصيد الفكة الأولية بدقة؟';
+      const answer = findBestAssistantAnswer(q);
+
+      expect(answer.badge).toContain('مناوبات الصندوق');
+      expect(answer.steps?.some(s => s.includes('الفكة الأولية') || s.includes('Opening Float'))).toBe(true);
+      expect(answer.route).toBe('/cash');
+    });
+
+    it('accurately answers Multiple Barcodes packaging questions', () => {
+      const q = 'كيف أربط باركود القطعة وباركود الكرتونة لنفس السلعة (Multiple Barcodes)؟';
+      const answer = findBestAssistantAnswer(q);
+
+      expect(answer.badge).toContain('الباركودات المتعددة');
+      expect(answer.steps?.some(s => s.includes('معامل الضرب') || s.includes('Multiplier'))).toBe(true);
+      expect(answer.route).toBe('/inventory');
+    });
+
     it('provides smart fallback with suggested questions for completely unknown or short text', () => {
       const q = 'مرحبا كيف الحال؟';
       const answer = findBestAssistantAnswer(q);

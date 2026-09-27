@@ -63,6 +63,7 @@ export const settings = sqliteTable('settings', {
   connectionCheckInterval: integer('connection_check_interval').notNull().default(5),
   allowSelfRegistration: integer('allow_self_registration').notNull().default(1),
   defaultRole: text('default_role').notNull().default('seller'),
+  firstRunCompleted: integer('first_run_completed').notNull().default(0),
 });
 
 // ============ المستخدمون والصلاحيات ============
@@ -84,8 +85,8 @@ export const users = sqliteTable(
     loginAttempts: integer('login_attempts').notNull().default(0),
     lockedUntil: text('locked_until').default(''),
     passwordChangedAt: text('password_changed_at').default(''),
-    createdAt: text('created_at').notNull().default(sql`datetime('now')`),
-    updatedAt: text('updated_at').notNull().default(sql`datetime('now')`),
+    createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
   },
   (t) => ({
     usernameIdx: uniqueIndex('idx_users_username').on(t.username),
@@ -102,7 +103,7 @@ export const roles = sqliteTable(
     description: text('description').default(''),
     permissions: text('permissions').notNull().default('{}'),
     isSystem: integer('is_system').notNull().default(0),
-    createdAt: text('created_at').notNull().default(sql`datetime('now')`),
+    createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   },
   (t) => ({
     nameIdx: uniqueIndex('idx_roles_name').on(t.name),
@@ -123,7 +124,7 @@ export const userActivities = sqliteTable(
     newValue: text('new_value').default(''),
     ipAddress: text('ip_address').default(''),
     deviceInfo: text('device_info').default(''),
-    performedAt: text('performed_at').notNull().default(sql`datetime('now')`),
+    performedAt: text('performed_at').notNull().default(sql`(datetime('now'))`),
   },
   (t) => ({
     userIdx: index('idx_user_activities_user').on(t.userId),
@@ -137,7 +138,7 @@ export const refreshTokens = sqliteTable('refresh_tokens', {
   userId: text('user_id').notNull(),
   token: text('token').notNull().unique(),
   expiresAt: text('expires_at').notNull(),
-  createdAt: text('created_at').notNull().default(sql`datetime('now')`),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
 });
 
 export const auditLogs = sqliteTable(
@@ -149,7 +150,7 @@ export const auditLogs = sqliteTable(
     entityId: text('entity_id').default(''),
     userId: text('user_id').notNull(),
     details: text('details').default(''),
-    timestamp: text('timestamp').notNull().default(sql`datetime('now')`),
+    timestamp: text('timestamp').notNull().default(sql`(datetime('now'))`),
   },
   (t) => ({
     actionIdx: index('idx_audit_logs_action').on(t.action),
@@ -203,8 +204,8 @@ export const products = sqliteTable(
     askPrice: integer('ask_price').notNull().default(0),
     askQuantity: integer('ask_quantity').notNull().default(0),
     pointPrice: integer('point_price').notNull().default(0),
-    createdAt: text('created_at').notNull().default(sql`datetime('now')`),
-    updatedAt: text('updated_at').notNull().default(sql`datetime('now')`),
+    createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
     createdBy: text('created_by').notNull().default(''),
   },
   (t) => ({
@@ -223,8 +224,8 @@ export const categories = sqliteTable(
     name: text('name').notNull().unique(),
     parentId: text('parent_id'),
     description: text('description').notNull().default(''),
-    createdAt: text('created_at').notNull().default(sql`datetime('now')`),
-    updatedAt: text('updated_at').notNull().default(sql`datetime('now')`),
+    createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
   },
   (t) => ({
     nameIdx: uniqueIndex('idx_categories_name').on(t.name),
@@ -241,8 +242,8 @@ export const productBarcodes = sqliteTable(
     variantLabel: text('variant_label').default(''),
     batchNumber: text('batch_number').default(''),
     expiryDate: text('expiry_date').default(''),
-    createdAt: text('created_at').notNull().default(sql`datetime('now')`),
-    updatedAt: text('updated_at').notNull().default(sql`datetime('now')`),
+    createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
   },
   (t) => ({
     barcodeIdx: uniqueIndex('idx_product_barcodes_barcode').on(t.barcode),
@@ -266,7 +267,7 @@ export const barcodePrints = sqliteTable(
     showBarcode: integer('show_barcode').notNull().default(1),
     enlargePrice: integer('enlarge_price').notNull().default(0),
     printOptions: text('print_options').notNull().default('{}'),
-    createdAt: text('created_at').notNull().default(sql`datetime('now')`),
+    createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   },
   (t) => ({
     productIdx: index('idx_barcode_prints_product').on(t.productId),
@@ -287,8 +288,8 @@ export const warehouses = sqliteTable(
     isActive: integer('is_active').notNull().default(1),
     parentId: text('parent_id'),
     createdBy: text('created_by').default(''),
-    createdAt: text('created_at').notNull().default(sql`datetime('now')`),
-    updatedAt: text('updated_at').notNull().default(sql`datetime('now')`),
+    createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
   },
   (t) => ({
     typeIdx: index('idx_warehouses_type').on(t.type),
@@ -306,7 +307,7 @@ export const stockMovements = sqliteTable(
     reference: text('reference').default(''),
     reason: text('reason').default(''),
     createdBy: text('created_by').notNull().default(''),
-    createdAt: text('created_at').notNull().default(sql`datetime('now')`),
+    createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
     date: text('date').default(''),
     updatedAt: text('updated_at').default(''),
   },
@@ -335,7 +336,7 @@ export const stockMovementsV2 = sqliteTable(
     reviewedBy: text('reviewed_by').default(''),
     reviewedAt: text('reviewed_at').default(''),
     createdBy: text('created_by').default(''),
-    createdAt: text('created_at').notNull().default(sql`datetime('now')`),
+    createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   },
   (t) => ({
     numberIdx: index('idx_smv2_number').on(t.movementNumber),
@@ -376,7 +377,7 @@ export const inventoryCounts = sqliteTable(
     closedBy: text('closed_by').default(''),
     closedAt: text('closed_at').default(''),
     createdBy: text('created_by').default(''),
-    createdAt: text('created_at').notNull().default(sql`datetime('now')`),
+    createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   },
   (t) => ({
     numberIdx: index('idx_ic_number').on(t.countNumber),
@@ -409,7 +410,7 @@ export const sales = sqliteTable(
   {
     id: text('id').primaryKey(),
     number: text('number').notNull(),
-    date: text('date').notNull().default(sql`datetime('now')`),
+    date: text('date').notNull().default(sql`(datetime('now'))`),
     docType: text('doc_type').notNull().default('facture'),
     type: text('type').notNull().default('sale'),
     items: text('items').notNull().default('[]'),
@@ -428,8 +429,8 @@ export const sales = sqliteTable(
     sessionId: text('session_id').default(''),
     note: text('note').default(''),
     lastPrintedAt: text('last_printed_at').default(''),
-    createdAt: text('created_at').default(sql`datetime('now')`),
-    updatedAt: text('updated_at').default(sql`datetime('now')`),
+    createdAt: text('created_at').default(sql`(datetime('now'))`),
+    updatedAt: text('updated_at').default(sql`(datetime('now'))`),
   },
   (t) => ({
     dateIdx: index('idx_sales_date').on(t.date),
@@ -467,7 +468,7 @@ export const suspendedOrders = sqliteTable(
     customerId: text('customer_id').notNull().default(''),
     discount: real('discount').notNull().default(0),
     discountType: text('discount_type').notNull().default('percent'),
-    createdAt: text('created_at').notNull().default(sql`datetime('now')`),
+    createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
     note: text('note').notNull().default(''),
     createdBy: text('created_by').default(''),
   },
@@ -492,8 +493,8 @@ export const packs = sqliteTable(
     items: text('items').notNull().default('[]'),
     status: text('status').notNull().default('active'),
     isActive: integer('is_active').notNull().default(1),
-    createdAt: text('created_at').notNull().default(sql`datetime('now')`),
-    updatedAt: text('updated_at').notNull().default(sql`datetime('now')`),
+    createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
   },
   (t) => ({
     barcodeIdx: index('idx_packs_barcode').on(t.barcode),
@@ -517,7 +518,7 @@ export const promotions = sqliteTable(
     active: integer('active').notNull().default(1),
     status: text('status').default('active'),
     maxQuantity: integer('max_quantity').notNull().default(0),
-    createdAt: text('created_at').default(sql`datetime('now')`),
+    createdAt: text('created_at').default(sql`(datetime('now'))`),
   },
   (t) => ({
     productIdx: index('idx_promotions_product').on(t.productId),
@@ -540,8 +541,8 @@ export const customers = sqliteTable('customers', {
   rc: text('rc').default(''),
   nif: text('nif').default(''),
   nis: text('nis').default(''),
-  createdAt: text('created_at').default(sql`datetime('now')`),
-  updatedAt: text('updated_at').default(sql`datetime('now')`),
+  createdAt: text('created_at').default(sql`(datetime('now'))`),
+  updatedAt: text('updated_at').default(sql`(datetime('now'))`),
 });
 
 export const payments = sqliteTable(
@@ -557,7 +558,7 @@ export const payments = sqliteTable(
     method: text('method').default('cash'),
     note: text('note').default(''),
     createdBy: text('created_by').default(''),
-    createdAt: text('created_at').default(sql`datetime('now')`),
+    createdAt: text('created_at').default(sql`(datetime('now'))`),
   },
   (t) => ({
     customerIdx: index('idx_payments_customer').on(t.customerId),
@@ -576,8 +577,8 @@ export const suppliers = sqliteTable('suppliers', {
   address: text('address').default(''),
   email: text('email').default(''),
   notes: text('notes').default(''),
-  createdAt: text('created_at').default(sql`datetime('now')`),
-  updatedAt: text('updated_at').default(sql`datetime('now')`),
+  createdAt: text('created_at').default(sql`(datetime('now'))`),
+  updatedAt: text('updated_at').default(sql`(datetime('now'))`),
 });
 
 export const supplierEntries = sqliteTable(
@@ -609,8 +610,8 @@ export const purchases = sqliteTable(
     tvaAmount: real('tva_amount').notNull().default(0),
     total: real('total').notNull().default(0),
     status: text('status').notNull().default('draft'),
-    createdAt: text('created_at').default(sql`datetime('now')`),
-    updatedAt: text('updated_at').default(sql`datetime('now')`),
+    createdAt: text('created_at').default(sql`(datetime('now'))`),
+    updatedAt: text('updated_at').default(sql`(datetime('now'))`),
   },
   (t) => ({
     numberIdx: index('idx_purchases_number').on(t.number),
@@ -649,7 +650,7 @@ export const expenses = sqliteTable(
     amount: real('amount').notNull().default(0),
     note: text('note').default(''),
     createdBy: text('created_by').default(''),
-    createdAt: text('created_at').default(sql`datetime('now')`),
+    createdAt: text('created_at').default(sql`(datetime('now'))`),
   },
   (t) => ({
     dateIdx: index('idx_expenses_date').on(t.date),
@@ -676,8 +677,8 @@ export const cashSessions = sqliteTable(
     totalReturns: real('total_returns').notNull().default(0),
     status: text('status').notNull().default('open'),
     note: text('note').default(''),
-    createdAt: text('created_at').default(sql`datetime('now')`),
-    updatedAt: text('updated_at').default(sql`datetime('now')`),
+    createdAt: text('created_at').default(sql`(datetime('now'))`),
+    updatedAt: text('updated_at').default(sql`(datetime('now'))`),
   },
   (t) => ({
     statusIdx: index('idx_cash_sessions_status').on(t.status),
@@ -693,7 +694,7 @@ export const capitalEntries = sqliteTable(
     type: text('type').notNull(),
     amount: real('amount').notNull().default(0),
     note: text('note').notNull().default(''),
-    createdAt: text('created_at').default(sql`datetime('now')`),
+    createdAt: text('created_at').default(sql`(datetime('now'))`),
   },
   (t) => ({
     typeIdx: index('idx_capital_entries_type').on(t.type),
@@ -722,8 +723,8 @@ export const printTemplates = sqliteTable(
     isDefault: integer('is_default').notNull().default(0),
     isSystem: integer('is_system').notNull().default(0),
     createdBy: text('created_by').notNull().default(''),
-    createdAt: text('created_at').notNull().default(sql`datetime('now')`),
-    updatedAt: text('updated_at').notNull().default(sql`datetime('now')`),
+    createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
   },
   (t) => ({
     defaultIdx: index('idx_print_templates_default').on(t.isDefault),
@@ -740,7 +741,7 @@ export const printHistory = sqliteTable(
     docTypeKey: text('doc_type_key').notNull(),
     templateId: text('template_id').notNull(),
     printedBy: text('printed_by').notNull(),
-    printedAt: text('printed_at').notNull().default(sql`datetime('now')`),
+    printedAt: text('printed_at').notNull().default(sql`(datetime('now'))`),
     copies: integer('copies').notNull().default(1),
     printerName: text('printer_name').notNull().default(''),
     isReprint: integer('is_reprint').notNull().default(0),
@@ -817,7 +818,7 @@ export const printJobs = sqliteTable(
     copies: integer('copies').notNull().default(1),
     payload: text('payload').notNull().default('{}'),
     errorMessage: text('error_message').default(''),
-    createdAt: text('created_at').notNull().default(sql`datetime('now')`),
+    createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
     processedAt: text('processed_at'),
   },
   (t) => ({
@@ -835,11 +836,11 @@ export const printFailureCounter = sqliteTable(
     printerId: text('printer_id'),
     templateId: text('template_id'),
     consecutiveFailures: integer('consecutive_failures').notNull().default(0),
-    lastFailureAt: text('last_failure_at').notNull().default(sql`datetime('now')`),
+    lastFailureAt: text('last_failure_at').notNull().default(sql`(datetime('now'))`),
     lastError: text('last_error').default(''),
     notified: integer('notified').notNull().default(0),
-    createdAt: text('created_at').notNull().default(sql`datetime('now')`),
-    updatedAt: text('updated_at').notNull().default(sql`datetime('now')`),
+    createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
   },
   (t) => ({
     printerIdx: index('idx_pfc_printer').on(t.printerId),
@@ -896,8 +897,8 @@ export const networkSettings = sqliteTable('network_settings', {
   scannerMinLength: integer('scanner_min_length').notNull().default(6),
   scannerAllowManualTypes: integer('scanner_allow_manual_types').notNull().default(1),
   lastConnectedAt: text('last_connected_at').default(''),
-  createdAt: text('created_at').notNull().default(sql`datetime('now')`),
-  updatedAt: text('updated_at').notNull().default(sql`datetime('now')`),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 });
 
 export const connectedDevices = sqliteTable(
@@ -914,8 +915,8 @@ export const connectedDevices = sqliteTable(
     lastSeen: text('last_seen').default(''),
     vendor: text('vendor').default(''),
     model: text('model').default(''),
-    createdAt: text('created_at').notNull().default(sql`datetime('now')`),
-    updatedAt: text('updated_at').notNull().default(sql`datetime('now')`),
+    createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+    updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
   },
   (t) => ({
     typeIdx: index('idx_connected_devices_type').on(t.deviceType),
@@ -931,10 +932,10 @@ export const deviceSessions = sqliteTable(
     deviceId: text('device_id').notNull(),
     deviceName: text('device_name').default(''),
     userId: text('user_id'),
-    pairedAt: text('paired_at').notNull().default(sql`datetime('now')`),
-    lastSeen: text('last_seen').notNull().default(sql`datetime('now')`),
+    pairedAt: text('paired_at').notNull().default(sql`(datetime('now'))`),
+    lastSeen: text('last_seen').notNull().default(sql`(datetime('now'))`),
     expiresAt: text('expires_at'),
-    createdAt: text('created_at').notNull().default(sql`datetime('now')`),
+    createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
   },
   (t) => ({
     tokenIdx: index('idx_device_sessions_token').on(t.sessionToken),
@@ -948,7 +949,7 @@ export const syncTombstones = sqliteTable(
     id: text('id').primaryKey(),
     tableName: text('table_name').notNull(),
     recordId: text('record_id').notNull(),
-    deletedAt: text('deleted_at').notNull().default(sql`datetime('now')`),
+    deletedAt: text('deleted_at').notNull().default(sql`(datetime('now'))`),
   },
   (t) => ({
     lookupIdx: index('idx_tombstones_lookup').on(t.tableName, t.deletedAt),
