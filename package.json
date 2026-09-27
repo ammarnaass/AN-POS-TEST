@@ -1,7 +1,7 @@
 {
   "name": "an-pos",
   "private": true,
-  "version": "2.5.3",
+  "version": "2.5.5",
   "type": "module",
   "main": "out/main/index.js",
   "description": "نظام نقاط البيع وإدارة المخزون والمبيعات AN POS",

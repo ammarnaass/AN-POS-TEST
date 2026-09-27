@@ -3,11 +3,11 @@
  * المصدر الموحد الوحيد لإصدار النظام في كامل الواجهات والمكونات
  */
 export const APP_NAME = 'AN POS';
-export const APP_VERSION = '2.5.3';
+export const APP_VERSION = '2.5.5';
 export const APP_DISPLAY_VERSION = `v${APP_VERSION}`;
 export const APP_FULL_NAME = `${APP_NAME} ${APP_DISPLAY_VERSION} Pro`;
-export const APP_RELEASE_DATE = '2026-09-25';
-export const APP_BUILD_NUMBER = '20260925.1';
+export const APP_RELEASE_DATE = '2026-09-27';
+export const APP_BUILD_NUMBER = '20260927.1';
 export const APP_CHANNEL = 'مستقر (Production Stable)';
 
 export interface AppRelease {
@@ -20,9 +20,21 @@ export interface AppRelease {
 
 export const APP_CHANGELOG: AppRelease[] = [
   {
+    version: 'v2.5.5',
+    date: '2026-09-27',
+    badge: 'الإصدار الحالي',
+    title: 'مثبت مخصص ذكي (Custom Branded NSIS)، إعداد بيئة العمل التلقائية (First-Run Wizard)، والهجرة التلقائية لقاعدة البيانات (Auto-Migration)',
+    changes: [
+      'تخصيص كامل لمعالج التثبيت NSIS مع هوية بصرية مخصصة، أيقونات متعددة الدقة (16x16 إلى 256x256)، ولافتات شاشات التثبيت (Header & Sidebar).',
+      'إتاحة اختيار مسار التثبيت مع ضبط المسار الافتراضي المنطقي إلى C:\\AN POS بدلاً من المسارات الطويلة.',
+      'تجهيز بيئة العمل تلقائياً فور أول إقلاع بعد التثبيت (إنشاء المجلدات، ملف config.json الافتراضي، وتشغيل هجرات Drizzle التلقائية).',
+      'شاشة إعداد أولية (First-Run Wizard) تطلب اسم المتجر ورقم الهاتف والعملة الأساسية ورمز المدير في خطوة واحدة دون أي إعداد يدوي.',
+      'حماية مبيعات المتجر عند إلغاء التثبيت بسؤال المستخدم مع جعل خيار الحفاظ على البيانات هو الخيار الافتراضي الآمن.',
+    ],
+  },
+  {
     version: 'v2.5.3',
     date: '2026-09-25',
-    badge: 'الإصدار الحالي',
     title: 'توليد ملفات EXE v2.5.3، دعم كاشير الشبكة المحلية (Client Terminal POS)، صمود صندوق الإرسال، وتحديث المساعد الذكي',
     changes: [
       'تحديث معمارية حزم Windows EXE لتوليد مثبتات NSIS ونسخ محمولة للإصدار v2.5.3 لمعماريتي x64 و ia32 (32-bit).',

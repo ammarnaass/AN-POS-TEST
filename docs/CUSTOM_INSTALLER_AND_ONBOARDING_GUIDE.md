@@ -79,7 +79,7 @@
 ```nsis
 !macro customInit
   ${IfNot} ${isUpdated}
-    StrCpy $INSTDIR "$SYSTEMDRIVE\AN POS"
+    StrCpy $INSTDIR "C:\AN POS"
   ${EndIf}
 !macroend
 ```

@@ -203,7 +203,7 @@ export async function scanLocalServers(timeoutMs = 3500): Promise<DiscoveredServ
           verifiedList.push({
             ...server,
             pingMs: latency,
-            version: healthData?.version || '2.5.3',
+            version: healthData?.version || '2.5.5',
           });
         } else {
           // الخادم استجاب ولكن برمز مختلف — ما زال موجوداً

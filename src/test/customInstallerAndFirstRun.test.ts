@@ -159,7 +159,7 @@ describe('Custom Installer & First-Run Environment Setup', () => {
     // 3. التحقق من ملف installer.nsh
     const nshContent = fs.readFileSync(path.resolve('electron/installer.nsh'), 'utf-8');
     expect(nshContent).toContain('!macro customInit');
-    expect(nshContent).toContain('StrCpy $INSTDIR "$SYSTEMDRIVE\\AN POS"');
+    expect(nshContent).toContain('StrCpy $INSTDIR "C:\\AN POS"');
     expect(nshContent).toContain('anpos.db');
     expect(nshContent).toContain('MessageBox MB_ICONQUESTION|MB_YESNO|MB_DEFBUTTON2');
   });

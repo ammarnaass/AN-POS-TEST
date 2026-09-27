@@ -11,7 +11,7 @@
 !macro customInit
   ${IfNot} ${isUpdated}
     ; ضبط المسار الافتراضي للتثبيت إلى C:\AN POS بدل مسار Program Files الافتراضي
-    StrCpy $INSTDIR "$SYSTEMDRIVE\AN POS"
+    StrCpy $INSTDIR "C:\AN POS"
   ${EndIf}
 !macroend
 
