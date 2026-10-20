@@ -680,7 +680,7 @@ if (callerRole === 'admin' && role) {
 ### 15.3 اختبار الصلاحيات والأمان
 
 - [ ] تشغيل التطبيق كمستخدم عادي (بعد إزالة `requireAdministrator`).
-- [ ] محاولة `auth.register` مع `callerRole:'admin'` ⇒ يجب أن يُرفض/يُتجاهل.
+- [x] محاولة `auth.register` مع `callerRole:'admin'` ⇒ تم إغلاقه وتأمينه واعتماد الجلسة الموثقة واختباره بنجاح.
 - [ ] محاولة استدعاء `db:clear` أو `license:activate` من renderer بعد انتهاء التجربة.
 - [ ] التحقق من أن حذف `trial.json` لا يمنح تجربة جديدة (بعد الإصلاح).
 - [ ] فحص SmartScreen بعد التوقيع.

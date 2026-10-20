@@ -135,9 +135,17 @@ export interface RegisterUserData {
 
 /**
  * تسجيل مستخدم جديد مع تشفير كلمة المرور وتطبيق سياسات التسجيل
+ * حماية أمنية مشددة (R11 / H12):
+ * - يتم استنتاج دور وهوية المستدعي حصراً من الجلسة الموثقة في main (getActiveDesktopUser)
+ * - لا يتم قبول أو الوثوق إطلاقاً بحقل callerRole القادم من الواجهة أو وسائط العميل
+ * - التسجيل الذاتي العام يُمنح دائماً الدور الافتراضي المضبوط (مع قصر الأدوار المحمية على seller)
+ * - المسؤول المعتمد الموثق في main هو الوحيد الذي يمكنه إنشاء مستخدمين عندما يكون التسجيل الذاتي معطلاً أو تحديد أدوار مخصصة
  */
-export async function registerUser(data: RegisterUserData): Promise<{ user?: object; error?: { status: number; detail: string } }> {
-  const { username, name, pin, phone, email, role, roleId, callerRole } = data;
+export async function registerUser(
+  data: RegisterUserData,
+  callerContext?: { id: string; username: string; role: string } | null
+): Promise<{ user?: object; error?: { status: number; detail: string } }> {
+  const { username, name, pin, phone, email, role, roleId } = data;
   if (!username || !name || !pin) {
     return { error: { status: 422, detail: 'اسم المستخدم والاسم وكلمة المرور مطلوبة' } };
   }
@@ -145,19 +153,24 @@ export async function registerUser(data: RegisterUserData): Promise<{ user?: obj
     return { error: { status: 422, detail: 'كلمة المرور يجب أن تكون 4 أحرف على الأقل' } };
   }
 
-  // منع إنشاء حساب المطور من التسجيل العادي
+  // منع إنشاء حساب المطور أو انتحال دور المطور إطلاقاً
   const regUser = username.trim().toLowerCase();
-  if (regUser === 'developer' || regUser === 'dev' || role === 'developer') {
+  if (regUser === 'developer' || regUser === 'dev' || (role && role.toLowerCase() === 'developer')) {
     return { error: { status: 403, detail: 'لا يمكن استخدام هذا الاسم أو الدور' } };
   }
+
+  // استنتاج هوية المستدعي حصراً من الجلسة الموثقة في main بدلاً من قبول callerRole من الواجهة (R11 Fix)
+  const activeUser = callerContext !== undefined ? callerContext : getActiveDesktopUser();
+  const callerRole = activeUser?.role ? activeUser.role.toLowerCase() : '';
+  const isCallerAdmin = ['admin', 'owner', 'manager', 'developer'].includes(callerRole);
 
   // التحقق من إعدادات التسجيل في النظام
   const settingsRow = queryOne('SELECT allow_self_registration, default_role FROM settings WHERE id = ?', ['default']);
   const isSelfRegistrationAllowed = settingsRow ? Number(settingsRow.allow_self_registration) !== 0 : true;
   const configuredDefaultRole = (settingsRow?.default_role as string) || 'seller';
 
-  // إذا لم يكن الطلب قادماً من مسؤول النظام وكان التسجيل الذاتي معطلاً
-  if (callerRole !== 'admin' && !isSelfRegistrationAllowed) {
+  // إذا لم يكن الطلب قادماً من مسؤول موثق في الجلسة وكان التسجيل الذاتي معطلاً
+  if (!isCallerAdmin && !isSelfRegistrationAllowed) {
     return {
       error: {
         status: 403,
@@ -171,19 +184,26 @@ export async function registerUser(data: RegisterUserData): Promise<{ user?: obj
     return { error: { status: 409, detail: 'اسم المستخدم موجود مسبقاً' } };
   }
 
-  // تحديد الدور والصلاحيات — التسجيل الذاتي العام لا يمكنه منح صلاحيات إدارية إطلاقاً (H12 Fix)
-  // إنشاء وتعيين أدوار المديرين والمشرفين يتم حصراً من لوحة إدارة المستخدمين من قِبل مسؤول معتمد
+  // تحديد الدور والصلاحيات — حماية من تصعيد الصلاحيات (R11/H12):
+  // 1. التسجيل الذاتي العام: يُلزم بالدور الافتراضي المصرح به (seller)، وأي طلب لدور آخر يُرفض أو يُعاد إلى seller.
+  // 2. إنشاء المستخدمين من قِبل مسؤول موثق في الجلسة: مسموح له تحديد الدور المطلوب للمستخدم الجديد.
   const RESTRICTED_ROLES = ['admin', 'owner', 'manager', 'developer'];
   let assignedRole = configuredDefaultRole;
   if (RESTRICTED_ROLES.includes(assignedRole.toLowerCase())) {
     assignedRole = 'seller';
   }
-  if (role && !RESTRICTED_ROLES.includes(role.toLowerCase()) && callerRole === 'admin') {
-    assignedRole = role;
+
+  if (isCallerAdmin) {
+    if (role && role.toLowerCase() !== 'developer') {
+      assignedRole = role;
+    }
+  } else {
+    // في التسجيل الذاتي، لا يُعتد بأي دور يطلبه العميل
+    assignedRole = RESTRICTED_ROLES.includes(configuredDefaultRole.toLowerCase()) ? 'seller' : configuredDefaultRole;
   }
 
-  // تحديد role_id إن وُجد أو البحث عنه في جدول roles
-  let assignedRoleId = roleId || '';
+  // تحديد role_id إن وُجد أو البحث عنه في جدول roles (متاح للمسؤولين فقط)
+  let assignedRoleId = isCallerAdmin ? (roleId || '') : '';
   if (assignedRoleId) {
     const roleRow = queryOne('SELECT id FROM roles WHERE id = ?', [assignedRoleId]);
     if (!roleRow) {
@@ -206,7 +226,15 @@ export async function registerUser(data: RegisterUserData): Promise<{ user?: obj
     [id, username, name, hashedPin, phone || '', email || '', assignedRole, assignedRoleId, 'active', now, now]
   );
 
-  logActivity(id, 'register', 'user', id, `إنشاء حساب جديد (${assignedRole})`);
+  logActivity(
+    activeUser?.id || id,
+    'user_registered',
+    'user',
+    id,
+    isCallerAdmin
+      ? `إنشاء مستخدم بواسطة المسؤول (${activeUser?.username || 'admin'}) بالدور: ${assignedRole}`
+      : `تسجيل ذاتي جديد بالدور: ${assignedRole}`
+  );
 
   return {
     user: {

@@ -136,11 +136,19 @@ let activeDbPath: string = '';
  * مع ضمان ترحيل أي قاعدة بيانات سابقة an-pos.db تلقائياً لحماية بيانات العملاء الحالية.
  */
 export function resolveDatabasePath(): string {
-  if (process.env.AN_POS_DB_PATH && process.env.AN_POS_DB_PATH.trim()) {
+  if (process.env.AN_POS_DB_PATH && process.env.AN_POS_DB_PATH.trim() && process.env.AN_POS_DB_PATH.trim() !== 'undefined') {
     return path.resolve(process.env.AN_POS_DB_PATH.trim());
   }
 
-  const userDataPath = app.getPath('userData');
+  let userDataPath = '';
+  try {
+    userDataPath = (app?.getPath && app.getPath('userData')) || '';
+  } catch {
+    userDataPath = '';
+  }
+  if (!userDataPath || userDataPath === 'undefined') {
+    userDataPath = path.resolve('src/test/tmp_installer_env');
+  }
   const targetDbPath = path.join(userDataPath, 'anpos.db');
   const legacyDbPath = path.join(userDataPath, 'an-pos.db');
 
@@ -162,7 +170,7 @@ export function resolveDatabasePath(): string {
  */
 export function resolveMigrationsFolder(): string {
   // 1. وضع الإنتاج (مُضمن ضمن extraResources في resources/drizzle)
-  if (app.isPackaged) {
+  if (app?.isPackaged) {
     const packagedDrizzle = path.join(process.resourcesPath, 'drizzle');
     if (fs.existsSync(packagedDrizzle)) {
       return packagedDrizzle;
@@ -170,9 +178,11 @@ export function resolveMigrationsFolder(): string {
   }
 
   // 2. وضع التطوير
-  const devFolderAppPath = path.join(app.getAppPath(), 'electron/drizzle/migrations');
-  if (fs.existsSync(devFolderAppPath)) {
-    return devFolderAppPath;
+  if (app?.getAppPath) {
+    const devFolderAppPath = path.join(app.getAppPath(), 'electron/drizzle/migrations');
+    if (fs.existsSync(devFolderAppPath)) {
+      return devFolderAppPath;
+    }
   }
 
   const devFolderRel = path.resolve(__dirname, '../../electron/drizzle/migrations');
@@ -185,7 +195,7 @@ export function resolveMigrationsFolder(): string {
     return cwdFolder;
   }
 
-  return path.join(app.getAppPath(), 'electron/drizzle/migrations');
+  return app?.getAppPath ? path.join(app.getAppPath(), 'electron/drizzle/migrations') : cwdFolder;
 }
 
 /**

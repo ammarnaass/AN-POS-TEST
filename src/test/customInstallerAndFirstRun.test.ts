@@ -576,7 +576,11 @@ describe('Custom Installer & First-Run Environment Setup', () => {
       const verifyCorrupt = executeVerifyBackup(corruptFile);
       expect(verifyCorrupt).toBe(false);
     } finally {
-      process.env.AN_POS_DB_PATH = originalEnv;
+      if (originalEnv) {
+        process.env.AN_POS_DB_PATH = originalEnv;
+      } else {
+        delete process.env.AN_POS_DB_PATH;
+      }
     }
   });
 
@@ -639,6 +643,92 @@ describe('Custom Installer & First-Run Environment Setup', () => {
     expect(workflow).toContain('release/*.exe');
     expect(workflow).toContain('release/latest.yml');
     expect(workflow).toContain('release/SHA256SUMS.txt');
+  });
+
+  it('prevents privilege escalation and spoofing of callerRole in registerUser (R11 & H12)', async () => {
+    const { initDatabase } = await import('../../electron/main/database');
+    await initDatabase();
+    const { registerUser, setActiveDesktopUser } = await import('../../electron/main/handlers/auth');
+    const { execute } = await import('../../electron/main/handlers/db-utils');
+
+    // تأكد من وجود جدول settings والمستخدمين
+    execute(`
+      CREATE TABLE IF NOT EXISTS settings (
+        id TEXT PRIMARY KEY,
+        allow_self_registration INTEGER NOT NULL DEFAULT 1,
+        default_role TEXT DEFAULT 'seller'
+      );
+    `);
+    execute(`
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        username TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        pin TEXT NOT NULL,
+        phone TEXT,
+        email TEXT,
+        role TEXT NOT NULL DEFAULT 'seller',
+        role_id TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `);
+
+    // 1. فحص محاولة تجاوز إغلاق التسجيل الذاتي بإرسال callerRole: 'admin' بدون وجود جلسة مدير مسجلة
+    execute("INSERT OR REPLACE INTO settings (id, allow_self_registration, default_role) VALUES ('default', 0, 'seller')");
+    setActiveDesktopUser(null);
+
+    const unauthAttempt = await registerUser({
+      username: `hacker_${Date.now()}`,
+      name: 'Fake Admin',
+      pin: '12345',
+      callerRole: 'admin',
+      role: 'admin',
+    });
+    expect(unauthAttempt.error).toBeDefined();
+    expect(unauthAttempt.error?.status).toBe(403);
+    expect(unauthAttempt.error?.detail).toContain('التسجيل الذاتي مغلق');
+
+    // 2. السماح بالتسجيل الذاتي، لكن مع محاولة طلب دور admin بواسطة الواجهة
+    execute("UPDATE settings SET allow_self_registration = 1, default_role = 'seller' WHERE id = 'default'");
+    const escalateAttempt = await registerUser({
+      username: `self_reg_${Date.now()}`,
+      name: 'Wannabe Admin',
+      pin: '12345',
+      callerRole: 'admin',
+      role: 'admin',
+    });
+    expect(escalateAttempt.error).toBeUndefined();
+    expect(escalateAttempt.user).toBeDefined();
+    // يجب ألا يحصل على admin إطلاقاً بل يُلزم بدور seller
+    expect((escalateAttempt.user as any).role).toBe('seller');
+
+    // 3. منع استخدام اسم أو دور developer تماماً
+    const devAttempt = await registerUser({
+      username: `dev_${Date.now()}`,
+      name: 'Developer Impersonator',
+      pin: '12345',
+      role: 'developer',
+    });
+    expect(devAttempt.error?.status).toBe(403);
+
+    // 4. عندما يكون هناك مسؤول معتمد مسجل في الجلسة النشطة (Active Desktop User)
+    setActiveDesktopUser({ id: 'admin-id-1', username: 'real_admin', role: 'admin' });
+    execute("UPDATE settings SET allow_self_registration = 0 WHERE id = 'default'");
+
+    const adminCreatedUser = await registerUser({
+      username: `cashier_${Date.now()}`,
+      name: 'Authorized Cashier',
+      pin: '56789',
+      role: 'cashier',
+    });
+    expect(adminCreatedUser.error).toBeUndefined();
+    expect(adminCreatedUser.user).toBeDefined();
+    expect((adminCreatedUser.user as any).role).toBe('cashier');
+
+    // إعادة تنظيف الجلسة
+    setActiveDesktopUser(null);
   });
 });
 
