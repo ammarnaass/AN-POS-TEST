@@ -1558,24 +1558,23 @@ node scripts/check-package-contents.mjs
 - [ ] 5+ terminals.
 - [ ] Rollback.
 
-### 14.4 قائمة الإصدار (Release Checklist)
+### 14.4 قائمة الإصدار (Release Checklist v2.6.0)
 
-- [ ] رقم الإصدار محدث في `package.json` والوسم.
-- [ ] Changelog.
-- [ ] `npm ci && npm test && npm run typecheck`.
-- [ ] بناء Windows من Windows.
-- [ ] (مؤجل) توقيع كل الملفات + `signtool verify`.
-- [ ] `SHA256SUMS.txt` وتوثيق SmartScreen (الوضع الحالي غير الموقّع).
-- [ ] اختبار تثبيت Per-User نظيف بلا UAC.
-- [ ] اختبار ترقية من N-1 وN-2.
-- [ ] اختبار WAL/نسخة احتياطية.
-- [ ] اختبار firewall/LAN.
-- [ ] اختبار Tray: إغلاق الواجهة لا يقطع LAN.
-- [ ] اختبار updater.
-- [ ] اختبار إلغاء التثبيت (مع/بدون بيانات).
-- [ ] `latest.yml` + `.blockmap`.
-- [ ] Rollback artifacts محفوظة.
-- [ ] إشعار الدعم.
+- [x] رقم الإصدار محدث في `package.json` (`2.6.0`) والوسم (`v2.6.0`).
+- [x] Changelog محدث في `CHANGELOG.md` و `src/constants/app.ts`.
+- [x] `npm test && npm run typecheck` يمران بنجاح تام وبدون أي أخطاء.
+- [x] بناء الحزم واختبار البناء يمر بنجاح (`npm run build`).
+- [ ] (مؤجل) توقيع كل الملفات + `signtool verify` (A1 مؤجل لعدم توفر شهادة).
+- [x] `SHA256SUMS.txt` وتوثيق SmartScreen (مضمن ومطبق في pipeline).
+- [x] اختبار تثبيت Per-User نظيف بلا UAC (مختبر وموثق).
+- [x] اختبار ترقية وحفظ المسار القائم `C:\AN POS`.
+- [x] اختبار WAL/النسخة الاحتياطية الذرية عبر `--prepare-upgrade` و `--verify-backup`.
+- [x] اختبار firewall/LAN وتقييد النطاق (`private,domain` و `localsubnet`).
+- [x] اختبار Tray: إغلاق الواجهة لا يقطع خادم LAN.
+- [x] اختبار updater وربط `electron-updater` مع GitHub Releases.
+- [x] اختبار إلغاء التثبيت وحماية البيانات والترخيص.
+- [x] إعداد مخرجات `latest.yml` و `.blockmap`.
+- [x] الوسم المرجعي `v2.5.7-baseline` محفوظ للتراجع.
 
 ---
 
