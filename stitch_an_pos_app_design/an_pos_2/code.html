@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+
+<html class="h-full bg-slate-100" dir="rtl" lang="ar"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>نقطة البيع المطورة - AN POS Professional Cashier</title>
+<!-- Tailwind CSS CDN with Forms & Container Plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- FontAwesome Icons for modern POS UI -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet"/>
+<!-- Google Fonts: Cairo & JetBrains Mono -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&amp;family=JetBrains+Mono:wght@500;700;800&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind Configuration matching design system -->
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              DEFAULT: '#004ac6',
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              800: '#1e40af',
+              900: '#1e3a8a',
+              950: '#00174b'
+            },
+            tertiary: {
+              DEFAULT: '#006242',
+              container: '#007d55'
+            }
+          },
+          fontFamily: {
+            sans: ['Cairo', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    .led-glow {
+      text-shadow: 0 0 10px rgba(0, 255, 102, 0.9), 0 0 20px rgba(0, 255, 102, 0.5);
+    }
+  </style>
+</head>
+<body class="h-screen w-screen overflow-hidden flex flex-col font-sans text-slate-800 antialiased select-none bg-slate-100">
+<!-- BEGIN: MainHeader Status Bar -->
+<header class="bg-slate-900 border-b border-slate-800 text-white flex items-center justify-between px-4 py-2 flex-shrink-0 shadow-md">
+<!-- Brand & Meta -->
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2.5">
+<div class="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shadow-md shadow-blue-900/40 border border-blue-400/30">
+<i class="fa-solid fa-cash-register text-white text-base"></i>
+</div>
+<div class="leading-tight">
+<div class="font-extrabold text-base tracking-wider flex items-center gap-1.5 text-white">
+<span>AN</span>
+<span class="text-sky-400 font-black">POS</span>
+<span class="text-[10px] bg-blue-700/70 text-sky-200 px-1.5 py-0.5 rounded font-mono border border-blue-500/30">PRO WORKSTATION</span>
+</div>
+<span class="text-[11px] text-slate-300 font-medium">سوبرماركت النور والبركة • نقطة البيع السريعة</span>
+</div>
+</div>
+<div class="h-7 w-[1px] bg-slate-700/60 mx-1"></div>
+<!-- Cashier User Badge -->
+<div class="flex items-center gap-2 bg-slate-800/90 px-2.5 py-1 rounded-lg border border-slate-700 text-xs">
+<i class="fa-solid fa-user-shield text-emerald-400"></i>
+<div class="text-right">
+<span class="text-[10px] text-slate-400 block leading-none">الكاشير النشط:</span>
+<span class="font-bold text-slate-200">مدير النظام (Admin)</span>
+</div>
+</div>
+<!-- Invoice Number -->
+<div class="bg-slate-800/90 px-3 py-1 rounded-lg border border-slate-700 flex items-center gap-2 text-xs">
+<span class="text-slate-400">فاتورة رقم:</span>
+<span class="font-mono font-bold text-amber-300 text-sm">#3</span>
+</div>
+<!-- Pending Queue Badge -->
+<button class="bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40 px-2.5 py-1 rounded-lg flex items-center gap-2 text-xs transition duration-150">
+<span class="relative flex h-2 w-2">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+</span>
+<span>معلق بالانتظار: <strong class="font-bold text-amber-200">3</strong></span>
+</button>
+</div>
+<!-- Right Header: Customer & Window Actions & Clock -->
+<div class="flex items-center gap-3">
+<!-- Active Customer Selector -->
+<div class="flex items-center gap-2 bg-slate-800 hover:bg-slate-750 px-3 py-1 rounded-lg border border-slate-700 transition cursor-pointer">
+<i class="fa-solid fa-user-tag text-sky-400 text-xs"></i>
+<div class="text-right">
+<div class="text-[10px] text-slate-400 leading-none">الزبون الحالي</div>
+<div class="text-xs font-bold text-white tracking-wide">ANONYME (زبون عام)</div>
+</div>
+<i class="fa-solid fa-chevron-down text-[10px] text-slate-400 mr-1"></i>
+</div>
+<!-- Live Clock & Date -->
+<div class="flex items-center gap-2.5 bg-slate-950/70 px-3 py-1 rounded-lg border border-slate-800 text-xs font-mono">
+<div class="flex items-center gap-1.5 text-sky-300 font-bold tracking-wide">
+<i class="fa-regular fa-clock text-slate-400 text-xs"></i>
+<span id="current-time">18:50:04</span>
+</div>
+<span class="text-slate-600">•</span>
+<div class="flex items-center gap-1.5 text-slate-300">
+<i class="fa-regular fa-calendar text-slate-400 text-xs"></i>
+<span>18-10-2026</span>
+</div>
+</div>
+<!-- Window Actions -->
+<div class="flex items-center gap-1 bg-slate-950/50 p-1 rounded-lg border border-slate-800">
+<button class="w-7 h-7 flex items-center justify-center rounded text-slate-300 hover:text-white hover:bg-slate-700 text-xs transition" title="الوضع الليلي">
+<i class="fa-solid fa-moon"></i>
+</button>
+<button class="w-7 h-7 flex items-center justify-center rounded text-slate-300 hover:text-white hover:bg-slate-700 text-xs transition" title="تكبير الشاشة">
+<i class="fa-solid fa-expand"></i>
+</button>
+<button class="w-7 h-7 flex items-center justify-center rounded text-rose-300 hover:text-white hover:bg-rose-600/80 text-xs transition" title="إغلاق البرنامج">
+<i class="fa-solid fa-power-off"></i>
+</button>
+</div>
+</div>
+</header>
+<!-- END: MainHeader -->
+<!-- BEGIN: High-Contrast LED Terminal Ribbon -->
+<div class="w-full flex-shrink-0 bg-slate-950 px-6 py-2 border-b-2 border-emerald-500/40 shadow-inner flex items-center justify-between" style="background: radial-gradient(circle, #022013 0%, #03120c 60%, #020b07 100%);">
+<div class="flex items-center gap-3">
+<div class="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-400">
+<i class="fa-solid fa-tv text-sm"></i>
+</div>
+<div class="text-right leading-tight">
+<div class="text-xs font-bold text-slate-300">شاشة العرض المالي الرقمية للكاشير</div>
+<div class="text-[10px] text-emerald-400/80 font-mono tracking-wider">LED ACTIVE TERMINAL DISPLAY</div>
+</div>
+</div>
+<!-- Giant LED Display Digits -->
+<div class="flex items-center gap-4">
+<span class="text-xs md:text-sm font-extrabold uppercase tracking-widest text-emerald-400">المبلغ الإجمالي المستحق :</span>
+<div class="font-mono font-black tracking-widest flex items-baseline gap-1 led-glow" style="color: #00ff66; font-size: 2.75rem; line-height: 1;">
+<span>1 895</span><span class="text-3xl">,00</span>
+</div>
+<span class="text-lg font-black font-sans pr-1 text-emerald-400">د.ج</span>
+</div>
+<!-- Live Status Pill -->
+<div class="flex items-center gap-2 bg-black/60 px-3 py-1.5 rounded-lg border border-emerald-500/30 text-xs font-mono text-emerald-300">
+<span class="relative flex h-2.5 w-2.5">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+</span>
+<span class="font-bold">LIVE SYNC READY</span>
+</div>
+</div>
+<!-- END: LED Terminal Ribbon -->
+<!-- BEGIN: Main Workstation Content (Split: Workspace Right + Checkout Left) -->
+<main class="flex-1 flex overflow-hidden p-3 gap-3">
+<!-- BEGIN: Left Payment & Checkout Panel -->
+<aside class="w-88 flex-shrink-0 flex flex-col gap-2.5" style="width: 350px;">
+<!-- Financial Calculation Card -->
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 p-3.5 flex flex-col gap-2.5">
+<div class="flex items-center justify-between pb-2 border-b border-slate-100">
+<span class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+<i class="fa-solid fa-receipt text-blue-600"></i>
+            الحساب المالي والضريبي
+          </span>
+<!-- Sale nature dropdown -->
+<select class="text-xs font-bold bg-slate-50 border border-slate-200 rounded-md py-1 px-2 text-slate-700 focus:ring-1 focus:ring-blue-500" id="sale-nature">
+<option selected="" value="retail">تجزئة (Détail)</option>
+<option value="semi-wholesale">نصف جملة</option>
+<option value="wholesale">جملة (Gros)</option>
+</select>
+</div>
+<!-- Subtotal & Tax details -->
+<div class="grid grid-cols-2 gap-2 text-xs">
+<div class="bg-slate-50 p-2 rounded-lg border border-slate-100 flex flex-col">
+<span class="text-[11px] text-slate-500">المجموع قبل الضريبة:</span>
+<span class="font-mono font-bold text-slate-700 text-sm">1 592.44 <span class="text-[10px] font-sans">د.ج</span></span>
+</div>
+<div class="bg-slate-50 p-2 rounded-lg border border-slate-100 flex flex-col">
+<span class="text-[11px] text-slate-500">الرسم والضريبة (19%):</span>
+<span class="font-mono font-bold text-slate-700 text-sm">302.56 <span class="text-[10px] font-sans">د.ج</span></span>
+</div>
+</div>
+<!-- Discount Line -->
+<div class="bg-slate-50 p-2 rounded-lg border border-slate-100 flex items-center justify-between">
+<label class="flex items-center gap-1.5 cursor-pointer">
+<input class="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500 border-slate-300" id="discount-toggle" type="checkbox"/>
+<span class="text-xs font-bold text-slate-700">تخفيض تجاري</span>
+</label>
+<div class="flex items-center gap-1">
+<input class="w-16 text-left font-mono font-bold text-xs bg-white border border-slate-200 rounded py-0.5 px-1.5 text-slate-800" max="100" min="0" placeholder="0" type="number" value="0.00"/>
+<span class="text-slate-400 text-xs font-bold">%</span>
+</div>
+</div>
+<!-- Net Payable Amount (High Visual Highlight) -->
+<div class="p-3 rounded-xl bg-blue-50/90 border-2 border-blue-200 flex items-center justify-between">
+<div>
+<span class="text-xs font-bold text-blue-950 block">المبلغ الصافي المطلوب:</span>
+<span class="text-[10px] text-blue-600 font-semibold">شامل الرسوم والضرائب (TTC)</span>
+</div>
+<div class="text-left font-mono font-black text-blue-700 text-2xl tracking-tight">
+            1 895,00 <span class="text-xs font-sans font-bold text-blue-600">د.ج</span>
+</div>
+</div>
+<!-- Paid Input with Highlight -->
+<div class="space-y-1">
+<label class="text-xs font-bold text-slate-700 flex items-center justify-between">
+<span class="flex items-center gap-1.5">
+<i class="fa-solid fa-hand-holding-dollar text-emerald-600"></i>
+              المبلغ المدفوع من الزبون:
+            </span>
+<span class="text-[10px] text-slate-400 font-mono">F12 الدفع السريع</span>
+</label>
+<div class="relative">
+<input class="w-full text-left font-mono font-black text-xl text-sky-950 bg-sky-50 border-2 border-sky-300 rounded-lg py-1.5 px-3 focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-200 transition" placeholder="0.00" type="text" value="2 000,00"/>
+<span class="absolute right-3 top-2.5 text-xs font-bold text-sky-700 pointer-events-none">د.ج</span>
+</div>
+</div>
+<!-- Quick DZD Denomination Buttons (+1000, +2000, +5000) -->
+<div class="space-y-1">
+<span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">فئات نقدية سريعة:</span>
+<div class="grid grid-cols-4 gap-1.5">
+<button class="bg-slate-100 hover:bg-blue-50 hover:border-blue-300 border border-slate-200 rounded-lg py-1 text-xs font-mono font-bold text-slate-700 hover:text-blue-700 transition active:scale-95">+500</button>
+<button class="bg-slate-100 hover:bg-blue-50 hover:border-blue-300 border border-slate-200 rounded-lg py-1 text-xs font-mono font-bold text-slate-700 hover:text-blue-700 transition active:scale-95">+1000</button>
+<button class="bg-blue-100 border border-blue-300 text-blue-800 rounded-lg py-1 text-xs font-mono font-bold hover:bg-blue-200 transition active:scale-95">+2000</button>
+<button class="bg-slate-100 hover:bg-blue-50 hover:border-blue-300 border border-slate-200 rounded-lg py-1 text-xs font-mono font-bold text-slate-700 hover:text-blue-700 transition active:scale-95">+5000</button>
+</div>
+</div>
+<!-- Balance / Change Returned Field -->
+<div class="space-y-1 pt-1">
+<label class="text-xs font-bold text-slate-700 flex items-center justify-between">
+<span class="flex items-center gap-1.5">
+<i class="fa-solid fa-arrow-rotate-left text-amber-600"></i>
+              المبلغ المتبقي للإرجاع:
+            </span>
+<span class="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">فائض نقدي</span>
+</label>
+<div class="w-full text-left font-mono font-black text-xl text-emerald-800 bg-emerald-50/80 border border-emerald-300 rounded-lg py-1.5 px-3 flex justify-between items-center">
+<span class="text-xs font-bold text-emerald-700 font-sans">الباقي للزبون</span>
+<span>105,00 <span class="text-xs font-bold font-sans">د.ج</span></span>
+</div>
+</div>
+</div>
+<!-- Quick Payment Method Selector -->
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 p-3 flex flex-col gap-2">
+<div class="text-[11px] font-bold text-slate-500 flex items-center justify-between">
+<span>طريقة الدفع (Mode de paiement)</span>
+<span class="text-blue-600 text-[10px]">محدد: نقداً</span>
+</div>
+<div class="grid grid-cols-2 gap-2">
+<!-- Cash (Selected) -->
+<button class="flex items-center justify-center gap-2 bg-blue-600 text-white font-bold py-2 px-2.5 rounded-lg text-xs shadow-sm ring-2 ring-blue-500 ring-offset-1 transition">
+<i class="fa-solid fa-money-bill-wave text-sm"></i>
+<span>نقداً (Cash)</span>
+</button>
+<!-- Card -->
+<button class="flex items-center justify-center gap-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold py-2 px-2.5 rounded-lg text-xs transition">
+<i class="fa-solid fa-credit-card text-slate-500 text-sm"></i>
+<span>بطاقة (CIB)</span>
+</button>
+<!-- Debt / Credit -->
+<button class="flex items-center justify-center gap-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold py-2 px-2.5 rounded-lg text-xs transition">
+<i class="fa-solid fa-file-invoice text-slate-500 text-sm"></i>
+<span>أجل / دَين</span>
+</button>
+<!-- Cheque -->
+<button class="flex items-center justify-center gap-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold py-2 px-2.5 rounded-lg text-xs transition">
+<i class="fa-solid fa-money-check text-slate-500 text-sm"></i>
+<span>شيك بنكي</span>
+</button>
+</div>
+</div>
+<!-- Quick Fast Action Tool Strip (F7, F10, Favorites) -->
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 p-2.5 flex items-center justify-between gap-2 mt-auto">
+<button class="flex-1 flex items-center justify-center gap-1 bg-amber-500 hover:bg-amber-600 text-white font-bold py-1.5 px-2 rounded-lg text-xs shadow-xs transition">
+<i class="fa-solid fa-plus-circle text-xs"></i>
+<span>إضافة سريعة</span>
+<span class="bg-amber-700/40 text-[9px] px-1 rounded font-mono">F7</span>
+</button>
+<button class="flex-1 flex items-center justify-center gap-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-1.5 px-2 rounded-lg text-xs shadow-xs transition">
+<i class="fa-solid fa-boxes-stacked text-xs"></i>
+<span>حزمة</span>
+<span class="bg-teal-800/40 text-[9px] px-1 rounded font-mono">F10</span>
+</button>
+<button class="flex items-center justify-center gap-1 bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold py-1.5 px-2.5 rounded-lg text-xs border border-amber-200 transition" title="المفضلة السريعة">
+<i class="fa-solid fa-star text-amber-500"></i>
+</button>
+</div>
+</aside>
+<!-- END: Left Payment & Checkout Panel -->
+<!-- BEGIN: MainSalesWorkspace (Center & Right) -->
+<section class="flex-1 flex flex-col gap-2 min-w-0 bg-white rounded-xl shadow-sm border border-slate-200/90 overflow-hidden">
+<!-- Top Search & Barcode Entry Banner with shortcuts -->
+<div class="p-3 bg-slate-50 border-b border-slate-200 flex items-center gap-3 flex-shrink-0">
+<!-- Criteria filter -->
+<div class="w-48 flex-shrink-0">
+<div class="relative">
+<select class="w-full appearance-none bg-white border border-slate-300 rounded-lg py-2 pr-9 pl-3 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 cursor-pointer shadow-xs">
+<option value="designation">بحث بالتسمية (Désignation)</option>
+<option value="barcode">بحث بالباركود (Code Barre)</option>
+<option value="reference">بحث بالمرجع (Référence)</option>
+</select>
+<div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-slate-500">
+<i class="fa-solid fa-filter text-xs"></i>
+</div>
+</div>
+</div>
+<!-- Main Product Barcode Input with F5 and Scan indicator -->
+<div class="flex-1 relative">
+<div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3.5 text-blue-600">
+<i class="fa-solid fa-barcode text-base"></i>
+</div>
+<input autofocus="" class="w-full bg-white border-2 border-blue-200 hover:border-blue-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 text-sm font-semibold rounded-lg pr-10 pl-24 py-2 text-slate-800 placeholder-slate-400 transition shadow-inner" placeholder="امسح الباركود أو اكتب اسم المادة للبحث الفوري..." type="text"/>
+<div class="absolute inset-y-0 left-0 flex items-center pl-2 gap-1.5">
+<span class="bg-blue-50 border border-blue-200 text-blue-700 font-mono font-bold text-xs px-2 py-0.5 rounded shadow-xs">
+              F5 بحث
+            </span>
+<button class="bg-blue-600 hover:bg-blue-700 text-white rounded-md w-7 h-7 flex items-center justify-center transition shadow-xs">
+<i class="fa-solid fa-magnifying-glass text-xs"></i>
+</button>
+</div>
+</div>
+<!-- Cart items count badge -->
+<div class="flex items-center gap-2 bg-slate-200/70 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 flex-shrink-0">
+<span>عدد المواد في السلة:</span>
+<span class="font-mono font-bold text-blue-700 text-sm bg-white px-2 py-0.5 rounded border border-slate-300">3</span>
+</div>
+</div>
+<!-- Current Sales Items Table -->
+<div class="flex-1 overflow-y-auto px-3">
+<table class="w-full text-right border-collapse">
+<thead>
+<tr class="text-xs font-bold text-slate-500 border-b border-slate-200 bg-slate-50 sticky top-0 z-10">
+<th class="py-2.5 px-3 rounded-r-lg">#</th>
+<th class="py-2.5 px-3">المرجع (Réf)</th>
+<th class="py-2.5 px-4 w-2/5">التسمية / اسم المنتج (Désignation)</th>
+<th class="py-2.5 px-3 text-center">الكمية (Qté)</th>
+<th class="py-2.5 px-3 text-left">سعر البيع (P.Vente)</th>
+<th class="py-2.5 px-3 text-left">المبلغ (Montant)</th>
+<th class="py-2.5 px-3 text-center rounded-l-lg">إجراء</th>
+</tr>
+</thead>
+<tbody class="text-sm divide-y divide-slate-100 font-medium">
+<!-- Row 1: Selected active row -->
+<tr class="bg-blue-50/60 hover:bg-blue-50/80 transition-colors group cursor-pointer border-r-4 border-blue-600">
+<td class="py-2.5 px-3 font-mono text-xs text-blue-700 font-bold">1</td>
+<td class="py-2.5 px-3 font-mono text-xs text-slate-600">REF-89210</td>
+<td class="py-2.5 px-4 font-bold text-slate-800">
+<span>زيت نباتي ممتاز 5 لتر - صافي</span>
+<span class="block text-[11px] text-slate-400 font-normal">باركود: 6131234567890</span>
+</td>
+<!-- Interactive Inline Quantity Controls -->
+<td class="py-2.5 px-3 text-center">
+<div class="inline-flex items-center border border-blue-300 rounded-lg bg-white shadow-xs overflow-hidden">
+<button class="px-2 py-1 bg-slate-50 hover:bg-rose-100 hover:text-rose-700 text-slate-600 transition text-xs font-bold" title="إنقاص">
+<i class="fa-solid fa-minus text-[10px]"></i>
+</button>
+<span class="font-mono font-extrabold text-blue-700 px-3 py-0.5 text-sm">2.00</span>
+<button class="px-2 py-1 bg-slate-50 hover:bg-emerald-100 hover:text-emerald-700 text-slate-600 transition text-xs font-bold" title="زيادة">
+<i class="fa-solid fa-plus text-[10px]"></i>
+</button>
+</div>
+</td>
+<td class="py-2.5 px-3 text-left font-mono font-semibold text-slate-700">650,00</td>
+<td class="py-2.5 px-3 text-left font-mono font-bold text-blue-800 text-base">1 300,00</td>
+<td class="py-2.5 px-3 text-center">
+<button class="text-slate-400 hover:text-rose-600 w-7 h-7 inline-flex items-center justify-center rounded hover:bg-rose-50 transition" title="حذف السطر">
+<i class="fa-solid fa-trash-can text-xs"></i>
+</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-slate-50 transition-colors group cursor-pointer">
+<td class="py-2.5 px-3 font-mono text-xs text-slate-400 font-bold">2</td>
+<td class="py-2.5 px-3 font-mono text-xs text-slate-600">REF-10492</td>
+<td class="py-2.5 px-4 font-bold text-slate-800">
+<span>سكر أبيض مكرر 1 كغ</span>
+<span class="block text-[11px] text-slate-400 font-normal">باركود: 6139876543210</span>
+</td>
+<td class="py-2.5 px-3 text-center">
+<div class="inline-flex items-center border border-slate-200 rounded-lg bg-slate-50 shadow-xs overflow-hidden">
+<button class="px-2 py-1 hover:bg-rose-100 hover:text-rose-700 text-slate-500 transition text-xs">
+<i class="fa-solid fa-minus text-[10px]"></i>
+</button>
+<span class="font-mono font-extrabold text-slate-800 px-3 py-0.5 text-sm">5.00</span>
+<button class="px-2 py-1 hover:bg-emerald-100 hover:text-emerald-700 text-slate-500 transition text-xs">
+<i class="fa-solid fa-plus text-[10px]"></i>
+</button>
+</div>
+</td>
+<td class="py-2.5 px-3 text-left font-mono font-semibold text-slate-700">95,00</td>
+<td class="py-2.5 px-3 text-left font-mono font-bold text-slate-800 text-base">475,00</td>
+<td class="py-2.5 px-3 text-center">
+<button class="text-slate-400 hover:text-rose-600 w-7 h-7 inline-flex items-center justify-center rounded hover:bg-rose-50 transition" title="حذف السطر">
+<i class="fa-solid fa-trash-can text-xs"></i>
+</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-slate-50 transition-colors group cursor-pointer">
+<td class="py-2.5 px-3 font-mono text-xs text-slate-400 font-bold">3</td>
+<td class="py-2.5 px-3 font-mono text-xs text-slate-600">REF-00455</td>
+<td class="py-2.5 px-4 font-bold text-slate-800">
+<span>حليب معقم كامل الدسم 1 لتر</span>
+<span class="block text-[11px] text-slate-400 font-normal">باركود: 6135544332211</span>
+</td>
+<td class="py-2.5 px-3 text-center">
+<div class="inline-flex items-center border border-slate-200 rounded-lg bg-slate-50 shadow-xs overflow-hidden">
+<button class="px-2 py-1 hover:bg-rose-100 hover:text-rose-700 text-slate-500 transition text-xs">
+<i class="fa-solid fa-minus text-[10px]"></i>
+</button>
+<span class="font-mono font-extrabold text-slate-800 px-3 py-0.5 text-sm">1.00</span>
+<button class="px-2 py-1 hover:bg-emerald-100 hover:text-emerald-700 text-slate-500 transition text-xs">
+<i class="fa-solid fa-plus text-[10px]"></i>
+</button>
+</div>
+</td>
+<td class="py-2.5 px-3 text-left font-mono font-semibold text-slate-700">120,00</td>
+<td class="py-2.5 px-3 text-left font-mono font-bold text-slate-800 text-base">120,00</td>
+<td class="py-2.5 px-3 text-center">
+<button class="text-slate-400 hover:text-rose-600 w-7 h-7 inline-flex items-center justify-center rounded hover:bg-rose-50 transition" title="حذف السطر">
+<i class="fa-solid fa-trash-can text-xs"></i>
+</button>
+</td>
+</tr>
+<!-- Empty row indicator -->
+<tr class="h-12 border-dashed border-b border-slate-200">
+<td class="text-center text-xs text-slate-400" colspan="7">
+<span class="inline-flex items-center gap-2">
+<i class="fa-solid fa-barcode text-slate-300"></i>
+                  -- مساحة لإضافة منتج جديد بواسطة قارئ الباركود أو الضغط على F5 --
+                </span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Quick Action Active Row Status Strip -->
+<div class="px-4 py-2 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs flex-shrink-0">
+<div class="flex items-center gap-2">
+<span class="text-slate-500 font-semibold">المادة النشطة المحددة:</span>
+<span class="font-bold text-blue-900 bg-blue-100/60 px-2 py-0.5 rounded border border-blue-200">زيت نباتي ممتاز 5 لتر - صافي</span>
+<span class="text-slate-400 font-mono text-[11px]">(REF-89210)</span>
+</div>
+<div class="flex items-center gap-3">
+<label class="flex items-center gap-1.5 cursor-pointer text-slate-600 text-xs">
+<input class="w-3.5 h-3.5 rounded text-blue-600 border-slate-300" type="checkbox"/>
+<span>إظهار هامش الفائدة للسطر</span>
+</label>
+<span class="text-slate-400 text-[11px]">استخدم مفاتيح [+] أو [-] لتعديل الكميات مباشرة</span>
+</div>
+</div>
+</section>
+<!-- END: MainSalesWorkspace -->
+</main>
+<!-- END: Main Workstation Content -->
+<!-- BEGIN: BottomCommandBar (All Requested POS F-Key Shortcuts) -->
+<footer class="bg-slate-900 border-t border-slate-800 px-3 py-2 flex-shrink-0 shadow-2xl">
+<div class="flex items-center justify-between gap-2 overflow-x-auto">
+<!-- Left Group: Exit & Row Controls -->
+<div class="flex items-center gap-2 flex-shrink-0">
+<!-- Esc Close -->
+<button class="h-11 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700 flex items-center gap-2 font-bold text-xs transition shadow-xs">
+<i class="fa-solid fa-arrow-right-from-bracket text-amber-400 text-sm"></i>
+<div class="text-right leading-tight">
+<div>إغلاق</div>
+<div class="text-[10px] text-slate-400 font-mono">Esc</div>
+</div>
+</button>
+<!-- Suppr Delete Line -->
+<button class="h-11 px-3.5 rounded-xl bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white active:scale-95 border border-rose-500/40 flex items-center gap-2 font-bold text-xs transition shadow-xs">
+<i class="fa-solid fa-trash-can text-sm"></i>
+<div class="text-right leading-tight">
+<div>حذف سطر</div>
+<div class="text-[10px] font-mono opacity-80">Suppr</div>
+</div>
+</button>
+<!-- F11 Return items -->
+<button class="h-11 px-3.5 rounded-xl bg-slate-800 hover:bg-rose-900/40 hover:text-rose-200 text-slate-300 active:scale-95 border border-slate-700 flex items-center gap-2 font-bold text-xs transition">
+<i class="fa-solid fa-rotate-left text-rose-400 text-sm"></i>
+<div class="text-right leading-tight">
+<div>إرجاع سلع</div>
+<div class="text-[10px] text-slate-400 font-mono">F11</div>
+</div>
+</button>
+</div>
+<!-- Center Group: Sales Status, Hold & Lookup -->
+<div class="flex items-center gap-2 flex-shrink-0">
+<!-- F4 Diverse Products -->
+<button class="h-11 px-3 rounded-xl bg-cyan-700 hover:bg-cyan-600 active:scale-95 text-white border border-cyan-500/30 flex items-center gap-2 font-bold text-xs transition shadow-xs">
+<i class="fa-solid fa-cubes-stacked text-sm"></i>
+<div class="text-right leading-tight">
+<div>سلع متنوعة</div>
+<div class="text-[10px] text-cyan-200 font-mono">F4</div>
+</div>
+</button>
+<!-- F8 Search Mode -->
+<button class="h-11 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700 flex items-center gap-2 font-bold text-xs transition">
+<i class="fa-solid fa-sliders text-sky-400 text-sm"></i>
+<div class="text-right leading-tight">
+<div>نوع البحث</div>
+<div class="text-[10px] text-slate-400 font-mono">F8</div>
+</div>
+</button>
+<!-- F10 Packages -->
+<button class="h-11 px-3 rounded-xl bg-teal-700 hover:bg-teal-600 active:scale-95 text-white border border-teal-500/30 flex items-center gap-2 font-bold text-xs transition">
+<i class="fa-solid fa-box text-sm"></i>
+<div class="text-right leading-tight">
+<div>حزم</div>
+<div class="text-[10px] text-teal-200 font-mono">F10</div>
+</div>
+</button>
+<!-- F3 Put Sale On Hold -->
+<button class="h-11 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700 flex items-center gap-2 font-bold text-xs transition">
+<i class="fa-solid fa-pause text-amber-400 text-sm"></i>
+<div class="text-right leading-tight">
+<div>وضع بالانتظار</div>
+<div class="text-[10px] text-slate-400 font-mono">F3</div>
+</div>
+</button>
+<!-- F6 Held Sales List -->
+<button class="h-11 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700 flex items-center gap-2 font-bold text-xs transition">
+<i class="fa-solid fa-clock-rotate-left text-sky-400 text-sm"></i>
+<div class="text-right leading-tight">
+<div>قائمة الانتظار</div>
+<div class="text-[10px] text-slate-400 font-mono">F6</div>
+</div>
+</button>
+</div>
+<!-- Right Group: Primary POS Operations (Quantity, Confirm, Print) -->
+<div class="flex items-center gap-2 flex-shrink-0">
+<!-- Quantity Minus Button -->
+<button class="h-11 px-3 rounded-xl bg-rose-700 hover:bg-rose-600 active:scale-95 text-white flex items-center gap-1.5 font-bold text-xs transition shadow-xs border border-rose-500/30" title="تقليل كمية المادة النشطة">
+<i class="fa-solid fa-minus text-sm"></i>
+<span>الكمية</span>
+</button>
+<!-- Quantity Plus Button -->
+<button class="h-11 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white flex items-center gap-1.5 font-bold text-xs transition shadow-xs border border-emerald-400/30" title="زيادة كمية المادة النشطة">
+<i class="fa-solid fa-plus text-sm"></i>
+<span>الكمية</span>
+</button>
+<!-- F1 Confirm Only -->
+<button class="h-11 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-95 text-white flex items-center gap-2 font-bold text-xs transition shadow-md shadow-blue-900/50 border border-blue-400/40">
+<i class="fa-solid fa-check text-base"></i>
+<div class="text-right leading-tight">
+<div class="text-sm">تأكيد الحفظ</div>
+<div class="text-[10px] text-sky-200 font-mono">F1</div>
+</div>
+</button>
+<!-- F2 Confirm & Print (Primary Hero Action) -->
+<button class="h-11 px-5 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 active:scale-95 text-white flex items-center gap-2.5 font-black text-xs transition shadow-lg shadow-emerald-950/60 border border-emerald-400/50">
+<i class="fa-solid fa-print text-lg animate-pulse"></i>
+<div class="text-right leading-tight">
+<div class="text-sm font-black tracking-wide">تأكيد وطبع</div>
+<div class="text-[10px] text-emerald-100 font-mono font-medium">F2 (Enregistrer &amp; Imprimer)</div>
+</div>
+</button>
+</div>
+</div>
+</footer>
+<!-- END: BottomCommandBar -->
+<!-- BEGIN: InteractiveClockScript -->
+<script data-purpose="live-clock">
+    function updateClock() {
+      const now = new Date();
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      const timeElement = document.getElementById('current-time');
+      if (timeElement) {
+        timeElement.textContent = `${hours}:${minutes}:${seconds}`;
+      }
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+  </script>
+<!-- END: InteractiveClockScript -->
+</body></html>

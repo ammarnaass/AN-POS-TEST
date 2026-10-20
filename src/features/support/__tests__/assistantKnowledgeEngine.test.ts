@@ -95,16 +95,14 @@ describe('assistantKnowledgeEngine', () => {
       expect(answer.route).toBe('/cash-register');
     });
 
-    it('accurately answers Design 6 advanced terminal questions', () => {
-      const q = 'كيف أستخدم تصميم 6 (المحطة المتقدمة)؟';
+    it('accurately answers Design 5 advanced classic questions', () => {
+      const q = 'كيف أستخدم تصميم 5 (الكلاسيكي المتقدم)؟';
       const answer = findBestAssistantAnswer(q);
 
-      expect(answer.badge).toContain('تصميم 6');
-      expect(answer.text).toContain('نيون LED');
-      expect(answer.steps?.some(s => s.includes('F4'))).toBe(true);
-      expect(answer.steps?.some(s => s.includes('F10'))).toBe(true);
-      expect(answer.steps?.some(s => s.includes('النهاري والليلي'))).toBe(true);
-      expect(answer.route).toBe('/pos/advanced');
+      expect(answer.badge).toContain('تصميم 5');
+      expect(answer.text).toContain('LED');
+      expect(answer.steps?.some(s => s.includes('مصفوفة'))).toBe(true);
+      expect(answer.route).toBe('/pos');
     });
 
     it('accurately answers payment checkout shortcuts questions', () => {
@@ -147,12 +145,12 @@ describe('assistantKnowledgeEngine', () => {
       expect(answer.route).toBe('/reports');
     });
 
-    it('accurately answers 6 POS designs comparison question', () => {
-      const q = 'كيف أختار بين تصاميم شاشة الكاشير الـ 6 وما الفروقات بينها؟';
+    it('accurately answers 5 POS designs comparison question', () => {
+      const q = 'كيف أختار بين تصاميم شاشة الكاشير الـ 5 وما الفروقات بينها؟';
       const answer = findBestAssistantAnswer(q);
 
-      expect(answer.badge).toContain('تصاميم الكاشير الـ 6');
-      expect(answer.steps?.some(s => s.includes('التصميم 6'))).toBe(true);
+      expect(answer.badge).toContain('تصاميم الكاشير الـ 5');
+      expect(answer.steps?.some(s => s.includes('التصميم 5'))).toBe(true);
       expect(answer.route).toBe('/settings');
     });
 

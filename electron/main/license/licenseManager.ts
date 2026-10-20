@@ -1,6 +1,11 @@
 // مدير دورة حياة الترخيص — AN POS Desktop License Manager
 
-import { computeHardwareFingerprint, computeHardwareHashInt } from './hardwareFingerprint';
+import {
+  computeHardwareFingerprint,
+  computeHardwareHashInt,
+  computeLegacyHardwareFingerprint,
+  computeLegacyHardwareHashInt,
+} from './hardwareFingerprint';
 import { parseAndVerifyKey, type ParsedLicense } from './verifyLicense';
 import { loadStoredLicense, saveStoredLicense, removeStoredLicense, type StoredLicenseData } from './licenseStorage';
 import { getStoredTrialStatus, type ElectronTrialStatus } from './trialStorage';
@@ -77,12 +82,22 @@ class LicenseManager {
       };
     }
 
-    // 2. مطابقة بصمة العتاد (المحلية + المشفرة في التوقيع الرقمي إن وُجدت)
+    // 2. مطابقة بصمة العتاد (المحلية + المشفرة في التوقيع الرقمي إن وُجدت) — دعم v2 والبصمة السابقة للتوافق (M10)
+    const legacyFingerprint = computeLegacyHardwareFingerprint();
     const hwHashInt = computeHardwareHashInt();
-    const isCryptoBound = this.verifiedParsed.flags !== 0;
-    const isCryptoMatch = !isCryptoBound || this.verifiedParsed.flags === hwHashInt;
+    const legacyHwHashInt = computeLegacyHardwareHashInt();
 
-    if (this.currentLicense.hardwareFingerprint !== hwFingerprint || !isCryptoMatch) {
+    const isCryptoBound = this.verifiedParsed.flags !== 0;
+    const isCryptoMatch =
+      !isCryptoBound ||
+      this.verifiedParsed.flags === hwHashInt ||
+      this.verifiedParsed.flags === legacyHwHashInt;
+
+    const isFpMatch =
+      this.currentLicense.hardwareFingerprint === hwFingerprint ||
+      this.currentLicense.hardwareFingerprint === legacyFingerprint;
+
+    if (!isFpMatch || !isCryptoMatch) {
       return {
         status: 'tampered',
         isLicensed: false,
@@ -91,6 +106,13 @@ class LicenseManager {
         hardwareFingerprint: hwFingerprint,
         rawKey: this.currentLicense.rawKey,
       };
+    }
+
+    // ترقية تلقائية للبصمة المحفوظة إذا كانت بالإصدار القديم v1
+    if (this.currentLicense.hardwareFingerprint === legacyFingerprint && hwFingerprint !== legacyFingerprint) {
+      this.currentLicense.hardwareFingerprint = hwFingerprint;
+      saveStoredLicense(this.currentLicense);
+      console.log('[license] تم ترقية بصمة العتاد المحفوظة تلقائياً إلى الإصدار v2 (M10)');
     }
 
     // 3. التحقق من الصلاحية الزمنية
@@ -147,9 +169,10 @@ class LicenseManager {
       };
     }
 
-    // التحقق التشفيري من مطابقة عتاد الجهاز (إذا كان المفتاح مقيداً بعتاد محدد)
+    // التحقق التشفيري من مطابقة عتاد الجهاز (إذا كان المفتاح مقيداً بعتاد محدد) — دعم v2 و v1
     const hwHashInt = computeHardwareHashInt();
-    if (parsed.flags !== 0 && parsed.flags !== hwHashInt) {
+    const legacyHwHashInt = computeLegacyHardwareHashInt();
+    if (parsed.flags !== 0 && parsed.flags !== hwHashInt && parsed.flags !== legacyHwHashInt) {
       return {
         success: false,
         error: 'كود التفعيل هذا مشفر ومخصص لجهاز حاسوب آخر ولا يتطابق مع عتاد هذا الجهاز.',

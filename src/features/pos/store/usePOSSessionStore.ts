@@ -4,7 +4,7 @@ import { useCartStore } from '@/store/cartStore';
 
 export type POSPaymentMethod = 'cash' | 'card' | 'transfer' | 'credit';
 
-export type POSLayout = 'sidebar' | 'bottom' | 'classic' | 'modern' | 'terminal' | 'advanced' | 'design7';
+export type POSLayout = 'sidebar' | 'bottom' | 'classic' | 'modern' | 'design7' | 'workstation';
 
 export type ScreenResolution =
   | 'auto'
@@ -122,7 +122,13 @@ export const usePOSSessionStore = create<POSSessionState>((set) => ({
   })(),
   posLayout: (() => {
     try {
-      return (localStorage.getItem('pos_layout_mode') as POSLayout) || 'bottom';
+      const saved = localStorage.getItem('pos_layout_mode');
+      if (saved === 'terminal' || saved === 'advanced') {
+        localStorage.setItem('pos_layout_mode', 'design7');
+        return 'design7';
+      }
+      const valid: POSLayout[] = ['sidebar', 'bottom', 'classic', 'modern', 'design7', 'workstation'];
+      return valid.includes(saved as POSLayout) ? (saved as POSLayout) : 'bottom';
     } catch {
       return 'bottom';
     }

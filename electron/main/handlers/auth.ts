@@ -171,9 +171,14 @@ export async function registerUser(data: RegisterUserData): Promise<{ user?: obj
     return { error: { status: 409, detail: 'اسم المستخدم موجود مسبقاً' } };
   }
 
-  // تحديد الدور والصلاحيات
+  // تحديد الدور والصلاحيات — التسجيل الذاتي العام لا يمكنه منح صلاحيات إدارية إطلاقاً (H12 Fix)
+  // إنشاء وتعيين أدوار المديرين والمشرفين يتم حصراً من لوحة إدارة المستخدمين من قِبل مسؤول معتمد
+  const RESTRICTED_ROLES = ['admin', 'owner', 'manager', 'developer'];
   let assignedRole = configuredDefaultRole;
-  if (callerRole === 'admin' && role) {
+  if (RESTRICTED_ROLES.includes(assignedRole.toLowerCase())) {
+    assignedRole = 'seller';
+  }
+  if (role && !RESTRICTED_ROLES.includes(role.toLowerCase()) && callerRole === 'admin') {
     assignedRole = role;
   }
 

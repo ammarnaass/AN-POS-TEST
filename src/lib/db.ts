@@ -70,6 +70,11 @@ export function getSnakeKey(k: string): string {
     else if (k === 'companyNif' || k === 'companyNIF') res = 'company_nif';
     else if (k === 'companyArt' || k === 'companyART') res = 'company_art';
     else if (k === 'companyAI') res = 'company_ai';
+    else if (k === 'enablePriceTier2') res = 'enable_price_tier_2';
+    else if (k === 'enablePriceTier3') res = 'enable_price_tier_3';
+    else if (k === 'enablePriceTier4') res = 'enable_price_tier_4';
+    else if (k === 'allowCardPayment') res = 'allow_card_payment';
+    else if (k === 'allowTransferPayment') res = 'allow_transfer_payment';
     else res = k.replace(/([A-Z])/g, '_$1').toLowerCase();
     snakeCache.set(k, res);
   }
@@ -83,6 +88,11 @@ export function getCamelKey(k: string): string {
     else if (k === 'company_nif') res = 'companyNif';
     else if (k === 'company_art') res = 'companyArt';
     else if (k === 'company_ai') res = 'companyAI';
+    else if (k === 'enable_price_tier_2' || k === 'enable_price_tier2') res = 'enablePriceTier2';
+    else if (k === 'enable_price_tier_3' || k === 'enable_price_tier3') res = 'enablePriceTier3';
+    else if (k === 'enable_price_tier_4' || k === 'enable_price_tier4') res = 'enablePriceTier4';
+    else if (k === 'allow_card_payment') res = 'allowCardPayment';
+    else if (k === 'allow_transfer_payment') res = 'allowTransferPayment';
     else res = k.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
     camelCache.set(k, res);
   }

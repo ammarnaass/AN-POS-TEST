@@ -91,20 +91,59 @@ export function setStoredTransportConfig(config: {
   deviceId?: string;
 }): void {
   if (typeof window === 'undefined') return;
-  if (config.role) localStorage.setItem('anpos_terminal_role', config.role);
+
+  let hasChanged = false;
+
+  if (config.role) {
+    const oldRole = localStorage.getItem('anpos_terminal_role');
+    if (oldRole !== config.role) {
+      localStorage.setItem('anpos_terminal_role', config.role);
+      hasChanged = true;
+    }
+  }
+
   if (config.syncMode) {
-    localStorage.setItem('anpos_sync_mode', config.syncMode);
+    const oldSyncMode = localStorage.getItem('anpos_sync_mode');
+    if (oldSyncMode !== config.syncMode) {
+      localStorage.setItem('anpos_sync_mode', config.syncMode);
+      hasChanged = true;
+    }
   } else if (config.role === 'server' && !localStorage.getItem('anpos_sync_mode')) {
     // التوافق مع بيئة الاختبارات عند تعيين السيرفر دون تحديد syncMode
     localStorage.setItem('anpos_sync_mode', 'lan');
+    hasChanged = true;
   }
-  if (config.serverUrl !== undefined) localStorage.setItem('anpos_server_lan_url', config.serverUrl.trim().replace(/\/+$/, ''));
-  if (config.token !== undefined) localStorage.setItem('anpos_client_token', config.token);
-  if (config.deviceId !== undefined) localStorage.setItem('anpos_client_device_id', config.deviceId);
 
-  try {
-    window.dispatchEvent(new CustomEvent('anpos:transport-config-changed', { detail: config }));
-  } catch {}
+  if (config.serverUrl !== undefined) {
+    const normalizedUrl = config.serverUrl.trim().replace(/\/+$/, '');
+    const oldServerUrl = localStorage.getItem('anpos_server_lan_url') || '';
+    if (oldServerUrl !== normalizedUrl) {
+      localStorage.setItem('anpos_server_lan_url', normalizedUrl);
+      hasChanged = true;
+    }
+  }
+
+  if (config.token !== undefined) {
+    const oldToken = localStorage.getItem('anpos_client_token') || '';
+    if (oldToken !== config.token) {
+      localStorage.setItem('anpos_client_token', config.token);
+      hasChanged = true;
+    }
+  }
+
+  if (config.deviceId !== undefined) {
+    const oldDeviceId = localStorage.getItem('anpos_client_device_id') || '';
+    if (oldDeviceId !== config.deviceId) {
+      localStorage.setItem('anpos_client_device_id', config.deviceId);
+      hasChanged = true;
+    }
+  }
+
+  if (hasChanged) {
+    try {
+      window.dispatchEvent(new CustomEvent('anpos:transport-config-changed', { detail: config }));
+    } catch {}
+  }
 }
 
 export function getStoredTransportConfig(): {

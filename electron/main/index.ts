@@ -1,42 +1,41 @@
-// نقطة دخول Electron main process
-// يتولى: تهيئة قاعدة البيانات + إنشاء الجداول + seed + تسجيل IPC + إنشاء النافذة
-
-import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron';
 import path from 'node:path';
-import os from 'node:os';
 import fs from 'node:fs';
 import { initDatabase, closeDatabase } from './database';
 import { seedDatabase } from './seed';
 import { registerIpcHandlers } from './ipc/register';
-import { startHttpServer, stopHttpServer, getNetworkSettings, getOrCreateConnectionKey } from './server/index';
+import { startHttpServer, stopHttpServer, isHttpServerRunning, getNetworkSettings, getOrCreateConnectionKey } from './server/index';
 import { queryOne } from './handlers/db-utils';
 import { isDeveloperModeActive } from './handlers/auth';
 import { getOrCreateConfigFile } from './ipc/system';
+import { initTray, updateTrayMenu, destroyTray, getIsQuitting, setIsQuitting } from './tray';
+import { handleCliBackupCommands } from './backup/preUpgrade';
+import { setupAutoUpdater, registerUpdaterIpc, cleanupAutoUpdater } from './updater';
+
+// 0. معالجة أوامر الترقية والنسخ الاحتياطي عبر سطر الأوامر (CLI - A3)
+// يجب أن يُنفّذ قبل فحص قفل النسخة الواحدة لتمكين المثبت من طلب checkpoint و vacuum حتى أثناء تشغيل البرنامج
+if (handleCliBackupCommands()) {
+  // تم تنفيذ الأمر وانتهت العملية فوراً
+}
+
+// 1. قفل النسخة الواحدة (Single Instance Lock)
+// يمنع تشغيل أكثر من نسخة من البرنامج في نفس الوقت لتفادي تعارض أو تلف قاعدة بيانات SQLite
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  console.warn('[main] ⚠️ تم تشغيل نسخة ثانية من التطبيق بينما البرنامج قيد التشغيل بالفعل — سيتم الإنهاء فوراً.');
+  app.quit();
+}
+
+// تثبيت اسم التطبيق صراحةً — يضمن ثبات مسار بيانات المستخدم (%APPDATA%\an-pos) وعدم انتقال
+// قاعدة البيانات إذا تغيّر productName في package.json مستقبلاً. يجب أن يُنفَّذ قبل أي app.getPath().
+app.setName('an-pos');
 
 // إخفاء شريط القوائم الافتراضي بالكامل (File, Edit, View, Window, etc.)
 Menu.setApplicationMenu(null);
 
-// توافقية أنظمة ويندوز القديمة (Windows 7 / 8 / 8.1) وأجهزة الكاشير ذات العتاد المحدود
-if (process.platform === 'win32') {
-  try {
-    const release = os.release() || '';
-    const [majorStr, minorStr] = release.split('.');
-    const major = parseInt(majorStr, 10);
-    const minor = parseInt(minorStr, 10);
-    // Windows 7 = NT 6.1, Windows 8 = NT 6.2, Windows 8.1 = NT 6.3
-    const isLegacyWindows = major === 6 && minor <= 3;
-
-    if (isLegacyWindows) {
-      // تفادي مشاكل Direct3D 11 على بطاقات الشاشة المدمجة القديمة (Intel Atom / Celeron J1900)
-      app.commandLine.appendSwitch('disable-gpu-sandbox');
-      app.commandLine.appendSwitch('disable-direct-composition');
-      app.commandLine.appendSwitch('use-angle', 'd3d9');
-      app.commandLine.appendSwitch('no-sandbox');
-    }
-  } catch (e) {
-    console.warn('[main] تعذر التحقق من إصدار ويندوز:', e);
-  }
-}
+// توافقية: Electron 40 لا يدعم Windows 7 / 8 / 8.1 (الحد الأدنى هو Windows 10).
+// أُزيلت تحايلات الأنظمة القديمة (use-angle d3d9 / no-sandbox) لأن النظام لا يعمل عليها أصلاً،
+// وكانت تُضعف أمان كل تشغيل على ويندوز دون فائدة. للعملاء على أنظمة أقدم: فرع إصدار بـ Electron ≤ 22.
 
 // دعم Wayland على لينكس
 app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
@@ -63,7 +62,15 @@ async function createWindow() {
   // 0. تجهيز بيئة العمل وملف الإعدادات الافتراضي (config.json)
   console.log('[main] تجهيز بيئة التشغيل وملف الإعدادات الافتراضي (config.json)...');
   try {
-    getOrCreateConfigFile();
+    const config = getOrCreateConfigFile();
+    // تسجيل نوع التشغيل: تثبيت جديد أو تحديث أو تشغيل عادي
+    if (!config.firstRunCompleted) {
+      console.log('[main] 🆕 نوع التشغيل: تثبيت جديد بالكامل (Fresh Install) — سيظهر معالج الإعداد الأول');
+    } else if ((config as any)._upgradedFrom) {
+      console.log(`[main] 🔄 نوع التشغيل: ترقية البرنامج من ${(config as any)._upgradedFrom} إلى ${config.version} (Upgrade)`);
+    } else {
+      console.log(`[main] ✅ نوع التشغيل: تشغيل عادي — الإصدار ${config.version}`);
+    }
   } catch (cfgErr) {
     console.warn('[main] تعذر تجهيز config.json:', cfgErr);
   }
@@ -74,10 +81,27 @@ async function createWindow() {
     await initDatabase();
   } catch (dbErr: any) {
     console.error('[main] فشل فادح في تهيئة قاعدة البيانات:', dbErr);
-    const { dialog } = await import('electron');
+    const causeMsg = dbErr?.cause?.message ? `\n(السبب الداخلي: ${dbErr.cause.message})` : '';
+
+    // كتابة تقرير الخطأ إلى ملف logs في userData لضمان وجود أثر تشخيصي حتى لو أُغلقت النافذة
+    try {
+      const userData = app.getPath('userData');
+      const logsDir = path.join(userData, 'logs');
+      fs.mkdirSync(logsDir, { recursive: true });
+      const errorLogPath = path.join(logsDir, 'startup_error.log');
+      const timestamp = new Date().toISOString();
+      fs.appendFileSync(
+        errorLogPath,
+        `[${timestamp}] DB Initialization Failure:\n${dbErr?.stack || dbErr?.message || dbErr}\n${causeMsg}\n\n`,
+        'utf-8'
+      );
+    } catch (logErr) {
+      console.warn('[main] تعذر كتابة startup_error.log:', logErr);
+    }
+
     dialog.showErrorBox(
       'خطأ في تشغيل قاعدة البيانات (AN POS)',
-      `تعذر على البرنامج فتح قاعدة البيانات أو تهيئة مجلد التخزين.\n\nالسبب المحتمل:\n- عدم وجود صلاحيات كتابة كافية في مسار البيانات.\n- ملف قاعدة البيانات قيد الاستخدام بواسطة برنامج آخر.\n\nالتفاصيل: ${dbErr?.message || dbErr}`
+      `تعذر على البرنامج فتح قاعدة البيانات أو تهيئة مجلد التخزين.\n\nالسبب المحتمل:\n- عدم وجود صلاحيات كتابة كافية في مسار البيانات.\n- ملف قاعدة البيانات قيد الاستخدام بواسطة برنامج آخر.\n\nالتفاصيل: ${dbErr?.message || dbErr}${causeMsg}`
     );
     app.quit();
     return;
@@ -86,6 +110,7 @@ async function createWindow() {
   // 2. تسجيل معالجات IPC (فقط وحصرياً بعد اكتمال تهيئة قاعدة البيانات)
   console.log('[main] تسجيل معالجات IPC...');
   registerIpcHandlers();
+  registerUpdaterIpc();
 
   // 3. استماع لحالة preload
   ipcMain.on('preload:status', (_e, status) => {
@@ -127,6 +152,7 @@ async function createWindow() {
   // ملاحظة: على Wayland/ozone قد لا يُطلق ready-to-show دائماً، لذا نُظهر فوراً
   const isDevMode = !app.isPackaged;
   const isWin = process.platform === 'win32';
+  const startInBackground = process.argv.includes('--background');
   const icoCandidate = isDevMode
     ? path.join(__dirname, '../../build/icon.ico')
     : path.join(process.resourcesPath, 'icon.ico');
@@ -140,7 +166,7 @@ async function createWindow() {
     height: 900,
     minWidth: 360,
     minHeight: 480,
-    show: true,
+    show: !startInBackground,
     autoHideMenuBar: true,
     title: 'AN POS',
     icon: iconPath,
@@ -211,6 +237,23 @@ async function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
   }
 
+  // تهيئة صينية النظام (System Tray) لتمكين بقاء خادم LAN بالخلفية (A9)
+  initTray(mainWindow);
+  updateTrayMenu(mainWindow);
+
+  // تهيئة التحديثات التلقائية (A7)
+  setupAutoUpdater();
+
+  // اعتراض إغلاق النافذة: إخفاء إلى صينية النظام إذا كان خادم LAN نشطاً (A9)
+  mainWindow.on('close', (event) => {
+    if (!getIsQuitting() && isHttpServerRunning()) {
+      event.preventDefault();
+      mainWindow?.hide();
+      updateTrayMenu(mainWindow);
+      console.log('[main] 🔕 تم إخفاء نافذة التطبيق إلى صينية النظام مع استمرار تشغيل خادم LAN في الخلفية (A9).');
+    }
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
@@ -223,19 +266,54 @@ app.on('browser-window-created', (_event, window) => {
   window.setMenuBarVisibility(false);
 });
 
-app.whenReady().then(createWindow);
+// تركيز النافذة الحالية أو إظهارها عند محاولة تشغيل نسخة ثانية من التطبيق
+app.on('second-instance', () => {
+  if (mainWindow) {
+    if (!mainWindow.isVisible()) mainWindow.show();
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  }
+});
+
+// إطلاق التطبيق بأمان مع اعتراض أي خطأ غير متوقع
+app.whenReady().then(async () => {
+  try {
+    await createWindow();
+  } catch (err: any) {
+    console.error('[main] خطأ فادح أثناء إطلاق نافذة التطبيق:', err);
+    dialog.showErrorBox(
+      'خطأ في تشغيل التطبيق (AN POS)',
+      `حدث خطأ غير متوقع أثناء إطلاق التطبيق:\n${err?.message || err}`
+    );
+    app.quit();
+  }
+});
 
 app.on('window-all-closed', () => {
+  if (process.platform === 'darwin') return;
+  // في حال كان خادم LAN يعمل، لا ننهي التطبيق بل نبقيه في الـ Tray (A9)
+  if (isHttpServerRunning()) {
+    updateTrayMenu(mainWindow);
+    return;
+  }
   closeDatabase();
-  stopHttpServer().catch(() => {});
-  if (process.platform !== 'darwin') app.quit();
+  destroyTray();
+  app.quit();
 });
 
 app.on('activate', () => {
-  if (!BrowserWindow.getAllWindows().length) createWindow();
+  if (!BrowserWindow.getAllWindows().length) {
+    createWindow();
+  } else if (mainWindow && !mainWindow.isVisible()) {
+    mainWindow.show();
+    mainWindow.focus();
+  }
 });
 
 app.on('before-quit', async () => {
+  setIsQuitting(true);
+  cleanupAutoUpdater();
+  destroyTray();
   closeDatabase();
   await stopHttpServer().catch(() => {});
 });

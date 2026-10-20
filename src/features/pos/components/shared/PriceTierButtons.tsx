@@ -29,6 +29,8 @@ export interface PriceTierButtonsProps {
     p3?: number;
     p4?: number;
   };
+  /** الفئات المفعلة في النظام */
+  enabledPriceTiers?: PriceTier[];
   /** نمط العرض للزر */
   variant?: 'compact' | 'topbar' | 'row' | 'ribbon' | 'cycle';
   formatMoney?: (val?: number | null) => string;
@@ -46,17 +48,23 @@ export const PriceTierButtons: React.FC<PriceTierButtonsProps> = ({
   activeTier,
   onSelectTier,
   tierPrices,
+  enabledPriceTiers,
   variant = 'compact',
   formatMoney = defaultFormatMoney,
   className = '',
   disabled = false,
   showShortcuts = true,
 }) => {
+  const visibleTiers = React.useMemo(() => {
+    if (!enabledPriceTiers || enabledPriceTiers.length === 0) return PRICE_TIERS_CONFIG;
+    return PRICE_TIERS_CONFIG.filter((t) => enabledPriceTiers.includes(t.id));
+  }, [enabledPriceTiers]);
+
   // 1. نمط السطور داخل السلة (Cart Table Row Variant)
   if (variant === 'row') {
     return (
       <div className={`inline-flex items-center gap-1 flex-wrap ${className}`} role="group" aria-label="مستويات الأسعار للصنف">
-        {PRICE_TIERS_CONFIG.map((tier) => {
+        {visibleTiers.map((tier) => {
           const price = tierPrices?.[`p${tier.id}` as keyof typeof tierPrices];
           if (price === undefined || price === null || price <= 0) return null;
           const isSelected = activeTier === tier.id;
@@ -103,7 +111,7 @@ export const PriceTierButtons: React.FC<PriceTierButtonsProps> = ({
         role="group"
         aria-label="مستويات الأسعار"
       >
-        {PRICE_TIERS_CONFIG.map((t) => {
+        {visibleTiers.map((t) => {
           const isActive = activeTier === t.id;
           return (
             <button
@@ -164,7 +172,7 @@ export const PriceTierButtons: React.FC<PriceTierButtonsProps> = ({
 
     return (
       <div className={`flex items-center gap-1 shrink-0 ${className}`} role="group" aria-label="مستويات الأسعار">
-        {PRICE_TIERS_CONFIG.map(({ id, name, badge }) => {
+        {visibleTiers.map(({ id, name, badge }) => {
           const isActive = activeTier === id;
           const colors = colorMap[id];
           return (
@@ -193,11 +201,11 @@ export const PriceTierButtons: React.FC<PriceTierButtonsProps> = ({
 
   // 4. نمط التبديل الدائري الفردي (Cycle Variant for compact headers / Design 6)
   if (variant === 'cycle') {
-    const current = PRICE_TIERS_CONFIG.find((t) => t.id === activeTier) || PRICE_TIERS_CONFIG[0];
+    const current = visibleTiers.find((t) => t.id === activeTier) || visibleTiers[0] || PRICE_TIERS_CONFIG[0];
     const handleNext = () => {
-      const idx = PRICE_TIERS_CONFIG.findIndex((t) => t.id === activeTier);
-      const nextIdx = (idx + 1) % PRICE_TIERS_CONFIG.length;
-      onSelectTier(PRICE_TIERS_CONFIG[nextIdx].id);
+      const idx = visibleTiers.findIndex((t) => t.id === activeTier);
+      const nextIdx = idx === -1 ? 0 : (idx + 1) % visibleTiers.length;
+      onSelectTier(visibleTiers[nextIdx].id);
     };
 
     return (
@@ -253,7 +261,7 @@ export const PriceTierButtons: React.FC<PriceTierButtonsProps> = ({
       role="group"
       aria-label="مستويات الأسعار"
     >
-      {PRICE_TIERS_CONFIG.map((tier) => {
+      {visibleTiers.map((tier) => {
         const isActive = activeTier === tier.id;
         const color = colorMap[tier.id];
         return (

@@ -319,6 +319,7 @@ export const SidebarPOSLayout: React.FC<SidebarPOSLayoutProps> = ({
             formatMoney={formatMoney}
             currency={currency}
             onOpenKeypadForQty={onOpenKeypadForQty}
+            enabledPriceTiers={enabledPriceTiers}
             className="flex-1 min-h-0 border-none shadow-none rounded-none"
           />
 

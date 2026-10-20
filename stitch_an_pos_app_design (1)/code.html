@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+
+<html class="h-full" dir="rtl" lang="ar"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>نظام نقاط البيع الاحترافي - AN POS</title>
+<!-- Google Fonts: Cairo & Digital-7 font replacement -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&amp;family=Chakra+Petch:wght@600;700&amp;display=swap" rel="stylesheet"/>
+<!-- FontAwesome Icons -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet"/>
+<!-- Tailwind CSS CDN -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Cairo', 'sans-serif'],
+            digital: ['Chakra Petch', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#2563eb',
+              600: '#1d4ed8',
+              700: '#1e40af',
+              800: '#1e3a8a',
+              900: '#0f172a',
+            },
+            pos: {
+              screen: '#052e16',
+              led: '#22c55e',
+              ledDim: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+<style data-purpose="custom-scrollbars">
+    /* تخصيص أشرطة التمرير لسرعة الحركة والراحة البصرية */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+<style data-purpose="pos-utilities">
+    .digital-glow {
+      text-shadow: 0 0 12px rgba(34, 197, 94, 0.45);
+    }
+    .touch-target {
+      min-height: 44px;
+      min-width: 44px;
+    }
+    /* تأثير نبض خفيف للمؤشر المتصل */
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .animate-pulse-dot {
+      animation: pulse-dot 2s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans antialiased h-full flex flex-col select-none overflow-hidden text-sm">
+<!-- BEGIN: TopBar -->
+<header class="bg-slate-900 text-white px-3 py-1 flex items-center justify-between border-b border-slate-800 shrink-0 text-xs shadow-sm">
+<div class="flex items-center gap-3">
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 rounded-full bg-emerald-500 inline-block animate-pulse-dot"></span>
+<span class="font-bold tracking-wider text-emerald-400">AN POS v2.6</span>
+</div>
+<span class="text-slate-600">|</span>
+<span class="text-slate-300 font-medium"><i class="fa-solid fa-store ml-1 text-slate-400"></i> متجري الرئيسي</span>
+<span class="text-slate-600">|</span>
+<span class="text-slate-300"><i class="fa-solid fa-user-tie ml-1 text-slate-400"></i> مدير النظام</span>
+</div>
+<!-- Center App Title -->
+<div class="font-bold text-slate-200 tracking-wide flex items-center gap-1.5">
+<i class="fa-solid fa-cash-register text-blue-400"></i>
+<span>نظام إدارة نقاط البيع والمخزون</span>
+</div>
+<!-- System Indicators & Actions -->
+<div class="flex items-center gap-2">
+<span class="font-digital text-sm text-blue-300 bg-slate-800 px-2.5 py-0.5 rounded border border-slate-700" id="current-clock">18:50:34</span>
+<button class="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-800 text-slate-300" title="تصغير"><i class="fa-solid fa-minus"></i></button>
+<button class="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-800 text-slate-300" title="تكبير الشاشة"><i class="fa-regular fa-square"></i></button>
+<button class="w-7 h-7 flex items-center justify-center rounded hover:bg-red-600 hover:text-white text-slate-300" title="إغلاق"><i class="fa-solid fa-xmark"></i></button>
+</div>
+</header>
+<!-- END: TopBar -->
+<!-- BEGIN: MainDisplayDashboard -->
+<!-- لوحة الإجمالي الرقمي وزر التأكيد السريع ووسوم الحالة -->
+<section class="bg-white border-b border-slate-200 px-3 py-2 shrink-0 shadow-xs">
+<div class="flex items-stretch gap-3">
+<!-- Big Sale Confirmation Button (F1) -->
+<button class="w-56 bg-gradient-to-br from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:scale-[0.98] text-white rounded-xl p-3 flex flex-col justify-between shadow-lg shadow-emerald-500/20 transition-all border border-emerald-400/40" id="btn-confirm-sale">
+<div class="flex items-center justify-between w-full">
+<span class="bg-emerald-950/40 text-emerald-200 px-2 py-0.5 rounded text-xs font-mono font-bold tracking-wider border border-emerald-400/30">F1</span>
+<i class="fa-solid fa-money-bill-wave text-2xl text-emerald-200/90"></i>
+</div>
+<div class="text-right">
+<div class="text-xs text-emerald-100 font-medium">تسجيل الدفع السريع</div>
+<div class="text-2xl font-black tracking-tight leading-tight mt-0.5">تأكيد بيع</div>
+</div>
+</button>
+<!-- Digital Total LED POS Board -->
+<div class="flex-1 bg-slate-950 rounded-xl p-3 border-2 border-slate-800 flex items-center justify-between shadow-inner relative overflow-hidden">
+<!-- Subtle LED background grid effect -->
+<div class="absolute inset-0 opacity-5 pointer-events-none bg-[radial-gradient(#22c55e_1px,transparent_1px)] [background-size:16px_16px]"></div>
+<div class="flex items-center gap-3 z-10">
+<div class="flex items-center gap-1.5 bg-slate-900 border border-emerald-500/40 px-2.5 py-1 rounded-md">
+<span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_#22c55e]"></span>
+<span class="font-digital text-emerald-400 text-xs font-bold tracking-wider">LED POS ON</span>
+</div>
+<div class="text-right pr-2">
+<span class="text-slate-400 text-xs font-semibold block">الإجمالي الكلي المستحق</span>
+<span class="text-emerald-500/80 text-xs font-mono">العملة: الدينار الجزائري (DZD)</span>
+</div>
+</div>
+<!-- Big LED Price Amount -->
+<div class="flex items-baseline gap-2 z-10">
+<span class="font-digital text-4xl sm:text-5xl font-black text-emerald-400 tracking-tight digital-glow" id="pos-main-total">204,00</span>
+<span class="text-emerald-500 font-bold text-xl font-sans">دج</span>
+</div>
+<!-- Customer & Item Info Badges -->
+<div class="flex items-center gap-2 z-10">
+<!-- Item Count Tag -->
+<div class="bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-right flex items-center gap-2">
+<i class="fa-solid fa-layer-group text-slate-400 text-base"></i>
+<div>
+<span class="text-[10px] text-slate-400 block leading-none">إجمالي السلع</span>
+<span class="font-digital text-emerald-400 text-lg font-bold leading-none" id="badge-items-count">4</span>
+</div>
+</div>
+<!-- Customer Dropdown/Quick Select (F6) -->
+<button class="bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-slate-600 rounded-lg px-3 py-1.5 text-right flex items-center gap-2.5 transition">
+<div class="w-8 h-8 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold">
+<i class="fa-solid fa-user text-sm"></i>
+</div>
+<div class="leading-tight">
+<div class="flex items-center gap-1.5">
+<span class="text-[10px] text-slate-400">الزبون [F6]</span>
+<i class="fa-solid fa-chevron-down text-[10px] text-slate-400"></i>
+</div>
+<span class="text-white font-bold text-xs" id="current-customer">زبون عام</span>
+</div>
+</button>
+</div>
+</div>
+</div>
+</section>
+<!-- END: MainDisplayDashboard -->
+<!-- BEGIN: ActionRibbon -->
+<!-- شريط الوظائف والاختصارات مع بادجات واضحة وملونة بأناقة -->
+<nav aria-label="شريط العمليات السريعة" class="bg-white border-b border-slate-200 px-3 py-1.5 flex items-center gap-1.5 overflow-x-auto shrink-0 shadow-xs">
+<!-- زر تبديل الخزينة/الزبون F6 -->
+<button class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-teal-200 bg-teal-50 hover:bg-teal-100 text-teal-800 text-xs font-semibold whitespace-nowrap transition active:scale-95">
+<i class="fa-solid fa-user-plus text-teal-600"></i>
+<span>زبون</span>
+<kbd class="bg-teal-200/80 text-teal-900 px-1 rounded text-[10px] font-mono">F6</kbd>
+</button>
+<!-- تعليق الفاتورة F2 -->
+<button class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-semibold whitespace-nowrap transition active:scale-95">
+<i class="fa-solid fa-pause text-amber-600"></i>
+<span>تعليق</span>
+<kbd class="bg-amber-200/80 text-amber-900 px-1 rounded text-[10px] font-mono">F2</kbd>
+</button>
+<!-- مسودات الفواتير F3 -->
+<button class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 text-xs font-semibold whitespace-nowrap transition active:scale-95">
+<i class="fa-solid fa-folder-open text-indigo-600"></i>
+<span>مسودات</span>
+<kbd class="bg-indigo-200/80 text-indigo-900 px-1 rounded text-[10px] font-mono">F3</kbd>
+</button>
+<!-- حذف سلعة Ctrl+D -->
+<button class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-800 text-xs font-semibold whitespace-nowrap transition active:scale-95">
+<i class="fa-solid fa-trash-can text-rose-600"></i>
+<span>حذف سلعة</span>
+<kbd class="bg-rose-200/80 text-rose-900 px-1 rounded text-[10px] font-mono">Ctrl+D</kbd>
+</button>
+<!-- إلغاء الوصل F4 -->
+<button class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-semibold whitespace-nowrap transition active:scale-95" id="btn-cancel-bill">
+<i class="fa-solid fa-ban text-red-500"></i>
+<span>إلغاء الوصل</span>
+<kbd class="bg-red-200/80 text-red-800 px-1 rounded text-[10px] font-mono">F4</kbd>
+</button>
+<!-- تخصيص F10 -->
+<button class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-800 text-xs font-semibold whitespace-nowrap transition active:scale-95">
+<i class="fa-solid fa-sliders text-purple-600"></i>
+<span>تخصيص</span>
+<kbd class="bg-purple-200/80 text-purple-900 px-1 rounded text-[10px] font-mono">F10</kbd>
+</button>
+<div class="h-5 w-[1px] bg-slate-300 mx-1 shrink-0"></div>
+<!-- طباعة F5 -->
+<button class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold whitespace-nowrap transition active:scale-95">
+<i class="fa-solid fa-print text-slate-600"></i>
+<span>طباعة</span>
+<kbd class="bg-slate-200 text-slate-800 px-1 rounded text-[10px] font-mono">F5</kbd>
+</button>
+<!-- سجل الفواتير F9 -->
+<button class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-sky-200 bg-sky-50 hover:bg-sky-100 text-sky-800 text-xs font-semibold whitespace-nowrap transition active:scale-95">
+<i class="fa-solid fa-clock-rotate-left text-sky-600"></i>
+<span>سجل</span>
+<kbd class="bg-sky-200/80 text-sky-900 px-1 rounded text-[10px] font-mono">F9</kbd>
+</button>
+<!-- تخفيض -->
+<button class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-orange-200 bg-orange-50 hover:bg-orange-100 text-orange-800 text-xs font-semibold whitespace-nowrap transition active:scale-95">
+<i class="fa-solid fa-tags text-orange-500"></i>
+<span>تخفيض</span>
+</button>
+<!-- طلبية / مبدئية -->
+<button class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold whitespace-nowrap transition">
+<i class="fa-regular fa-file-lines text-slate-500"></i>
+<span>مبدئية</span>
+</button>
+<button class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold whitespace-nowrap transition">
+<i class="fa-solid fa-truck-ramp-box text-slate-500"></i>
+<span>طلبية</span>
+</button>
+<!-- حاسبة -->
+<button class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold whitespace-nowrap transition">
+<i class="fa-solid fa-calculator text-emerald-600"></i>
+<span>حاسبة</span>
+</button>
+<!-- الوضع الليلي -->
+<button class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold whitespace-nowrap transition">
+<i class="fa-solid fa-moon text-indigo-500"></i>
+<span>ليلي</span>
+</button>
+<!-- إشعارات -->
+<button class="relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-pink-200 bg-pink-50 hover:bg-pink-100 text-pink-700 text-xs font-semibold whitespace-nowrap transition">
+<i class="fa-solid fa-bell text-pink-500"></i>
+<span>إشعارات</span>
+<span class="bg-red-500 text-white rounded-full w-4 h-4 text-[10px] flex items-center justify-center font-bold">1</span>
+</button>
+<div class="mr-auto"></div>
+<!-- زر خروج ESC -->
+<button class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-300 bg-red-500 hover:bg-red-600 text-white text-xs font-bold whitespace-nowrap transition active:scale-95 shadow-sm">
+<i class="fa-solid fa-arrow-right-from-bracket rotate-180"></i>
+<span>خروج</span>
+<kbd class="bg-red-700 text-white px-1.5 rounded text-[10px] font-mono">Esc</kbd>
+</button>
+</nav>
+<!-- END: ActionRibbon -->
+<!-- BEGIN: InstantInputBar -->
+<!-- شريط البحث ومسح الباركود السريع -->
+<div class="bg-slate-200/90 border-b border-slate-300 px-3 py-2 flex items-center gap-2 shrink-0">
+<!-- حقل مسح الباركود -->
+<div class="flex-1 relative flex items-center">
+<div class="absolute right-3 text-slate-400 flex items-center gap-2 pointer-events-none">
+<i class="fa-solid fa-barcode text-lg text-blue-600"></i>
+<kbd class="bg-slate-100 border border-slate-300 text-slate-500 rounded px-1.5 py-0.5 text-[11px] font-mono">F7</kbd>
+</div>
+<input autofocus="" class="w-full pr-20 pl-10 py-2.5 bg-white border-2 border-blue-500 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder:text-slate-400 shadow-sm" id="barcode-input" placeholder="امسح الباركود (F7) أو اكتب الرمز واضغط Enter..." type="text"/>
+<button class="absolute left-3 text-slate-400 hover:text-slate-600" title="مسح النص">
+<i class="fa-solid fa-qrcode text-base"></i>
+</button>
+</div>
+<!-- حقل البحث بالاسم أو التعيين -->
+<div class="w-72 relative flex items-center">
+<div class="absolute right-3 text-slate-400 pointer-events-none">
+<i class="fa-solid fa-magnifying-glass text-sm"></i>
+</div>
+<input class="w-full pr-9 pl-3 py-2.5 bg-white border border-slate-300 rounded-lg text-xs font-medium focus:outline-none focus:border-blue-500 placeholder:text-slate-400 shadow-sm" placeholder="بحث بالاسم أو التعيين..." type="text"/>
+</div>
+<!-- زر إضافة يدوي -->
+<button class="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold px-4 py-2.5 rounded-lg text-xs flex items-center gap-1.5 shadow-sm transition">
+<i class="fa-solid fa-plus"></i>
+<span>إضافة</span>
+</button>
+<button class="bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 font-semibold px-3 py-2.5 rounded-lg text-xs flex items-center gap-1.5 shadow-sm transition active:scale-95"><i class="fa-solid fa-border-all text-blue-600"></i><span>إظهار شبكة السلع</span><kbd class="bg-slate-100 border border-slate-300 text-slate-500 rounded px-1.5 py-0.5 text-[10px] font-mono">F8</kbd></button></div>
+<!-- END: InstantInputBar -->
+<!-- BEGIN: SplitWorkspace -->
+<!-- مساحة العمل الرئيسية: تنقسم بين جدول عناصر الفاتورة وشبكة المنتجات السريعة -->
+<main class="flex-1 flex overflow-hidden">
+<!-- LEFT SIDE: Invoice Cart & Calculations (جدول الفاتورة الحالية) -->
+<section class="flex flex-col bg-white border-slate-200 w-full">
+<!-- جدول المنتجات في الفاتورة -->
+<div class="flex-1 overflow-y-auto">
+<table class="w-full text-right text-xs">
+<thead class="bg-slate-100 text-slate-600 sticky top-0 border-b border-slate-200 z-10 font-bold uppercase">
+<tr><th class="py-2.5 px-3 text-center w-12">#</th><th class="py-2.5 px-4 text-right">التعيين والتفاصيل (اسم المنتج، التصنيف)</th><th class="py-2.5 px-3 text-center w-36">الباركود</th><th class="py-2.5 px-3 text-center w-36">الكمية</th><th class="py-2.5 px-4 text-left w-28">سعر الوحدة</th><th class="py-2.5 px-3 text-center w-28">نسبة التخفيض</th><th class="py-2.5 px-4 text-left w-36">المجموع الإجمالي</th><th class="py-2.5 px-3 text-center w-16">إجراء</th></tr>
+</thead>
+<tbody class="divide-y divide-slate-100 font-medium" id="cart-items-body"><tr class="hover:bg-blue-50/40 transition-colors group"><td class="py-3 px-3 text-center text-slate-400 font-mono text-sm">1</td><td class="py-3 px-4"><div class="flex items-center gap-2"><span class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xs shrink-0"><i class="fa-solid fa-book-bookmark"></i></span><div><div class="font-bold text-slate-800 text-sm">كراس 96 ص، منصوري، طبعة 2024</div><div class="flex items-center gap-2 text-xs text-slate-400 mt-0.5"><span class="bg-slate-100 px-1.5 py-0.2 rounded text-[11px] text-slate-600">أدوات مدرسية</span><span>•</span><span>الرف: B-02</span></div></div></div></td><td class="py-3 px-3 text-center font-mono text-slate-600 text-xs bg-slate-50/50"><span class="px-2 py-1 rounded bg-slate-100 border border-slate-200 inline-block">61304589001</span></td><td class="py-3 px-3"><div class="flex items-center justify-center gap-1.5 bg-slate-100 rounded-lg p-1 border border-slate-200 w-32 mx-auto"><button class="w-7 h-7 rounded bg-white hover:bg-slate-200 flex items-center justify-center font-bold text-slate-600 active:scale-95 shadow-xs transition">-</button><span class="w-10 text-center font-bold text-slate-900 text-sm font-mono">2</span><button class="w-7 h-7 rounded bg-blue-600 hover:bg-blue-700 flex items-center justify-center font-bold text-white active:scale-95 shadow-xs transition">+</button></div></td><td class="py-3 px-4 text-left font-mono font-semibold text-slate-700 text-sm">34,00 دج</td><td class="py-3 px-3 text-center"><span class="text-xs font-mono text-slate-400 bg-slate-100 px-2 py-0.5 rounded">0,00 دج</span></td><td class="py-3 px-4 text-left font-mono font-bold text-blue-700 text-base">68,00 دج</td><td class="py-3 px-3 text-center"><button class="w-8 h-8 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center mx-auto transition" title="حذف السطر"><i class="fa-regular fa-trash-can text-sm"></i></button></td></tr><tr class="hover:bg-blue-50/40 transition-colors group"><td class="py-3 px-3 text-center text-slate-400 font-mono text-sm">2</td><td class="py-3 px-4"><div class="flex items-center gap-2"><span class="w-8 h-8 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center font-bold text-xs shrink-0"><i class="fa-solid fa-book-bookmark"></i></span><div><div class="font-bold text-slate-800 text-sm">كراس 48 ص، منصوري، طبعة 2024</div><div class="flex items-center gap-2 text-xs text-slate-400 mt-0.5"><span class="bg-slate-100 px-1.5 py-0.2 rounded text-[11px] text-slate-600">أدوات مدرسية</span><span>•</span><span>الرف: B-01</span></div></div></div></td><td class="py-3 px-3 text-center font-mono text-slate-600 text-xs bg-slate-50/50"><span class="px-2 py-1 rounded bg-slate-100 border border-slate-200 inline-block">61304589002</span></td><td class="py-3 px-3"><div class="flex items-center justify-center gap-1.5 bg-slate-100 rounded-lg p-1 border border-slate-200 w-32 mx-auto"><button class="w-7 h-7 rounded bg-white hover:bg-slate-200 flex items-center justify-center font-bold text-slate-600 active:scale-95 shadow-xs transition">-</button><span class="w-10 text-center font-bold text-slate-900 text-sm font-mono">1</span><button class="w-7 h-7 rounded bg-blue-600 hover:bg-blue-700 flex items-center justify-center font-bold text-white active:scale-95 shadow-xs transition">+</button></div></td><td class="py-3 px-4 text-left font-mono font-semibold text-slate-700 text-sm">26,00 دج</td><td class="py-3 px-3 text-center"><span class="text-xs font-mono text-slate-400 bg-slate-100 px-2 py-0.5 rounded">0,00 دج</span></td><td class="py-3 px-4 text-left font-mono font-bold text-blue-700 text-base">26,00 دج</td><td class="py-3 px-3 text-center"><button class="w-8 h-8 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center mx-auto transition" title="حذف السطر"><i class="fa-regular fa-trash-can text-sm"></i></button></td></tr><tr class="hover:bg-blue-50/40 transition-colors group"><td class="py-3 px-3 text-center text-slate-400 font-mono text-sm">3</td><td class="py-3 px-4"><div class="flex items-center gap-2"><span class="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center font-bold text-xs shrink-0"><i class="fa-solid fa-pencil"></i></span><div><div class="font-bold text-slate-800 text-sm">أقلام حبر جاف بيك 4 ألوان أصلية</div><div class="flex items-center gap-2 text-xs text-slate-400 mt-0.5"><span class="bg-slate-100 px-1.5 py-0.2 rounded text-[11px] text-slate-600">أدوات الكتابة والتصحيح</span><span>•</span><span>الرف: A-05</span></div></div></div></td><td class="py-3 px-3 text-center font-mono text-slate-600 text-xs bg-slate-50/50"><span class="px-2 py-1 rounded bg-slate-100 border border-slate-200 inline-block">61304589015</span></td><td class="py-3 px-3"><div class="flex items-center justify-center gap-1.5 bg-slate-100 rounded-lg p-1 border border-slate-200 w-32 mx-auto"><button class="w-7 h-7 rounded bg-white hover:bg-slate-200 flex items-center justify-center font-bold text-slate-600 active:scale-95 shadow-xs transition">-</button><span class="w-10 text-center font-bold text-slate-900 text-sm font-mono">1</span><button class="w-7 h-7 rounded bg-blue-600 hover:bg-blue-700 flex items-center justify-center font-bold text-white active:scale-95 shadow-xs transition">+</button></div></td><td class="py-3 px-4 text-left font-mono font-semibold text-slate-700 text-sm">120,00 دج</td><td class="py-3 px-3 text-center"><span class="text-xs font-mono text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded font-semibold">-10,00 دج</span></td><td class="py-3 px-4 text-left font-mono font-bold text-blue-700 text-base">110,00 دج</td><td class="py-3 px-3 text-center"><button class="w-8 h-8 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center mx-auto transition" title="حذف السطر"><i class="fa-regular fa-trash-can text-sm"></i></button></td></tr></tbody>
+</table>
+</div>
+<!-- ملخص الحسابات السفلي للفاتورة الحالية -->
+<div class="bg-slate-50 border-t border-slate-200 p-2.5 text-xs shrink-0"><div class="flex items-center justify-between gap-6"><div class="flex items-center gap-6 text-slate-600"><div class="flex items-center gap-2"><span class="text-slate-500">عدد المواد:</span><strong class="text-slate-900 font-mono text-base bg-white border border-slate-200 px-2.5 py-0.5 rounded-md" id="summary-items-count">3</strong></div><div class="flex items-center gap-2"><span class="text-slate-500">إجمالي القطع:</span><strong class="text-slate-900 font-mono text-base bg-white border border-slate-200 px-2.5 py-0.5 rounded-md" id="summary-qty-count">4</strong></div><div class="flex items-center gap-2"><span class="text-slate-500">مجموع السلع الخام:</span><strong class="text-slate-800 font-mono text-sm">214,00 دج</strong></div><div class="flex items-center gap-2"><span class="text-slate-500">التخفيض المطبق:</span><strong class="text-emerald-600 font-mono text-sm bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">-10,00 دج</strong></div></div><div class="flex items-center gap-4"><div class="flex items-center gap-2 text-slate-500 bg-white px-3 py-1.5 rounded-lg border border-slate-200"><i class="fa-solid fa-money-bill-wave text-blue-600"></i><span>طريقة الدفع: <strong class="text-slate-800">نقداً (Cash)</strong></span></div><div class="bg-gradient-to-r from-blue-700 to-blue-900 text-white rounded-xl px-5 py-2 flex items-center gap-4 shadow-sm"><div class="text-right"><span class="text-blue-200 text-[11px] block">المبلغ الصافي المستحق</span><span class="text-xs text-blue-300 font-medium">(شامل الرسم على القيمة المضافة)</span></div><div class="font-mono font-black text-2xl text-white">204,00 <span class="text-sm font-sans font-bold text-blue-200">دج</span></div></div></div></div></div>
+</section>
+<!-- RIGHT SIDE: Categories & Product Quick Grid (شبكة المنتجات السريعة والتصنيفات) -->
+</main>
+<!-- END: SplitWorkspace -->
+<!-- BEGIN: BottomStatusBar -->
+<!-- شريط الحالة السفلي للنظام والمحطة -->
+<footer class="bg-slate-900 text-slate-400 px-3 py-1 text-[11px] flex items-center justify-between border-t border-slate-800 shrink-0">
+<div class="flex items-center gap-4">
+<!-- حالة الجلسة -->
+<span class="flex items-center gap-1.5 text-emerald-400 font-medium">
+<span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+        الجلسة مفتوحة
+      </span>
+<span class="text-slate-600">|</span>
+<span>المستخدم: <strong class="text-slate-200">مدير النظام</strong></span>
+<span class="text-slate-600">|</span>
+<span>المحل: <strong class="text-slate-200">متجري</strong></span>
+<span class="text-slate-600">|</span>
+<span>الصندوق: <strong class="text-slate-200">صندوق 01 (رئيسي)</strong></span>
+</div>
+<div class="flex items-center gap-3">
+<span>تاريخ اليوم: <strong class="text-slate-300" id="live-date">2026/10/19</strong></span>
+<span class="text-slate-600">|</span>
+<span class="font-mono text-slate-500">IP: 192.168.1.105</span>
+<span class="bg-blue-900/60 text-blue-300 text-[10px] px-1.5 py-0.5 rounded border border-blue-700/50">جاهز للبيع</span>
+</div>
+</footer>
+<!-- END: BottomStatusBar -->
+<!-- BEGIN: InteractiveScripts -->
+<!-- سكريبت لتحديث الوقت والوظائف الأساسية والتفاعلية السريعة -->
+<script data-purpose="pos-clock-and-events">
+    // تحديث الساعة في الوقت الحقيقي
+    function updateClock() {
+      const now = new Date();
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      const clockElement = document.getElementById('current-clock');
+      if (clockElement) {
+        clockElement.textContent = `${hours}:${minutes}:${seconds}`;
+      }
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // اختصارات لوحة المفاتيح لمحاكاة أزرار POS القياسية
+    window.addEventListener('keydown', function(e) {
+      if (e.key === 'F1') {
+        e.preventDefault();
+        document.getElementById('btn-confirm-sale')?.click();
+      } else if (e.key === 'F7') {
+        e.preventDefault();
+        document.getElementById('barcode-input')?.focus();
+      } else if (e.key === 'F4') {
+        e.preventDefault();
+        document.getElementById('btn-cancel-bill')?.click();
+      }
+    });
+
+    // تفاعل مسح الباركود
+    const barcodeInput = document.getElementById('barcode-input');
+    barcodeInput?.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (this.value.trim() !== '') {
+          // محاكاة إشعار قراءة الباركود بنجاح
+          this.value = '';
+        }
+      }
+    });
+
+    // تبديل التصنيفات النشطة
+    const categoryButtons = document.querySelectorAll('.category-btn');
+    categoryButtons.forEach(btn => {
+      btn.addEventListener('click', function() {
+        categoryButtons.forEach(b => {
+          b.classList.remove('bg-blue-600', 'text-white', 'shadow-xs');
+          b.classList.add('text-slate-700', 'hover:bg-slate-100');
+        });
+        this.classList.remove('text-slate-700', 'hover:bg-slate-100');
+        this.classList.add('bg-blue-600', 'text-white', 'shadow-xs');
+      });
+    });
+  </script>
+<!-- END: InteractiveScripts -->
+</body></html>

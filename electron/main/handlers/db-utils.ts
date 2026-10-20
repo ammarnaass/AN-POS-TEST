@@ -37,12 +37,12 @@ function handleMissingTableError(err: unknown): boolean {
 export function queryAll(sql: string, params: unknown[] = []): Row[] {
   try {
     const stmt = getCachedStatement(sql);
-    const safeParams = params.map(serializeValue);
+    const safeParams: any[] = params.map(serializeValue);
     return stmt.all(...safeParams) as Row[];
   } catch (err) {
     if (handleMissingTableError(err)) {
       const stmt = getCachedStatement(sql);
-      const safeParams = params.map(serializeValue);
+      const safeParams: any[] = params.map(serializeValue);
       return stmt.all(...safeParams) as Row[];
     }
     throw err;
@@ -55,13 +55,13 @@ export function queryAll(sql: string, params: unknown[] = []): Row[] {
 export function queryOne(sql: string, params: unknown[] = []): Row | null {
   try {
     const stmt = getCachedStatement(sql);
-    const safeParams = params.map(serializeValue);
+    const safeParams: any[] = params.map(serializeValue);
     const row = stmt.get(...safeParams) as Row | null;
     return row ?? null;
   } catch (err) {
     if (handleMissingTableError(err)) {
       const stmt = getCachedStatement(sql);
-      const safeParams = params.map(serializeValue);
+      const safeParams: any[] = params.map(serializeValue);
       const row = stmt.get(...safeParams) as Row | null;
       return row ?? null;
     }
@@ -75,12 +75,12 @@ export function queryOne(sql: string, params: unknown[] = []): Row | null {
 export function execute(sql: string, params: unknown[] = []): void {
   try {
     const stmt = getCachedStatement(sql);
-    const safeParams = params.map(serializeValue);
+    const safeParams: any[] = params.map(serializeValue);
     stmt.run(...safeParams);
   } catch (err) {
     if (handleMissingTableError(err)) {
       const stmt = getCachedStatement(sql);
-      const safeParams = params.map(serializeValue);
+      const safeParams: any[] = params.map(serializeValue);
       stmt.run(...safeParams);
       return;
     }
@@ -113,7 +113,7 @@ export function transaction<T>(fn: () => T): T {
  * - object → JSON.stringify
  * - غير ذلك كما هو
  */
-export function serializeValue(v: unknown): unknown {
+export function serializeValue(v: unknown): any {
   if (v === undefined) return null;
   if (typeof v === 'boolean') return v ? 1 : 0;
   if (v !== null && typeof v === 'object') return JSON.stringify(v);

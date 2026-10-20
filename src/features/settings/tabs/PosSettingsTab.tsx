@@ -53,16 +53,9 @@ export default function PosSettingsTab(props: PosSettingsTabProps) {
                     color: 'text-blue-500 bg-blue-500/10',
                   },
                   {
-                    key: 'terminalFavoritesMode',
-                    title: 'تفعيل المفضلة والعبوات في تصميم 5 (Terminal)',
-                    desc: 'عرض تصنيفات المفضلة وعبوات الجملة في الشريط السفلي لكاشير تصميم 5 بدلاً من التجزئة',
-                    icon: Star,
-                    color: 'text-amber-500 bg-amber-500/10',
-                  },
-                  {
                     key: 'design7ShowBottomFavorites',
-                    title: 'إظهار شريط العبوات والمفضلة في تصميم 7',
-                    desc: 'التحكم في إظهار أو إخفاء شريط العبوات وتصنيفات المفضلة السفلي في كاشير تصميم 7 لتوفير مساحة عمودية أكبر لجدول السلة',
+                    title: 'إظهار شريط العبوات والمفضلة في تصميم 5 (الكلاسيكي المتقدم)',
+                    desc: 'التحكم في إظهار أو إخفاء شريط العبوات وتصنيفات المفضلة السفلي في كاشير تصميم 5 لتوفير مساحة عمودية أكبر لجدول السلة',
                     icon: Layers,
                     color: 'text-sky-500 bg-sky-500/10',
                   },
@@ -161,9 +154,6 @@ export default function PosSettingsTab(props: PosSettingsTabProps) {
                             try {
                               localStorage.setItem('pos_design7_show_favorites', JSON.stringify(newVal));
                             } catch {}
-                          }
-                          if (item.key === 'terminalFavoritesMode') {
-                            usePOSSessionStore.getState().setTerminalCategoryMode(newVal ? 'favorites' : 'products');
                           }
                           handleSaveSettings({ [item.key]: newVal });
                         }}

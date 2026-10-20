@@ -64,6 +64,11 @@ export const settings = sqliteTable('settings', {
   allowSelfRegistration: integer('allow_self_registration').notNull().default(1),
   defaultRole: text('default_role').notNull().default('seller'),
   firstRunCompleted: integer('first_run_completed').notNull().default(0),
+  enablePriceTier2: integer('enable_price_tier_2').notNull().default(1),
+  enablePriceTier3: integer('enable_price_tier_3').notNull().default(1),
+  enablePriceTier4: integer('enable_price_tier_4').notNull().default(1),
+  allowCardPayment: integer('allow_card_payment').notNull().default(0),
+  allowTransferPayment: integer('allow_transfer_payment').notNull().default(0),
 });
 
 // ============ المستخدمون والصلاحيات ============

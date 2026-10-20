@@ -194,7 +194,7 @@ export interface ElectronAPI {
     setAutoLaunch: (enabled: boolean) => Promise<{ success: boolean; enabled: boolean; error?: string }>;
     getDatabasePath: () => Promise<{ success: boolean; path?: string; error?: string }>;
     testServerConnection: (serverUrl: string) => Promise<{ success: boolean; status?: number; data?: any; error?: string }>;
-    isFirstRun: () => Promise<{ success: boolean; isFirstRun: boolean; config?: any; error?: string }>;
+    isFirstRun: () => Promise<{ success: boolean; isFirstRun: boolean; weakAdminPin?: boolean; config?: any; error?: string }>;
     getConfig: () => Promise<{ success: boolean; config?: any; error?: string }>;
     saveFirstRunSetup: (data: { shopName: string; phone?: string; baseCurrency?: string; language?: string; adminPin?: string }) => Promise<{ success: boolean; config?: any; error?: string }>;
   };

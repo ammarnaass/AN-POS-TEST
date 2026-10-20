@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useEffect } from 'react';
 import { useCartStore } from '@/store/cartStore';
 import { useAuthStore } from '@/store/authStore';
 import { useSidebarStore } from '@/store/sidebarStore';
@@ -318,9 +318,43 @@ export default function POSPage() {
     enabled: true,
   });
 
+  const handleToggleWholesale = useCallback(() => {
+    if (posSettings?.enablePriceTier3 === false && !wholesaleMode) {
+      addNotification({
+        title: 'وضع الجملة غير متاح',
+        message: 'فئة سعر وفواتير الجملة (س3) معطلة حالياً في إعدادات نقطة البيع',
+        type: 'warning',
+      });
+      return;
+    }
+    const next = !wholesaleMode;
+    toggleWholesaleMode();
+    pageState.handleSelectPriceTier(next ? '3' : '1');
+    addNotification({
+      title: next ? 'وضع الجملة مفعّل (Gros)' : 'وضع التجزئة مفعّل (Détail)',
+      message: next
+        ? 'تم تفعيل أسعار وفواتير الجملة تلقائياً (Alt+W)'
+        : 'تم العودة إلى أسعار التجزئة العادية (Alt+W)',
+      type: next ? 'success' : 'info',
+    });
+  }, [wholesaleMode, posSettings?.enablePriceTier3, toggleWholesaleMode, pageState, addNotification]);
+
+  // إيقاف وضع الجملة والعودة لسعر التجزئة إذا تم تعطيل الفئة في الإعدادات
+  useEffect(() => {
+    if (posSettings?.enablePriceTier3 === false && wholesaleMode) {
+      setWholesaleMode(false);
+      pageState.handleSelectPriceTier('1');
+      addNotification({
+        title: 'تم إيقاف وضع الجملة',
+        message: 'تم إيقاف وضع الجملة والعودة لسعر التجزئة نظراً لتعطيل الفئة في الإعدادات',
+        type: 'info',
+      });
+    }
+  }, [posSettings?.enablePriceTier3, wholesaleMode, setWholesaleMode, pageState, addNotification]);
+
   // Keyboard Shortcuts Hook
   usePOSKeyboardShortcuts({
-    enabled: posLayout !== 'advanced' && posLayout !== 'design7',
+    enabled: posLayout !== 'design7' && posLayout !== 'workstation',
     cart,
     selectedItemId,
     isSessionOpen,
@@ -366,15 +400,13 @@ export default function POSPage() {
     onOpenSessionWarning: () => modals.setShowSessionWarning(true),
     onOpenCustomize: () => modals.setShowCustomizeModal(true),
     onOpenDiscount: () => modals.setShowDiscountModal(true),
-    onToggleWholesale: () => {
-      const next = !wholesaleMode;
-      toggleWholesaleMode();
-      pageState.handleSelectPriceTier(next ? '3' : '1');
-    },
+    onToggleWholesale: handleToggleWholesale,
     onUpdateQty: handleUpdateQty,
     onRemoveItem: removeItem,
     onNavigateBack: handleNavigateBack,
     onOpenSalesHistory: handleOpenSalesHistory,
+    onSelectPriceTier: pageState.handleSelectPriceTier,
+    enabledPriceTiers: getEnabledPriceTiers(posSettings),
     addNotification,
   });
 
@@ -396,7 +428,7 @@ export default function POSPage() {
         style={pageState.canvasStyle}
       >
         {/* TOP BAR (Rendered in non-fullscreen layouts) */}
-        {posLayout !== 'classic' && posLayout !== 'modern' && posLayout !== 'sidebar' && posLayout !== 'terminal' && posLayout !== 'advanced' && posLayout !== 'design7' && (
+        {posLayout !== 'classic' && posLayout !== 'modern' && posLayout !== 'sidebar' && posLayout !== 'design7' && posLayout !== 'workstation' && (
           <POSTopBar
             currentUser={currentUser}
             trial={trial}
@@ -419,16 +451,7 @@ export default function POSPage() {
             currentSession={currentSession}
             onOpenSession={() => modals.setShowOpenSession(true)}
             wholesaleMode={wholesaleMode}
-            toggleWholesaleMode={() => {
-              toggleWholesaleMode();
-              addNotification({
-                title: !wholesaleMode ? 'وضع الجملة مفعّل (Gros)' : 'وضع التجزئة مفعّل (Détail)',
-                message: !wholesaleMode
-                  ? 'تم تفعيل أسعار وفواتير الجملة تلقائياً (Alt+W)'
-                  : 'تم العودة إلى أسعار التجزئة العادية (Alt+W)',
-                type: !wholesaleMode ? 'success' : 'info',
-              });
-            }}
+            toggleWholesaleMode={handleToggleWholesale}
             onSelectPriceTier={pageState.handleSelectPriceTier}
             enabledPriceTiers={getEnabledPriceTiers(posSettings)}
             isWholesaleActive={pageState.isWholesaleActive}
@@ -524,16 +547,7 @@ export default function POSPage() {
           returnMode={returnMode}
           onOpenCustomize={() => modals.setShowCustomizeModal(true)}
           wholesaleMode={wholesaleMode}
-          toggleWholesaleMode={() => {
-            toggleWholesaleMode();
-            addNotification({
-              title: !wholesaleMode ? 'وضع الجملة مفعّل (Gros)' : 'وضع التجزئة مفعّل (Détail)',
-              message: !wholesaleMode
-                ? 'تم تفعيل أسعار وفواتير الجملة تلقائياً (Alt+W)'
-                : 'تم العودة إلى أسعار التجزئة العادية (Alt+W)',
-              type: !wholesaleMode ? 'success' : 'info',
-            });
-          }}
+          toggleWholesaleMode={handleToggleWholesale}
           onSaveAsProforma={() => {
             if (cart.length === 0) return;
             modals.setShowSaveAsProformaModal(true);

@@ -3,6 +3,7 @@
 import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { app } from 'electron';
+import { secureFileAttributes } from './trialStorage';
 
 export interface StoredLicenseData {
   storeId: string;
@@ -57,6 +58,7 @@ export function saveStoredLicense(data: StoredLicenseData): boolean {
       mkdirSync(dir, { recursive: true });
     }
     writeFileSync(filePath, JSON.stringify(data, null, 2), { encoding: 'utf8', mode: 0o600 });
+    secureFileAttributes(filePath);
     return true;
   } catch (err) {
     console.error('[license] فشل حفظ ملف الترخيص المحلي:', err);

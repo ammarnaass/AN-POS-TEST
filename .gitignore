@@ -19,6 +19,7 @@ dist-ssr
 out
 release
 release/
+*.tsbuildinfo
 !build/
 !build/**
 android/app/build/

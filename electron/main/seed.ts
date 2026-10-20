@@ -2,10 +2,10 @@
 // ينقل منطق seed من src/infrastructure/database/dexie/seed.ts + server/src/shared/seed.ts
 // يستخدم node:sqlite مباشرة (getSqlite)
 
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomInt } from 'node:crypto';
 import { app } from 'electron';
 import { getSqlite } from './database';
-import { hashPassword, verifyPassword, isHashed } from './handlers/password-hash';
+import { hashPassword, isHashed } from './handlers/password-hash';
 
 const DEFAULT_USERS = [
   { username: 'developer', name: 'مطور النظام', pin: 'dev1234', role: 'developer' },
@@ -13,6 +13,20 @@ const DEFAULT_USERS = [
   { username: 'seller', name: 'البائع', pin: 'seller1234', role: 'seller' },
   { username: 'cashier', name: 'الكاشير', pin: 'cashier1234', role: 'cashier' },
 ];
+
+/**
+ * رموز سرية افتراضية معروفة (قديمة) — تُستخدم فقط لكشف الحسابات غير المحمية وترحيلها.
+ * ⚠️ أمني: لا يجوز زرع أي من هذه القيم في قاعدة بيانات إنتاجية.
+ */
+export const KNOWN_WEAK_PINS = ['admin1234', 'seller1234', 'cashier1234', 'dev1234', '1234', '123456', 'password'];
+
+/**
+ * توليد رمز سري عشوائي آمن (8 أرقام) للإنتاج — يمنع وجود كلمات مرور افتراضية معروفة.
+ * رمز المدير الحقيقي يُعيَّن لاحقاً من معالج الإعداد الأول.
+ */
+function generateSecurePin(): string {
+  return String(randomInt(0, 100_000_000)).padStart(8, '0');
+}
 
 const DEFAULT_ROLES = [
   { id: 'role-developer', name: 'developer', description: 'مطور النظام', permissions: '{"*":true,"all":true}' },
@@ -51,14 +65,14 @@ const DEFAULT_SUPPLIERS = [
 function queryOne(sql: string, params: unknown[] = []): Record<string, unknown> | null {
   const db = getSqlite();
   const stmt = db.prepare(sql);
-  const row = stmt.get(...params) as Record<string, unknown> | null;
+  const row = stmt.get(...(params as any[])) as Record<string, unknown> | null;
   return row ?? null;
 }
 
 function execute(sql: string, params: unknown[] = []): void {
   const db = getSqlite();
   const stmt = db.prepare(sql);
-  stmt.run(...params);
+  stmt.run(...(params as any[]));
 }
 
 /**
@@ -79,39 +93,47 @@ export async function seedDatabase(): Promise<void> {
   }
 
   // ===== 2. المستخدمون =====
-  // حساب المطور الافتراضي يُدرج فقط في بيئة التطوير والاختبار، أو بطلب صريح عبر ANPOS_ALLOW_DEV_ACCOUNT
+  // حساب المطور الافتراضي يُدرج فقط في بيئة التطوير والاختبار، ومحظور تماماً في التطبيق المجمع للإنتاج (M9)
+  const isPackaged = typeof app !== 'undefined' && typeof app.isPackaged === 'boolean' ? app.isPackaged : false;
   const isDevEnv =
-    (typeof app !== 'undefined' && typeof app.isPackaged === 'boolean' ? !app.isPackaged : false) ||
-    process.env.NODE_ENV === 'development' ||
-    process.env.NODE_ENV === 'test' ||
-    process.env.ANPOS_ALLOW_DEV_ACCOUNT === 'true';
+    !isPackaged &&
+    (process.env.NODE_ENV === 'development' ||
+      process.env.NODE_ENV === 'test' ||
+      process.env.ANPOS_ALLOW_DEV_ACCOUNT === 'true');
 
   const usersToSeed = DEFAULT_USERS.filter((u) => u.role !== 'developer' || isDevEnv);
 
+  const usersCountRow = queryOne('SELECT COUNT(*) as count FROM users');
+  const hasExistingUsers = usersCountRow && Number(usersCountRow.count) > 0;
+
   let adminId = '';
-  for (const def of usersToSeed) {
-    const existing = queryOne('SELECT * FROM users WHERE username = ?', [def.username]);
-    if (existing) {
-      // إذا كانت كلمة المرور غير مشفرة، نقوم بترحيلها إلى هاش مشفر فوراً
-      if (!isHashed(existing.pin as string)) {
+  if (hasExistingUsers) {
+    // في قواعد البيانات القائمة (التحديث): نحافظ على مستخدمي المتجر ولا نُعيد زراعة حسابات تجريبية محذوفة
+    const existingAdmin = queryOne('SELECT id FROM users WHERE role = "admin" LIMIT 1');
+    if (existingAdmin?.id) adminId = existingAdmin.id as string;
+
+    // ترقية آمنة لأي هاش غير مشفر للمستخدمين القائمين
+    for (const def of usersToSeed) {
+      const existing = queryOne('SELECT * FROM users WHERE username = ?', [def.username]);
+      if (existing && !isHashed(existing.pin as string)) {
         const plainPin = (existing.pin as string) || def.pin;
         execute(
           'UPDATE users SET pin = ?, updated_at = ? WHERE id = ?',
           [hashPassword(plainPin), now, existing.id as string]
         );
       }
-      if (existing.role !== def.role) {
-        execute(
-          'UPDATE users SET role = ?, updated_at = ? WHERE id = ?',
-          [def.role, now, existing.id as string]
-        );
-      }
-      if (def.username === 'admin@dante.com') adminId = existing.id as string;
-    } else {
+    }
+  } else {
+    // في التثبيت الجديد فقط: زراعة المستخدمين الافتراضيين الأولية
+    for (const def of usersToSeed) {
       const id = randomUUID();
+      // ⚠️ أمني: في الإنتاج لا نزرع كلمات مرور افتراضية معروفة إطلاقاً.
+      // يُعيَّن رمز المدير الحقيقي من معالج الإعداد الأول، وتُصفَّر بقية الحسابات برمز عشوائي
+      // يمكن للمدير إعادة تعيينه من شاشة المستخدمين والأدوار.
+      const seedPin = isDevEnv ? def.pin : generateSecurePin();
       execute(
         'INSERT INTO users (id, username, name, pin, role, status, login_attempts, locked_until, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [id, def.username, def.name, hashPassword(def.pin), def.role, 'active', 0, '', now, now]
+        [id, def.username, def.name, hashPassword(seedPin), def.role, 'active', 0, '', now, now]
       );
       if (def.username === 'admin@dante.com') adminId = id;
     }

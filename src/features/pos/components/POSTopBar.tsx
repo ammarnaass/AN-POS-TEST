@@ -354,11 +354,9 @@ export const POSTopBar: React.FC<POSTopBarProps> = ({
                   key={tier}
                   onClick={() => {
                     onSelectPriceTier(tier);
-                    if (tier === '3' && !wholesaleMode) toggleWholesaleMode();
-                    if (tier !== '3' && wholesaleMode) toggleWholesaleMode();
                     if (onNotify) {
-                      const titles = { '1': 'سعر التجزئة', '2': 'سعر نصف الجملة', '3': 'سعر الجملة', '4': 'سعر الفاتورة' };
-                      onNotify({ title: `${titles[tier]} مفعّل`, message: `تم تطبيق ${titles[tier]} على جميع المنتجات`, type: 'success' });
+                      const titles = { '1': 'سعر التجزئة (س1)', '2': 'سعر نصف الجملة (س2)', '3': 'سعر الجملة (س3)', '4': 'سعر الفاتورة (س4)' };
+                      onNotify({ title: `${titles[tier]} مفعّل`, message: `تم تطبيق ${titles[tier]} على السلة والمبيعات القادمة`, type: 'success' });
                     }
                   }}
                   className={`h-9 sm:h-10 flex items-center gap-1.5 px-2.5 sm:px-3 rounded-xl border text-xs font-black transition-all shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 cursor-pointer shrink-0 ${

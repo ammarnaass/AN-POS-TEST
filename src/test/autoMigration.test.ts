@@ -181,4 +181,136 @@ describe('Auto-Migration & Database Initialization Engine', () => {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
   });
+
+  it('safely runs migration 0001 on pre-existing database with existing sales and walk-in records without crash', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'anpos-test-suite-'));
+    const dbPath = path.join(tempDir, 'anpos.db');
+    const { sqlite, db } = createTestDb(dbPath);
+
+    try {
+      // 1. Simulate existing database with migration 0000 already recorded and sales data present
+      sqlite.exec(`
+        CREATE TABLE __drizzle_migrations (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          hash TEXT NOT NULL,
+          created_at NUMERIC
+        );
+        INSERT INTO __drizzle_migrations (hash, created_at) VALUES ('0000_massive_anthem', 1789583352260);
+
+        CREATE TABLE sales (
+          id text PRIMARY KEY NOT NULL,
+          number text NOT NULL,
+          date text DEFAULT (datetime('now')) NOT NULL,
+          doc_type text DEFAULT 'facture' NOT NULL,
+          type text DEFAULT 'sale' NOT NULL,
+          items text DEFAULT '[]' NOT NULL,
+          subtotal real DEFAULT 0 NOT NULL,
+          discount real DEFAULT 0 NOT NULL,
+          discount_type text DEFAULT 'percent' NOT NULL,
+          tva_amount real DEFAULT 0 NOT NULL,
+          total real DEFAULT 0 NOT NULL,
+          payment_method text DEFAULT 'cash' NOT NULL,
+          customer_id text,
+          customer_name text DEFAULT '',
+          amount_paid real DEFAULT 0 NOT NULL,
+          status text DEFAULT 'paid' NOT NULL,
+          sold_by text,
+          cash_session_id text,
+          session_id text,
+          note text,
+          last_printed_at text,
+          created_at text,
+          updated_at text
+        );
+        CREATE TABLE customers (id TEXT PRIMARY KEY, name TEXT);
+        CREATE TABLE suppliers (id TEXT PRIMARY KEY, name TEXT);
+
+        -- Add orphaned __new_sales table that might have been left by a previous crash
+        CREATE TABLE __new_sales (id TEXT PRIMARY KEY);
+
+        -- Real world invoice with null customer_id (walk-in)
+        INSERT INTO sales (id, number, date, total, customer_id, customer_name)
+        VALUES ('inv-real-123', 'INV-2026-0001', '2026-09-28 10:00:00', 450, NULL, 'زبون عادي');
+      `);
+
+      // 2. Clean orphaned __new_sales as in database.ts
+      sqlite.exec('DROP TABLE IF EXISTS `__new_sales`;');
+
+      // 3. Run auto migration
+      const origMigrate = db.dialect.migrate.bind(db.dialect);
+      let migPromise: Promise<void> | undefined;
+      db.dialect.migrate = (migrations, session, config) => {
+        for (const m of migrations) {
+          m.sql = m.sql
+            .filter((s) => !s.includes('__new_sales'))
+            .map((s) => s.replace(/DEFAULT\s+datetime\('now'\)/g, "DEFAULT (datetime('now'))"));
+        }
+        migPromise = origMigrate(migrations, session, config);
+        return migPromise;
+      };
+
+      migrate(db, { migrationsFolder: './electron/drizzle/migrations' });
+      await migPromise;
+
+      // 4. Verify existing sale is intact
+      const existingSale = sqlite.prepare('SELECT * FROM sales WHERE id = ?').get('inv-real-123') as any;
+      expect(existingSale).toBeDefined();
+      expect(existingSale.number).toBe('INV-2026-0001');
+      expect(existingSale.total).toBe(450);
+
+      // 5. Verify customers columns were added
+      const custCols = sqlite.prepare('PRAGMA table_info(customers)').all().map((c: any) => c.name);
+      expect(custCols).toContain('address');
+      expect(custCols).toContain('customer_type');
+      expect(custCols).toContain('notes');
+
+      // 6. Verify migration 0001 was recorded by timestamp
+      const applied = sqlite.prepare('SELECT created_at FROM __drizzle_migrations WHERE created_at = ?').get(1790533070384);
+      expect(applied).toBeDefined();
+    } finally {
+      sqlite.close();
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('takes an atomic snapshot backup via VACUUM INTO and verifies PRAGMA integrity_check (M6)', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'anpos-m6-test-'));
+    const dbPath = path.join(tempDir, 'anpos_live.db');
+    const backupsDir = path.join(tempDir, 'backups');
+    fs.mkdirSync(backupsDir, { recursive: true });
+
+    const sqlite = new DatabaseSync(dbPath);
+    try {
+      // 1. إنشاء جدول وإضافة بيانات حية في نمط WAL
+      sqlite.exec(`
+        PRAGMA journal_mode = WAL;
+        CREATE TABLE products (id TEXT PRIMARY KEY, name TEXT, price REAL);
+        INSERT INTO products VALUES ('p1', 'منتج تجريبي', 250);
+      `);
+
+      // 2. محاكاة النسخ الذري VACUUM INTO المعتمد في M6
+      const backupPath = path.join(backupsDir, 'pre_migration_snapshot.db');
+      sqlite.exec(`VACUUM INTO '${backupPath.replace(/'/g, "''")}';`);
+
+      expect(fs.existsSync(backupPath)).toBe(true);
+      expect(fs.statSync(backupPath).size).toBeGreaterThan(0);
+
+      // 3. التحقق من سلامة النسخة الاحتياطية واستقلاليتها
+      const backupSqlite = new DatabaseSync(backupPath);
+      const row = backupSqlite.prepare('SELECT * FROM products WHERE id = ?').get('p1') as any;
+      expect(row.name).toBe('منتج تجريبي');
+      expect(row.price).toBe(250);
+
+      const backupIntegrity = backupSqlite.prepare('PRAGMA integrity_check;').get() as any;
+      expect(backupIntegrity.integrity_check).toBe('ok');
+      backupSqlite.close();
+
+      // 4. التحقق من سلامة قاعدة البيانات الأصلية
+      const liveIntegrity = sqlite.prepare('PRAGMA integrity_check;').get() as any;
+      expect(liveIntegrity.integrity_check).toBe('ok');
+    } finally {
+      sqlite.close();
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
 });

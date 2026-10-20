@@ -73,7 +73,7 @@ function insertRow(table: string, row: Record<string, unknown>): void {
 
   try {
     const stmt = db.prepare(`INSERT OR IGNORE INTO ${table} (${cols.join(', ')}) VALUES (${placeholders})`);
-    stmt.run(...vals);
+    stmt.run(...(vals as any[]));
   } catch (err) {
     // تجاهل الصفوف الفاشلة (عمود غير موجود، إلخ)
     console.error(`[migration] فشل إدراج في ${table}:`, (err as Error).message);

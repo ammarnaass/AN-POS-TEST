@@ -38,12 +38,12 @@ export async function getCategory(id: string): Promise<{ data: Record<string, un
 export async function createCategory(data: Record<string, unknown>): Promise<{ data: Row | null; error?: { status: number; detail: string } }> {
   const name = ((data.name as string) || '').trim();
   if (!name) {
-    return { error: { status: 400, detail: 'اسم الفئة مطلوب' } };
+    return { data: null, error: { status: 400, detail: 'اسم الفئة مطلوب' } };
   }
 
   const existing = queryOne('SELECT id FROM categories WHERE name = ?', [name]);
   if (existing) {
-    return { error: { status: 409, detail: 'اسم الفئة موجود مسبقاً' } };
+    return { data: null, error: { status: 409, detail: 'اسم الفئة موجود مسبقاً' } };
   }
 
   const id = (data.id as string) || randomUUID();

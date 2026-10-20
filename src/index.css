@@ -776,3 +776,8 @@ input:focus, select:focus, textarea:focus {
   }
 }
 
+/* Workstation LED glow effect */
+.led-glow {
+  text-shadow: 0 0 10px rgba(0, 255, 102, 0.9), 0 0 20px rgba(0, 255, 102, 0.5);
+}
+

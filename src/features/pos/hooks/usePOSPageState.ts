@@ -115,7 +115,7 @@ export function usePOSPageState({
           const isPackagingItem = Boolean(item.isPack || pkgSize > 1 || (item.packPiecesCount && item.packPiecesCount > 1));
 
           if (isPackagingItem) {
-            if (posLayout === 'terminal' || posLayout === 'advanced' || posLayout === 'design7') {
+            if (posLayout === 'design7') {
               const pieces = Number(item.packPiecesCount || pkgSize || item.packQty || 1);
               if (tier === '3' && (item.packMode === 'retail_pieces' || !item.packMode)) {
                 const packCount = Math.max(1, Math.round(item.qty / pieces));

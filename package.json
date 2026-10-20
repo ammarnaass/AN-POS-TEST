@@ -1,7 +1,7 @@
 {
   "name": "an-pos",
   "private": true,
-  "version": "2.5.5",
+  "version": "2.6.0",
   "type": "module",
   "main": "out/main/index.js",
   "description": "نظام نقاط البيع وإدارة المخزون والمبيعات AN POS",
@@ -10,7 +10,7 @@
     "dev": "electron-vite dev --config electron.vite.config.ts",
     "build": "electron-vite build --config electron.vite.config.ts",
     "preview": "electron-vite preview --config electron.vite.config.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -23,20 +23,28 @@
     "package:win:x64": "electron-vite build --config electron.vite.config.ts && electron-builder --win --x64",
     "package:win:ia32": "electron-vite build --config electron.vite.config.ts && electron-builder --win --ia32",
     "package:win:all": "electron-vite build --config electron.vite.config.ts && electron-builder --win --x64 --ia32",
-    "package:win:portable": "electron-vite build --config electron.vite.config.ts && electron-builder --win portable"
+    "package:win:portable": "electron-vite build --config electron.vite.config.ts && electron-builder --win portable",
+    "set-version": "node scripts/set-version.mjs",
+    "bump:patch": "node scripts/set-version.mjs patch",
+    "bump:minor": "node scripts/set-version.mjs minor",
+    "bump:major": "node scripts/set-version.mjs major"
   },
   "build": {
     "appId": "com.anpos.desktop",
     "productName": "AN POS",
-    "electronDownload": {
-      "isVerifyChecksum": false
-    },
     "directories": {
       "output": "release"
     },
     "files": [
       "out/**",
-      "package.json"
+      "package.json",
+      "!**/node_modules/*-linux-*/**",
+      "!**/node_modules/*-darwin-*/**",
+      "!**/node_modules/*-android-*/**",
+      "!**/node_modules/@napi-rs/**",
+      "!**/node_modules/@rolldown/**",
+      "!**/node_modules/**/*.map",
+      "!**/node_modules/**/*.md"
     ],
     "extraResources": [
       {
@@ -62,14 +70,14 @@
         "portable"
       ],
       "icon": "build/icon.ico",
-      "signExecutable": false,
-      "requestedExecutionLevel": "requireAdministrator"
+      "requestedExecutionLevel": "asInvoker",
+      "verifyUpdateCodeSignature": false
     },
     "nsis": {
       "oneClick": false,
-      "perMachine": true,
+      "perMachine": false,
+      "allowElevation": false,
       "allowToChangeInstallationDirectory": true,
-      "allowElevation": true,
       "installerIcon": "build/installer.ico",
       "uninstallerIcon": "build/uninstaller.ico",
       "installerHeaderIcon": "build/installer.ico",
@@ -87,13 +95,21 @@
     },
     "portable": {
       "artifactName": "${productName}-${version}-${arch}-portable.exe",
-      "requestExecutionLevel": "admin"
+      "requestExecutionLevel": "user"
     },
     "linux": {
       "target": "AppImage",
       "category": "Office",
       "icon": "public/an-pos-icon.png"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "ammarnaass",
+        "repo": "AN-POS-TEST",
+        "releaseType": "release"
+      }
+    ]
   },
   "dependencies": {
     "@dnd-kit/dom": "^0.5.0",
@@ -107,10 +123,10 @@
     "bonjour-service": "^1.4.4",
     "date-fns": "^4.4.0",
     "drizzle-orm": "^0.45.2",
+    "electron-updater": "^6.8.9",
     "fastify": "^5.11.0",
     "jsbarcode": "^3.12.3",
     "lucide-react": "^1.22.0",
-    "pdfjs-dist": "^6.3.289",
     "qrcode": "^1.5.4",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
@@ -141,6 +157,7 @@
     "electron-vite": "^6.0.0-beta.1",
     "jsdom": "^29.1.1",
     "oxlint": "^1.69.0",
+    "pdfjs-dist": "^6.3.289",
     "tailwindcss": "^4.3.1",
     "typescript": "~6.0.2",
     "vite": "^8.1.0",

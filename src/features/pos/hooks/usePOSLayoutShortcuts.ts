@@ -1,4 +1,5 @@
 import { useEffect, type RefObject } from 'react';
+import { matchPriceTierShortcut } from '@/services';
 
 export interface UsePOSLayoutShortcutsOptions {
   barcodeInputRef: RefObject<HTMLInputElement | null>;
@@ -59,25 +60,13 @@ export function usePOSLayoutShortcuts({
       } else if (e.key === 'F9') {
         e.preventDefault();
         onOpenReturns();
-      } else if (e.altKey && e.key === '1') {
-        if (enabledPriceTiers.includes('1')) {
-          e.preventDefault();
-          onSelectPriceTier?.('1');
-        }
-      } else if (e.altKey && e.key === '2') {
-        if (enabledPriceTiers.includes('2')) {
-          e.preventDefault();
-          onSelectPriceTier?.('2');
-        }
-      } else if (e.altKey && e.key === '3') {
-        if (enabledPriceTiers.includes('3')) {
-          e.preventDefault();
-          onSelectPriceTier?.('3');
-        }
-      } else if (e.altKey && e.key === '4') {
-        if (enabledPriceTiers.includes('4')) {
-          e.preventDefault();
-          onSelectPriceTier?.('4');
+      } else {
+        const matchedTier = matchPriceTierShortcut(e);
+        if (matchedTier) {
+          if (enabledPriceTiers.includes(matchedTier)) {
+            e.preventDefault();
+            onSelectPriceTier?.(matchedTier);
+          }
         }
       }
     };

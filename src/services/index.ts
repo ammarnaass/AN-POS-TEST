@@ -130,6 +130,68 @@ export const getEnabledPriceTiers = (
   return tiers;
 };
 
+/**
+ * يستخرج فئة السعر (1 | 2 | 3 | 4) من حدث لوحة المفاتيح
+ * يدعم جميع اللغات وتخطيطات لوحات المفاتيح:
+ * - الأرقام القياسية (1, 2, 3, 4)
+ * - الأرقام العربية (١, ٢, ٣, ٤)
+ * - لوحة المفاتيح الفرنسية / الجزائرية AZERTY (&, é, ", ')
+ * - لوحة الأرقام الجانبية (Numpad1, Numpad2, Numpad3, Numpad4)
+ * - المفاتيح المادية (Digit1, Digit2, Digit3, Digit4)
+ */
+export const matchPriceTierShortcut = (e: KeyboardEvent): '1' | '2' | '3' | '4' | null => {
+  if (!e.altKey && !e.ctrlKey) return null;
+
+  // فئة 1: تجزئة (س1)
+  if (
+    e.code === 'Digit1' ||
+    e.code === 'Numpad1' ||
+    e.key === '1' ||
+    e.key === '١' ||
+    e.key === '&'
+  ) {
+    return '1';
+  }
+
+  // فئة 2: نصف جملة (س2)
+  if (
+    e.code === 'Digit2' ||
+    e.code === 'Numpad2' ||
+    e.key === '2' ||
+    e.key === '٢' ||
+    e.key === 'é' ||
+    e.key === '~'
+  ) {
+    return '2';
+  }
+
+  // فئة 3: جملة (س3)
+  if (
+    e.code === 'Digit3' ||
+    e.code === 'Numpad3' ||
+    e.key === '3' ||
+    e.key === '٣' ||
+    e.key === '"' ||
+    e.key === '#'
+  ) {
+    return '3';
+  }
+
+  // فئة 4: خاص / فاتورة (س4)
+  if (
+    e.code === 'Digit4' ||
+    e.code === 'Numpad4' ||
+    e.key === '4' ||
+    e.key === '٤' ||
+    e.key === "'" ||
+    e.key === '{'
+  ) {
+    return '4';
+  }
+
+  return null;
+};
+
 export const resolveUnitPrice = (
   product: Product,
   qty: number,

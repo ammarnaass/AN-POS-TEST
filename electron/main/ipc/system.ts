@@ -6,7 +6,8 @@ import { app, ipcMain } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import { getDatabasePath, getSqlite } from '../database';
-import { hashPassword } from '../handlers/password-hash';
+import { hashPassword, verifyPassword } from '../handlers/password-hash';
+import { KNOWN_WEAK_PINS } from '../seed';
 
 export interface AppConfigFile {
   version: string;
@@ -73,14 +74,33 @@ export function getOrCreateConfigFile(): AppConfigFile {
   try {
     const raw = fs.readFileSync(filePath, 'utf-8');
     const parsed = JSON.parse(raw);
+    // تحديث الإصدار دائماً للنسخة الحالية من البرنامج (مهم عند الترقية)
+    const currentVersion = app.getVersion() || '1.0.0';
+    const previousVersion = parsed.version || null;
     const updated: AppConfigFile = {
       ...defaultConfig,
       ...parsed,
+      version: currentVersion,
       lastRunAt: now,
     };
+
+    // تنظيف _upgradedFrom المخزن سابقاً حتى لا يتكرر تسجيل الترقية في كل تشغيل لاحق
+    delete (updated as any)._upgradedFrom;
+
+    // كشف الترقية: إذا كان الإصدار المحفوظ مختلفاً عن الإصدار الحالي
+    let upgradedFrom: string | null = null;
+    if (previousVersion && previousVersion !== currentVersion) {
+      console.log(`[system] 🔄 تم اكتشاف ترقية البرنامج: ${previousVersion} → ${currentVersion}`);
+      upgradedFrom = previousVersion;
+    }
     try {
       fs.writeFileSync(filePath, JSON.stringify(updated, null, 2), 'utf-8');
     } catch {}
+
+    // إرفاق _upgradedFrom بالكائن في الذاكرة للجلسة الحالية فقط دون حفظه في القرص
+    if (upgradedFrom) {
+      (updated as any)._upgradedFrom = upgradedFrom;
+    }
     return updated;
   } catch (err) {
     console.warn('[system] خطأ في قراءة config.json، سيتم استخدام القيم الافتراضية:', err);
@@ -92,7 +112,43 @@ export function getOrCreateConfigFile(): AppConfigFile {
  * التحقق مما إذا كان هذا هو التشغيل الأول للتطبيق
  * يفحص كلاً من ملف config.json وجدول settings في قاعدة البيانات لمنع تكرار الشاشة عند إعادة التثبيت
  */
-export function checkIsFirstRun(): { isFirstRun: boolean; config: AppConfigFile } {
+export interface FirstRunCheckResult {
+  isFirstRun: boolean;
+  config: AppConfigFile;
+  /** true إذا كان هناك حساب إداري نشط ما زال يستخدم رمزاً افتراضياً معروفاً (خطر أمني) */
+  weakAdminPin: boolean;
+}
+
+/**
+ * هل يوجد حساب إداري نشط ما زال يستخدم رمزاً افتراضياً معروفاً؟
+ * يُستخدم لإجبار المستخدم على تعيين رمز قوي قبل استخدام النظام (وقاية للحسابات القديمة).
+ */
+export function hasWeakAdminPin(): boolean {
+  try {
+    const sqlite = getSqlite();
+    const rows = sqlite
+      .prepare("SELECT pin FROM users WHERE role IN ('admin','owner','manager','developer') AND status = 'active'")
+      .all() as Array<{ pin: string }>;
+    return rows.some((row) => row?.pin && KNOWN_WEAK_PINS.some((weak) => verifyPassword(weak, row.pin)));
+  } catch {
+    // قاعدة البيانات غير جاهزة بعد — لا نفترض وجود خطر
+    return false;
+  }
+}
+
+/**
+ * التحقق من قوة الرمز السري — يطابق سياسة الواجهة في src/utils/passwordStrength.tsx
+ */
+export function isStrongSecret(value: string): boolean {
+  const secret = (value || '').trim();
+  if (secret.length < 8) return false;
+  if (!/[a-zA-Z\u0600-\u06FF]/.test(secret)) return false;
+  if (!/[0-9]/.test(secret)) return false;
+  if (KNOWN_WEAK_PINS.includes(secret.toLowerCase())) return false;
+  return true;
+}
+
+function checkIsFirstRunInternal(): { isFirstRun: boolean; config: AppConfigFile } {
   const config = getOrCreateConfigFile();
 
   // 1. إذا كان ملف الإعدادات قد سجل اكتمال الإعداد الأول مسبقاً
@@ -122,11 +178,47 @@ export function checkIsFirstRun(): { isFirstRun: boolean; config: AppConfigFile 
         return { isFirstRun: false, config };
       }
     }
+
+    // 3. التحقق مما إذا كانت هناك بيانات مبيعات أو أصناف مخصصة تفوق البذور الافتراضية
+    try {
+      const salesCount = (sqlite.prepare('SELECT count(*) as count FROM sales').get() as any)?.count;
+      if (Number(salesCount) > 0) {
+        config.firstRunCompleted = true;
+        try {
+          fs.writeFileSync(getConfigFilePath(), JSON.stringify(config, null, 2), 'utf-8');
+        } catch {}
+        return { isFirstRun: false, config };
+      }
+
+      // إذا كانت الأصناف تفوق البذور الافتراضية (10 أصناف تجريبية)
+      const productsCount = (sqlite.prepare('SELECT count(*) as count FROM products').get() as any)?.count;
+      if (Number(productsCount) > 10) {
+        config.firstRunCompleted = true;
+        try {
+          fs.writeFileSync(getConfigFilePath(), JSON.stringify(config, null, 2), 'utf-8');
+        } catch {}
+        return { isFirstRun: false, config };
+      }
+    } catch {
+      // تجاهل الخطأ في حال عدم وجود الجداول بعد
+    }
   } catch {
     // في حال عدم جاهزية قاعدة البيانات بعد، نعتمد على ملف الإعدادات
   }
 
   return { isFirstRun: !config.firstRunCompleted, config };
+}
+
+/**
+ * فحص حالة التشغيل الأول مع إعطاء الأولوية الأمنية:
+ * إن وُجد رمز إداري افتراضي معروف يُعاد isFirstRun = true لإجبار المستخدم على تعيين رمز قوي.
+ */
+export function checkIsFirstRun(): FirstRunCheckResult {
+  const config = getOrCreateConfigFile();
+  if (hasWeakAdminPin()) {
+    return { isFirstRun: true, config, weakAdminPin: true };
+  }
+  return { ...checkIsFirstRunInternal(), weakAdminPin: false };
 }
 
 /**
@@ -136,10 +228,28 @@ export function saveFirstRunSetup(payload: FirstRunSetupPayload): { success: boo
   try {
     const config = getOrCreateConfigFile();
     const filePath = getConfigFilePath();
+    const adminPin = (payload.adminPin || '').trim();
+
+    // 0. تحقق أمني: يجب تعيين رمز قوي للمدير
+    if (adminPin && !isStrongSecret(adminPin)) {
+      return {
+        success: false,
+        config,
+        error: 'الرمز السري ضعيف: يجب أن يتكوّن من 8 خانات على الأقل ويحتوي أحرفاً وأرقاماً.',
+      };
+    }
+    // لا يكتمل الإعداد الأول ما دام هناك حساب إداري برمز افتراضي معروف
+    if (!adminPin && hasWeakAdminPin()) {
+      return {
+        success: false,
+        config,
+        error: 'يجب تعيين رمز سري قوي لحساب المدير قبل المتابعة.',
+      };
+    }
 
     config.firstRunCompleted = true;
     config.shopName = (payload.shopName || config.shopName).trim();
-    if (payload.phone !== undefined) config.phone = payload.phone.trim();
+    if (payload.phone) config.phone = payload.phone.trim();
     if (payload.baseCurrency) config.baseCurrency = payload.baseCurrency.trim();
     if (payload.language) config.language = payload.language.trim();
     config.lastRunAt = new Date().toISOString();
@@ -147,7 +257,7 @@ export function saveFirstRunSetup(payload: FirstRunSetupPayload): { success: boo
     // 1. كتابة ملف config.json
     fs.writeFileSync(filePath, JSON.stringify(config, null, 2), 'utf-8');
 
-    // 2. تحديث جدول settings في SQLite
+    // 2. تحديث جدول settings في SQLite (غير حاسم — لا يُفشل العملية)
     try {
       const sqlite = getSqlite();
       sqlite.prepare(`
@@ -159,18 +269,40 @@ export function saveFirstRunSetup(payload: FirstRunSetupPayload): { success: boo
           first_run_completed = 1
         WHERE id = 'default'
       `).run(config.shopName, config.phone, config.baseCurrency, config.language);
-
-      // 3. تحديث كلمة مرور/PIN المدير إن تم تحديدها
-      if (payload.adminPin && payload.adminPin.trim()) {
-        const hashedPin = hashPassword(payload.adminPin.trim());
-        const now = new Date().toISOString();
-        sqlite.prepare(`
-          UPDATE users SET pin = ?, updated_at = ?
-          WHERE username = 'admin@dante.com' OR role = 'admin'
-        `).run(hashedPin, now);
-      }
     } catch (dbErr) {
-      console.warn('[system] تم حفظ config.json ولكن تعذر تحديث قاعدة البيانات فوراً:', dbErr);
+      console.warn('[system] تم حفظ config.json ولكن تعذر تحديث جدول الإعدادات فوراً:', dbErr);
+    }
+
+    // 3. تحديث رمز المدير — حاسم: فشله يُفشل العملية كاملة (وإلا بقي رمز افتراضي معروف)
+    if (adminPin) {
+      const sqlite = getSqlite();
+      const hashedPin = hashPassword(adminPin);
+      const now = new Date().toISOString();
+      // البحث عن حساب المدير الأساسي بدقة لمنع تغيير PIN لجميع المديرين دفعة واحدة (M7)
+      const targetAdmin = sqlite
+        .prepare(`
+          SELECT id FROM users
+          WHERE username = 'admin@dante.com'
+             OR role = 'admin'
+          ORDER BY CASE WHEN username = 'admin@dante.com' THEN 0 ELSE 1 END, created_at ASC
+          LIMIT 1
+        `)
+        .get() as { id: string } | undefined;
+
+      if (!targetAdmin?.id) {
+        throw new Error('تعذّر العثور على حساب المدير لتحديث رمزه السري.');
+      }
+
+      const result = sqlite
+        .prepare(`
+          UPDATE users SET pin = ?, password_changed_at = ?, updated_at = ?
+          WHERE id = ?
+        `)
+        .run(hashedPin, now, now, targetAdmin.id);
+
+      if (!result.changes) {
+        throw new Error('تعذّر العثور على حساب المدير لتحديث رمزه السري.');
+      }
     }
 
     return { success: true, config };
@@ -252,7 +384,7 @@ export function registerSystemIpc(): void {
   ipcMain.handle('system:isFirstRun', async () => {
     try {
       const result = checkIsFirstRun();
-      return { success: true, isFirstRun: result.isFirstRun, config: result.config };
+      return { success: true, isFirstRun: result.isFirstRun, weakAdminPin: result.weakAdminPin, config: result.config };
     } catch (error) {
       return { success: false, isFirstRun: false, error: String(error) };
     }

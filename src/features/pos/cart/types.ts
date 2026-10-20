@@ -45,6 +45,7 @@ export interface POSCartContainerProps {
   onOpenKeypadForQty?: (item: CartItem) => void;
   variant?: 'sidebar' | 'modern' | 'table';
   className?: string;
+  enabledPriceTiers?: Array<'1' | '2' | '3' | '4'>;
 }
 
 export interface POSCartItemRowProps {
@@ -56,6 +57,7 @@ export interface POSCartItemRowProps {
   formatMoney: (amount?: number | null) => string;
   currency?: string;
   onOpenKeypadForQty?: (item: CartItem) => void;
+  enabledPriceTiers?: Array<'1' | '2' | '3' | '4'>;
 }
 
 export interface POSCartTableProps {
@@ -72,6 +74,7 @@ export interface POSCartTableProps {
   selectedCustomerName?: string;
   onEditPrice?: (productId: string, newPrice: number) => void;
   currency?: string;
+  enabledPriceTiers?: Array<'1' | '2' | '3' | '4'>;
 }
 
 export interface POSCartHeaderProps {

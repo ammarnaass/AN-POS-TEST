@@ -20,6 +20,7 @@ export const POSCartContainer: React.FC<POSCartContainerProps> = ({
   onOpenKeypadForQty,
   variant = 'sidebar',
   className = '',
+  enabledPriceTiers,
 }) => {
   const totalUnitsCount = useMemo(
     () => cart.reduce((sum, item) => sum + (Number(item.qty) || 0), 0),
@@ -48,6 +49,7 @@ export const POSCartContainer: React.FC<POSCartContainerProps> = ({
           onOpenKeypadForQty={onOpenKeypadForQty}
           formatMoney={(v) => formatMoney(v)}
           currency={currency}
+          enabledPriceTiers={enabledPriceTiers}
         />
       </section>
     );
@@ -88,6 +90,7 @@ export const POSCartContainer: React.FC<POSCartContainerProps> = ({
               onOpenKeypadForQty={onOpenKeypadForQty}
               allProducts={allProducts}
               products={products}
+              enabledPriceTiers={enabledPriceTiers}
             />
           ))
         )}

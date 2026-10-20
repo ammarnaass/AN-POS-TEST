@@ -89,8 +89,7 @@ export function usePOSCartActions({
           }
         }
 
-        const isTerminal =
-          posLayout === 'terminal' || posLayout === 'advanced' || posLayout === 'design7';
+        const isTerminal = posLayout === 'design7';
         const isWholesaleTier =
           priceTier === '3' || (!['1', '2', '4'].includes(priceTier) && isWholesaleActive);
 

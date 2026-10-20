@@ -72,4 +72,54 @@ describe('PriceTierButtons Component', () => {
     fireEvent.click(cycleBtn);
     expect(handleSelect).toHaveBeenCalledWith('2');
   });
+
+  it('filters buttons according to enabledPriceTiers in compact and ribbon variants', () => {
+    const handleSelect = vi.fn();
+    // Only tier 1 and tier 3 enabled
+    const { rerender } = render(
+      <PriceTierButtons
+        activeTier="1"
+        onSelectTier={handleSelect}
+        variant="compact"
+        enabledPriceTiers={['1', '3']}
+      />
+    );
+
+    expect(screen.getByText(/س1/)).toBeInTheDocument();
+    expect(screen.queryByText(/س2/)).not.toBeInTheDocument();
+    expect(screen.getByText(/س3/)).toBeInTheDocument();
+    expect(screen.queryByText(/س4/)).not.toBeInTheDocument();
+
+    // Rerender as ribbon
+    rerender(
+      <PriceTierButtons
+        activeTier="1"
+        onSelectTier={handleSelect}
+        variant="ribbon"
+        enabledPriceTiers={['1', '4']}
+      />
+    );
+
+    expect(screen.getByText('Alt+1')).toBeInTheDocument();
+    expect(screen.queryByText('Alt+2')).not.toBeInTheDocument();
+    expect(screen.queryByText('Alt+3')).not.toBeInTheDocument();
+    expect(screen.getByText('Alt+4')).toBeInTheDocument();
+  });
+
+  it('cycles smoothly through only enabledPriceTiers in cycle variant', () => {
+    const handleSelect = vi.fn();
+    // Only tier 1 and tier 4 enabled (skipping 2 and 3)
+    render(
+      <PriceTierButtons
+        activeTier="1"
+        onSelectTier={handleSelect}
+        variant="cycle"
+        enabledPriceTiers={['1', '4']}
+      />
+    );
+
+    const cycleBtn = screen.getByRole('button');
+    fireEvent.click(cycleBtn);
+    expect(handleSelect).toHaveBeenCalledWith('4');
+  });
 });

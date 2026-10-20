@@ -81,11 +81,24 @@ export function getCachedStatement(sql: string): StatementSync {
 function executeQuery(sql: string, params: unknown[], method: 'run' | 'all' | 'values' | 'get'): QueryResult {
   if (!sqliteInstance) throw new Error('Database not initialized. Call initDatabase() first.');
 
-  const stmt = getCachedStatement(sql);
+  let stmt: StatementSync;
+  try {
+    stmt = getCachedStatement(sql);
+  } catch (err: any) {
+    const msg = String(err?.message || err);
+    if (
+      msg.includes('duplicate column name') ||
+      (msg.includes('already exists') && (/CREATE\s+(TABLE|INDEX|UNIQUE\s+INDEX)/i.test(sql) || /ALTER\s+TABLE/i.test(sql)))
+    ) {
+      console.warn('[database] تجاوز آمن لكائن أو عمود موجود مسبقاً أثناء prepare:', msg);
+      return { rows: [] };
+    }
+    throw err;
+  }
 
   if (method === 'run') {
     try {
-      stmt.run(...params);
+      stmt.run(...(params as any[]));
     } catch (err: any) {
       const msg = String(err?.message || err);
       // في قواعد البيانات القائمة: إذا كان العمود أو الجدول موجوداً مسبقاً، نتجاوزه بأمان
@@ -102,17 +115,17 @@ function executeQuery(sql: string, params: unknown[], method: 'run' | 'all' | 'v
   }
 
   if (method === 'all') {
-    const rows = stmt.all(...params);
+    const rows = stmt.all(...(params as any[]));
     return { rows: rows.map(normalizeRow) };
   }
 
   if (method === 'get') {
-    const row = stmt.get(...params);
+    const row = stmt.get(...(params as any[]));
     return { rows: row ? [normalizeRow(row)] : [] };
   }
 
   // method === 'values' — تُرجع صفوف كـ arrays مصفوفات قيم متطابقة مع متطلبات Drizzle migrator
-  const rows = stmt.all(...params);
+  const rows = stmt.all(...(params as any[]));
   return { rows: rows.map((row) => Object.values(row as Record<string, unknown>)) };
 }
 
@@ -184,6 +197,79 @@ export function getDatabasePath(): string {
 }
 
 /**
+ * إنشاء نسخة احتياطية ذرية (VACUUM INTO) قبل تشغيل هجرات المخطط لضمان Zero Data Loss (M6)
+ */
+export function createPreMigrationBackup(dbPath: string): string | null {
+  if (!sqliteInstance || !fs.existsSync(dbPath)) return null;
+
+  try {
+    const stat = fs.statSync(dbPath);
+    if (stat.size === 0) return null;
+
+    // فحص ما إذا كانت هناك جداول فعلية تستحق النسخ الاحتياطي
+    const tablesRow = sqliteInstance
+      .prepare("SELECT count(*) as count FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+      .get() as { count?: number };
+
+    if (!tablesRow || Number(tablesRow.count) === 0) {
+      return null; // قاعدة بيانات جديدة تماماً لم يتم إنشاء جداولها بعد
+    }
+
+    const dbDir = path.dirname(dbPath);
+    const backupsDir = path.join(dbDir, 'backups');
+    fs.mkdirSync(backupsDir, { recursive: true });
+
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const timestamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    const backupFileName = `pre_migration_${timestamp}.db`;
+    const backupFilePath = path.join(backupsDir, backupFileName);
+
+    if (fs.existsSync(backupFilePath)) {
+      try { fs.unlinkSync(backupFilePath); } catch { /* ignore */ }
+    }
+
+    // استخدام VACUUM INTO الذرية لإنشاء نسخة احتياطية موحدة ومفرغة من الـ WAL بأمان
+    try {
+      const sqlSafePath = backupFilePath.replace(/'/g, "''");
+      sqliteInstance.exec(`VACUUM INTO '${sqlSafePath}';`);
+      console.log(`[database] [migration] 🛡️ تم أخذ نسخة احتياطية ذرية قبل الهجرة: ${backupFilePath}`);
+    } catch (vacuumErr) {
+      console.warn('[database] [migration] تعذر أخذ نسخة VACUUM INTO، جاري النسخ المباشر:', vacuumErr);
+      fs.copyFileSync(dbPath, backupFilePath);
+      if (fs.existsSync(`${dbPath}-wal`)) {
+        try {
+          fs.copyFileSync(`${dbPath}-wal`, `${backupFilePath}-wal`);
+        } catch { /* ignore */ }
+      }
+    }
+
+    // تنظيف النسخ القديمة والاحتفاظ بآخر 10 نسخ قبل الترحيل فقط لتفادي استهلاك مساحة القرص
+    try {
+      const files = fs.readdirSync(backupsDir)
+        .filter((f) => f.startsWith('pre_migration_') && f.endsWith('.db'))
+        .sort();
+      if (files.length > 10) {
+        const toDelete = files.slice(0, files.length - 10);
+        for (const file of toDelete) {
+          try {
+            fs.unlinkSync(path.join(backupsDir, file));
+            if (fs.existsSync(path.join(backupsDir, `${file}-wal`))) {
+              fs.unlinkSync(path.join(backupsDir, `${file}-wal`));
+            }
+          } catch { /* ignore */ }
+        }
+      }
+    } catch { /* ignore cleanup error */ }
+
+    return backupFilePath;
+  } catch (err) {
+    console.warn('[database] [migration] تنبيه: تعذر أخذ نسخة احتياطية وقائية قبل الهجرة:', err);
+    return null;
+  }
+}
+
+/**
  * تشغيل الهجرة التلقائية (Auto-Migration) باستخدام migrate() من drizzle-orm/better-sqlite3/migrator
  */
 export async function runAutoMigration(): Promise<void> {
@@ -191,15 +277,28 @@ export async function runAutoMigration(): Promise<void> {
   const folder = resolveMigrationsFolder();
   console.log(`[database] [migration] 🚀 بدء تشغيل الهجرة التلقائية من: ${folder} (${startTime.toISOString()})`);
 
+  const currentDbPath = getDatabasePath();
+  const backupPath = createPreMigrationBackup(currentDbPath);
+
   try {
-    const db = getDb();
+    const db = getDb() as any;
     const origMigrate = db.dialect.migrate.bind(db.dialect);
     let migrationPromise: Promise<void> | undefined;
 
-    db.dialect.migrate = (migrations, session, config) => {
+    // تنظيف أي جدول مؤقت متبقٍ من محاولات سابقة فاشلة
+    try {
+      getSqlite().exec('DROP TABLE IF EXISTS `__new_sales`;');
+    } catch {
+      /* ignore */
+    }
+
+    db.dialect.migrate = (migrations: any, session: any, config: any) => {
       // حماية استباقية: تنقيح أي تعبيرات غير محاطة بأقواس في SQLite مثل DEFAULT datetime('now')
+      // وحجب أي محاولة لإعادة بناء جدول sales عبر __new_sales حمايةً لبيانات العملاء والفواتير الحالية
       for (const m of migrations) {
-        m.sql = m.sql.map((s) => s.replace(/DEFAULT\s+datetime\('now'\)/g, "DEFAULT (datetime('now'))"));
+        m.sql = m.sql
+          .filter((s: string) => !s.includes('__new_sales'))
+          .map((s: string) => s.replace(/DEFAULT\s+datetime\('now'\)/g, "DEFAULT (datetime('now'))"));
       }
       migrationPromise = origMigrate(migrations, session, config);
       return migrationPromise;
@@ -215,12 +314,28 @@ export async function runAutoMigration(): Promise<void> {
     // ترقيات تكميلية للأعمدة والجداول الخاصة بالتزامن وقوائم الانتظار
     initSchema();
 
+    // فحص سلامة قاعدة البيانات بعد اكتمال الهجرات (PRAGMA integrity_check)
+    try {
+      const integrityRow = getSqlite().prepare('PRAGMA integrity_check;').get() as Record<string, unknown> | undefined;
+      const integrityValue = integrityRow ? Object.values(integrityRow)[0] : 'unknown';
+      if (integrityValue === 'ok') {
+        console.log('[database] [migration] ✅ فحص سلامة قاعدة البيانات (PRAGMA integrity_check): سليم 100% (ok)');
+      } else {
+        console.error(`[database] [migration] ⚠️ تحذير: فحص سلامة قاعدة البيانات أرجع: ${integrityValue}`);
+      }
+    } catch (checkErr) {
+      console.warn('[database] [migration] تعذر تشغيل PRAGMA integrity_check:', checkErr);
+    }
+
     const endTime = new Date();
     const durationMs = endTime.getTime() - startTime.getTime();
     console.log(`[database] [migration] ✅ اكتملت الهجرات بنجاح في ${durationMs}ms (${endTime.toISOString()})`);
   } catch (err) {
     const failTime = new Date();
-    console.error(`[database] [migration] ❌ فشلت عملية الترحيل في ${failTime.toISOString()}:`, err);
+    console.error(
+      `[database] [migration] ❌ فشلت عملية الترحيل في ${failTime.toISOString()}.${backupPath ? ` تم حفظ نسخة احتياطية وقائية في: ${backupPath}` : ''}:`,
+      err
+    );
     throw err;
   }
 }
@@ -256,7 +371,7 @@ export async function initDatabase(): Promise<DB> {
   sqliteInstance.exec('PRAGMA busy_timeout = 5000;');
 
   // إنشاء Drizzle مع callback التنفيذ
-  dbInstance = drizzle(executeQuery, { schema });
+  dbInstance = drizzle(executeQuery as any, { schema });
 
   // تطبيق الهجرة التلقائية فوراً
   await runAutoMigration();

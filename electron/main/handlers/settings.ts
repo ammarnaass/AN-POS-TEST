@@ -1,7 +1,7 @@
 // معالج إعدادات المتجر والتطبيق — معالج مجال متخصص (Domain Handler)
 // يستخرج المنطق وتسوية الحقول من crud.ts إلى وحدة ذات أمان عالي للأنواع
 
-import { queryOne, execute, notifyTableChange, type Row } from './db-utils';
+import { queryOne, execute, notifyTableChange, getTableColumns, type Row } from './db-utils';
 
 export interface StoreSettings {
   id: string;
@@ -35,6 +35,11 @@ export interface StoreSettings {
   tax_id?: string;
   allow_self_registration?: number;
   default_role?: string;
+  enable_price_tier_2?: number;
+  enable_price_tier_3?: number;
+  enable_price_tier_4?: number;
+  allow_card_payment?: number;
+  allow_transfer_payment?: number;
   [key: string]: unknown;
 }
 
@@ -191,11 +196,37 @@ export function normalizeSettingsPayload(raw: Record<string, unknown>): Record<s
     normalized.client_device_id = String(rawClientDevId).trim();
   }
 
+  const rawTier2 = data.enable_price_tier_2 ?? data.enable_price_tier2 ?? data.enablePriceTier2;
+  if (rawTier2 !== undefined && rawTier2 !== null) {
+    normalized.enable_price_tier_2 = rawTier2 ? 1 : 0;
+  }
+
+  const rawTier3 = data.enable_price_tier_3 ?? data.enable_price_tier3 ?? data.enablePriceTier3;
+  if (rawTier3 !== undefined && rawTier3 !== null) {
+    normalized.enable_price_tier_3 = rawTier3 ? 1 : 0;
+  }
+
+  const rawTier4 = data.enable_price_tier_4 ?? data.enable_price_tier4 ?? data.enablePriceTier4;
+  if (rawTier4 !== undefined && rawTier4 !== null) {
+    normalized.enable_price_tier_4 = rawTier4 ? 1 : 0;
+  }
+
+  const rawCard = data.allow_card_payment ?? data.allowCardPayment;
+  if (rawCard !== undefined && rawCard !== null) {
+    normalized.allow_card_payment = rawCard ? 1 : 0;
+  }
+
+  const rawTransfer = data.allow_transfer_payment ?? data.allowTransferPayment;
+  if (rawTransfer !== undefined && rawTransfer !== null) {
+    normalized.allow_transfer_payment = rawTransfer ? 1 : 0;
+  }
+
   // تمرير أي حقول أخرى تم ضبطها بالفعل مع استبعاد الحقول بصيغة camelCase التي تم تسويتها
   const skippedCamelKeys = new Set([
     'design7ShowBottomFavorites', 'terminalFavoritesMode', 'terminalRole', 'serverLanUrl', 'terminalCode', 'clientToken', 'clientDeviceId',
     'shopName', 'shopAddress', 'shopPhone', 'shopPhone2', 'shopEmail', 'shopLogo', 'commercialRegister', 'taxNumber', 'taxArticle',
-    'printWidthMm', 'printLanguage', 'receiptFooter', 'baseCurrency', 'invoicePrefix', 'invoiceStartNumber', 'tvaRate'
+    'printWidthMm', 'printLanguage', 'receiptFooter', 'baseCurrency', 'invoicePrefix', 'invoiceStartNumber', 'tvaRate',
+    'enablePriceTier2', 'enablePriceTier3', 'enablePriceTier4', 'allowCardPayment', 'allowTransferPayment'
   ]);
   for (const [key, val] of Object.entries(data)) {
     if (!(key in normalized) && !skippedCamelKeys.has(key)) {
@@ -220,20 +251,27 @@ export function updateStoreSettings(data: Record<string, unknown>): { data: Row 
   const norm = normalizeSettingsPayload(data);
   delete norm.id;
 
-  const keys = Object.keys(norm);
-  if (keys.length === 0) {
-    return { data: getStoreSettings() };
+  const validCols = getTableColumns('settings');
+  const setClauses: string[] = [];
+  const values: unknown[] = [];
+
+  for (const [k, v] of Object.entries(norm)) {
+    if (validCols.size === 0 || validCols.has(k)) {
+      setClauses.push(`"${k}" = ?`);
+      values.push(v);
+    }
   }
 
-  const setClauses = keys.map((k) => `"${k}" = ?`).join(', ');
-  const values = keys.map((k) => norm[k]);
+  if (setClauses.length === 0) {
+    return { data: getStoreSettings() };
+  }
 
   // التأكد من وجود سجل الإعدادات أولاً
   execute(
     "INSERT OR IGNORE INTO settings (id, shop_name) VALUES ('default', 'متجري')"
   );
 
-  execute(`UPDATE settings SET ${setClauses} WHERE id = 'default'`, values);
+  execute(`UPDATE settings SET ${setClauses.join(', ')} WHERE id = 'default'`, values);
   notifyTableChange('settings', 'update', 'default');
 
   return { data: getStoreSettings() };

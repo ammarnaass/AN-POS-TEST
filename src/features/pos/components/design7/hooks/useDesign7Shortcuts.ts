@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { CartItem } from '@/types';
+import { matchPriceTierShortcut } from '@/services';
 import { getCartRowKey } from '../utils/cartRow';
 
 interface UseDesign7ShortcutsProps {
@@ -75,11 +76,12 @@ export function useDesign7Shortcuts({
       }
 
       // فئات الأسعار السريعة (س1-س4 عبر Alt+1..4 أو Ctrl+1..4)
-      if ((e.altKey || e.ctrlKey) && ['1', '2', '3', '4'].includes(e.key)) {
+      const matchedTier = matchPriceTierShortcut(e);
+      if (matchedTier) {
         e.preventDefault();
         e.stopPropagation();
-        if (!enabledPriceTiers || enabledPriceTiers.includes(e.key as '1' | '2' | '3' | '4')) {
-          onSelectPriceTier?.(e.key as '1' | '2' | '3' | '4');
+        if (!enabledPriceTiers || enabledPriceTiers.includes(matchedTier)) {
+          onSelectPriceTier?.(matchedTier);
         }
         return;
       }

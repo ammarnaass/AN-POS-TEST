@@ -311,6 +311,7 @@ export const ModernPOSLayout: React.FC<ModernPOSLayoutProps> = ({
             formatMoney={formatMoney}
             currency={currency}
             onOpenKeypadForQty={onOpenKeypadForQty}
+            enabledPriceTiers={enabledPriceTiers}
             variant="modern"
             className="flex-1 min-h-0 border-none shadow-none rounded-none"
           />

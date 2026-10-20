@@ -2,38 +2,13 @@ import { Navigate, Outlet } from 'react-router-dom';
 import { getTrialState } from '@/services/trialService';
 import { useAuthStore } from '@/store/authStore';
 
-const SETUP_FLAG = 'anpos_setup_completed';
-
-export function isFirstRun(): boolean {
-  return !localStorage.getItem(SETUP_FLAG);
-}
-
-export async function checkDesktopFirstRun(): Promise<boolean> {
-  if (typeof window !== 'undefined' && window.electronAPI?.system?.isFirstRun) {
-    try {
-      const res = await window.electronAPI.system.isFirstRun();
-      if (res && res.success) {
-        if (!res.isFirstRun) {
-          localStorage.setItem(SETUP_FLAG, 'true');
-          return false;
-        }
-        return true;
-      }
-    } catch {
-      // fallback
-    }
-  }
-  return !localStorage.getItem(SETUP_FLAG);
-}
-
-export function completeFirstRun(): void {
-  localStorage.setItem(SETUP_FLAG, 'true');
-}
-
-export function isTrialActive(): boolean {
-  return getTrialState().isActive;
-}
-
+/**
+ * بوابة صفحات التطبيق: تسمح بالوصول عند تسجيل الدخول أو وجود تجربة نشطة.
+ *
+ * ملاحظة: فحص «التشغيل الأول» أصبح مسؤولية LoginPage عبر system.isFirstRun
+ * (config.json + جدول settings + كشف رمز المدير الافتراضي)، وأُزيلت من هنا
+ * الدوال الميتة (isFirstRun / checkDesktopFirstRun / completeFirstRun / isTrialActive).
+ */
 export default function FirstRunGuard() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const trial = getTrialState();

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { CartItem } from '@/types';
+import { matchPriceTierShortcut } from '@/services';
 
 export interface UsePOSKeyboardShortcutsProps {
   enabled?: boolean;
@@ -36,6 +37,8 @@ export interface UsePOSKeyboardShortcutsProps {
   onToggleWholesale?: () => void;
   onNavigateBack?: () => void;
   onOpenSalesHistory?: () => void;
+  onSelectPriceTier?: (tier: '1' | '2' | '3' | '4') => void;
+  enabledPriceTiers?: Array<'1' | '2' | '3' | '4'>;
   addNotification: (notif: { title: string; message: string; type: 'success' | 'error' | 'warning' | 'info' }) => void;
 }
 
@@ -72,6 +75,8 @@ export function usePOSKeyboardShortcuts({
   onRemoveItem,
   onNavigateBack,
   onOpenSalesHistory,
+  onSelectPriceTier,
+  enabledPriceTiers = ['1', '2', '3', '4'],
   addNotification,
 }: UsePOSKeyboardShortcutsProps) {
   useEffect(() => {
@@ -129,9 +134,51 @@ export function usePOSKeyboardShortcuts({
         return;
       }
 
+      // Alt + 1..4: التبديل بين فئات الأسعار (س1 تجزئة، س2 نصف جملة، س3 جملة، س4 خاص/فاتورة)
+      const matchedTier = matchPriceTierShortcut(e);
+      if (matchedTier) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!enabledPriceTiers || enabledPriceTiers.includes(matchedTier)) {
+          onSelectPriceTier?.(matchedTier);
+          const tierNames: Record<'1' | '2' | '3' | '4', string> = {
+            '1': 'سعر التجزئة (س1)',
+            '2': 'سعر نصف الجملة (س2)',
+            '3': 'سعر الجملة (س3)',
+            '4': 'سعر الفاتورة / الخاص (س4)',
+          };
+          addNotification({
+            title: `تفعيل ${tierNames[matchedTier]}`,
+            message: `تم التبديل بنجاح إلى ${tierNames[matchedTier]}`,
+            type: 'success',
+          });
+        } else {
+          const tierNames: Record<'1' | '2' | '3' | '4', string> = {
+            '1': 'سعر التجزئة (س1)',
+            '2': 'سعر نصف الجملة (س2)',
+            '3': 'سعر الجملة (س3)',
+            '4': 'سعر الفاتورة / الخاص (س4)',
+          };
+          addNotification({
+            title: 'فئة السعر غير مفعلة',
+            message: `${tierNames[matchedTier]} معطلة حالياً في إعدادات نقطة البيع`,
+            type: 'warning',
+          });
+        }
+        return;
+      }
+
       // Alt + W: تبديل وضع بيع الجملة
       if (e.altKey && (e.key === 'w' || e.key === 'W')) {
         e.preventDefault();
+        if (enabledPriceTiers && !enabledPriceTiers.includes('3')) {
+          addNotification({
+            title: 'وضع الجملة غير متاح',
+            message: 'فئة سعر وفواتير الجملة (س3) معطلة حالياً في إعدادات نقطة البيع',
+            type: 'warning',
+          });
+          return;
+        }
         if (onToggleWholesale) {
           onToggleWholesale();
         }
@@ -349,6 +396,8 @@ export function usePOSKeyboardShortcuts({
     onOpenShortcuts,
     onUpdateQty,
     onRemoveItem,
+    onSelectPriceTier,
+    enabledPriceTiers,
     enabled,
     addNotification,
   ]);

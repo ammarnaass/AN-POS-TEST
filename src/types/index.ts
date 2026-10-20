@@ -41,6 +41,11 @@ export interface Settings {
   receiptFooter: string;
   zakatEnabled: boolean;
   nisabThreshold: number;
+  enablePriceTier2?: boolean;
+  enablePriceTier3?: boolean;
+  enablePriceTier4?: boolean;
+  allowCardPayment?: boolean;
+  allowTransferPayment?: boolean;
   [key: string]: unknown;
 }
 
@@ -329,3 +334,5 @@ export interface AppState {
   currentUser: User | null;
   currentCashSession: CashSession | null;
 }
+
+export type { POSLayout } from '@/features/pos/store/usePOSSessionStore';

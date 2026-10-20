@@ -103,6 +103,16 @@ export function initSchema(): void {
   try { execSql("ALTER TABLE settings ADD COLUMN terminal_code TEXT NOT NULL DEFAULT 'T01';"); } catch { /* موجود */ }
   try { execSql("ALTER TABLE settings ADD COLUMN client_token TEXT NOT NULL DEFAULT '';"); } catch { /* موجود */ }
   try { execSql("ALTER TABLE settings ADD COLUMN client_device_id TEXT NOT NULL DEFAULT '';"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE settings ADD COLUMN enable_price_tier_2 INTEGER NOT NULL DEFAULT 1;"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE settings ADD COLUMN enable_price_tier_3 INTEGER NOT NULL DEFAULT 1;"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE settings ADD COLUMN enable_price_tier_4 INTEGER NOT NULL DEFAULT 1;"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE settings ADD COLUMN allow_card_payment INTEGER NOT NULL DEFAULT 0;"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE settings ADD COLUMN allow_transfer_payment INTEGER NOT NULL DEFAULT 0;"); } catch { /* موجود */ }
+  // حقول حماية التجربة والترخيص من التلاعب (H9 & M11)
+  try { execSql("ALTER TABLE settings ADD COLUMN trial_first_started_at TEXT DEFAULT NULL;"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE settings ADD COLUMN trial_ends_at TEXT DEFAULT NULL;"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE settings ADD COLUMN trial_checksum TEXT DEFAULT NULL;"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE settings ADD COLUMN trial_sales_count INTEGER DEFAULT 0;"); } catch { /* موجود */ }
   try { execSql("ALTER TABLE connected_devices ADD COLUMN app_name TEXT DEFAULT '';"); } catch { /* موجود */ }
   try { execSql("ALTER TABLE connected_devices ADD COLUMN app_version TEXT DEFAULT '';"); } catch { /* موجود */ }
   try { execSql("ALTER TABLE connected_devices ADD COLUMN device_unique_id TEXT DEFAULT '';"); } catch { /* موجود */ }
@@ -118,6 +128,19 @@ export function initSchema(): void {
   try { execSql("ALTER TABLE customers ADD COLUMN nis TEXT DEFAULT '';"); } catch { /* موجود */ }
   try { execSql("ALTER TABLE suppliers ADD COLUMN address TEXT DEFAULT '';"); } catch { /* موجود */ }
   try { execSql("ALTER TABLE suppliers ADD COLUMN email TEXT DEFAULT '';"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE suppliers ADD COLUMN notes TEXT DEFAULT '';"); } catch { /* موجود */ }
+
+  // تنظيف أي جدول مؤقت متبقٍ من هجرات سابقة
+  try { execSql("DROP TABLE IF EXISTS `__new_sales`;"); } catch { /* ignore */ }
+
+  // تصحيحات تكميلية آمنة لجدول المبيعات لضمان التوافق مع قواعد البيانات القديمة
+  try { execSql("ALTER TABLE sales ADD COLUMN doc_type TEXT NOT NULL DEFAULT 'facture';"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE sales ADD COLUMN type TEXT NOT NULL DEFAULT 'sale';"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE sales ADD COLUMN items TEXT NOT NULL DEFAULT '[]';"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE sales ADD COLUMN session_id TEXT DEFAULT '';"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE sales ADD COLUMN cash_session_id TEXT NOT NULL DEFAULT '';"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE sales ADD COLUMN last_printed_at TEXT DEFAULT '';"); } catch { /* موجود */ }
+  try { execSql("ALTER TABLE sales ADD COLUMN note TEXT DEFAULT '';"); } catch { /* موجود */ }
   // جدول طابور العمليات المعلقة دون اتصال (Offline-First Outbox Queue)
   try {
     execSql(`

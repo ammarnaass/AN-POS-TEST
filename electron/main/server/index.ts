@@ -198,7 +198,7 @@ export async function startHttpServer(config: ServerConfig = {}): Promise<{ url:
   }));
 
   // ===== معالج أخطاء موحّد =====
-  server.setErrorHandler((error, _request, reply) => {
+  server.setErrorHandler((error: any, _request, reply) => {
     const status = error.statusCode || 500;
     server.log.error({ err: error, status }, 'request failed');
     reply.code(status).send({

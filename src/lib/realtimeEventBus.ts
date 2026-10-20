@@ -152,7 +152,6 @@ class RealtimeEventBusManager {
               token,
               deviceId,
             });
-            this.configureAndConnect();
           }
         }
       });

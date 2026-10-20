@@ -14,6 +14,7 @@ export interface POSCartItemRowProps {
   onOpenKeypadForQty?: (item: CartItem) => void;
   allProducts?: Product[];
   products?: Product[];
+  enabledPriceTiers?: Array<'1' | '2' | '3' | '4'>;
 }
 
 export const POSCartItemRow: React.FC<POSCartItemRowProps> = ({
@@ -27,6 +28,7 @@ export const POSCartItemRow: React.FC<POSCartItemRowProps> = ({
   onOpenKeypadForQty,
   allProducts,
   products = [],
+  enabledPriceTiers,
 }) => {
   const [isEditingPrice, setIsEditingPrice] = useState(false);
   const [customPriceInput, setCustomPriceInput] = useState('');
@@ -83,7 +85,9 @@ export const POSCartItemRow: React.FC<POSCartItemRowProps> = ({
             { tier: '2' as const, label: 'س2', desc: 'نصف جملة' },
             { tier: '3' as const, label: 'س3', desc: 'جملة' },
             { tier: '4' as const, label: 'س4', desc: 'خاص' },
-          ].map(({ tier, label, desc }) => {
+          ]
+            .filter(({ tier }) => !enabledPriceTiers || enabledPriceTiers.includes(tier))
+            .map(({ tier, label, desc }) => {
             const price = getProductTierPrice(prod, tier);
             const isSelected = Math.abs(itemPrice - price) < 0.001;
             return (

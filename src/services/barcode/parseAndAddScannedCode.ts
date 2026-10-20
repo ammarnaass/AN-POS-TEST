@@ -110,7 +110,7 @@ export async function parseAndAddScannedCode(
       ? inMemoryPack.items
       : (() => { try { return JSON.parse(inMemoryPack.items as any) ?? []; } catch { return []; } })();
     const pQty = inMemoryPack.piecesCount || rawItems.reduce((s: number, it: any) => s + (Number(it.qty ?? it.quantity ?? 0)), 0) || 1;
-    const isTerminal = ctx.posLayout === 'terminal' || ctx.posLayout === 'advanced';
+    const isTerminal = ctx.posLayout === 'design7';
     const isWholesale = ctx.forceWholesale || ctx.priceTier === '3';
     if (isTerminal && !isWholesale) {
       const piecePrice = pQty > 0 ? (inMemoryPack.packPrice / pQty) : inMemoryPack.packPrice;
@@ -178,7 +178,7 @@ export async function parseAndAddScannedCode(
       const price = resolveItemPrice(textMatch);
       const tmPkgSize = textMatch.packageSize ? parseInt(textMatch.packageSize, 10) : 0;
       const isTmPack = tmPkgSize > 1;
-      const isTerminal = ctx.posLayout === 'terminal' || ctx.posLayout === 'advanced';
+      const isTerminal = ctx.posLayout === 'design7';
       const isWholesale = ctx.forceWholesale || ctx.priceTier === '3';
       const effectiveQty = (isTmPack && isTerminal && !isWholesale) ? (tmPkgSize * qtyToAdd) : qtyToAdd;
       const effectivePrice = (isTmPack && isTerminal && !isWholesale && tmPkgSize > 0) ? (price / tmPkgSize) : price;
@@ -212,7 +212,7 @@ export async function parseAndAddScannedCode(
     const price = resolveItemPrice(p as Product);
     const pkgSize = p.packageSize ? parseInt(p.packageSize, 10) : 0;
     const isPackProd = pkgSize > 1;
-    const isTerminal = ctx.posLayout === 'terminal' || ctx.posLayout === 'advanced';
+    const isTerminal = ctx.posLayout === 'design7';
     const isWholesale = ctx.forceWholesale || ctx.priceTier === '3';
     const effectiveQty = (isPackProd && isTerminal && !isWholesale) ? (pkgSize * qtyToAdd) : qtyToAdd;
     const effectivePrice = (isPackProd && isTerminal && !isWholesale && pkgSize > 0) ? (price / pkgSize) : price;
@@ -245,7 +245,7 @@ export async function parseAndAddScannedCode(
       ? pk.items
       : (() => { try { return JSON.parse(pk.items as any) ?? []; } catch { return []; } })();
     const pQty = pk.piecesCount || rawItems.reduce((s: number, it: any) => s + (Number(it.qty ?? it.quantity ?? 0)), 0) || 1;
-    const isTerminal = ctx.posLayout === 'terminal' || ctx.posLayout === 'advanced';
+    const isTerminal = ctx.posLayout === 'design7';
     const isWholesale = ctx.forceWholesale || ctx.priceTier === '3';
     if (isTerminal && !isWholesale) {
       const piecePrice = pQty > 0 ? (pk.packPrice / pQty) : pk.packPrice;

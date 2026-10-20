@@ -44,7 +44,7 @@ const mockCart: CartItem[] = [
   },
 ];
 
-describe('Design7POSLayout (تصميم 7 - كاشير اللمس الكلاسيكي المتقدم)', () => {
+describe('Design7POSLayout (تصميم 5 - كاشير اللمس الكلاسيكي المتقدم)', () => {
   let defaultProps: any;
 
   beforeEach(() => {

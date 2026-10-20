@@ -23,7 +23,7 @@ import { db } from '@/infrastructure/database/dexie/db';
 import { generateId } from '@/utils';
 import { validatePasswordStrength, PasswordStrengthBar } from '@/utils/passwordStrength';
 import { APP_DISPLAY_VERSION } from '@/constants/app';
-import FirstRunWizardModal from '@/components/setup/FirstRunWizardModal';
+import FirstRunWizardModal, { type FirstRunMode } from '@/components/setup/FirstRunWizardModal';
 
 type View = 'login' | 'register' | 'success';
 
@@ -34,6 +34,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [allowSelfRegistration, setAllowSelfRegistration] = useState<boolean>(true);
   const [showFirstRunWizard, setShowFirstRunWizard] = useState(false);
+  const [wizardMode, setWizardMode] = useState<FirstRunMode>('fresh');
 
   // Login form
   const [username, setUsername] = useState('');
@@ -64,45 +65,33 @@ export default function LoginPage() {
 
     // فحص الإعداد الأولي للنظام (First-Run Wizard)
     const checkFirstRunStatus = async () => {
-      const isCompletedLocally = localStorage.getItem('anpos_setup_completed') === 'true';
-      if (isCompletedLocally) {
-        setShowFirstRunWizard(false);
-        return;
-      }
-
+      // في بيئة Electron: مصدر الحقيقة هو النظام (config.json + قاعدة البيانات + كشف الرمز الضعيف)
       if ((window as any).electronAPI?.system?.isFirstRun) {
         try {
           const res = await (window as any).electronAPI.system.isFirstRun();
-          if (res && res.success && res.isFirstRun) {
-            setShowFirstRunWizard(true);
+          if (res && res.success) {
+            setWizardMode(res.weakAdminPin ? 'pin-only' : 'fresh');
+            setShowFirstRunWizard(Boolean(res.isFirstRun));
             return;
           }
         } catch {
-          // fallback
+          // متابعة إلى الفحص المحلي
         }
       }
 
-      // إذا لم يكن مكتملاً محلياً
-      if (!isCompletedLocally) {
-        setShowFirstRunWizard(true);
-      }
+      // وضع الويب (بدون Electron): اعتماد محلي فقط
+      const isCompletedLocally = localStorage.getItem('anpos_setup_completed') === 'true';
+      setWizardMode('fresh');
+      setShowFirstRunWizard(!isCompletedLocally);
     };
 
     checkFirstRunStatus();
   }, [isAuthenticated, navigate, checkRegistrationAllowed]);
 
-  const handleFirstRunComplete = (data: {
-    shopName: string;
-    phone: string;
-    baseCurrency: string;
-    language: string;
-    adminPin: string;
-  }) => {
+  const handleFirstRunComplete = () => {
     setShowFirstRunWizard(false);
-    setUsername('admin@dante.com');
-    if (data.adminPin) {
-      setPassword(data.adminPin);
-    }
+    setUsername('');
+    setPassword('');
   };
 
   const resetForms = () => {
@@ -638,6 +627,7 @@ export default function LoginPage() {
       {/* شاشة الإعداد الأولي للنظام (First-Run Wizard) */}
       <FirstRunWizardModal
         isOpen={showFirstRunWizard}
+        mode={wizardMode}
         onComplete={handleFirstRunComplete}
       />
     </div>

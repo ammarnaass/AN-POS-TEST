@@ -1,13 +1,23 @@
 /**
  * معلومات وإصدار تطبيق AN POS
  * المصدر الموحد الوحيد لإصدار النظام في كامل الواجهات والمكونات
+ *
+ * ⚠️ لتغيير رقم الإصدار: عدّل حقل "version" في package.json فقط!
+ *    يُحقن تلقائياً عبر Vite define (__APP_VERSION__) عند البناء.
  */
 export const APP_NAME = 'AN POS';
-export const APP_VERSION = '2.5.5';
+
+// __APP_VERSION__ يُحقن من package.json عبر electron.vite.config.ts — المصدر الوحيد للحقيقة!
+declare const __APP_VERSION__: string;
+declare const __APP_BUILD_DATE__: string;
+declare const __APP_BUILD_NUMBER__: string;
+
+export const APP_VERSION: string = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.5.6';
+
 export const APP_DISPLAY_VERSION = `v${APP_VERSION}`;
 export const APP_FULL_NAME = `${APP_NAME} ${APP_DISPLAY_VERSION} Pro`;
-export const APP_RELEASE_DATE = '2026-09-27';
-export const APP_BUILD_NUMBER = '20260927.1';
+export const APP_RELEASE_DATE: string = typeof __APP_BUILD_DATE__ !== 'undefined' ? __APP_BUILD_DATE__ : '2026-09-28';
+export const APP_BUILD_NUMBER: string = typeof __APP_BUILD_NUMBER__ !== 'undefined' ? __APP_BUILD_NUMBER__ : '20260928.1';
 export const APP_CHANNEL = 'مستقر (Production Stable)';
 
 export interface AppRelease {
@@ -20,15 +30,25 @@ export interface AppRelease {
 
 export const APP_CHANGELOG: AppRelease[] = [
   {
+    version: APP_DISPLAY_VERSION,
+    date: APP_RELEASE_DATE,
+    badge: 'الإصدار الحالي',
+    title: 'إظهار تفاصيل الملفات ونسبة التقدم في التثبيت، وتأمين تدفق الدخول للشاشة الرئيسية',
+    changes: [
+      'إظهار تفاصيل الملفات المستخرجة تلقائياً أثناء التثبيت وإلغاء التثبيت دون إخفائها.',
+      'عرض النسبة المئوية الدقيقة لتقدم عملية التثبيت (0% إلى 100%) في شريط العنوان وسجل العمليات.',
+      'تحديث شاشة الإعداد الأولي لتقتصر على بيانات المتجر وتوجيه المستخدم لتسجيل الدخول ببياناته بنفسه.',
+    ],
+  },
+  {
     version: 'v2.5.5',
     date: '2026-09-27',
-    badge: 'الإصدار الحالي',
     title: 'مثبت مخصص ذكي (Custom Branded NSIS)، إعداد بيئة العمل التلقائية (First-Run Wizard)، والهجرة التلقائية لقاعدة البيانات (Auto-Migration)',
     changes: [
       'تخصيص كامل لمعالج التثبيت NSIS مع هوية بصرية مخصصة، أيقونات متعددة الدقة (16x16 إلى 256x256)، ولافتات شاشات التثبيت (Header & Sidebar).',
       'إتاحة اختيار مسار التثبيت مع ضبط المسار الافتراضي المنطقي إلى C:\\AN POS بدلاً من المسارات الطويلة.',
       'تجهيز بيئة العمل تلقائياً فور أول إقلاع بعد التثبيت (إنشاء المجلدات، ملف config.json الافتراضي، وتشغيل هجرات Drizzle التلقائية).',
-      'شاشة إعداد أولية (First-Run Wizard) تطلب اسم المتجر ورقم الهاتف والعملة الأساسية ورمز المدير في خطوة واحدة دون أي إعداد يدوي.',
+      'شاشة إعداد أولية (First-Run Wizard) تطلب اسم المتجر ورقم الهاتف والعملة الأساسية في خطوة واحدة دون أي إعداد يدوي.',
       'حماية مبيعات المتجر عند إلغاء التثبيت بسؤال المستخدم مع جعل خيار الحفاظ على البيانات هو الخيار الافتراضي الآمن.',
     ],
   },

@@ -286,6 +286,9 @@ export interface SettingsEntity {
   terminalFavoritesMode?: boolean;
   allowCardPayment?: boolean;
   allowTransferPayment?: boolean;
+  enablePriceTier2?: boolean;
+  enablePriceTier3?: boolean;
+  enablePriceTier4?: boolean;
   design7ShowBottomFavorites?: boolean;
   invoiceTemplate?: 'basic' | 'detailed';
   expenseCategories?: string[];

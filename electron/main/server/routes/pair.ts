@@ -307,6 +307,7 @@ async function pairDevice(
   const rateLimit = checkPairingRateLimit(clientIpClean);
   if (!rateLimit.allowed) {
     return {
+      success: false,
       error: {
         status: 429,
         detail: `تم تجاوز الحد المسموح لمحاولات الاقتران. يرجى الانتظار ${rateLimit.retryAfterSeconds} ثانية.`,
@@ -317,17 +318,17 @@ async function pairDevice(
   // مفتاح الاتصال المخزّن
   const settings = queryOne("SELECT connection_key FROM network_settings WHERE id = 'default'");
   if (!settings?.connection_key) {
-    return { error: { status: 500, detail: 'مفتاح الاتصال غير مهيّأ على سطح المكتب' } };
+    return { success: false, error: { status: 500, detail: 'مفتاح الاتصال غير مهيّأ على سطح المكتب' } };
   }
   if (!payload.connectionKey || !safeEqual(payload.connectionKey, settings.connection_key as string)) {
     recordFailedPairing(clientIpClean);
-    return { error: { status: 401, detail: 'مفتاح الاتصال غير صحيح' } };
+    return { success: false, error: { status: 401, detail: 'مفتاح الاتصال غير صحيح' } };
   }
   // تم التحقق بنجاح من المفتاح، تصفير أي سجلات فشل سابقة
   resetPairingFailures(clientIpClean);
 
   if (!payload.deviceName) {
-    return { error: { status: 422, detail: 'اسم الجهاز مطلوب' } };
+    return { success: false, error: { status: 422, detail: 'اسم الجهاز مطلوب' } };
   }
 
   // 2. تحديد عنوان MAC الفعلي (من الحمولة أولاً، أو من جدول الـ ARP)
@@ -411,6 +412,7 @@ async function pairDevice(
 
   if (!isDev && !existingDevice && currentCount >= maxAllowed) {
     return {
+      success: false,
       error: {
         status: 403,
         detail: `تم الوصول للحد الأقصى لعدد الأجهزة المرخصة لهذا المتجر (${maxAllowed} أجهزة). يرجى فصل جهاز قديم أو ترقية الترخيص.`,
