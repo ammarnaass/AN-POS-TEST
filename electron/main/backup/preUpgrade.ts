@@ -28,10 +28,10 @@ function getAppVersion(): string {
     const pkgPath = path.resolve(__dirname, '../../package.json');
     if (fs.existsSync(pkgPath)) {
       const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-      return pkg.version || '2.6.0';
+      return pkg.version || '3.0.0';
     }
   } catch { /* ignore */ }
-  return '2.6.0';
+  return '3.0.0';
 }
 
 /**

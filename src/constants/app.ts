@@ -12,7 +12,7 @@ declare const __APP_VERSION__: string;
 declare const __APP_BUILD_DATE__: string;
 declare const __APP_BUILD_NUMBER__: string;
 
-export const APP_VERSION: string = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.5.6';
+export const APP_VERSION: string = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.0.0';
 
 export const APP_DISPLAY_VERSION = `v${APP_VERSION}`;
 export const APP_FULL_NAME = `${APP_NAME} ${APP_DISPLAY_VERSION} Pro`;
