@@ -44,6 +44,14 @@ jobs:
       - name: Verify Clean Package (No Linux/Darwin Binaries)
         run: node scripts/check-package-contents.mjs
 
+      - name: Verify Code Signatures (Unsigned mode report)
+        if: ${{ env.CSC_LINK == '' }}
+        run: node scripts/verify-signature.mjs
+
+      - name: Verify Code Signatures (Signed mode enforcement)
+        if: ${{ env.CSC_LINK != '' }}
+        run: node scripts/verify-signature.mjs --require-signed
+
       - name: Generate SHA-256 Checksums
         run: node scripts/generate-checksums.mjs
 

@@ -80,6 +80,14 @@ license-generator/licenses-history.json
 license-generator/*.csv
 .license-dev
 
+# Code Signing & Certificates
+*.pfx
+*.p12
+build/*.pfx
+build/*.p12
+build/dev-cert.*
+certs/
+
 # SQLite Databases & Local Storage
 *.db
 *.db-wal
