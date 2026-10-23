@@ -1,0 +1,35 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:fire="http://wixtoolset.org/schemas/v4/wxs/firewall">
+  <Fragment>
+    <Component Id="FirewallRuleComponent" Directory="INSTALLFOLDER" Guid="{E2938C61-75A2-4D78-A630-B5FF9DA8C940}">
+      <!-- استثناء جدار حماية ويندوز لشبكات العمل الخاصة (Private) -->
+      <fire:FirewallException
+        Id="AnposFirewallPrivate"
+        Name="AN POS LAN Server (Private)"
+        Description="السماح باتصال نقاط البيع التابعة والهواتف بخادم AN POS المحلي عبر الشبكة الخاصة"
+        Port="[SERVER_PORT]"
+        Protocol="tcp"
+        Profile="private"
+        Scope="localSubnet"
+        IgnoreFailure="yes" />
+
+      <!-- استثناء جدار حماية ويندوز لشبكات النطاق المؤسسي (Domain) -->
+      <fire:FirewallException
+        Id="AnposFirewallDomain"
+        Name="AN POS LAN Server (Domain)"
+        Description="السماح باتصال نقاط البيع التابعة والهواتف بخادم AN POS المحلي عبر شبكة النطاق"
+        Port="[SERVER_PORT]"
+        Protocol="tcp"
+        Profile="domain"
+        Scope="localSubnet"
+        IgnoreFailure="yes" />
+
+      <RegistryValue Root="HKLM"
+                     Key="Software\AN POS\Installer"
+                     Name="FirewallConfigured"
+                     Type="integer"
+                     Value="1"
+                     KeyPath="yes" />
+    </Component>
+  </Fragment>
+</Wix>

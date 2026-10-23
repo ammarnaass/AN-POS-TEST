@@ -1,0 +1,12 @@
+<Project Sdk="WixToolset.Sdk/4.0.0">
+  <PropertyGroup>
+    <OutputType>Bundle</OutputType>
+    <OutputName>ANPOS-Setup-Bundle-$(Version)-x64</OutputName>
+    <DefineConstants>Version=$(Version);MsiPath=..\ANPOS.Installer\bin\x64\Release\ar-SA\ANPOS-Setup-$(Version)-x64.msi;IconPath=..\..\..\build\icon.ico</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.BootstrapperApplications.wixext" Version="4.0.0" />
+    <PackageReference Include="WixToolset.Util.wixext" Version="4.0.0" />
+  </ItemGroup>
+</Project>

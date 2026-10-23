@@ -1,0 +1,14 @@
+<Project Sdk="WixToolset.Sdk/4.0.0">
+  <PropertyGroup>
+    <OutputType>Package</OutputType>
+    <OutputName>ANPOS-Setup-$(Version)-x64</OutputName>
+    <Cultures>ar-SA;en-US</Cultures>
+    <DefineConstants>Version=$(Version);AppDir=..\..\..\release\win-unpacked;IconPath=..\..\..\build\icon.ico</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Util.wixext" Version="4.0.0" />
+    <PackageReference Include="WixToolset.Firewall.wixext" Version="4.0.0" />
+    <PackageReference Include="WixToolset.UI.wixext" Version="4.0.0" />
+  </ItemGroup>
+</Project>

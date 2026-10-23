@@ -1,0 +1,46 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package
+    Name="AN POS"
+    Manufacturer="AN POS"
+    Version="$(var.Version)"
+    UpgradeCode="{4A16F8C9-8802-4A73-A33B-E6C09D0C5471}"
+    Language="1033"
+    Codepage="65001"
+    InstallerVersion="500">
+
+    <SummaryInformation Description="نظام نقاط البيع وإدارة المخزون والمبيعات AN POS" />
+
+    <!-- فحص الحد الأدنى لنظام التشغيل: Windows 10 أو أحدث (64-bit) -->
+    <Launch Condition="VersionNT64 &gt;= 1000" Message="يتطلب نظام AN POS العمل على نظام Windows 10 أو Windows 11 أو أحدث (64-bit)." />
+
+    <!-- ترقية رئيسية مع الحفاظ على البيانات وحظر العودة لإصدار أقدم -->
+    <MajorUpgrade
+      DowngradeErrorMessage="إصدار أحدث من AN POS مثبت بالفعل على هذا الجهاز."
+      Schedule="afterInstallValidate"
+      AllowSameVersionUpgrades="no" />
+
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <!-- أيقونة البرنامج ولوحة التحكم Add/Remove Programs -->
+    <Icon Id="AppIcon" SourceFile="$(var.IconPath)" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    <Property Id="ARPHELPLINK" Value="https://anpos.ly/support" />
+    <Property Id="ARPURLINFOABOUT" Value="https://anpos.ly" />
+
+    <!-- الخصائص العامة للنشر المؤسسي الصامت (Public Properties) -->
+    <Property Id="EDITION" Value="Desktop" Secure="yes" />
+    <Property Id="SERVER_PORT" Value="3000" Secure="yes" />
+    <Property Id="CREATE_DESKTOP_SHORTCUT" Value="1" Secure="yes" />
+    <Property Id="REMOVE_DATA" Value="0" Secure="yes" />
+    <Property Id="AUTOSTART" Value="1" Secure="yes" />
+
+    <!-- المكونات والميزات الرئيسية -->
+    <Feature Id="MainFeature" Title="AN POS Application" Level="1" Display="expand" ConfigurableDirectory="INSTALLFOLDER">
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentGroupRef Id="AppShortcuts" />
+      <ComponentRef Id="FirewallRuleComponent" />
+      <ComponentRef Id="DataMigrationComponent" />
+    </Feature>
+  </Package>
+</Wix>

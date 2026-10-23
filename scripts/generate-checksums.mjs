@@ -13,7 +13,7 @@ if (!fs.existsSync(releaseDir)) {
 }
 
 const files = fs.readdirSync(releaseDir).filter((file) => {
-  return file.endsWith('.exe') || file.endsWith('.blockmap') || file.endsWith('.zip');
+  return file.endsWith('.exe') || file.endsWith('.msi') || file.endsWith('.blockmap') || file.endsWith('.zip');
 });
 
 if (files.length === 0) {

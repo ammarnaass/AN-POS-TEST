@@ -1,0 +1,12 @@
+<Project>
+  <PropertyGroup>
+    <Version Condition="'$(Version)' == ''">3.0.0</Version>
+    <Manufacturer>AN POS</Manufacturer>
+    <ProductCode>*</ProductCode>
+    <UpgradeCode>{4A16F8C9-8802-4A73-A33B-E6C09D0C5471}</UpgradeCode>
+    <Platform Condition="'$(Platform)' == ''">x64</Platform>
+    <Platforms>x64</Platforms>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
+    <IntermediateOutputPath>obj\$(Configuration)\</IntermediateOutputPath>
+  </PropertyGroup>
+</Project>

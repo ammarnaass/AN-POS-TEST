@@ -1,0 +1,24 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Fragment>
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="CompanyFolder" Name="AN POS">
+        <Directory Id="INSTALLFOLDER" Name="AN POS" />
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ApplicationProgramsFolder" Name="AN POS" />
+    </StandardDirectory>
+
+    <StandardDirectory Id="DesktopFolder" />
+
+    <StandardDirectory Id="CommonAppDataFolder">
+      <Directory Id="CompanyDataFolder" Name="AN POS">
+        <Directory Id="ANPOSDataFolder" Name="data">
+          <Directory Id="ANPOSBackupsFolder" Name="backups" />
+          <Directory Id="ANPOSLogsFolder" Name="logs" />
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+  </Fragment>
+</Wix>

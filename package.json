@@ -30,7 +30,8 @@
     "bump:major": "node scripts/set-version.mjs major",
     "cert:generate-dev": "node scripts/generate-dev-cert.mjs",
     "verify:signatures": "node scripts/verify-signature.mjs",
-    "package:win:signed": "electron-vite build --config electron.vite.config.ts && electron-builder --win -c.forceCodeSigning=true"
+    "package:win:signed": "electron-vite build --config electron.vite.config.ts && electron-builder --win -c.forceCodeSigning=true",
+    "package:win:msi": "electron-vite build --config electron.vite.config.ts && electron-builder --win msi --x64"
   },
   "build": {
     "appId": "com.anpos.desktop",
@@ -106,6 +107,16 @@
     "portable": {
       "artifactName": "${productName}-${version}-${arch}-portable.exe",
       "requestExecutionLevel": "user"
+    },
+    "msi": {
+      "oneClick": false,
+      "perMachine": true,
+      "runAfterFinish": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "AN POS",
+      "artifactName": "${productName}-Setup-${version}-${arch}.msi",
+      "upgradeCode": "4A16F8C9-8802-4A73-A33B-E6C09D0C5471"
     },
     "linux": {
       "target": "AppImage",

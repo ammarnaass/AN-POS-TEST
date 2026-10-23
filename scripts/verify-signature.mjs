@@ -22,10 +22,11 @@ if (!fs.existsSync(releaseDir)) {
 function collectExecutables() {
   const files = [];
 
-  // الملفات التنفيذية في release/ مباشرة (المثبتات والنسخ المحمولة)
+  // الملفات التنفيذية وحزم التثبيت في release/ مباشرة (.exe و .msi)
   const rootEntries = fs.readdirSync(releaseDir, { withFileTypes: true });
   for (const entry of rootEntries) {
-    if (entry.isFile() && entry.name.toLowerCase().endsWith('.exe')) {
+    const lower = entry.name.toLowerCase();
+    if (entry.isFile() && (lower.endsWith('.exe') || lower.endsWith('.msi'))) {
       files.push(path.join(releaseDir, entry.name));
     }
   }
@@ -47,6 +48,19 @@ function inspectPeSignature(filePath) {
     const fd = fs.openSync(filePath, 'r');
     const headerBuf = Buffer.alloc(1024);
     fs.readSync(fd, headerBuf, 0, 1024, 0);
+
+    // التحقق مما إذا كانت الحزمة من نوع MSI (Compound Storage)
+    if (filePath.toLowerCase().endsWith('.msi')) {
+      fs.closeSync(fd);
+      const isMsiHeader = headerBuf.readUInt32LE(0) === 0xe011cfd0;
+      return {
+        isPe: isMsiHeader,
+        arch: 'MSI (Windows Installer Package)',
+        isSigned: false,
+        certOffset: 0,
+        certSize: 0
+      };
+    }
 
     // التحقق من ترويسة DOS MZ
     if (headerBuf.readUInt16LE(0) !== 0x5a4d) {

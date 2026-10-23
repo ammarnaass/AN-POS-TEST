@@ -131,9 +131,10 @@
   ; 1. حذف قاعدة جدار الحماية عند إزالة التثبيت
   nsExec::Exec 'netsh advfirewall firewall delete rule name="AN POS LAN Server"'
 
-  ; 2. فحص الوضع الصامت (Silent Uninstallation) - حماية البيانات تلقائياً (M8)
+  ; 2. فحص الوضع الصامت (Silent Uninstallation) - حماية البيانات تلقائياً ومنع أي توقف (B6 / M8)
   ${If} ${Silent}
-    Goto keepData
+    DetailPrint "إلغاء تثبيت صامت: يتم الحفاظ على بيانات المستخدم والترخيص تلقائياً دون مقاطعة."
+    Goto doneUnInstall
   ${EndIf}
 
   ; 3. سؤال المستخدم إن كان يرغب في حذف بيانات قاعدة البيانات أو الإبقاء عليها
@@ -148,9 +149,13 @@
       CopyFiles /SILENT "$APPDATA\an-pos\backups\*.*" "$APPDATA\an-pos-backup-archive\"
     ${EndIf}
     RMDir /r "$APPDATA\an-pos"
-    MessageBox MB_ICONINFORMATION|MB_OK "تم حذف ملفات التطبيق وقاعدة البيانات بالكامل.$\n(تم الاحتفاظ بنسخة أرشيفية للنسخ الاحتياطية والترخيص في $APPDATA\an-pos-backup-archive للأمان)"
+    ${IfNot} ${Silent}
+      MessageBox MB_ICONINFORMATION|MB_OK "تم حذف ملفات التطبيق وقاعدة البيانات بالكامل.$\n(تم الاحتفاظ بنسخة أرشيفية للنسخ الاحتياطية والترخيص في $APPDATA\an-pos-backup-archive للأمان)"
+    ${EndIf}
     Goto doneUnInstall
   keepData:
-    MessageBox MB_ICONINFORMATION|MB_OK "تم الحفاظ على قاعدة البيانات وسجلات المبيعات والنسخ الاحتياطية بأمان في المسار:$\n$APPDATA\an-pos"
+    ${IfNot} ${Silent}
+      MessageBox MB_ICONINFORMATION|MB_OK "تم الحفاظ على قاعدة البيانات وسجلات المبيعات والنسخ الاحتياطية بأمان في المسار:$\n$APPDATA\an-pos"
+    ${EndIf}
   doneUnInstall:
 !macroend

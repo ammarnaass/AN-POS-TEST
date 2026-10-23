@@ -1,0 +1,16 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Fragment>
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <Component Id="MainExecutable" Guid="{7D9F570B-E24B-4E38-96BC-399FEA0D1590}">
+        <File Id="AnPosExe"
+              Source="$(var.AppDir)\AN POS.exe"
+              KeyPath="yes" />
+      </Component>
+      
+      <!-- مجلد الموارد وملفات التطبيق الأساسية -->
+      <Files Include="$(var.AppDir)\**">
+        <Exclude Files="$(var.AppDir)\AN POS.exe" />
+      </Files>
+    </ComponentGroup>
+  </Fragment>
+</Wix>

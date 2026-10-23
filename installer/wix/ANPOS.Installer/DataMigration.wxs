@@ -1,0 +1,28 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+  <Fragment>
+    <!-- البحث عن مسار إلغاء تثبيت NSIS القديم في سجل النظام أو المجلد الافتراضي -->
+    <Property Id="LEGACY_NSIS_UNINSTALLER">
+      <RegistrySearch Id="LegacyNsisRegistrySearch"
+                      Root="HKLM"
+                      Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\an-pos"
+                      Name="UninstallString"
+                      Type="file" />
+    </Property>
+
+    <Component Id="DataMigrationComponent" Directory="ANPOSDataFolder" Guid="{A14E738B-9321-4E6D-981F-D89178E89A32}">
+      <!-- إنشاء مجلدات العمل الخاصة بالبيانات والنسخ الاحتياطية -->
+      <CreateFolder>
+        <util:PermissionEx User="Users" GenericRead="yes" GenericExecute="yes" />
+        <util:PermissionEx User="Administrators" GenericAll="yes" />
+      </CreateFolder>
+
+      <RegistryValue Root="HKLM"
+                     Key="Software\AN POS\Installer"
+                     Name="DataDirectoryConfigured"
+                     Type="integer"
+                     Value="1"
+                     KeyPath="yes" />
+    </Component>
+  </Fragment>
+</Wix>

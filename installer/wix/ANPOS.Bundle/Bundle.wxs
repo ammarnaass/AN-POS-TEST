@@ -1,0 +1,45 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+  <Bundle
+    Name="AN POS"
+    Manufacturer="AN POS"
+    Version="$(var.Version)"
+    UpgradeCode="{7B23E158-75A0-449D-8EF7-526487A8F310}"
+    IconSourceFile="$(var.IconPath)">
+
+    <BootstrapperApplication>
+      <bal:WixStandardBootstrapperApplication
+        Theme="hyperlinkLicense"
+        LicenseUrl="https://anpos.ly/license"
+        LogoFile="$(var.IconPath)"
+        SuppressOptionsUI="no" />
+    </BootstrapperApplication>
+
+    <!-- شرط نظام التشغيل: Windows 10 أو أحدث -->
+    <bal:Condition Message="يتطلب نظام AN POS العمل على نظام Windows 10 أو Windows 11 أو أحدث (64-bit).">
+      VersionNT64 &gt;= 1000
+    </bal:Condition>
+
+    <!-- إغلاق التطبيق النشط قبل بدء التثبيت لتفادي قفل الملفات -->
+    <util:CloseApplication
+      Id="CloseAnPos"
+      Target="AN POS.exe"
+      CloseMessage="yes"
+      RebootPrompt="no" />
+
+    <Variable Name="EDITION" Value="Desktop" Persisted="yes" Type="string" />
+    <Variable Name="SERVER_PORT" Value="3000" Persisted="yes" Type="numeric" />
+
+    <Chain>
+      <MsiPackage
+        Id="AnPosMsiPackage"
+        SourceFile="$(var.MsiPath)"
+        Vital="yes"
+        DisplayInternalUI="no">
+        <MsiProperty Name="EDITION" Value="[EDITION]" />
+        <MsiProperty Name="SERVER_PORT" Value="[SERVER_PORT]" />
+      </MsiPackage>
+    </Chain>
+  </Bundle>
+</Wix>

@@ -33,13 +33,13 @@ jobs:
       - name: Build Application
         run: npm run build
 
-      - name: Package NSIS + Portable (unsigned)
+      - name: Package NSIS + Portable + MSI (unsigned)
         if: ${{ env.CSC_LINK == '' }}
-        run: npx electron-builder --win nsis portable --x64
+        run: npx electron-builder --win nsis portable msi --x64
 
-      - name: Package NSIS + Portable (signed)
+      - name: Package NSIS + Portable + MSI (signed)
         if: ${{ env.CSC_LINK != '' }}
-        run: npx electron-builder --win nsis portable --x64 -c.forceCodeSigning=true
+        run: npx electron-builder --win nsis portable msi --x64 -c.forceCodeSigning=true
 
       - name: Verify Clean Package (No Linux/Darwin Binaries)
         run: node scripts/check-package-contents.mjs
@@ -61,6 +61,7 @@ jobs:
           name: anpos-windows-release
           path: |
             release/*.exe
+            release/*.msi
             release/*.blockmap
             release/latest.yml
             release/SHA256SUMS.txt
@@ -82,6 +83,7 @@ jobs:
         with:
           files: |
             release/*.exe
+            release/*.msi
             release/*.blockmap
             release/latest.yml
             release/SHA256SUMS.txt
