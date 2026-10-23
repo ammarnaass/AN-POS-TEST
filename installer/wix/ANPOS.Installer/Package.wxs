@@ -39,6 +39,7 @@
     <Feature Id="MainFeature" Title="AN POS Application" Level="1" Display="expand" ConfigurableDirectory="INSTALLFOLDER">
       <ComponentGroupRef Id="AppFiles" />
       <ComponentGroupRef Id="AppShortcuts" />
+      <ComponentGroupRef Id="ServiceComponents" />
       <ComponentRef Id="FirewallRuleComponent" />
       <ComponentRef Id="DataMigrationComponent" />
     </Feature>

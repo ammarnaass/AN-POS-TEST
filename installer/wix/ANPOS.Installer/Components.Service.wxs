@@ -1,0 +1,33 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Fragment>
+    <ComponentGroup Id="ServiceComponents">
+      <!-- تسجيل خدمة ويندوز المستقلة لخادم الشبكة المحلية (Track C) - خاص بنمط Server -->
+      <Component Id="ServiceComponent" Directory="INSTALLFOLDER" Guid="{B37A58E2-2C9B-4D18-A731-C68C4908D512}" Condition="EDITION = &quot;Server&quot;">
+        <File Id="ServiceExecutable"
+              Source="$(var.AppDir)\AN POS.exe"
+              KeyPath="yes" />
+
+        <!-- تثبيت وتسجيل الخدمة في نظام إدارة الخدمات (SCM) -->
+        <ServiceInstall
+          Id="AnposServiceInstall"
+          Name="ANPOSLanService"
+          DisplayName="AN POS LAN Service"
+          Description="خدمة خادم الشبكة المحلية لنظام AN POS للعمل الدائم في الخلفية قبل تسجيل الدخول"
+          Type="ownProcess"
+          Start="auto"
+          ErrorControl="normal"
+          Arguments="--service"
+          Account="NT AUTHORITY\NetworkService" />
+
+        <!-- التحكم بدورة حياة الخدمة عند التثبيت والترقية والإلغاء -->
+        <ServiceControl
+          Id="AnposServiceControl"
+          Name="ANPOSLanService"
+          Start="install"
+          Stop="both"
+          Remove="uninstall"
+          Wait="yes" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+</Wix>

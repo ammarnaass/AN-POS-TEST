@@ -11,11 +11,17 @@ import { getOrCreateConfigFile } from './ipc/system';
 import { initTray, updateTrayMenu, destroyTray, getIsQuitting, setIsQuitting } from './tray';
 import { handleCliBackupCommands } from './backup/preUpgrade';
 import { setupAutoUpdater, registerUpdaterIpc, cleanupAutoUpdater } from './updater';
+import { handleServiceCommand, isLocalServiceRunning } from './service/serviceMode';
 
 // 0. معالجة أوامر الترقية والنسخ الاحتياطي عبر سطر الأوامر (CLI - A3)
 // يجب أن يُنفّذ قبل فحص قفل النسخة الواحدة لتمكين المثبت من طلب checkpoint و vacuum حتى أثناء تشغيل البرنامج
 if (handleCliBackupCommands()) {
   // تم تنفيذ الأمر وانتهت العملية فوراً
+}
+
+// 0.1 معالجة تشغيل الخادم كخدمة ويندوز مستقلة في الخلفية (CLI - Track C)
+if (handleServiceCommand()) {
+  // التطبيق يعمل في نمط خدمة خلفية (Headless Service) دون واجهة رسومية
 }
 
 // 1. قفل النسخة الواحدة (Single Instance Lock)
@@ -138,9 +144,15 @@ async function createWindow() {
     // تشغيل خادم Fastify فقط إذا كان هذا الجهاز خادماً رئيسياً (terminalRole === 'server')
     if (terminalRole === 'server' && (lanEnabled || isDev) && (syncMode !== 'single' || isDev)) {
       const port = Number(netSettings?.server_port) || 3000;
-      // تأكد من وجود مفتاح اتصال (يُولّد تلقائياً عند الحاجة)
-      getOrCreateConnectionKey();
-      await startHttpServer({ port });
+      // فحص ما إذا كانت خدمة ويندوز المستقلة تعمل بالفعل في الخلفية لتفادي تعارض المنفذ
+      const isServiceActive = await isLocalServiceRunning(port);
+      if (isServiceActive) {
+        console.log(`[main] ℹ️ تم اكتشاف خدمة AN POS LAN Service تعمل في الخلفية على المنفذ ${port} — تخطي تشغيل خادم مكرر.`);
+      } else {
+        // تأكد من وجود مفتاح اتصال (يُولّد تلقائياً عند الحاجة)
+        getOrCreateConnectionKey();
+        await startHttpServer({ port });
+      }
     } else {
       console.log(`[main] خادم HTTP معطّل (role = '${terminalRole}', lan_enabled = ${lanEnabled ? 1 : 0}, sync_mode = '${syncMode}')`);
     }

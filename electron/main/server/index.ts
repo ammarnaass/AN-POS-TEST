@@ -29,6 +29,7 @@ import { registerPosRoutes } from './routes/pos';
 import { startDiscoveryListener, stopDiscoveryListener } from '../discoveryUdp';
 import { startBonjourAdvertising, stopBonjourAdvertising } from '../discoveryBonjour';
 import { initEventBus, closeEventBus, broadcastRealtimeEvent, getRealtimeClientsCount } from './eventBus';
+import { isServiceModeActive } from '../service/serviceMode';
 
 export interface ServerConfig {
   port?: number;
@@ -189,12 +190,24 @@ export async function startHttpServer(config: ServerConfig = {}): Promise<{ url:
   await registerSyncRoutes(server);
   await registerPosRoutes(server);
 
-  // ===== health =====
+  // ===== health & service status =====
   server.get('/api/health', async () => ({
     status: 'ok',
     timestamp: new Date().toISOString(),
     app: 'an-pos',
-    version: app.getVersion(),
+    version: app?.getVersion ? app.getVersion() : '3.0.0',
+    mode: isServiceModeActive() ? 'service' : 'desktop',
+    uptime: Math.floor(process.uptime()),
+    clientsCount: getRealtimeClientsCount(),
+  }));
+
+  server.get('/api/service/status', async () => ({
+    status: 'running',
+    mode: isServiceModeActive() ? 'service' : 'desktop',
+    uptimeSeconds: Math.floor(process.uptime()),
+    databasePath: process.env.AN_POS_DB_PATH || 'default',
+    memoryUsage: process.memoryUsage(),
+    connectedClients: getRealtimeClientsCount(),
   }));
 
   // ===== معالج أخطاء موحّد =====

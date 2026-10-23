@@ -31,7 +31,12 @@
     "cert:generate-dev": "node scripts/generate-dev-cert.mjs",
     "verify:signatures": "node scripts/verify-signature.mjs",
     "package:win:signed": "electron-vite build --config electron.vite.config.ts && electron-builder --win -c.forceCodeSigning=true",
-    "package:win:msi": "electron-vite build --config electron.vite.config.ts && electron-builder --win msi --x64"
+    "package:win:msi": "electron-vite build --config electron.vite.config.ts && electron-builder --win msi --x64",
+    "service:install": "node scripts/service-manager.mjs install",
+    "service:start": "node scripts/service-manager.mjs start",
+    "service:stop": "node scripts/service-manager.mjs stop",
+    "service:status": "node scripts/service-manager.mjs status",
+    "service:uninstall": "node scripts/service-manager.mjs uninstall"
   },
   "build": {
     "appId": "com.anpos.desktop",
