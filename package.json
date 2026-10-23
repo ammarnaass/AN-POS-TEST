@@ -32,6 +32,7 @@
     "verify:signatures": "node scripts/verify-signature.mjs",
     "package:win:signed": "electron-vite build --config electron.vite.config.ts && electron-builder --win -c.forceCodeSigning=true",
     "package:win:msi": "electron-vite build --config electron.vite.config.ts && electron-builder --win msi --x64",
+    "package:win:msix": "electron-vite build --config electron.vite.config.ts && electron-builder --win appx --x64",
     "service:install": "node scripts/service-manager.mjs install",
     "service:start": "node scripts/service-manager.mjs start",
     "service:stop": "node scripts/service-manager.mjs stop",
@@ -122,6 +123,25 @@
       "shortcutName": "AN POS",
       "artifactName": "${productName}-Setup-${version}-${arch}.msi",
       "upgradeCode": "4A16F8C9-8802-4A73-A33B-E6C09D0C5471"
+    },
+    "appx": {
+      "applicationId": "com.anpos.desktop",
+      "identityName": "ANPOS.Desktop",
+      "publisher": "CN=AN POS, O=AN POS, C=LY",
+      "publisherDisplayName": "AN POS",
+      "displayName": "AN POS",
+      "backgroundColor": "#0f172a",
+      "languages": [
+        "ar-SA",
+        "en-US"
+      ],
+      "showNameOnTiles": true,
+      "capabilities": [
+        "runFullTrust",
+        "privateNetworkClientServer",
+        "internetClientServer"
+      ],
+      "artifactName": "${productName}-${version}-${arch}.msix"
     },
     "linux": {
       "target": "AppImage",

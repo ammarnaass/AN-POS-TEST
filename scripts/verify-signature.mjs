@@ -22,11 +22,17 @@ if (!fs.existsSync(releaseDir)) {
 function collectExecutables() {
   const files = [];
 
-  // الملفات التنفيذية وحزم التثبيت في release/ مباشرة (.exe و .msi)
+  // الملفات التنفيذية وحزم التثبيت في release/ مباشرة (.exe و .msi و .msix و .appx)
   const rootEntries = fs.readdirSync(releaseDir, { withFileTypes: true });
   for (const entry of rootEntries) {
     const lower = entry.name.toLowerCase();
-    if (entry.isFile() && (lower.endsWith('.exe') || lower.endsWith('.msi'))) {
+    if (
+      entry.isFile() &&
+      (lower.endsWith('.exe') ||
+        lower.endsWith('.msi') ||
+        lower.endsWith('.msix') ||
+        lower.endsWith('.appx'))
+    ) {
       files.push(path.join(releaseDir, entry.name));
     }
   }
@@ -41,7 +47,7 @@ function collectExecutables() {
 }
 
 /**
- * فحص ترويسة PE لاكتشاف جدول شهادات Authenticode (Image Security Directory)
+ * فحص ترويسة PE / MSI / MSIX لاكتشاف توقيع Authenticode
  */
 function inspectPeSignature(filePath) {
   try {
@@ -49,8 +55,10 @@ function inspectPeSignature(filePath) {
     const headerBuf = Buffer.alloc(1024);
     fs.readSync(fd, headerBuf, 0, 1024, 0);
 
+    const lowerPath = filePath.toLowerCase();
+
     // التحقق مما إذا كانت الحزمة من نوع MSI (Compound Storage)
-    if (filePath.toLowerCase().endsWith('.msi')) {
+    if (lowerPath.endsWith('.msi')) {
       fs.closeSync(fd);
       const isMsiHeader = headerBuf.readUInt32LE(0) === 0xe011cfd0;
       return {
@@ -59,6 +67,32 @@ function inspectPeSignature(filePath) {
         isSigned: false,
         certOffset: 0,
         certSize: 0
+      };
+    }
+
+    // التحقق مما إذا كانت الحزمة من نوع MSIX / AppX (ZIP OPC Package)
+    if (lowerPath.endsWith('.msix') || lowerPath.endsWith('.appx')) {
+      const isZip = headerBuf.readUInt32LE(0) === 0x04034b50;
+      if (!isZip) {
+        fs.closeSync(fd);
+        return { isPe: false, error: 'ليس ملف MSIX/ZIP صالح' };
+      }
+      const stat = fs.statSync(filePath);
+      const endSize = Math.min(stat.size, 128 * 1024);
+      const endBuf = Buffer.alloc(endSize);
+      fs.readSync(fd, endBuf, 0, endSize, stat.size - endSize);
+      fs.closeSync(fd);
+
+      const hasSignature = endBuf.includes('AppxSignature.p7x');
+      return {
+        isPe: true,
+        arch: 'MSIX (Windows App Package)',
+        isSigned: hasSignature,
+        certOffset: 0,
+        certSize: hasSignature ? 1 : 0,
+        certRevision: 0,
+        certType: hasSignature ? 0x0002 : null,
+        isPkcsSignedData: hasSignature
       };
     }
 
@@ -173,8 +207,12 @@ for (const filePath of targetFiles) {
     signedCount++;
     console.log(`✅ [موقّع] ${relativePath}`);
     console.log(`   - المعمارية: ${peInfo.arch}`);
-    console.log(`   - جدول الشهادات: ${peInfo.certSize} bytes (Offset: 0x${peInfo.certOffset.toString(16)})`);
-    console.log(`   - نوع التوقيع: PKCS#7 SignedData (Revision: 0x${peInfo.certRevision.toString(16)})`);
+    if (peInfo.certSize > 1) {
+      console.log(`   - جدول الشهادات: ${peInfo.certSize} bytes (Offset: 0x${peInfo.certOffset.toString(16)})`);
+      console.log(`   - نوع التوقيع: PKCS#7 SignedData (Revision: 0x${peInfo.certRevision.toString(16)})`);
+    } else {
+      console.log(`   - نوع التوقيع: حزمة AppX/MSIX معتمدة (AppxSignature.p7x متوفرة)`);
+    }
     if (psInfo) {
       console.log(`   - حالة النظام (Windows): ${psInfo.status} (${psInfo.statusMessage || 'OK'})`);
       if (psInfo.subject) console.log(`   - شهادة الناشر: ${psInfo.subject}`);
