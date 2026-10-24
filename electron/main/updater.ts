@@ -2,8 +2,10 @@
 // تعتمد على electron-updater وتدعم التنزيل التفاضلي والإشعار عبر IPC
 // وتمنع المقاطعة أثناء عمليات البيع أو الأعطال غير المتوقعة
 
-import { autoUpdater, type UpdateInfo } from 'electron-updater';
+import electronUpdater, { type UpdateInfo } from 'electron-updater';
 import { app, BrowserWindow, ipcMain } from 'electron';
+
+const { autoUpdater } = electronUpdater;
 
 export interface UpdateState {
   status: 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';

@@ -11,7 +11,7 @@ import {
   LayoutGrid, List, ShieldAlert,
   RefreshCw, Zap, Layers
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { exportJsonToExcel } from '@/utils/excel';
 
 export default function PromotionsPage() {
   const navigate = useNavigate();
@@ -447,10 +447,7 @@ export default function PromotionsPage() {
       };
     });
 
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'العروض الترويجية');
-    XLSX.writeFile(wb, `عروض_ترويجية_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    exportJsonToExcel(data, 'العروض الترويجية', `عروض_ترويجية_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   return (

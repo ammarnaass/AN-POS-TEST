@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import { readExcelAs2DArray } from '@/utils/excel';
 import type { Product, Supplier } from '@/types';
 import { generateId } from '@/utils';
 import {
@@ -273,14 +273,10 @@ export async function parseExcelSupplierInvoice(
     arrayBuffer = fileOrBuffer;
   }
 
-  const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-  const firstSheetName = workbook.SheetNames[0];
-  if (!firstSheetName) {
-    throw new Error('ملف الإكسل لا يحتوي على صفحات عمل.');
+  const sheetData = await readExcelAs2DArray(arrayBuffer);
+  if (!sheetData || sheetData.length === 0) {
+    throw new Error('ملف الإكسل لا يحتوي على صفحات عمل أو بيانات.');
   }
-
-  const worksheet = workbook.Sheets[firstSheetName];
-  const sheetData: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
   return parseExcelSupplierInvoiceData(
     sheetData,

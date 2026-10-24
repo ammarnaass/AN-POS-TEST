@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import { exportJsonToExcel } from '@/utils/excel';
 import type { Supplier, SupplierEntry } from '@/types';
 
 export function exportSuppliersToExcel(
@@ -19,8 +19,5 @@ export function exportSuppliersToExcel(
     };
   });
 
-  const ws = XLSX.utils.json_to_sheet(data);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'الموردون والمستحقات');
-  XLSX.writeFile(wb, `الموردون_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  exportJsonToExcel(data, 'الموردون والمستحقات', `الموردون_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }

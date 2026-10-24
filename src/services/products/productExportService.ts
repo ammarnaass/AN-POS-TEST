@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import { exportAoaToExcel, exportAoaToCsv } from '@/utils/excel';
 import type { Product, Category } from '@/types';
 
 export type ProductExportFormat = 'xlsx' | 'csv';
@@ -245,59 +245,6 @@ function buildComprehensiveAOA(
 }
 
 /**
- * إنشاء ورقة عمل SheetJS منسقة مع حماية الباركود وتوجيه اليمين لليسار
- */
-function createFormattedWorksheet(
-  aoa: (string | number)[][],
-  colWidths: { wch: number }[],
-  barcodeColIndex = 1
-): XLSX.WorkSheet {
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-
-  // 1. تعيين اتجاه الورقة RTL لتظهر من اليمين لليسار في Microsoft Excel
-  ws['!views'] = [{ RTL: true }];
-
-  // 2. ضبط عرض الأعمدة
-  ws['!cols'] = colWidths;
-
-  // 3. تأكيد نوع خلية الباركود كنص 's' لتجنب التحويل إلى ترميز علمي في Excel (6.281E+12)
-  const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:A1');
-  for (let R = 1; R <= range.e.r; R++) {
-    const barcodeCellAddress = XLSX.utils.encode_cell({ r: R, c: barcodeColIndex });
-    const cell = ws[barcodeCellAddress];
-    if (cell && cell.v !== undefined && cell.v !== '') {
-      cell.t = 's'; // Force string type
-      cell.v = String(cell.v);
-      cell.z = '@'; // Explicit text format
-    }
-  }
-
-  return ws;
-}
-
-/**
- * دالة مساعدة لتحميل ملف عبر إنشاء رابط Blob مؤقت
- * تعمل بشكل موثوق في كل من المتصفح العادي و Electron renderer
- */
-function triggerBlobDownload(blob: Blob, filename: string): void {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  link.style.display = 'none';
-  document.body.appendChild(link);
-
-  // تأخير بسيط لضمان اكتمال التحميل في Electron
-  setTimeout(() => {
-    link.click();
-    setTimeout(() => {
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    }, 200);
-  }, 0);
-}
-
-/**
  * الدالة الرئيسية لتصدير قائمة المنتجات إلى Excel (.xlsx) أو CSV (.csv)
  */
 export async function exportProductsToFile(
@@ -327,32 +274,13 @@ export async function exportProductsToFile(
       : buildComprehensiveAOA(products, categories, includeSummary);
 
   const barcodeColIndex = 1;
-  const ws = createFormattedWorksheet(aoa, colWidths, barcodeColIndex);
 
   if (format === 'xlsx') {
-    const wb = XLSX.utils.book_new();
     const sheetTitle =
       template === 'inventory_audit' ? 'مراجعة الأسعار والجرد' : 'بيانات المنتجات الشاملة';
-    XLSX.utils.book_append_sheet(wb, ws, sheetTitle);
-
-    // استخدام XLSX.write لإنشاء ArrayBuffer ثم تحميله عبر Blob
-    // بدلاً من XLSX.writeFile الذي قد يفشل بصمت في Electron renderer
-    const xlsxBuffer = XLSX.write(wb, {
-      bookType: 'xlsx',
-      type: 'array', // ArrayBuffer — متوافق مع Blob
-    });
-
-    const blob = new Blob([xlsxBuffer], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    });
-
-    triggerBlobDownload(blob, defaultFilename);
+    await exportAoaToExcel(aoa, colWidths, sheetTitle, defaultFilename, barcodeColIndex);
   } else {
-    // CSV Export مع رمز UTF-8 BOM (\uFEFF) لضمان توافق الحروف العربية 100% مع Excel
-    const csvContent = '\uFEFF' + XLSX.utils.sheet_to_csv(ws);
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-
-    triggerBlobDownload(blob, defaultFilename);
+    exportAoaToCsv(aoa, defaultFilename);
   }
 
   return {

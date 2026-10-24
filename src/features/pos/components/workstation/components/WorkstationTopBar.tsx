@@ -192,10 +192,11 @@ export const WorkstationTopBar: React.FC<WorkstationTopBarProps> = ({
             type="button"
             onClick={onOpenCustomize}
             className="h-8 px-2.5 flex items-center gap-1.5 rounded-lg text-slate-200 hover:text-white bg-slate-800 hover:bg-slate-750 border border-slate-700 text-xs font-bold transition shadow-xs cursor-pointer active:scale-95"
-            title="تخصيص الواجهة ودقة الشاشة"
+            title="تخصيص الواجهة ودقة الشاشة (F9)"
           >
             <Sliders className="w-3.5 h-3.5 text-purple-400" />
             <span className="hidden sm:inline">تخصيص</span>
+            <span className="text-[10px] text-purple-300 font-mono hidden md:inline">F9</span>
           </button>
         )}
 

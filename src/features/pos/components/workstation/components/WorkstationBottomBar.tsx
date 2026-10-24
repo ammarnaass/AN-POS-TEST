@@ -12,7 +12,6 @@ import {
   Plus,
   Check,
   Printer,
-  Sliders,
 } from 'lucide-react';
 
 interface WorkstationBottomBarProps {
@@ -28,7 +27,6 @@ interface WorkstationBottomBarProps {
   onIncrementQty: () => void;
   onConfirmSave: () => void;
   onConfirmPrint: () => void;
-  onOpenCustomize?: () => void;
   isSalePending?: boolean;
   cartLength: number;
 }
@@ -46,7 +44,6 @@ export const WorkstationBottomBar: React.FC<WorkstationBottomBarProps> = ({
   onIncrementQty,
   onConfirmSave,
   onConfirmPrint,
-  onOpenCustomize,
   isSalePending = false,
   cartLength,
 }) => {
@@ -138,22 +135,6 @@ export const WorkstationBottomBar: React.FC<WorkstationBottomBarProps> = ({
               <div className="text-[10px] text-teal-200 font-mono">F10</div>
             </div>
           </button>
-
-          {/* F9 Customize Layout */}
-          {onOpenCustomize && (
-            <button
-              type="button"
-              onClick={onOpenCustomize}
-              className="h-11 px-3 rounded-xl bg-slate-800 hover:bg-purple-900/40 hover:text-purple-200 active:scale-95 text-slate-200 border border-slate-700 flex items-center gap-2 font-bold text-xs transition cursor-pointer"
-              title="تخصيص الواجهة ودقة الشاشة"
-            >
-              <Sliders className="w-4 h-4 text-purple-400" />
-              <div className="text-right leading-tight">
-                <div>تخصيص</div>
-                <div className="text-[10px] text-purple-300 font-mono">F9</div>
-              </div>
-            </button>
-          )}
 
           {/* F3 Put Sale On Hold */}
           <button

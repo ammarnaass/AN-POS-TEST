@@ -153,12 +153,12 @@ describe('WorkstationPOSLayout (تصميم 6 - محطة العمل الاحتر�
     expect(defaultProps.onOpenCustomize).toHaveBeenCalled();
   });
 
-  it('يعرض زر التخصيص في الشريط العلوي وشريط الوظائف السفلي ويستدعي onOpenCustomize عند النقر', () => {
+  it('يعرض زر التخصيص في الشريط العلوي (بدون تكرار في الشريط السفلي) ويستدعي onOpenCustomize عند النقر', () => {
     render(<WorkstationPOSLayout {...defaultProps} />);
 
-    // Should find customize button(s)
+    // Should find customize button in the top bar only (not duplicated)
     const customizeButtons = screen.getAllByRole('button', { name: /تخصيص/ });
-    expect(customizeButtons.length).toBeGreaterThanOrEqual(1);
+    expect(customizeButtons).toHaveLength(1);
 
     fireEvent.click(customizeButtons[0]);
     expect(defaultProps.onOpenCustomize).toHaveBeenCalled();

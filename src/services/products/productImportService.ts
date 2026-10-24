@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import { readExcelAsObjects } from '@/utils/excel';
 import type { Product, Category } from '@/types';
 import { generateId } from '@/utils';
 import { categoriesApi } from '@/services/api/categoriesApi';
@@ -365,24 +365,17 @@ function buildColumnMapping(headers: string[]): Record<keyof typeof HEADER_DICTI
 }
 
 /**
- * قراءة وتحليل بيانات المنتجات من مصنف Excel (WorkBook)
+/**
+ * قراءة وتحليل بيانات المنتجات من مصفوفة صفوف كائنات (Rows)
  */
-export function parseProductsFromWorkbook(
-  wb: XLSX.WorkBook,
+export function parseProductsFromRows(
+  rawRows: Record<string, any>[],
   filename = 'imported-products.xlsx',
   existingProducts: Product[] = [],
   existingCategories: Category[] = []
 ): ProductImportSummary {
-  const sheetName = wb.SheetNames[0];
-  if (!sheetName) {
-    throw new Error('الملف لا يحتوي على أي صفحات بيانات.');
-  }
-
-  const ws = wb.Sheets[sheetName];
-  // قراءة الصفوف كمصفوفة من الكائنات
-  const rawRows = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: '' });
-  if (rawRows.length === 0) {
-    throw new Error('الصفحة الأولى فارغة ولا تحتوي على أي صفوف أو منتجات.');
+  if (!rawRows || rawRows.length === 0) {
+    throw new Error('الملف لا يحتوي على أي صفوف أو منتجات.');
   }
 
   // استخراج العناوين من أول صف
@@ -557,16 +550,117 @@ export function parseProductsFromWorkbook(
 }
 
 /**
- * قراءة وتحليل ملف مستورد (File) عبر المتصفح
+ * قراءة وتحليل ملف مستورد (File أو ArrayBuffer) عبر ExcelJS الآمن
  */
 export async function parseProductsFromFile(
-  file: File,
+  fileOrBuffer: File | ArrayBuffer | Uint8Array,
   existingProducts: Product[] = [],
   existingCategories: Category[] = []
 ): Promise<ProductImportSummary> {
-  const arrayBuffer = await file.arrayBuffer();
-  const wb = XLSX.read(arrayBuffer, { type: 'array' });
-  return parseProductsFromWorkbook(wb, file.name, existingProducts, existingCategories);
+  const filename = fileOrBuffer instanceof File ? fileOrBuffer.name : 'imported-products.xlsx';
+  const arrayBuffer =
+    fileOrBuffer instanceof File
+      ? await fileOrBuffer.arrayBuffer()
+      : fileOrBuffer instanceof Uint8Array
+      ? fileOrBuffer.buffer
+      : fileOrBuffer;
+
+  const rawRows = await readExcelAsObjects(arrayBuffer);
+  return parseProductsFromRows(rawRows, filename, existingProducts, existingCategories);
+}
+
+/**
+ * دالة مساعدة لاستخراج الصفوف من كائن ورقة عمل SheetJS للتوافق العكسي
+ */
+function parseLegacySheetJSToRows(ws: any): Record<string, any>[] {
+  const ref = ws['!ref'];
+  if (!ref) return [];
+  const parts = ref.split(':');
+  if (parts.length !== 2) return [];
+
+  const startColLetters = parts[0].replace(/\d+/g, '');
+  const startRowNum = parseInt(parts[0].replace(/\D+/g, ''), 10);
+  const endColLetters = parts[1].replace(/\d+/g, '');
+  const endRowNum = parseInt(parts[1].replace(/\D+/g, ''), 10);
+
+  const colToNum = (col: string) => {
+    let num = 0;
+    for (let i = 0; i < col.length; i++) {
+      num = num * 26 + (col.charCodeAt(i) - 64);
+    }
+    return num;
+  };
+
+  const numToCol = (num: number) => {
+    let str = '';
+    while (num > 0) {
+      const rem = (num - 1) % 26;
+      str = String.fromCharCode(65 + rem) + str;
+      num = Math.floor((num - 1) / 26);
+    }
+    return str;
+  };
+
+  const startC = colToNum(startColLetters);
+  const endC = colToNum(endColLetters);
+
+  const headers: { col: number; name: string }[] = [];
+  for (let c = startC; c <= endC; c++) {
+    const addr = numToCol(c) + startRowNum;
+    const cell = ws[addr];
+    if (cell && cell.v !== undefined && cell.v !== null) {
+      headers.push({ col: c, name: String(cell.v).trim() });
+    }
+  }
+
+  const rows: Record<string, any>[] = [];
+  for (let r = startRowNum + 1; r <= endRowNum; r++) {
+    const rowObj: Record<string, any> = {};
+    let hasVal = false;
+    for (const h of headers) {
+      const addr = numToCol(h.col) + r;
+      const cell = ws[addr];
+      const val = cell && cell.v !== undefined && cell.v !== null ? cell.v : '';
+      if (val !== '') hasVal = true;
+      rowObj[h.name] = val;
+    }
+    if (hasVal) {
+      rows.push(rowObj);
+    }
+  }
+  return rows;
+}
+
+/**
+ * دالة للتوافق العكسي تقبل مصفوفة صفوف أو كائن مصنف
+ */
+export function parseProductsFromWorkbook(
+  input: any,
+  filename = 'imported-products.xlsx',
+  existingProducts: Product[] = [],
+  existingCategories: Category[] = []
+): ProductImportSummary {
+  if (Array.isArray(input)) {
+    return parseProductsFromRows(input, filename, existingProducts, existingCategories);
+  }
+  if (input && typeof input === 'object') {
+    if (Array.isArray((input as any).rows)) {
+      return parseProductsFromRows((input as any).rows, filename, existingProducts, existingCategories);
+    }
+    // في حال تمرير مصنف قديم في الاختبارات
+    if ((input as any).Sheets && (input as any).SheetNames) {
+      const sheetName = (input as any).SheetNames[0];
+      const ws = (input as any).Sheets[sheetName];
+      if (Array.isArray(ws)) {
+        return parseProductsFromRows(ws, filename, existingProducts, existingCategories);
+      }
+      if (ws && typeof ws === 'object') {
+        const rows = parseLegacySheetJSToRows(ws);
+        return parseProductsFromRows(rows, filename, existingProducts, existingCategories);
+      }
+    }
+  }
+  return parseProductsFromRows([], filename, existingProducts, existingCategories);
 }
 
 /**

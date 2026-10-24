@@ -21,7 +21,7 @@ import { useCanPerform } from '@/services/print/permissions';
 import { settleSpecificInvoiceDebtRecord, toggleInvoicePaymentStatus } from '@/features/pos/debt';
 import type { DocType } from '@/types';
 import type { DocTypeKey, PrintTemplate, Printer as PrinterType } from '@/types/invoicePrint';
-import * as XLSX from 'xlsx';
+import { exportJsonToExcel } from '@/utils/excel';
 
 const PrintHistoryPanel = lazy(() => import('@/components/print/PrintHistoryPanel'));
 
@@ -575,10 +575,7 @@ export default function InvoicesTab() {
       };
     });
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'الفواتير');
-    XLSX.writeFile(wb, `AN_POS_Invoices_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    exportJsonToExcel(exportData, 'الفواتير', `AN_POS_Invoices_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   const baseCurrency = settings?.baseCurrency ?? 'دج';

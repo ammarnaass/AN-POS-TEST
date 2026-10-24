@@ -109,7 +109,7 @@ export async function seedDatabase(): Promise<void> {
   let adminId = '';
   if (hasExistingUsers) {
     // في قواعد البيانات القائمة (التحديث): نحافظ على مستخدمي المتجر ولا نُعيد زراعة حسابات تجريبية محذوفة
-    const existingAdmin = queryOne('SELECT id FROM users WHERE role = "admin" LIMIT 1');
+    const existingAdmin = queryOne('SELECT id FROM users WHERE role = ? LIMIT 1', ['admin']);
     if (existingAdmin?.id) adminId = existingAdmin.id as string;
 
     // ترقية آمنة لأي هاش غير مشفر للمستخدمين القائمين

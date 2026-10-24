@@ -1,8 +1,9 @@
-import { describe, it, expect, vi } from 'vitest';
-import * as XLSX from 'xlsx';
+import { describe, it, expect } from 'vitest';
 import * as path from 'path';
 import * as fs from 'fs';
+import ExcelJS from 'exceljs';
 import {
+  parseProductsFromFile,
   parseProductsFromWorkbook,
   mergeImportedProducts,
   cleanNumber,
@@ -64,22 +65,20 @@ describe('productImportService', () => {
     ).toBe(false);
   });
 
-  it('يستورد ملف النسخة الاحتياطية الفعلي للمستخدم بدقة 100% وبدون أي نقص في الحقول', () => {
+  it('يستورد ملف النسخة الاحتياطية الفعلي للمستخدم بدقة 100% وبدون أي نقص في الحقول', async () => {
     if (!fs.existsSync(realExcelPath)) {
       console.warn('Real excel file not found at path, skipping test:', realExcelPath);
       return;
     }
 
     const fileBuffer = fs.readFileSync(realExcelPath);
-    const wb = XLSX.read(fileBuffer, { type: 'buffer' });
 
     const existingCategories: Category[] = [
       { id: 'cat-school', name: 'ادوات المدرسية' },
     ];
 
-    const result = parseProductsFromWorkbook(
-      wb,
-      'AN_POS_المنتجات_شامل_المنتجات_2026-09-17.xlsx',
+    const result = await parseProductsFromFile(
+      fileBuffer,
       [],
       existingCategories
     );
@@ -118,18 +117,21 @@ describe('productImportService', () => {
     expect(result.detectedCategories).toContain('ادوات المدرسية');
   });
 
-  it('يستورد بنجاح مصنف مبني برمجياً مع أعمدة بديلة وتنسيقات عملات متعددة', () => {
+  it('يستورد بنجاح مصنف مبني برمجياً مع أعمدة بديلة وتنسيقات عملات متعددة', async () => {
     const wsData = [
       ['اسم السلعة', 'كود الباركود', 'القسم', 'سعر الشراء دج', 'سعر البيع دج', 'المخزون الحالي'],
       ['شوكولاتة بالحليب', '613000111222', 'حلويات', '85.50 دج', '110.00 دج', 50],
       ['عصير برتقال 1ل', '613000333444', 'مشروبات', '120 دج', '150 دج', 24],
       ['المجموع الكلي', '', '', '', '', 74],
     ];
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'السلع');
 
-    const result = parseProductsFromWorkbook(wb, 'test.xlsx');
+    const workbook = new ExcelJS.Workbook();
+    const ws = workbook.addWorksheet('السلع');
+    ws.addRows(wsData);
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const result = await parseProductsFromFile(buffer, []);
+
     expect(result.validProducts.length).toBe(2);
     expect(result.skippedRows).toBe(1);
 
@@ -162,51 +164,51 @@ describe('productImportService', () => {
 
     const imported: Product[] = [
       {
-        id: 'new-temp-id',
-        name: 'كراس 32 ص منصوري 2023 مُحدّث',
-        barcode: '326112869412',
-        sku: '2023',
+        id: 'imported-temp-1',
+        name: 'كراس 32 ص منصوري 2023',
+        barcode: '326112869412', // نفس الباركود
         category: 'ادوات المدرسية',
         costPrice: 17.91,
         wholesalePrice: 20,
         retailPrice: 22,
         quantity: 280,
-        lowStockThreshold: 10,
+        lowStockThreshold: 5,
         wholesaleMinQty: 10,
         status: 'active',
         unit: 'قطعة',
       },
       {
-        id: 'new-temp-id-2',
-        name: 'قلم جاف أزرق',
-        barcode: '999888777666',
+        id: 'imported-temp-2',
+        name: 'قلم جاف أزرق جديد',
+        barcode: '999888777666', // منتج جديد
         category: 'ادوات المدرسية',
         costPrice: 10,
         wholesalePrice: 12,
         retailPrice: 15,
         quantity: 100,
-        lowStockThreshold: 5,
-        wholesaleMinQty: 5,
+        lowStockThreshold: 10,
+        wholesaleMinQty: 20,
         status: 'active',
         unit: 'قطعة',
       },
     ];
 
-    const { finalProducts, insertedCount, updatedCount } = mergeImportedProducts(
-      existing,
-      imported,
-      'upsert'
-    );
+    const { finalProducts: merged } = mergeImportedProducts(existing, imported);
 
-    expect(insertedCount).toBe(1); // قلم جاف أزرق
-    expect(updatedCount).toBe(1);  // كراس 32 ص
-    expect(finalProducts.length).toBe(2);
+    // الإجمالي يجب أن يكون 2 (واحد محدث والآخر مضاف)
+    expect(merged.length).toBe(2);
 
-    // التحقق من الحفاظ على المعرف الأصلي للمنتج المحدث مع تحديث الأسعار
-    const updatedProd = finalProducts.find((p) => p.barcode === '326112869412');
-    expect(updatedProd?.id).toBe('prod-old-1');
-    expect(updatedProd?.name).toBe('كراس 32 ص منصوري 2023 مُحدّث');
-    expect(updatedProd?.costPrice).toBe(17.91);
-    expect(updatedProd?.quantity).toBe(280);
+    // 1. المنتج المحدث يجب أن يحتفظ بمعرفه القديم 'prod-old-1' مع تحديث باقي الحقول
+    const updated = merged.find((p) => p.barcode === '326112869412');
+    expect(updated).toBeDefined();
+    expect(updated!.id).toBe('prod-old-1');
+    expect(updated!.name).toBe('كراس 32 ص منصوري 2023');
+    expect(updated!.costPrice).toBe(17.91);
+    expect(updated!.quantity).toBe(280);
+
+    // 2. المنتج الجديد تم إضافته بنجاح
+    const added = merged.find((p) => p.barcode === '999888777666');
+    expect(added).toBeDefined();
+    expect(added!.name).toBe('قلم جاف أزرق جديد');
   });
 });

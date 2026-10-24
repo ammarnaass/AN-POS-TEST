@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import { exportJsonToExcel, readExcelAsObjects } from '@/utils/excel';
 import type { Customer } from '@/types';
 import { generateId } from '@/utils';
 
@@ -20,33 +20,16 @@ export function exportCustomersToExcel(
     };
   });
 
-  const ws = XLSX.utils.json_to_sheet(data);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'الزبائن والديون');
-  XLSX.writeFile(wb, `ديون_الزبائن_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  exportJsonToExcel(data, 'الزبائن والديون', `ديون_الزبائن_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
-export function parseCustomersFromExcel(file: File): Promise<Customer[]> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const wb = XLSX.read(event.target?.result, { type: 'binary' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const data = XLSX.utils.sheet_to_json<Record<string, any>>(ws);
-        const imported: Customer[] = data.map((row) => ({
-          id: generateId(),
-          name: row['الاسم'] || row['name'] || 'زبون بدون اسم',
-          phone: String(row['الهاتف'] || row['phone'] || ''),
-          creditLimit: Number(row['سقف الدين'] || row['creditLimit'] || 0),
-          balance: Number(row['الدين'] || row['الرصيد'] || row['balance'] || 0),
-        }));
-        resolve(imported);
-      } catch (err) {
-        reject(err);
-      }
-    };
-    reader.onerror = (error) => reject(error);
-    reader.readAsBinaryString(file);
-  });
+export async function parseCustomersFromExcel(file: File): Promise<Customer[]> {
+  const rows = await readExcelAsObjects(file);
+  return rows.map((row) => ({
+    id: generateId(),
+    name: row['الاسم'] || row['name'] || 'زبون بدون اسم',
+    phone: String(row['الهاتف'] || row['phone'] || ''),
+    creditLimit: Number(row['سقف الدين'] || row['creditLimit'] || 0),
+    balance: Number(row['الدين'] || row['الرصيد'] || row['balance'] || 0),
+  }));
 }

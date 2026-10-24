@@ -27,7 +27,7 @@ import type { Customer, Sale, Payment } from '@/types';
 import { formatCustomerMoney } from '../services/customerStatus';
 import { printPaymentVoucher } from '../services/customerPrintService';
 import { printPOSDebtAdditionSlip } from '@/features/pos/debt';
-import * as XLSX from 'xlsx';
+import { exportJsonToExcel } from '@/utils/excel';
 
 export interface CustomerLedgerEntry {
   id: string;
@@ -410,10 +410,7 @@ export const CustomerLedgerView: React.FC<CustomerLedgerViewProps> = ({
       };
     });
 
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'دفتر حسابات الزبائن');
-    XLSX.writeFile(wb, `دفتر_حسابات_الزبائن_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    exportJsonToExcel(data, 'دفتر حسابات الزبائن', `دفتر_حسابات_الزبائن_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   // Helper to print payment slip from ledger row

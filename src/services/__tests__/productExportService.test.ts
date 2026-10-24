@@ -1,21 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Product, Category } from '@/types';
-
-const mockWrite = vi.fn();
-
-vi.mock('xlsx', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('xlsx')>();
-  return {
-    ...actual,
-    write: (...args: any[]) => {
-      const result = actual.write(...args);
-      mockWrite(...args);
-      return result;
-    },
-  };
-});
-
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import {
   exportProductsToFile,
   resolveCategoryName,
@@ -65,14 +50,12 @@ describe('productExportService', () => {
     },
   ];
 
-  // Mock DOM APIs for Blob download
   let linkClickSpy: ReturnType<typeof vi.fn>;
   let createdBlob: Blob | null = null;
   let originalCreateObjectURL: typeof URL.createObjectURL;
   let originalRevokeObjectURL: typeof URL.revokeObjectURL;
 
   beforeEach(() => {
-    mockWrite.mockReset();
     createdBlob = null;
     linkClickSpy = vi.fn();
 
@@ -128,24 +111,14 @@ describe('productExportService', () => {
 
   describe('exportProductsToFile - Excel (.xlsx)', () => {
     it('exports products in inventory_audit template (7 main fields)', async () => {
-      vi.useFakeTimers();
-
       const result = await exportProductsToFile(mockProducts, {
         format: 'xlsx',
         template: 'inventory_audit',
         categories: mockCategories,
       });
 
-      // Advance timers to trigger the setTimeout-based download
-      vi.advanceTimersByTime(300);
-
       expect(result.success).toBe(true);
       expect(result.count).toBe(2);
-
-      // XLSX.write should have been called (instead of XLSX.writeFile)
-      expect(mockWrite).toHaveBeenCalled();
-      const writeArgs = mockWrite.mock.calls[0];
-      expect(writeArgs[1]).toEqual({ bookType: 'xlsx', type: 'array' });
 
       // Verify blob was created with Excel MIME type
       expect(createdBlob).not.toBeNull();
@@ -153,17 +126,26 @@ describe('productExportService', () => {
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       );
 
-      // Verify the workbook content by parsing the captured blob buffer
-      const capturedBook = writeArgs[0] as XLSX.WorkBook;
-      const sheet = capturedBook.Sheets['مراجعة الأسعار والجرد'];
-      expect(sheet).toBeDefined();
+      // Verify the workbook content by parsing the captured blob buffer with ExcelJS
+      const arrayBuffer = await createdBlob!.arrayBuffer();
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(arrayBuffer);
 
-      // Check RTL view
-      expect(sheet['!views']).toEqual([{ RTL: true }]);
+      const sheet = workbook.getWorksheet('مراجعة الأسعار والجرد');
+      expect(sheet).toBeDefined();
+      expect(sheet!.views).toEqual([expect.objectContaining({ rightToLeft: true })]);
 
       // Check column headers in row 1
-      const json = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 });
-      const headers = json[0];
+      const headerRow = sheet!.getRow(1);
+      const headers = [
+        headerRow.getCell(1).value,
+        headerRow.getCell(2).value,
+        headerRow.getCell(3).value,
+        headerRow.getCell(4).value,
+        headerRow.getCell(5).value,
+        headerRow.getCell(6).value,
+        headerRow.getCell(7).value,
+      ];
       expect(headers).toEqual([
         'اسم المنتج',
         'الباركود',
@@ -174,52 +156,43 @@ describe('productExportService', () => {
         'الكمية الحالية',
       ]);
 
-      // Row 1 data (first product)
-      expect(json[1][0]).toBe('عصير برتقال 1 لتر');
-      expect(json[1][1]).toBe('6281000001234');
-      expect(json[1][2]).toBe('المشروبات');
-      expect(json[1][3]).toBe(120);
-      expect(json[1][4]).toBe(140);
-      expect(json[1][5]).toBe(160);
-      expect(json[1][6]).toBe(50);
+      // Row 2 data (first product)
+      const row2 = sheet!.getRow(2);
+      expect(row2.getCell(1).value).toBe('عصير برتقال 1 لتر');
+      expect(row2.getCell(2).value).toBe('6281000001234');
+      expect(row2.getCell(3).value).toBe('المشروبات');
+      expect(row2.getCell(4).value).toBe(120);
+      expect(row2.getCell(5).value).toBe(140);
+      expect(row2.getCell(6).value).toBe(160);
+      expect(row2.getCell(7).value).toBe(50);
 
-      // Verify barcode cell type is explicit text ('s')
-      const barcodeCell = sheet['B2'];
-      expect(barcodeCell.t).toBe('s');
-      expect(barcodeCell.z).toBe('@');
-
-      vi.useRealTimers();
+      // Verify barcode cell numFmt is explicit text ('@')
+      expect(row2.getCell(2).numFmt).toBe('@');
     });
 
     it('exports products in comprehensive template (20 fields)', async () => {
-      vi.useFakeTimers();
-
       const result = await exportProductsToFile(mockProducts, {
         format: 'xlsx',
         template: 'comprehensive',
         categories: mockCategories,
       });
 
-      vi.advanceTimersByTime(300);
-
       expect(result.success).toBe(true);
-      expect(mockWrite).toHaveBeenCalled();
 
-      const capturedBook = mockWrite.mock.calls[0][0] as XLSX.WorkBook;
-      expect(capturedBook).not.toBeNull();
-      const sheet = capturedBook.Sheets['بيانات المنتجات الشاملة'];
+      const arrayBuffer = await createdBlob!.arrayBuffer();
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(arrayBuffer);
+
+      const sheet = workbook.getWorksheet('بيانات المنتجات الشاملة');
       expect(sheet).toBeDefined();
 
-      const json = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 });
-      const headers = json[0];
-      expect(headers.length).toBe(20);
-      expect(headers[0]).toBe('اسم المنتج');
-      expect(headers[1]).toBe('الباركود');
-      expect(headers[2]).toBe('كود الصنف (SKU)');
-      expect(headers[3]).toBe('التصنيف');
-      expect(headers[8]).toBe('الكمية الحالية');
-
-      vi.useRealTimers();
+      const headerRow = sheet!.getRow(1);
+      expect(headerRow.actualCellCount).toBe(20);
+      expect(headerRow.getCell(1).value).toBe('اسم المنتج');
+      expect(headerRow.getCell(2).value).toBe('الباركود');
+      expect(headerRow.getCell(3).value).toBe('كود الصنف (SKU)');
+      expect(headerRow.getCell(4).value).toBe('التصنيف');
+      expect(headerRow.getCell(9).value).toBe('الكمية الحالية');
     });
 
     it('throws error when product list is empty', async () => {
@@ -231,33 +204,24 @@ describe('productExportService', () => {
 
   describe('exportProductsToFile - CSV (.csv)', () => {
     it('triggers CSV download with UTF-8 BOM', async () => {
-      vi.useFakeTimers();
-
       const result = await exportProductsToFile(mockProducts, {
         format: 'csv',
         template: 'inventory_audit',
         categories: mockCategories,
       });
 
-      vi.advanceTimersByTime(300);
-
       expect(result.success).toBe(true);
-
-      // Verify blob was created
       expect(createdBlob).not.toBeNull();
 
-      // Read blob content to verify UTF-8 BOM bytes (0xEF, 0xBB, 0xBF)
-      const arrayBuffer = await (createdBlob as any).arrayBuffer();
+      const arrayBuffer = await createdBlob!.arrayBuffer();
       const bytes = new Uint8Array(arrayBuffer);
       expect(bytes[0]).toBe(0xEF);
       expect(bytes[1]).toBe(0xBB);
       expect(bytes[2]).toBe(0xBF);
 
-      const text = await (createdBlob as any).text();
+      const text = await createdBlob!.text();
       expect(text).toContain('اسم المنتج');
       expect(text).toContain('عصير برتقال 1 لتر');
-
-      vi.useRealTimers();
     });
   });
 });

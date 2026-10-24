@@ -266,7 +266,6 @@ export const WorkstationPOSLayout: React.FC<WorkstationPOSLayoutProps> = ({
         onIncrementQty={handleIncrementQty}
         onConfirmSave={handleConfirmSave}
         onConfirmPrint={handleConfirmPrint}
-        onOpenCustomize={onOpenCustomize}
         isSalePending={isSalePending}
         cartLength={cart.length}
       />
