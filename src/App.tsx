@@ -8,6 +8,7 @@ import PosLayout from '@/app/layouts/PosLayout';
 import FirstRunGuard from '@/app/guards/FirstRunGuard';
 import { InteractiveToastContainer } from '@/components/notifications/InteractiveToastContainer';
 import { NotificationCenterModal } from '@/components/notifications/NotificationCenterModal';
+import { AppTitleBar } from '@/components/layout/AppTitleBar';
 
 const LoginPage = lazy(() => import('@/pages/auth/LoginPage'));
 const POSPage = lazy(() => import('@/features/pos/POSPage'));
@@ -79,10 +80,13 @@ export default function App() {
 
   return (
     <RouteErrorBoundary>
-      <InteractiveToastContainer />
-      <NotificationCenterModal />
-      <Suspense fallback={<Loading />}>
-        <Routes>
+      <div className="flex flex-col h-screen w-screen overflow-hidden bg-background">
+        <AppTitleBar />
+        <div className="flex-1 min-h-0 min-w-0 overflow-hidden relative">
+          <InteractiveToastContainer />
+          <NotificationCenterModal />
+          <Suspense fallback={<Loading />}>
+            <Routes>
           {/* صفحة تسجيل الدخول + التسجيل (النقطة البداية) */}
           <Route element={<AuthLayout />}>
             <Route path="/login" element={<LoginPage />} />
@@ -133,6 +137,8 @@ export default function App() {
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </Suspense>
+        </div>
+      </div>
     </RouteErrorBoundary>
   );
 }

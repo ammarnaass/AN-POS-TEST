@@ -128,6 +128,7 @@ describe('WorkstationPOSLayout (تصميم 6 - محطة العمل الاحتر�
     expect(screen.getByText('سلع متنوعة')).toBeInTheDocument();
     expect(screen.getByText('نوع البحث')).toBeInTheDocument();
     expect(screen.getByText('إغلاق')).toBeInTheDocument();
+    expect(screen.queryByText('حزم')).not.toBeInTheDocument();
   });
 
   it('يستدعي onSettleSale عند الضغط على زر تأكيد الحفظ (F1)', () => {
@@ -162,5 +163,13 @@ describe('WorkstationPOSLayout (تصميم 6 - محطة العمل الاحتر�
 
     fireEvent.click(customizeButtons[0]);
     expect(defaultProps.onOpenCustomize).toHaveBeenCalled();
+  });
+
+  it('يتيح تبديل الوضع الليلي والنهاري بالتزامن مع useThemeStore', () => {
+    render(<WorkstationPOSLayout {...defaultProps} />);
+
+    const themeToggleBtn = screen.getByTitle(/الوضع/);
+    expect(themeToggleBtn).toBeInTheDocument();
+    fireEvent.click(themeToggleBtn);
   });
 });

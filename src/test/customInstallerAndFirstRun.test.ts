@@ -13,12 +13,14 @@ describe('Custom Installer & First-Run Environment Setup', () => {
   const dbPath = path.join(testDir, 'anpos.db');
 
   beforeEach(() => {
+    process.env.ANPOS_DATA_DIR = testDir;
     fs.mkdirSync(testDir, { recursive: true });
     fs.mkdirSync(path.join(testDir, 'backups'), { recursive: true });
     fs.mkdirSync(path.join(testDir, 'logs'), { recursive: true });
   });
 
   afterEach(() => {
+    delete process.env.ANPOS_DATA_DIR;
     if (fs.existsSync(testDir)) {
       fs.rmSync(testDir, { recursive: true, force: true });
     }

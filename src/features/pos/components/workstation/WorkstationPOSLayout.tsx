@@ -173,7 +173,6 @@ export const WorkstationPOSLayout: React.FC<WorkstationPOSLayoutProps> = ({
     onF7QuickAdd: onOpenAddProduct || onOpenFreeProduct,
     onF8ToggleSearchMode: handleToggleSearchMode,
     onF9Customize: onOpenCustomize,
-    onF10Packages: onOpenAddProduct || onOpenFreeProduct,
     onF11Returns: onOpenReturns,
     onF12QuickPay: handleQuickPay,
     onDeleteSelected: handleDeleteSelected,
@@ -228,7 +227,6 @@ export const WorkstationPOSLayout: React.FC<WorkstationPOSLayoutProps> = ({
           selectedPaymentMethod={selectedPaymentMethod}
           setSelectedPaymentMethod={setSelectedPaymentMethod}
           onOpenQuickAdd={onOpenAddProduct || onOpenFreeProduct}
-          onOpenPackages={onOpenAddProduct || onOpenFreeProduct}
           onOpenFavorites={onOpenFavoritesManagement}
           formatMoney={formatMoney}
           currency={currency}
@@ -259,7 +257,6 @@ export const WorkstationPOSLayout: React.FC<WorkstationPOSLayoutProps> = ({
         onOpenReturns={onOpenReturns}
         onOpenFreeProduct={onOpenFreeProduct}
         onToggleSearchCriteria={handleToggleSearchMode}
-        onOpenPackages={onOpenAddProduct || onOpenFreeProduct}
         onSuspendSale={onSuspendSale}
         onOpenSuspended={onOpenSuspended}
         onDecrementQty={handleDecrementQty}

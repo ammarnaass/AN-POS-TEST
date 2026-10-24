@@ -6,7 +6,6 @@ import {
   PenTool,
   Package,
   Layers,
-  Banknote,
 } from 'lucide-react';
 import type { CartItem, Product } from '@/types';
 import { getProductTierPrice } from '@/services';
@@ -20,9 +19,9 @@ interface ClassicPOSCartTableProps {
   onOpenKeypadForQty?: (item: CartItem) => void;
   productBarcodeMap: Map<string, string>;
   formatMoney: (amount?: number) => string;
-  totalItemsCount: number;
-  totalUnitsCount: number;
-  selectedCustomerName: string;
+  totalItemsCount?: number;
+  totalUnitsCount?: number;
+  selectedCustomerName?: string;
   subtotal?: number;
   discountAmount?: number;
   totalAmount?: number;
@@ -43,12 +42,12 @@ export const ClassicPOSCartTable: React.FC<ClassicPOSCartTableProps> = React.mem
   productBarcodeMap,
   formatMoney,
   enabledPriceTiers,
-  totalItemsCount,
-  totalUnitsCount,
+  totalItemsCount: _totalItemsCount,
+  totalUnitsCount: _totalUnitsCount,
   selectedCustomerName: _selectedCustomerName,
-  subtotal = 0,
-  discountAmount = 0,
-  totalAmount = 0,
+  subtotal: _subtotal = 0,
+  discountAmount: _discountAmount = 0,
+  totalAmount: _totalAmount = 0,
   products = [],
   allProducts = [],
   onEditPrice,
@@ -328,76 +327,6 @@ export const ClassicPOSCartTable: React.FC<ClassicPOSCartTableProps> = React.mem
           </tbody>
         </table>
       </div>
-
-      {/* BEGIN: ملخص الحسابات السفلي للفاتورة الحالية */}
-      <div className="bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 p-2.5 text-xs shrink-0 shadow-inner">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          {/* الجانب الأيمن (في RTL): إحصائيات القطع والمواد والخصم */}
-          <div className="flex flex-wrap items-center gap-4 sm:gap-6 text-slate-600 dark:text-slate-300">
-            <div className="flex items-center gap-2">
-              <span className="text-slate-500 dark:text-slate-400">عدد المواد:</span>
-              <strong
-                className="text-slate-900 dark:text-white font-mono text-base bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-0.5 rounded-md shadow-2xs"
-                id="summary-items-count"
-              >
-                {totalItemsCount}
-              </strong>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-slate-500 dark:text-slate-400">إجمالي القطع:</span>
-              <strong
-                className="text-slate-900 dark:text-white font-mono text-base bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-0.5 rounded-md shadow-2xs"
-                id="summary-qty-count"
-              >
-                {totalUnitsCount}
-              </strong>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-slate-500 dark:text-slate-400">مجموع السلع الخام:</span>
-              <strong className="text-slate-800 dark:text-slate-200 font-mono text-sm">
-                {formatMoney(subtotal)} {currency}
-              </strong>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-slate-500 dark:text-slate-400">التخفيض المطبق:</span>
-              <strong
-                className={`font-mono text-sm px-2 py-0.5 rounded border ${
-                  discountAmount > 0
-                    ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800'
-                    : 'text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
-                }`}
-              >
-                -{discountAmount > 0 ? formatMoney(discountAmount) : '0,00'} {currency}
-              </strong>
-            </div>
-          </div>
-
-          {/* الجانب الأيسر (في RTL): طريقة الدفع + بطاقة المبلغ الصافي المستحق */}
-          <div className="flex items-center gap-3 sm:gap-4 mr-auto">
-            <div className="flex items-center gap-2 text-slate-500 dark:text-slate-300 bg-white dark:bg-slate-800 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs">
-              <Banknote className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-              <span>
-                طريقة الدفع: <strong className="text-slate-800 dark:text-white">نقداً (Cash)</strong>
-              </span>
-            </div>
-
-            <div className="bg-gradient-to-r from-blue-700 to-blue-900 text-white rounded-xl px-5 py-2 flex items-center gap-4 shadow-md">
-              <div className="text-right">
-                <span className="text-blue-200 text-[11px] block">المبلغ الصافي المستحق</span>
-                <span className="text-[10px] text-blue-300 font-medium">(شامل الرسم على القيمة المضافة)</span>
-              </div>
-              <div className="font-mono font-black text-2xl text-white">
-                {formatMoney(totalAmount)}{' '}
-                <span className="text-sm font-sans font-bold text-blue-200">{currency}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      {/* END: ملخص الحسابات السفلي */}
     </div>
   );
 });

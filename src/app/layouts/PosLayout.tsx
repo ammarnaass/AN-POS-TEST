@@ -47,7 +47,7 @@ export default function PosLayout() {
         <ActivationLockModal onActivated={() => window.location.reload()} />
       )}
 
-      <div className={`flex h-screen w-screen flex-col overflow-hidden bg-background ${isExpiredAndLocked ? 'pointer-events-none select-none blur-[2px]' : ''}`} dir="rtl">
+      <div className={`flex h-full w-full flex-col overflow-hidden bg-background ${isExpiredAndLocked ? 'pointer-events-none select-none blur-[2px]' : ''}`} dir="rtl">
         {/* شريط التنبيه أثناء سريان التجربة في نقطة البيع */}
         {showTrialBanner && <TrialBanner />}
 

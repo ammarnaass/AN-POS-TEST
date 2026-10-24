@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import React from 'react';
 import { ClassicPOSTopBar } from '../classic/ClassicPOSTopBar';
+import { ClassicPOSCartTable } from '../classic/ClassicPOSCartTable';
 import { formatMoney } from '@/features/pos/utils/format';
 
 describe('ClassicPOSTopBar (تصميم 3 - شاشة السعر 85% وزر التأكيد 15%)', () => {
@@ -90,5 +91,36 @@ describe('ClassicPOSTopBar (تصميم 3 - شاشة السعر 85% وزر الت
     expect(tier2Btn).toBeInTheDocument();
     fireEvent.click(tier2Btn);
     expect(defaultProps.onSelectPriceTier).toHaveBeenCalledWith('2');
+  });
+});
+
+describe('ClassicPOSCartTable (جدول سلة المنتجات في تصميم 3)', () => {
+  it('يعرض جدول المنتجات بكامل الارتفاع بدون الشريط السفلي الزائد للمبلغ الصافي', () => {
+    const { container } = render(
+      <ClassicPOSCartTable
+        cart={[
+          {
+            productId: 'p1',
+            name: 'منتج تجريبي 1',
+            price: 500,
+            qty: 2,
+          },
+        ]}
+        selectedCartRowId="p1"
+        onSelectCartRow={vi.fn()}
+        onUpdateQty={vi.fn()}
+        onRemoveFromCart={vi.fn()}
+        productBarcodeMap={new Map()}
+        formatMoney={formatMoney}
+      />
+    );
+
+    // التحقق من ظهور المنتج في الجدول
+    expect(screen.getByText('منتج تجريبي 1')).toBeInTheDocument();
+
+    // التحقق من إخفاء الشريط السفلي الزائد للمبلغ الصافي المستحق
+    expect(screen.queryByText(/المبلغ الصافي المستحق/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/شامل الرسم على القيمة المضافة/)).not.toBeInTheDocument();
+    expect(container.querySelector('#summary-items-count')).not.toBeInTheDocument();
   });
 });

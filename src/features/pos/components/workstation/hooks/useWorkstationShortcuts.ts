@@ -10,7 +10,7 @@ interface UseWorkstationShortcutsParams {
   onF7QuickAdd: () => void;
   onF8ToggleSearchMode: () => void;
   onF9Customize?: () => void;
-  onF10Packages: () => void;
+  onF10Packages?: () => void;
   onF11Returns: () => void;
   onF12QuickPay: () => void;
   onDeleteSelected: () => void;
@@ -116,7 +116,7 @@ export function useWorkstationShortcuts({
         return;
       }
 
-      if (e.key === 'F10') {
+      if (e.key === 'F10' && onF10Packages) {
         e.preventDefault();
         onF10Packages();
         return;

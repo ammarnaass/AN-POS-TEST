@@ -66,6 +66,9 @@ export function secureFileAttributes(filePath: string): void {
 }
 
 function getTrialFilePath(): string {
+  if (process.env.ANPOS_DATA_DIR) {
+    return join(process.env.ANPOS_DATA_DIR, 'trial.json');
+  }
   let userDir: string;
   try {
     userDir = app.getPath('userData');
@@ -76,6 +79,9 @@ function getTrialFilePath(): string {
 }
 
 function getOsMarkerPath(): string {
+  if (process.env.ANPOS_DATA_DIR) {
+    return join(process.env.ANPOS_DATA_DIR, '.anpos_sys_marker');
+  }
   try {
     return join(os.homedir(), '.anpos_sys_marker');
   } catch {

@@ -328,6 +328,25 @@ const electronAPI = {
     restartScheduler: () =>
       ipcRenderer.invoke('cloud:restart-scheduler'),
   },
+
+  // ===== أزرار التحكم في نافذة التطبيق المدمجة (Custom Titlebar) =====
+  windowControls: {
+    minimize: () =>
+      ipcRenderer.invoke('window:minimize'),
+    maximize: () =>
+      ipcRenderer.invoke('window:maximize'),
+    close: () =>
+      ipcRenderer.invoke('window:close'),
+    isMaximized: () =>
+      ipcRenderer.invoke('window:is-maximized'),
+    onMaximizedChange: (callback: (isMax: boolean) => void) => {
+      const listener = (_event: any, isMax: boolean) => callback(isMax);
+      ipcRenderer.on('window:maximized-change', listener);
+      return () => {
+        ipcRenderer.removeListener('window:maximized-change', listener);
+      };
+    },
+  },
 };
 
 

@@ -5,7 +5,6 @@ import {
   RotateCcw,
   Boxes,
   SlidersHorizontal,
-  Package,
   Pause,
   History,
   Minus,
@@ -20,7 +19,6 @@ interface WorkstationBottomBarProps {
   onOpenReturns: () => void;
   onOpenFreeProduct: () => void;
   onToggleSearchCriteria: () => void;
-  onOpenPackages?: () => void;
   onSuspendSale: () => void;
   onOpenSuspended: () => void;
   onDecrementQty: () => void;
@@ -37,7 +35,6 @@ export const WorkstationBottomBar: React.FC<WorkstationBottomBarProps> = ({
   onOpenReturns,
   onOpenFreeProduct,
   onToggleSearchCriteria,
-  onOpenPackages,
   onSuspendSale,
   onOpenSuspended,
   onDecrementQty,
@@ -120,19 +117,6 @@ export const WorkstationBottomBar: React.FC<WorkstationBottomBarProps> = ({
             <div className="text-right leading-tight">
               <div>نوع البحث</div>
               <div className="text-[10px] text-slate-400 font-mono">F8</div>
-            </div>
-          </button>
-
-          {/* F10 Packages */}
-          <button
-            type="button"
-            onClick={onOpenPackages}
-            className="h-11 px-3 rounded-xl bg-teal-700 hover:bg-teal-600 active:scale-95 text-white border border-teal-500/30 flex items-center gap-2 font-bold text-xs transition cursor-pointer"
-          >
-            <Package className="w-4 h-4" />
-            <div className="text-right leading-tight">
-              <div>حزم</div>
-              <div className="text-[10px] text-teal-200 font-mono">F10</div>
             </div>
           </button>
 

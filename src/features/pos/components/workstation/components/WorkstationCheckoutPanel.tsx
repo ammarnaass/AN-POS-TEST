@@ -6,7 +6,6 @@ import {
   FileText,
   CheckSquare,
   PlusCircle,
-  Package,
   Star,
   RotateCcw,
   HandCoins,
@@ -29,7 +28,6 @@ interface WorkstationCheckoutPanelProps {
   selectedPaymentMethod: PaymentMethodType;
   setSelectedPaymentMethod: (method: PaymentMethodType) => void;
   onOpenQuickAdd?: () => void;
-  onOpenPackages?: () => void;
   onOpenFavorites?: () => void;
   formatMoney: (amount?: number | null) => string;
   currency?: string;
@@ -50,7 +48,6 @@ export const WorkstationCheckoutPanel: React.FC<WorkstationCheckoutPanelProps> =
   selectedPaymentMethod,
   setSelectedPaymentMethod,
   onOpenQuickAdd,
-  onOpenPackages,
   onOpenFavorites,
   formatMoney,
   currency = 'د.ج',
@@ -84,10 +81,18 @@ export const WorkstationCheckoutPanel: React.FC<WorkstationCheckoutPanelProps> =
             className="text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md py-1 px-2 text-slate-700 dark:text-slate-200 focus:ring-1 focus:ring-blue-500 cursor-pointer"
             id="sale-nature"
           >
-            <option value="1">تجزئة (Détail)</option>
-            <option value="2">نصف جملة</option>
-            <option value="3">جملة (Gros)</option>
-            <option value="4">سعر خاص (Special)</option>
+            <option value="1" className="bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200">
+              تجزئة (Détail)
+            </option>
+            <option value="2" className="bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200">
+              نصف جملة
+            </option>
+            <option value="3" className="bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200">
+              جملة (Gros)
+            </option>
+            <option value="4" className="bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200">
+              سعر خاص (Special)
+            </option>
           </select>
         </div>
 
@@ -119,7 +124,7 @@ export const WorkstationCheckoutPanel: React.FC<WorkstationCheckoutPanelProps> =
               id="discount-toggle"
               checked={discount > 0}
               onChange={onOpenDiscount}
-              className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500 border-slate-300 dark:border-slate-600 cursor-pointer"
+              className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500 border-slate-300 dark:border-slate-600 dark:bg-slate-800 cursor-pointer"
             />
             <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
               تخفيض تجاري
@@ -171,7 +176,7 @@ export const WorkstationCheckoutPanel: React.FC<WorkstationCheckoutPanelProps> =
               value={paidAmount || ''}
               onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)}
               placeholder="0.00"
-              className="w-full text-left font-mono font-black text-xl text-sky-950 dark:text-sky-100 bg-sky-50 dark:bg-slate-850 border-2 border-sky-300 dark:border-sky-800 rounded-lg py-1.5 px-3 focus:bg-white dark:focus:bg-slate-900 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 transition outline-hidden"
+              className="w-full text-left font-mono font-black text-xl text-sky-950 dark:text-sky-100 bg-sky-50 dark:bg-slate-900 border-2 border-sky-300 dark:border-sky-800 rounded-lg py-1.5 px-3 focus:bg-white dark:focus:bg-slate-800 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 transition outline-hidden"
             />
             <span className="absolute right-3 top-2.5 text-xs font-bold text-sky-700 dark:text-sky-400 pointer-events-none">
               {currency}
@@ -188,28 +193,28 @@ export const WorkstationCheckoutPanel: React.FC<WorkstationCheckoutPanelProps> =
             <button
               type="button"
               onClick={() => handleAddDenomination(500)}
-              className="bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/40 hover:border-blue-300 border border-slate-200 dark:border-slate-700 rounded-lg py-1 text-xs font-mono font-bold text-slate-700 dark:text-slate-200 hover:text-blue-700 transition active:scale-95 cursor-pointer"
+              className="bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/40 hover:border-blue-300 dark:hover:border-blue-700 border border-slate-200 dark:border-slate-700 rounded-lg py-1 text-xs font-mono font-bold text-slate-700 dark:text-slate-200 hover:text-blue-700 dark:hover:text-blue-300 transition active:scale-95 cursor-pointer"
             >
               +500
             </button>
             <button
               type="button"
               onClick={() => handleAddDenomination(1000)}
-              className="bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/40 hover:border-blue-300 border border-slate-200 dark:border-slate-700 rounded-lg py-1 text-xs font-mono font-bold text-slate-700 dark:text-slate-200 hover:text-blue-700 transition active:scale-95 cursor-pointer"
+              className="bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/40 hover:border-blue-300 dark:hover:border-blue-700 border border-slate-200 dark:border-slate-700 rounded-lg py-1 text-xs font-mono font-bold text-slate-700 dark:text-slate-200 hover:text-blue-700 dark:hover:text-blue-300 transition active:scale-95 cursor-pointer"
             >
               +1000
             </button>
             <button
               type="button"
               onClick={() => handleAddDenomination(2000)}
-              className="bg-blue-100 dark:bg-blue-900/60 border border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-200 rounded-lg py-1 text-xs font-mono font-bold hover:bg-blue-200 transition active:scale-95 cursor-pointer"
+              className="bg-blue-100 dark:bg-blue-950/70 border border-blue-300 dark:border-blue-800 text-blue-800 dark:text-blue-200 rounded-lg py-1 text-xs font-mono font-bold hover:bg-blue-200 dark:hover:bg-blue-900/80 transition active:scale-95 cursor-pointer"
             >
               +2000
             </button>
             <button
               type="button"
               onClick={() => handleAddDenomination(5000)}
-              className="bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/40 hover:border-blue-300 border border-slate-200 dark:border-slate-700 rounded-lg py-1 text-xs font-mono font-bold text-slate-700 dark:text-slate-200 hover:text-blue-700 transition active:scale-95 cursor-pointer"
+              className="bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/40 hover:border-blue-300 dark:hover:border-blue-700 border border-slate-200 dark:border-slate-700 rounded-lg py-1 text-xs font-mono font-bold text-slate-700 dark:text-slate-200 hover:text-blue-700 dark:hover:text-blue-300 transition active:scale-95 cursor-pointer"
             >
               +5000
             </button>
@@ -262,7 +267,7 @@ export const WorkstationCheckoutPanel: React.FC<WorkstationCheckoutPanelProps> =
             className={`flex items-center justify-center gap-2 font-bold py-2 px-2.5 rounded-lg text-xs transition cursor-pointer ${
               selectedPaymentMethod === 'cash'
                 ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-500 ring-offset-1 dark:ring-offset-slate-900'
-                : 'bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-750 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                : 'bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
             }`}
           >
             <Banknote className="w-4 h-4" />
@@ -276,7 +281,7 @@ export const WorkstationCheckoutPanel: React.FC<WorkstationCheckoutPanelProps> =
             className={`flex items-center justify-center gap-2 font-bold py-2 px-2.5 rounded-lg text-xs transition cursor-pointer ${
               selectedPaymentMethod === 'card'
                 ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-500 ring-offset-1 dark:ring-offset-slate-900'
-                : 'bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-750 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                : 'bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
             }`}
           >
             <CreditCard className="w-4 h-4" />
@@ -290,7 +295,7 @@ export const WorkstationCheckoutPanel: React.FC<WorkstationCheckoutPanelProps> =
             className={`flex items-center justify-center gap-2 font-bold py-2 px-2.5 rounded-lg text-xs transition cursor-pointer ${
               selectedPaymentMethod === 'debt'
                 ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-500 ring-offset-1 dark:ring-offset-slate-900'
-                : 'bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-750 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                : 'bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
             }`}
           >
             <FileText className="w-4 h-4" />
@@ -304,7 +309,7 @@ export const WorkstationCheckoutPanel: React.FC<WorkstationCheckoutPanelProps> =
             className={`flex items-center justify-center gap-2 font-bold py-2 px-2.5 rounded-lg text-xs transition cursor-pointer ${
               selectedPaymentMethod === 'cheque'
                 ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-500 ring-offset-1 dark:ring-offset-slate-900'
-                : 'bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-750 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                : 'bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
             }`}
           >
             <CheckSquare className="w-4 h-4" />
@@ -313,12 +318,12 @@ export const WorkstationCheckoutPanel: React.FC<WorkstationCheckoutPanelProps> =
         </div>
       </div>
 
-      {/* Quick Fast Action Tool Strip (F7, F10, Favorites) */}
+      {/* Quick Fast Action Tool Strip (F7, Favorites) */}
       <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xs border border-slate-200 dark:border-slate-800 p-2.5 flex items-center justify-between gap-2 mt-auto">
         <button
           type="button"
           onClick={onOpenQuickAdd}
-          className="flex-1 flex items-center justify-center gap-1 bg-amber-500 hover:bg-amber-600 text-white font-bold py-1.5 px-2 rounded-lg text-xs shadow-2xs transition active:scale-95 cursor-pointer"
+          className="flex-1 flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold py-1.5 px-3 rounded-lg text-xs shadow-2xs transition active:scale-95 cursor-pointer"
         >
           <PlusCircle className="w-3.5 h-3.5" />
           <span>إضافة سريعة</span>
@@ -327,18 +332,8 @@ export const WorkstationCheckoutPanel: React.FC<WorkstationCheckoutPanelProps> =
 
         <button
           type="button"
-          onClick={onOpenPackages}
-          className="flex-1 flex items-center justify-center gap-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-1.5 px-2 rounded-lg text-xs shadow-2xs transition active:scale-95 cursor-pointer"
-        >
-          <Package className="w-3.5 h-3.5" />
-          <span>حزمة</span>
-          <span className="bg-teal-800/40 text-[9px] px-1 rounded font-mono">F10</span>
-        </button>
-
-        <button
-          type="button"
           onClick={onOpenFavorites}
-          className="flex items-center justify-center gap-1 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 text-amber-700 dark:text-amber-400 font-bold py-1.5 px-2.5 rounded-lg text-xs border border-amber-200 dark:border-amber-800 transition cursor-pointer"
+          className="flex items-center justify-center gap-1 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-700 dark:text-amber-400 font-bold py-1.5 px-2.5 rounded-lg text-xs border border-amber-200 dark:border-amber-800 transition cursor-pointer"
           title="المفضلة السريعة"
         >
           <Star className="w-4 h-4 text-amber-500 fill-amber-500" />

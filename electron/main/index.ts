@@ -12,6 +12,7 @@ import { initTray, updateTrayMenu, destroyTray, getIsQuitting, setIsQuitting } f
 import { handleCliBackupCommands } from './backup/preUpgrade';
 import { setupAutoUpdater, registerUpdaterIpc, cleanupAutoUpdater } from './updater';
 import { handleServiceCommand, isLocalServiceRunning } from './service/serviceMode';
+import { setWindowControlsTarget } from './ipc/windowControls';
 
 // 0. معالجة أوامر الترقية والنسخ الاحتياطي عبر سطر الأوامر (CLI - A3)
 // يجب أن يُنفّذ قبل فحص قفل النسخة الواحدة لتمكين المثبت من طلب checkpoint و vacuum حتى أثناء تشغيل البرنامج
@@ -179,6 +180,7 @@ async function createWindow() {
     minWidth: 360,
     minHeight: 480,
     show: !startInBackground,
+    frame: false,
     autoHideMenuBar: true,
     title: 'AN POS',
     icon: iconPath,
@@ -198,6 +200,9 @@ async function createWindow() {
       // node:sqlite متاح في main process فقط
     },
   });
+
+  // ربط أحداث تصغير وتكبير النافذة مع معالجات شريط العنوان المدمج
+  setWindowControlsTarget(mainWindow);
 
   // إخفاء وحذف شريط القوائم (File, Edit, View, Window) نهائياً على جميع المنصات
   mainWindow.setMenu(null);

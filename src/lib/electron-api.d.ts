@@ -203,6 +203,13 @@ export interface ElectronAPI {
     syncNow: (opts?: { forceFull?: boolean }) => Promise<{ success: boolean; pushed: number; pulled: number; error?: string; state?: string }>;
     restartScheduler: () => Promise<{ success: boolean }>;
   };
+  windowControls?: {
+    minimize: () => Promise<boolean>;
+    maximize: () => Promise<boolean>;
+    close: () => Promise<boolean>;
+    isMaximized: () => Promise<boolean>;
+    onMaximizedChange: (callback: (isMax: boolean) => void) => () => void;
+  };
 }
 
 

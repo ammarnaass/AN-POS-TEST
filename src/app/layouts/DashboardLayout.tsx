@@ -89,7 +89,7 @@ export default function DashboardLayout() {
         <TrialNotification onClose={dismissNotification} />
       )}
 
-      <div className={`flex h-screen overflow-hidden bg-background ${isExpiredAndLocked && isOutsideSettings ? 'pointer-events-none select-none blur-[2px]' : ''}`} dir="rtl">
+      <div className={`flex h-full w-full overflow-hidden bg-background ${isExpiredAndLocked && isOutsideSettings ? 'pointer-events-none select-none blur-[2px]' : ''}`} dir="rtl">
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isExpiredAndLocked={isExpiredAndLocked} />
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           {/* شريط التجربة الدائم - لا يُحذف إلا بعد تفعيل الترخيص */}
