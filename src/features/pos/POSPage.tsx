@@ -415,14 +415,14 @@ export default function POSPage() {
       className={
         resolutionScaleMode === 'fixed_canvas' && pageState.targetDims
           ? 'w-screen h-screen overflow-hidden bg-slate-950 flex items-center justify-center select-none p-2'
-          : 'contents'
+          : 'w-full h-full min-h-0 overflow-hidden flex flex-col'
       }
     >
       <div
         className={`flex flex-col overflow-hidden bg-background dark:bg-slate-950 select-none font-cairo text-on-surface dark:text-slate-100 ${
           resolutionScaleMode === 'fixed_canvas' && pageState.targetDims
             ? 'shadow-2xl border border-slate-800 rounded-2xl shrink-0'
-            : ''
+            : 'h-full w-full min-h-0'
         }`}
         dir="rtl"
         style={pageState.canvasStyle}
@@ -508,7 +508,7 @@ export default function POSPage() {
           }}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
-          onSettleSale={(customPaid?: number) => {
+          onSettleSale={(customPaid?: number, customPaymentMethod?: string) => {
             if (!isSessionOpen) {
               modals.setShowSessionWarning(true);
               return;
@@ -519,6 +519,15 @@ export default function POSPage() {
                 ? customPaid
                 : pageState.saleSummary.total;
             setPaidAmount(finalPaid);
+            if (customPaymentMethod) {
+              const mappedMethod =
+                customPaymentMethod === 'debt'
+                  ? 'credit'
+                  : customPaymentMethod === 'cheque'
+                  ? 'transfer'
+                  : customPaymentMethod;
+              setPaymentMethod(mappedMethod);
+            }
             modals.setShowPaymentModal(true);
           }}
           onSuspendSale={paymentFlow.handleSuspend}

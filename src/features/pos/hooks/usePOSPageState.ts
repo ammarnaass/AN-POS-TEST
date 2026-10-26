@@ -274,8 +274,8 @@ export function usePOSPageState({
     if (!targetDims) {
       return {
         zoom: `${uiZoom}%`,
-        width: `${10000 / uiZoom}vw`,
-        height: `${10000 / uiZoom}vh`,
+        width: uiZoom === 100 ? '100%' : `${10000 / uiZoom}%`,
+        height: uiZoom === 100 ? '100%' : `${10000 / uiZoom}%`,
       };
     }
 
@@ -295,8 +295,8 @@ export function usePOSPageState({
 
     return {
       zoom: `${effectiveZoom}%`,
-      width: `${10000 / effectiveZoom}vw`,
-      height: `${10000 / effectiveZoom}vh`,
+      width: `${10000 / effectiveZoom}%`,
+      height: `${10000 / effectiveZoom}%`,
     };
   }, [targetDims, resolutionScaleMode, windowSize, uiZoom]);
 

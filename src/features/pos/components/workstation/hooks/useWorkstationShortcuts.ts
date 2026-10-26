@@ -4,7 +4,9 @@ interface UseWorkstationShortcutsParams {
   onF1Confirm: () => void;
   onF2ConfirmPrint: () => void;
   onF3HoldSale: () => void;
-  onF4FreeProduct: () => void;
+  onF4Calculator?: () => void;
+  onF4FreeProduct?: () => void;
+  onF4EditPrice?: () => void;
   onF5FocusSearch: () => void;
   onF6HeldSales: () => void;
   onF7QuickAdd: () => void;
@@ -14,6 +16,7 @@ interface UseWorkstationShortcutsParams {
   onF11Returns: () => void;
   onF12QuickPay: () => void;
   onDeleteSelected: () => void;
+  onClearCart?: () => void;
   onIncrementQty: () => void;
   onDecrementQty: () => void;
   onEscape: () => void;
@@ -25,7 +28,9 @@ export function useWorkstationShortcuts({
   onF1Confirm,
   onF2ConfirmPrint,
   onF3HoldSale,
+  onF4Calculator,
   onF4FreeProduct,
+  onF4EditPrice,
   onF5FocusSearch,
   onF6HeldSales,
   onF7QuickAdd,
@@ -35,6 +40,7 @@ export function useWorkstationShortcuts({
   onF11Returns,
   onF12QuickPay,
   onDeleteSelected,
+  onClearCart,
   onIncrementQty,
   onDecrementQty,
   onEscape,
@@ -82,7 +88,13 @@ export function useWorkstationShortcuts({
 
       if (e.key === 'F4') {
         e.preventDefault();
-        onF4FreeProduct();
+        if (onF4Calculator) {
+          onF4Calculator();
+        } else if (onF4EditPrice) {
+          onF4EditPrice();
+        } else if (onF4FreeProduct) {
+          onF4FreeProduct();
+        }
         return;
       }
 
@@ -134,6 +146,15 @@ export function useWorkstationShortcuts({
         return;
       }
 
+      // Shift+Delete: Clear entire cart
+      if (e.key === 'Delete' && e.shiftKey) {
+        if (!isInputFocused && onClearCart) {
+          e.preventDefault();
+          onClearCart();
+          return;
+        }
+      }
+
       // Suppr / Delete (delete selected row)
       if (e.key === 'Delete') {
         if (!isInputFocused) {
@@ -164,7 +185,9 @@ export function useWorkstationShortcuts({
     onF1Confirm,
     onF2ConfirmPrint,
     onF3HoldSale,
+    onF4Calculator,
     onF4FreeProduct,
+    onF4EditPrice,
     onF5FocusSearch,
     onF6HeldSales,
     onF7QuickAdd,
@@ -174,6 +197,7 @@ export function useWorkstationShortcuts({
     onF11Returns,
     onF12QuickPay,
     onDeleteSelected,
+    onClearCart,
     onIncrementQty,
     onDecrementQty,
     onEscape,

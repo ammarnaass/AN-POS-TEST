@@ -34,7 +34,7 @@ export interface POSLayoutDispatcherProps {
   onBarcodeSubmit: (e?: React.FormEvent) => void;
   searchQuery: string;
   setSearchQuery: (val: string) => void;
-  onSettleSale: (paidAmount?: number) => void;
+  onSettleSale: (paidAmount?: number, paymentMethod?: string) => void;
   onSuspendSale: () => void;
   onOpenSuspended: () => void;
   suspendedCount: number;

@@ -28,7 +28,7 @@ export interface WorkstationPOSLayoutProps {
   onBarcodeSubmit: (e?: React.FormEvent) => void;
   searchQuery: string;
   setSearchQuery: (val: string) => void;
-  onSettleSale: (paidAmount?: number) => void;
+  onSettleSale: (paidAmount?: number, paymentMethod?: string) => void;
   onSuspendSale: () => void;
   onOpenSuspended: () => void;
   suspendedCount: number;
@@ -61,6 +61,7 @@ export interface WorkstationPOSLayoutProps {
   onNavigateBack?: () => void;
   onOpenKeypad?: () => void;
   onOpenKeypadForQty?: (item: CartItem) => void;
+  onOpenCalculator?: (item?: CartItem, mode?: 'price' | 'qty') => void;
   onOpenAddProduct?: () => void;
   onOpenFavoritesManagement?: () => void;
   isAnyModalOpen?: boolean;
