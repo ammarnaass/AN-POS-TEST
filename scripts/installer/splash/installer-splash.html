@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AN POS - معالج التثبيت الذري</title>
+  <style>
+    :root {
+      --bg-base: #07090e;
+      --bg-surface: rgba(15, 23, 42, 0.75);
+      --bg-card: rgba(30, 41, 59, 0.6);
+      --border-glow: rgba(56, 189, 248, 0.25);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #0284c7;
+      --primary-light: #38bdf8;
+      --accent: #10b981;
+      --accent-glow: rgba(16, 185, 129, 0.3);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      user-select: none;
+    }
+
+    body {
+      background: var(--bg-base);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* خلفية متوهجة وتأثيرات بصرية ديناميكية */
+    .ambient-glow-1 {
+      position: absolute;
+      top: -150px;
+      right: -100px;
+      width: 450px;
+      height: 450px;
+      background: radial-gradient(circle, rgba(14, 165, 233, 0.25) 0%, transparent 70%);
+      filter: blur(80px);
+      z-index: 0;
+      animation: floatGlow 8s ease-in-out infinite alternate;
+    }
+
+    .ambient-glow-2 {
+      position: absolute;
+      bottom: -150px;
+      left: -100px;
+      width: 450px;
+      height: 450px;
+      background: radial-gradient(circle, rgba(16, 185, 129, 0.2) 0%, transparent 70%);
+      filter: blur(80px);
+      z-index: 0;
+      animation: floatGlow 10s ease-in-out infinite alternate-reverse;
+    }
+
+    @keyframes floatGlow {
+      0% { transform: translate(0, 0) scale(1); }
+      100% { transform: translate(30px, 40px) scale(1.15); }
+    }
+
+    /* بطاقة التثبيت الزجاجية الرئيسية */
+    .splash-container {
+      position: relative;
+      z-index: 10;
+      width: 520px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-glow);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      border-radius: 24px;
+      padding: 36px 32px;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7),
+                  0 0 40px -10px rgba(14, 165, 233, 0.15);
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* الترويسة والشعار */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .logo-container {
+      position: relative;
+      width: 64px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .logo-ring {
+      position: absolute;
+      inset: 0;
+      border-radius: 18px;
+      background: linear-gradient(135deg, var(--primary-light), var(--accent));
+      padding: 2px;
+      animation: pulseBorder 3s infinite alternate;
+    }
+
+    .logo-inner {
+      width: 100%;
+      height: 100%;
+      background: #0f172a;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      font-weight: 900;
+      color: var(--primary-light);
+      text-shadow: 0 0 15px rgba(56, 189, 248, 0.5);
+    }
+
+    @keyframes pulseBorder {
+      0% { filter: drop-shadow(0 0 4px rgba(56, 189, 248, 0.3)); }
+      100% { filter: drop-shadow(0 0 12px rgba(16, 185, 129, 0.6)); }
+    }
+
+    .brand-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .title-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-title {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text-main);
+      letter-spacing: -0.5px;
+    }
+
+    .badge-atomic {
+      background: rgba(14, 165, 233, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: var(--primary-light);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .brand-subtitle {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    /* شريط التقدم العصري */
+    .progress-section {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .progress-labels {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    .current-step-label {
+      color: var(--text-main);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+      animation: blink 1.2s infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    .progress-percentage {
+      color: var(--primary-light);
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .progress-track {
+      width: 100%;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 999px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--primary), var(--primary-light), var(--accent));
+      background-size: 200% 100%;
+      border-radius: 999px;
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.6);
+      transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      animation: gradientSlide 2s linear infinite;
+    }
+
+    @keyframes gradientSlide {
+      0% { background-position: 100% 0; }
+      100% { background-position: -100% 0; }
+    }
+
+    /* قائمة مراحل التثبيت الذري */
+    .steps-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      background: rgba(15, 23, 42, 0.5);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 14px 16px;
+    }
+
+    .step-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+      color: var(--text-muted);
+      padding: 6px 8px;
+      border-radius: 8px;
+      transition: all 0.3s ease;
+    }
+
+    .step-item.active {
+      color: var(--text-main);
+      background: rgba(56, 189, 248, 0.08);
+      font-weight: 600;
+    }
+
+    .step-item.completed {
+      color: var(--accent);
+    }
+
+    .step-icon {
+      font-size: 14px;
+      margin-left: 8px;
+    }
+
+    .step-time {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: monospace;
+    }
+
+    /* التذييل */
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 14px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(16, 185, 129, 0.1);
+      color: var(--accent);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="ambient-glow-1"></div>
+  <div class="ambient-glow-2"></div>
+
+  <main class="splash-container" id="splash-card">
+    <!-- الترويسة -->
+    <header class="header">
+      <div class="logo-container">
+        <div class="logo-ring"></div>
+        <div class="logo-inner">AN</div>
+      </div>
+      <div class="brand-meta">
+        <div class="title-row">
+          <h1 class="brand-title">نظام AN POS</h1>
+          <span class="badge-atomic">تثبيت ذري A/B</span>
+        </div>
+        <p class="brand-subtitle">نظام نقاط البيع وإدارة المبيعات فائق الاعتمادية</p>
+      </div>
+    </header>
+
+    <!-- شريط التقدم -->
+    <section class="progress-section" aria-label="شريط تقدم التثبيت">
+      <div class="progress-labels">
+        <span class="current-step-label" id="current-step-text">
+          <span class="status-dot"></span>
+          <span id="step-name">جاري تهيئة مساحة التخزين المعزولة...</span>
+        </span>
+        <span class="progress-percentage" id="progress-number">0%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-bar"></div>
+      </div>
+    </section>
+
+    <!-- خطوات التثبيت الفعلية -->
+    <section class="steps-list" aria-label="خطوات التثبيت">
+      <div class="step-item active" id="step-1">
+        <span><span class="step-icon">📁</span> تهيئة مسارات SystemVault و DataVault</span>
+        <span class="step-time" id="time-1">جاري...</span>
+      </div>
+      <div class="step-item" id="step-2">
+        <span><span class="step-icon">📦</span> استخراج ملفات الحزمة إلى الفتحة الظلية (Slot A)</span>
+        <span class="step-time" id="time-2">انتظار</span>
+      </div>
+      <div class="step-item" id="step-3">
+        <span><span class="step-icon">🛡️</span> فحص سلامة وتطابق البصمات (SHA-256 Checksum)</span>
+        <span class="step-time" id="time-3">انتظار</span>
+      </div>
+      <div class="step-item" id="step-4">
+        <span><span class="step-icon">⚡</span> التفعيل الذري (current Link) وإنشاء الاختصارات</span>
+        <span class="step-time" id="time-4">انتظار</span>
+      </div>
+    </section>
+
+    <!-- التذييل -->
+    <footer class="footer">
+      <span>نطاق المستخدم الواحد (بدون صلاحيات إدارية أو UAC)</span>
+      <div class="status-badge">
+        <span>●</span>
+        <span>البيانات مؤمنة 100%</span>
+      </div>
+    </footer>
+  </main>
+
+  <script>
+    // محاكي تقدم ديناميكي أو تفاعلي عند ربطه بمحرك التثبيت
+    const progressBar = document.getElementById('progress-bar');
+    const progressNumber = document.getElementById('progress-number');
+    const stepName = document.getElementById('step-name');
+
+    const steps = [
+      { id: 'step-1', name: 'تمت تهيئة مساحات التخزين SystemVault بنجاح', pct: 25, duration: 600 },
+      { id: 'step-2', name: 'تم استخراج وتجهيز ملفات الحزمة في الفتحة الخاملة', pct: 60, duration: 800 },
+      { id: 'step-3', name: 'تم تدقيق بصمات الأمان SHA-256 ومطابقة 83 ملفاً', pct: 85, duration: 500 },
+      { id: 'step-4', name: 'اكتمل التبديل الذري اللحظي وإنشاء الاختصارات', pct: 100, duration: 400 },
+    ];
+
+    let currentStepIdx = 0;
+
+    function runStep() {
+      if (currentStepIdx >= steps.length) {
+        stepName.textContent = 'اكتمل التثبيت بنجاح! جاري إطلاق التطبيق فوراً...';
+        return;
+      }
+
+      const step = steps[currentStepIdx];
+      const stepEl = document.getElementById(step.id);
+      const timeEl = document.getElementById('time-' + (currentStepIdx + 1));
+
+      progressBar.style.width = step.pct + '%';
+      progressNumber.textContent = step.pct + '%';
+      stepName.textContent = step.name;
+
+      if (timeEl) timeEl.textContent = 'مكتمل ✅';
+      if (stepEl) {
+        stepEl.classList.remove('active');
+        stepEl.classList.add('completed');
+      }
+
+      currentStepIdx++;
+      if (currentStepIdx < steps.length) {
+        const nextStepEl = document.getElementById(steps[currentStepIdx].id);
+        const nextTimeEl = document.getElementById('time-' + (currentStepIdx + 1));
+        if (nextStepEl) nextStepEl.classList.add('active');
+        if (nextTimeEl) nextTimeEl.textContent = 'جاري...';
+        setTimeout(runStep, steps[currentStepIdx].duration);
+      } else {
+        setTimeout(() => {
+          progressBar.style.width = '100%';
+          progressNumber.textContent = '100%';
+          stepName.textContent = '🚀 جاهز للعمل! يتم فتح البرنامج الآن...';
+        }, 500);
+      }
+    }
+
+    // بدء محاكاة التقدم التلقائي بعد نصف ثانية من التحميل
+    setTimeout(runStep, 400);
+  </script>
+</body>
+</html>

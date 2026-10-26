@@ -4,6 +4,7 @@
 
 import electronUpdater, { type UpdateInfo } from 'electron-updater';
 import { app, BrowserWindow, ipcMain } from 'electron';
+import { isRunningInSlotArchitecture, applyAtomicUpdate, prepareInactiveSlotPayload } from './installer';
 
 const { autoUpdater } = electronUpdater;
 
@@ -14,6 +15,7 @@ export interface UpdateState {
   releaseNotes?: string;
   progressPercent?: number;
   error?: string;
+  inSlotArchitecture?: boolean;
 }
 
 let currentState: UpdateState = { status: 'idle' };
@@ -49,7 +51,7 @@ export function setupAutoUpdater(): void {
 
   // الأحداث ودورة حياة التحديث
   autoUpdater.on('checking-for-update', () => {
-    currentState = { status: 'checking' };
+    currentState = { status: 'checking', inSlotArchitecture: isRunningInSlotArchitecture() };
     notifyRenderer('updater:status', currentState);
   });
 
@@ -60,13 +62,14 @@ export function setupAutoUpdater(): void {
       version: info.version,
       releaseDate: info.releaseDate,
       releaseNotes: typeof info.releaseNotes === 'string' ? info.releaseNotes : undefined,
+      inSlotArchitecture: isRunningInSlotArchitecture(),
     };
     notifyRenderer('updater:available', currentState);
     notifyRenderer('updater:status', currentState);
   });
 
   autoUpdater.on('update-not-available', (_info: UpdateInfo) => {
-    currentState = { status: 'not-available' };
+    currentState = { status: 'not-available', inSlotArchitecture: isRunningInSlotArchitecture() };
     notifyRenderer('updater:status', currentState);
   });
 
@@ -75,6 +78,7 @@ export function setupAutoUpdater(): void {
       ...currentState,
       status: 'downloading',
       progressPercent: Math.round(progressObj.percent),
+      inSlotArchitecture: isRunningInSlotArchitecture(),
     };
     notifyRenderer('updater:progress', currentState);
   });
@@ -85,6 +89,7 @@ export function setupAutoUpdater(): void {
       ...currentState,
       status: 'downloaded',
       version: info.version,
+      inSlotArchitecture: isRunningInSlotArchitecture(),
     };
     notifyRenderer('updater:downloaded', currentState);
     notifyRenderer('updater:status', currentState);
@@ -95,6 +100,7 @@ export function setupAutoUpdater(): void {
     currentState = {
       status: 'error',
       error: err?.message || String(err),
+      inSlotArchitecture: isRunningInSlotArchitecture(),
     };
     notifyRenderer('updater:error', currentState);
     notifyRenderer('updater:status', currentState);
@@ -140,14 +146,40 @@ export function registerUpdaterIpc(): void {
     }
   });
 
-  ipcMain.handle('updater:install', () => {
+  ipcMain.handle('updater:prepareSlot', async (_e, payloadPath: string, version: string) => {
+    return await prepareInactiveSlotPayload(payloadPath, version);
+  });
+
+  ipcMain.handle('updater:install', async () => {
     if (!app.isPackaged) return;
-    // إنهاء منسق للتطبيق وإطلاق مثبت التحديث
+
+    // 1. إذا كان التطبيق يعمل ضمن معمارية الفتحات المزدوجة، نطبق التبديل الذري الفوري
+    if (isRunningInSlotArchitecture() && currentState.version) {
+      console.log('[updater] 🚀 تطبيق التحديث بالتبديل الذري (Atomic A/B Slot Switch)...');
+      try {
+        const result = await applyAtomicUpdate(currentState.version);
+        if (result.success) {
+          console.log('[updater] ✅ اكتمل التبديل الذري بنجاح، جاري إعادة تشغيل البرنامج بالنسخة الجديدة...');
+          app.relaunch();
+          app.exit(0);
+          return;
+        } else {
+          console.warn('[updater] تنبيه: تعذر التبديل الذري، سيتم اللجوء للمثبت القياسي:', result.error);
+        }
+      } catch (err) {
+        console.warn('[updater] خطأ أثناء تطبيق التبديل الذري:', err);
+      }
+    }
+
+    // 2. البديل الكلاسيكي في حال لم يكن المثبت بنمط الفتحات
     autoUpdater.quitAndInstall(false, true);
   });
 
   ipcMain.handle('updater:getStatus', () => {
-    return currentState;
+    return {
+      ...currentState,
+      inSlotArchitecture: isRunningInSlotArchitecture(),
+    };
   });
 }
 

@@ -13,6 +13,7 @@ import { handleCliBackupCommands } from './backup/preUpgrade';
 import { setupAutoUpdater, registerUpdaterIpc, cleanupAutoUpdater } from './updater';
 import { handleServiceCommand, isLocalServiceRunning } from './service/serviceMode';
 import { setWindowControlsTarget } from './ipc/windowControls';
+import { bootWatchdog } from './installer';
 
 // 0. معالجة أوامر الترقية والنسخ الاحتياطي عبر سطر الأوامر (CLI - A3)
 // يجب أن يُنفّذ قبل فحص قفل النسخة الواحدة لتمكين المثبت من طلب checkpoint و vacuum حتى أثناء تشغيل البرنامج
@@ -204,6 +205,9 @@ async function createWindow() {
   // ربط أحداث تصغير وتكبير النافذة مع معالجات شريط العنوان المدمج
   setWindowControlsTarget(mainWindow);
 
+  // ربط النافذة مع مراقب الإقلاع الذاتي للتحقق من الجاهزية البصرية
+  bootWatchdog.notifyWindowReady(mainWindow);
+
   // إخفاء وحذف شريط القوائم (File, Edit, View, Window) نهائياً على جميع المنصات
   mainWindow.setMenu(null);
   mainWindow.removeMenu();
@@ -295,6 +299,19 @@ app.on('second-instance', () => {
 // إطلاق التطبيق بأمان مع اعتراض أي خطأ غير متوقع
 app.whenReady().then(async () => {
   try {
+    // تفعيل مراقب الإقلاع الذاتي (Canary Watchdog) لحماية النظام وإجراء التراجع الفوري إن تعذر الإقلاع
+    bootWatchdog.start({
+      timeoutMs: 5000,
+      testDatabaseConnection: () => {
+        try {
+          const res = queryOne('SELECT 1 as ping');
+          return Boolean(res && (res as any).ping === 1);
+        } catch {
+          return false;
+        }
+      },
+    });
+
     await createWindow();
   } catch (err: any) {
     console.error('[main] خطأ فادح أثناء إطلاق نافذة التطبيق:', err);
