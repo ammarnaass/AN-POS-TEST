@@ -7,6 +7,12 @@ import {
   HandCoins,
   AlertTriangle,
   CheckCircle,
+  Banknote,
+  CreditCard,
+  Clock,
+  FileText,
+  Wallet,
+  Check,
 } from 'lucide-react';
 
 export type PaymentMethodType = 'cash' | 'card' | 'debt' | 'cheque';
@@ -48,8 +54,8 @@ export const WorkstationCheckoutPanel: React.FC<WorkstationCheckoutPanelProps> =
   paidAmount,
   setPaidAmount,
   paidInputRef,
-  selectedPaymentMethod: _selectedPaymentMethod,
-  setSelectedPaymentMethod: _setSelectedPaymentMethod,
+  selectedPaymentMethod = 'cash',
+  setSelectedPaymentMethod,
   onOpenQuickAdd,
   onOpenFavorites,
   formatMoney,
@@ -81,6 +87,15 @@ export const WorkstationCheckoutPanel: React.FC<WorkstationCheckoutPanelProps> =
   const isExact = total > 0 && Math.abs(paidAmount - total) < 0.001;
   const changeDue = isPaidSufficient ? Math.max(0, paidAmount - total) : 0;
   const deficit = !isPaidSufficient ? Math.max(0, total - paidAmount) : 0;
+
+  // Handle payment method change
+  const handleSelectPaymentMethod = (method: PaymentMethodType) => {
+    setSelectedPaymentMethod?.(method);
+    if (method === 'card' && (paidAmount === 0 || paidAmount < total)) {
+      setPaidAmount(total);
+    }
+    paidInputRef.current?.focus();
+  };
 
   // Quick denomination click
   const handleAddDenomination = (val: number) => {
@@ -188,6 +203,99 @@ export const WorkstationCheckoutPanel: React.FC<WorkstationCheckoutPanelProps> =
           </div>
         </div>
 
+        {/* Payment Methods Selector (طرق الدفع المتعددة) */}
+        <div className="space-y-1.5" data-testid="workstation-payment-methods">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+              <Wallet className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              طريقة الدفع:
+            </span>
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+              {selectedPaymentMethod === 'cash'
+                ? 'نقدي'
+                : selectedPaymentMethod === 'card'
+                ? 'بطاقة إلكترونية'
+                : selectedPaymentMethod === 'debt'
+                ? 'آجل (ذمة)'
+                : 'شيك مصرفي'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-4 gap-1.5">
+            {/* 1. نقداً */}
+            <button
+              type="button"
+              id="workstation-pay-cash"
+              onClick={() => handleSelectPaymentMethod('cash')}
+              className={`flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-lg border transition-all cursor-pointer active:scale-95 ${
+                selectedPaymentMethod === 'cash'
+                  ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500 text-emerald-800 dark:text-emerald-200 font-bold shadow-xs ring-1 ring-emerald-500/30'
+                  : 'bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-750'
+              }`}
+              title="دفع نقدي فوري"
+            >
+              <Banknote className={`w-4 h-4 ${selectedPaymentMethod === 'cash' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`} />
+              <span className="text-[11px] leading-tight">نقداً</span>
+            </button>
+
+            {/* 2. بطاقة */}
+            <button
+              type="button"
+              id="workstation-pay-card"
+              onClick={() => handleSelectPaymentMethod('card')}
+              className={`flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-lg border transition-all cursor-pointer active:scale-95 ${
+                selectedPaymentMethod === 'card'
+                  ? 'bg-blue-50 dark:bg-blue-950/50 border-blue-500 text-blue-800 dark:text-blue-200 font-bold shadow-xs ring-1 ring-blue-500/30'
+                  : 'bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-750'
+              }`}
+              title="بطاقة دفع إلكترونية / TPE"
+            >
+              <CreditCard className={`w-4 h-4 ${selectedPaymentMethod === 'card' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`} />
+              <span className="text-[11px] leading-tight">بطاقة</span>
+            </button>
+
+            {/* 3. آجل */}
+            <button
+              type="button"
+              id="workstation-pay-debt"
+              onClick={() => handleSelectPaymentMethod('debt')}
+              className={`flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-lg border transition-all cursor-pointer active:scale-95 ${
+                selectedPaymentMethod === 'debt'
+                  ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-500 text-amber-800 dark:text-amber-200 font-bold shadow-xs ring-1 ring-amber-500/30'
+                  : 'bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-750'
+              }`}
+              title="قيد المبلغ كدين على حساب الزبون"
+            >
+              <Clock className={`w-4 h-4 ${selectedPaymentMethod === 'debt' ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'}`} />
+              <span className="text-[11px] leading-tight">آجل</span>
+            </button>
+
+            {/* 4. شيك */}
+            <button
+              type="button"
+              id="workstation-pay-cheque"
+              onClick={() => handleSelectPaymentMethod('cheque')}
+              className={`flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-lg border transition-all cursor-pointer active:scale-95 ${
+                selectedPaymentMethod === 'cheque'
+                  ? 'bg-purple-50 dark:bg-purple-950/50 border-purple-500 text-purple-800 dark:text-purple-200 font-bold shadow-xs ring-1 ring-purple-500/30'
+                  : 'bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-750'
+              }`}
+              title="دفع بموجب شيك بنكي"
+            >
+              <FileText className={`w-4 h-4 ${selectedPaymentMethod === 'cheque' ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400'}`} />
+              <span className="text-[11px] leading-tight">شيك</span>
+            </button>
+          </div>
+
+          {/* تنبيه ذكي مخصص للدفع بالآجل */}
+          {selectedPaymentMethod === 'debt' && (
+            <div className="bg-amber-500/10 dark:bg-amber-950/30 border border-amber-500/20 text-amber-900 dark:text-amber-300 text-[11px] font-medium p-2 rounded-lg flex items-center gap-2">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+              <span>المبلغ غير المسدد سيتم تقييده تلقائياً في حساب ذمة الزبون المحدد.</span>
+            </div>
+          )}
+        </div>
+
         {/* Paid Input with Highlight */}
         <div className="space-y-1">
           <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
@@ -195,7 +303,18 @@ export const WorkstationCheckoutPanel: React.FC<WorkstationCheckoutPanelProps> =
               <HandCoins className="w-4 h-4 text-emerald-600" />
               المبلغ المدفوع من الزبون:
             </span>
-            <span className="text-[10px] text-slate-400 font-mono">F12 الدفع السريع</span>
+            <button
+              type="button"
+              onClick={() => {
+                setPaidAmount(total);
+                paidInputRef.current?.focus();
+              }}
+              className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline font-mono cursor-pointer flex items-center gap-1"
+              title="مطابقة المبلغ المدفوع مع إجمالي الفاتورة"
+            >
+              <Check className="w-3 h-3" />
+              <span>مدفوع بالضبط (F12)</span>
+            </button>
           </label>
           <div className="relative">
             <input
@@ -273,7 +392,11 @@ export const WorkstationCheckoutPanel: React.FC<WorkstationCheckoutPanelProps> =
               )}
             </span>
             <span>
-              {!isPaidSufficient ? (
+              {selectedPaymentMethod === 'debt' && !isPaidSufficient ? (
+                <span className="text-[10px] text-amber-700 dark:text-amber-300 font-bold bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+                  ذمة آجلة
+                </span>
+              ) : !isPaidSufficient ? (
                 <span className="text-[10px] text-amber-700 dark:text-amber-300 font-bold bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">
                   عجز نقدي
                 </span>
@@ -308,7 +431,11 @@ export const WorkstationCheckoutPanel: React.FC<WorkstationCheckoutPanelProps> =
                   : 'text-emerald-800 dark:text-emerald-300'
               }`}
             >
-              {!isPaidSufficient ? 'المتبقي غير المسدد' : 'الباقي للزبون'}
+              {!isPaidSufficient
+                ? selectedPaymentMethod === 'debt'
+                  ? 'المبلغ الآجل المقيد'
+                  : 'المتبقي غير المسدد'
+                : 'الباقي للزبون'}
             </span>
             <span dir="ltr" className="font-mono">
               {formatMoney(!isPaidSufficient ? deficit : changeDue)}{' '}
