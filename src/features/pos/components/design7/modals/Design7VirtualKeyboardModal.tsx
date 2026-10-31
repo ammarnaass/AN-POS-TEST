@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Keyboard, X, Delete, CornerDownLeft, Globe, Space } from 'lucide-react';
 
 interface Design7VirtualKeyboardModalProps {
@@ -95,7 +96,7 @@ export const Design7VirtualKeyboardModal: React.FC<Design7VirtualKeyboardModalPr
       ? ENGLISH_ROWS.map((row) => row.map((char) => (isCaps ? char.toUpperCase() : char)))
       : SYMBOLS_ROWS;
 
-  return (
+  const modalContent = (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-xs p-3 select-none">
       <div
         className="w-full max-w-2xl bg-[#e6ecf2] border-2 border-[#54606e] rounded-lg shadow-2xl flex flex-col overflow-hidden text-black font-sans"
@@ -267,6 +268,8 @@ export const Design7VirtualKeyboardModal: React.FC<Design7VirtualKeyboardModalPr
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };
 
 export default Design7VirtualKeyboardModal;

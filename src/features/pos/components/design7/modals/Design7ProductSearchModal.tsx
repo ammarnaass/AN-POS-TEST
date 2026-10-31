@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, X, Package, Plus, Check } from 'lucide-react';
 import type { Product, Category } from '@/types';
 import { getProductTierPrice } from '@/services';
@@ -123,7 +124,7 @@ export const Design7ProductSearchModal: React.FC<Design7ProductSearchModalProps>
 
   if (!isOpen) return null;
 
-  return (
+  const modalContent = (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 select-none">
       <div
         className="w-full max-w-4xl max-h-[85vh] bg-[#e6ecf2] border-2 border-[#54606e] rounded-lg shadow-2xl flex flex-col overflow-hidden text-black font-sans"
@@ -312,4 +313,6 @@ export const Design7ProductSearchModal: React.FC<Design7ProductSearchModalProps>
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };

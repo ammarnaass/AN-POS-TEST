@@ -566,6 +566,30 @@ export const CustomizeLayoutModal: React.FC<CustomizeLayoutModalProps> = ({
                     <span>إعادة ضبط (100%)</span>
                   </button>
                 </div>
+
+                {/* أزرار النسب السريعة للتكبير */}
+                <div className="flex items-center gap-1.5 mt-2">
+                  <span className="text-[10px] text-on-surface-variant dark:text-slate-400">
+                    نسب سريعة:
+                  </span>
+                  {[80, 90, 100, 110, 120].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => {
+                        setUiZoom(preset);
+                        localStorage.setItem('pos_ui_zoom', String(preset));
+                      }}
+                      className={`px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold transition-all cursor-pointer ${
+                        uiZoom === preset
+                          ? 'bg-primary text-white shadow-2xs'
+                          : 'bg-surface-container-high dark:bg-slate-700 text-on-surface-variant dark:text-slate-300 hover:text-primary'
+                      }`}
+                    >
+                      {preset}%
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           )}

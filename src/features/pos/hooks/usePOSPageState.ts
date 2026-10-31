@@ -274,15 +274,15 @@ export function usePOSPageState({
     if (!targetDims) {
       return {
         zoom: `${uiZoom}%`,
-        width: uiZoom === 100 ? '100%' : `${10000 / uiZoom}%`,
-        height: uiZoom === 100 ? '100%' : `${10000 / uiZoom}%`,
+        width: '100%',
+        height: '100%',
       };
     }
 
-    if (resolutionScaleMode === 'fixed_canvas') {
-      const scale =
-        Math.min(windowSize.width / targetDims.width, windowSize.height / targetDims.height) * (uiZoom / 100);
+    const scale =
+      Math.min(windowSize.width / targetDims.width, windowSize.height / targetDims.height) * (uiZoom / 100);
 
+    if (resolutionScaleMode === 'fixed_canvas') {
       return {
         width: `${targetDims.width}px`,
         height: `${targetDims.height}px`,
@@ -290,13 +290,12 @@ export function usePOSPageState({
       };
     }
 
-    const scaleFactor = windowSize.width / targetDims.width;
-    const effectiveZoom = scaleFactor * (uiZoom / 100) * 100;
+    const effectiveZoom = scale * 100;
 
     return {
       zoom: `${effectiveZoom}%`,
-      width: `${10000 / effectiveZoom}%`,
-      height: `${10000 / effectiveZoom}%`,
+      width: '100%',
+      height: '100%',
     };
   }, [targetDims, resolutionScaleMode, windowSize, uiZoom]);
 

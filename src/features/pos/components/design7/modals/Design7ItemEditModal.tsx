@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Check, DollarSign, Hash, Calculator, Plus, Delete, Tag, Percent } from 'lucide-react';
 import type { CartItem } from '@/types';
 
@@ -236,7 +237,7 @@ export const Design7ItemEditModal: React.FC<Design7ItemEditModalProps> = ({
 
   const currentMeta = targetTitles[activeMode] || targetTitles.qty;
 
-  return (
+  const modalContent = (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-xs p-3 select-none">
       <div
         className="w-full max-w-lg bg-[#e6ecf2] border-2 border-[#54606e] rounded-lg shadow-2xl flex flex-col overflow-hidden text-slate-800"
@@ -564,6 +565,8 @@ export const Design7ItemEditModal: React.FC<Design7ItemEditModalProps> = ({
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };
 
 export default Design7ItemEditModal;

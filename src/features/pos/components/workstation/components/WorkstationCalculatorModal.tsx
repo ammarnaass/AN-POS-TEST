@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Calculator,
   X,
@@ -242,7 +243,7 @@ export const WorkstationCalculatorModal: React.FC<WorkstationCalculatorModalProp
   const currentMeta = targetTitles[target] || targetTitles.price;
   const targetItemName = item?.name;
 
-  return (
+  const modalContent = (
     <div
       className="fixed inset-0 bg-slate-900/40 dark:bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-3 animate-in fade-in duration-150 select-none"
       onClick={onClose}
@@ -503,6 +504,8 @@ export const WorkstationCalculatorModal: React.FC<WorkstationCalculatorModalProp
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };
 
 export default WorkstationCalculatorModal;

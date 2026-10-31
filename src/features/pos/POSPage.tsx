@@ -414,7 +414,7 @@ export default function POSPage() {
     <div
       className={
         resolutionScaleMode === 'fixed_canvas' && pageState.targetDims
-          ? 'w-screen h-screen overflow-hidden bg-slate-950 flex items-center justify-center select-none p-2'
+          ? 'w-full h-full min-h-0 overflow-hidden bg-slate-950 flex items-center justify-center select-none p-2'
           : 'w-full h-full min-h-0 overflow-hidden flex flex-col'
       }
     >
@@ -624,103 +624,104 @@ export default function POSPage() {
           onCloseAllModals={handleCloseAllModals}
         />
 
-        {/* CONSOLIDATED POS MODALS CONTAINER */}
-        <POSModalsContainer
-          modals={modals}
-          cart={cart}
-          saleSummary={pageState.saleSummary}
-          paymentMethod={paymentMethod}
-          setPaymentMethod={setPaymentMethod}
-          paidAmount={paidAmount}
-          setPaidAmount={setPaidAmount}
-          selectedCustomer={selectedCustomer}
-          setSelectedCustomer={setSelectedCustomer}
-          customers={customers}
-          products={products}
-          suppliers={suppliers}
-          availableCategories={availableCategories}
-          suspendedOrders={suspendedOrders}
-          sales={sales}
-          allSessions={allSessions}
-          discount={discount}
-          setDiscount={setDiscount}
-          discountType={discountType}
-          setDiscountType={setDiscountType}
-          posLayout={posLayout}
-          setPosLayout={setPosLayout}
-          viewMode={viewMode}
-          setViewMode={setViewMode}
-          showProductImages={showProductImages}
-          setShowProductImages={setShowProductImages}
-          uiZoom={uiZoom}
-          setUiZoom={setUiZoom}
-          screenResolution={screenResolution}
-          setScreenResolution={setScreenResolution}
-          customResolution={customResolution}
-          setCustomResolution={setCustomResolution}
-          resolutionScaleMode={resolutionScaleMode}
-          setResolutionScaleMode={setResolutionScaleMode}
-          posSettings={posSettings}
-          settings={settings}
-          currentUser={currentUser}
-          filterCategory={filterCategory}
-          setFilterCategory={setFilterCategory}
-          filterSupplier={filterSupplier}
-          setFilterSupplier={setFilterSupplier}
-          filterStockStatus={filterStockStatus}
-          setFilterStockStatus={setFilterStockStatus}
-          returnMode={returnMode}
-          returnContext={returnContext}
-          setReturnContext={setReturnContext}
-          onConfirmPayment={async (paid, custId, method, refundMethod, returnReason) => {
-            const finalMethod = method || paymentMethod;
-            const finalCustomer = custId !== undefined ? custId : selectedCustomer;
-            const isCredit = finalMethod === 'credit';
-            const finalPaid =
-              typeof paid === 'number' && !isNaN(paid)
-                ? (isCredit && paid >= pageState.saleSummary.total ? 0 : paid)
-                : (isCredit ? 0 : pageState.saleSummary.total);
-
-            setPaidAmount(finalPaid);
-            if (custId !== undefined) setSelectedCustomer(finalCustomer);
-            if (method) setPaymentMethod(finalMethod);
-
-            const effectiveRefundMethod =
-              refundMethod ||
-              (returnMode
-                ? (finalMethod === 'credit' ? 'customer_credit' : 'cash')
-                : undefined);
-
-            await paymentFlow.handleExecutePayment({
-              paidAmount: finalPaid,
-              selectedCustomer: finalCustomer,
-              paymentMethod: finalMethod,
-              refundMethod: effectiveRefundMethod,
-              originalSaleId: returnContext?.originalSaleId,
-              originalSaleNumber: returnContext?.originalSaleNumber,
-              returnReason: returnReason || returnContext?.reason,
-            });
-            if (setReturnContext) {
-              setReturnContext(null);
-            }
-          }}
-          isSalePending={paymentFlow.isSalePending}
-          onAddProduct={handleAddProduct}
-          onResumeOrder={paymentFlow.handleResumeOrder}
-          onDeleteSuspendedOrder={paymentFlow.handleDeleteSuspendedOrder}
-          onSelectReturnSale={returnFlow.handleSelectReturnSale}
-          onConfirmPartialReturn={returnFlow.handleConfirmPartialReturn}
-          onLoadReturnToCart={returnFlow.handleLoadReturnToCart}
-          onKeypadPress={paymentFlow.handleKeypadPress}
-          selectedItemId={selectedItemId}
-          setSelectedItemId={setSelectedItemId}
-          onUpdateQty={(productId, qty) => {
-            const it = cart.find((c) => c.productId === productId);
-            if (it) handleUpdateQty(it, qty);
-          }}
-          formatMoney={formatMoney}
-        />
       </div>
+
+      {/* CONSOLIDATED POS MODALS CONTAINER — خارج حاوية الـ zoom لتفادي تأثير canvasStyle على تموضع الـ modals */}
+      <POSModalsContainer
+        modals={modals}
+        cart={cart}
+        saleSummary={pageState.saleSummary}
+        paymentMethod={paymentMethod}
+        setPaymentMethod={setPaymentMethod}
+        paidAmount={paidAmount}
+        setPaidAmount={setPaidAmount}
+        selectedCustomer={selectedCustomer}
+        setSelectedCustomer={setSelectedCustomer}
+        customers={customers}
+        products={products}
+        suppliers={suppliers}
+        availableCategories={availableCategories}
+        suspendedOrders={suspendedOrders}
+        sales={sales}
+        allSessions={allSessions}
+        discount={discount}
+        setDiscount={setDiscount}
+        discountType={discountType}
+        setDiscountType={setDiscountType}
+        posLayout={posLayout}
+        setPosLayout={setPosLayout}
+        viewMode={viewMode}
+        setViewMode={setViewMode}
+        showProductImages={showProductImages}
+        setShowProductImages={setShowProductImages}
+        uiZoom={uiZoom}
+        setUiZoom={setUiZoom}
+        screenResolution={screenResolution}
+        setScreenResolution={setScreenResolution}
+        customResolution={customResolution}
+        setCustomResolution={setCustomResolution}
+        resolutionScaleMode={resolutionScaleMode}
+        setResolutionScaleMode={setResolutionScaleMode}
+        posSettings={posSettings}
+        settings={settings}
+        currentUser={currentUser}
+        filterCategory={filterCategory}
+        setFilterCategory={setFilterCategory}
+        filterSupplier={filterSupplier}
+        setFilterSupplier={setFilterSupplier}
+        filterStockStatus={filterStockStatus}
+        setFilterStockStatus={setFilterStockStatus}
+        returnMode={returnMode}
+        returnContext={returnContext}
+        setReturnContext={setReturnContext}
+        onConfirmPayment={async (paid, custId, method, refundMethod, returnReason) => {
+          const finalMethod = method || paymentMethod;
+          const finalCustomer = custId !== undefined ? custId : selectedCustomer;
+          const isCredit = finalMethod === 'credit';
+          const finalPaid =
+            typeof paid === 'number' && !isNaN(paid)
+              ? (isCredit && paid >= pageState.saleSummary.total ? 0 : paid)
+              : (isCredit ? 0 : pageState.saleSummary.total);
+
+          setPaidAmount(finalPaid);
+          if (custId !== undefined) setSelectedCustomer(finalCustomer);
+          if (method) setPaymentMethod(finalMethod);
+
+          const effectiveRefundMethod =
+            refundMethod ||
+            (returnMode
+              ? (finalMethod === 'credit' ? 'customer_credit' : 'cash')
+              : undefined);
+
+          await paymentFlow.handleExecutePayment({
+            paidAmount: finalPaid,
+            selectedCustomer: finalCustomer,
+            paymentMethod: finalMethod,
+            refundMethod: effectiveRefundMethod,
+            originalSaleId: returnContext?.originalSaleId,
+            originalSaleNumber: returnContext?.originalSaleNumber,
+            returnReason: returnReason || returnContext?.reason,
+          });
+          if (setReturnContext) {
+            setReturnContext(null);
+          }
+        }}
+        isSalePending={paymentFlow.isSalePending}
+        onAddProduct={handleAddProduct}
+        onResumeOrder={paymentFlow.handleResumeOrder}
+        onDeleteSuspendedOrder={paymentFlow.handleDeleteSuspendedOrder}
+        onSelectReturnSale={returnFlow.handleSelectReturnSale}
+        onConfirmPartialReturn={returnFlow.handleConfirmPartialReturn}
+        onLoadReturnToCart={returnFlow.handleLoadReturnToCart}
+        onKeypadPress={paymentFlow.handleKeypadPress}
+        selectedItemId={selectedItemId}
+        setSelectedItemId={setSelectedItemId}
+        onUpdateQty={(productId, qty) => {
+          const it = cart.find((c) => c.productId === productId);
+          if (it) handleUpdateQty(it, qty);
+        }}
+        formatMoney={formatMoney}
+      />
     </div>
   );
 }
